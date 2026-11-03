@@ -30,7 +30,16 @@ Status: requirements, not implemented features. Initial market: US general denti
 | Specialty breadth | Ortho installments/progress, advanced surgery/endodontics, specialty templates, richer inventory/timekeeping | Separate clinical and workflow validation per specialty; no universal-parity claim | P2 |
 | International | Country packs for terminology, tax, payers, prescribing, language and residency | US assumptions are not hardcoded into identity, currency or tooth numbering | P2 |
 
-## A complete pilot day
+## Follow-up workflow requirements from authenticated observation
+
+These are original proposed acceptance requirements prompted by visible Tab32 controls, not claims about Tab32's backend implementation.
+
+- Scheduling: appointment types can associate procedure codes; operatories and providers can be grouped. Shared/public schedule displays must suppress patient identity according to an explicit privacy policy. Survey triggers at checkout must honor consent and deduplicate repeated transitions.
+- Claims operations: distinguish unassigned work, assigned claims, assigned appeals, historical records and assignment summaries. Filter by billing entity, rendering provider, insurer/plan, service date, reviewer and review group. Reassignment retains history; staff departure must not orphan work. Appeal and claim states are separate from appointment and procedure completion.
+- Financial reporting: explicitly authorize ledger, receivables, payment distributions and undistributed funds. Report access is not implied by general patient access. Reconcile distribution totals with journal and payment-provider totals.
+- Audit: search by actor, time range, action and resource class, including appointments, blocks, patient/insurance records, notes, treatment details, images, statements, payment plans and configuration. Audit access itself is logged; searching does not alter or restore source records. Test tamper resistance independently of the presence of an audit UI.
+
+## A complete pilot day walkthrough
 
 1. Configure synthetic practice, users, working hours and resources.
 2. Import synthetic patients and reconcile duplicates, guardians, balances and attachments.

@@ -38,6 +38,20 @@ Supabase changelog reviewed 2026-11-03. Near-term notes include TLS cipher depre
 
 ## Unresolved discovery before construction
 
+### Authenticated follow-up, 2026-11-03
+
+Read-only browser inspection additionally verified Clinic Setup navigation for Preferences, Colors, Access Control, User Account, Care Team, Scheduler, Lab, Payment Gateway, Custom Fields, Accounting and Statement configuration. Clinic settings expose separate claim and patient billing information, practice timezone and location/operatory/staff structure. No settings were saved.
+
+The Access Control screen exposes resource categories and report-specific access entries, including ledger, receivables, payment distribution, undistributed payments and open claims. This establishes visible configuration surfaces only; backend permission enforcement and role isolation were not tested. Proposed acceptance requirement: test each sensitive operation independently across UI, API, MCP and exports, including undistributed funds and report access.
+
+Direct authenticated REA/Craft capture remains blocked: the available in-app browser capabilities expose page assets and WebMCP, not a CDP attachment endpoint. A bounded check of running Chrome, Edge, Electron and Codex process command lines found no advertised remote-debugging port or pipe. This does not establish absence of all possible endpoints. No credentials or browser profiles were copied. Finishing tool-based authenticated analysis requires a supported debugging-enabled browser session with a user login. The existing public-page tool evidence must not be represented as authenticated PMS evidence.
+
+Further live inspection verified scheduler configuration sections for appointment types with name/code columns, operatory/provider groups, calendar and public-view modes, time-slot display templates, and checkout-triggered survey configuration. Their presence is observed; editing, notification dispatch and persistence are untested. These imply proposed requirements for procedure-linked appointment types, resource grouping, privacy-safe schedule displays and separately controlled communication triggers. Accounting navigation was attempted but the scheduler screen remained visible, so accounting configuration is not verified.
+
+Additional read-only observation verified Claims navigation entries for management, assigned claims, assigned appeals, history and assignment summary. Management filters include date type/service date, billing entity, treating provider, insurer/plan, service-code/patient search, review group and reviewer. No claim was opened, submitted, assigned, edited or exported. Activity Audit provides action type, resource class, date range and actor filters plus a historical-activity tab. Resource choices include appointments, time blocks, clinic/configuration, coverage/insurance records, forms, notes, patients, statements, payment plans, treatment details, user accounts and X-rays. No audit search or restoration was executed. More-navigation also exposes Imaging Studio, Time Keeper, referral sources, specialty referrals, Google Drive and Patient Announcement; these are menu-level observations only.
+
+Attempting to launch an isolated Edge analysis profile with a loopback debugging port was rejected by automatic execution policy before launch. No alternative launch mechanism was attempted. Direct authenticated tool attachment therefore remains unresolved; browser-observed workflow notes are a separate evidence source.
+
 1. Staff-observed clinical chart/perio/note signing workflows using a demo or explicitly suitable test patient; no production writes for testing.
 2. Payer/ERA/secondary claim exceptions and financial allocation lifecycle in a sandbox.
 3. Lawful export/API availability, archival completeness and migration reconciliation samples.

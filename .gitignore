@@ -1,0 +1,19 @@
+# Development is intentionally not scaffolded yet.
+.env
+.env.*
+!.env.example
+.research-local/
+*.cany/
+*.har
+*.saz
+*.sql
+*.dump
+*.backup
+*.pem
+*.key
+node_modules/
+target/
+dist/
+.supabase/
+supabase/.temp/
+# When migrations are authorized, explicitly narrow the SQL ignore rule.

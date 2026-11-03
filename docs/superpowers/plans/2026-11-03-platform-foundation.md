@@ -20,7 +20,13 @@
 - No production deployment, real messages, payments or clinical writes in this phase.
 - Supabase development provisioning is complete; see docs/SETUP.md. Local synthetic integration tests remain independent of managed cloud availability.
 
-## Review Focus
+## Research gate before executing this plan
+
+Consult [Tab32 analysis coverage](../../TAB32-ANALYSIS-COVERAGE.md). The authenticated REA/Craft analysis is incomplete; do not represent this plan as validated against every Tab32 workflow. Complete supported tool attachment and bounded capture, then inspect clinical workflows using a clearly synthetic demo record if needed. Do not sign notes, post money, submit claims or send messages in production to test behavior. Capture those transitions in a vendor sandbox or staff-validated scenarios.
+
+Translate the observed workflow states into synthetic acceptance cases: payment-plan missing signature/default/void versus collection, statement generation versus delivery/freshness, claims assignment versus appeal status, and audit search versus restoration. Test authorization separately for each operation across UI/API/MCP/jobs. Record unresolved vendor behavior explicitly and obtain clinical/financial validation before replacement release.
+
+## Implementation review focus
 
 - Reused pool connection retains another tenant's context: Task 2 must reject leakage across sequential and concurrent transactions.
 - Membership revoked after token issuance or job enqueue: Tasks 2 and 6 must deny execution using fresh authorization.

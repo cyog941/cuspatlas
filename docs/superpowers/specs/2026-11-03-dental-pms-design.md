@@ -146,3 +146,5 @@ Plan: validate workflows and vendor/device constraints; approve contracts/securi
 - Pilot practice selection, detailed hardware inventory and staff validation remain pre-build/clinical-release discovery tasks. Do not import production data merely to accelerate research.
 
 Sources and observation scope: [research ledger](../../RESEARCH.md).
+
+Detailed observed/untested boundaries and the remaining instrumented-analysis gate: [Tab32 analysis coverage](../../TAB32-ANALYSIS-COVERAGE.md). Visible payment-plan lifecycle states require separate signature, schedule, collection and closure facts in our model. Statements require a versioned balance snapshot, service-date/cutoff basis, freshness indication and distinct generation/delivery/print events. These are proposed requirements derived from UI observation, not verified Tab32 transaction semantics.

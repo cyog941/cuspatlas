@@ -40,6 +40,8 @@ Supabase changelog reviewed 2026-11-03. Near-term notes include TLS cipher depre
 
 ### Authenticated follow-up, 2026-11-03
 
+After a desktop restart, the Chrome connector successfully attached to the authenticated session and navigated to Payment Plan Management. The visible plan worklists distinguish collected, current/pending, open defaulted, missing signature, closed successfully, closed uncollected and void. Summary concepts include active-plan value, amounts due, collected and overdue. No plan was created or modified; the new-plan form contents were not verified. REA and Craft MCP servers are now available, but direct authenticated CDP attachment is still unestablished. The browser asset export supports fonts/images/stylesheets/video, not script export, so it is not a substitute for a runtime/code capture.
+
 Read-only browser inspection additionally verified Clinic Setup navigation for Preferences, Colors, Access Control, User Account, Care Team, Scheduler, Lab, Payment Gateway, Custom Fields, Accounting and Statement configuration. Clinic settings expose separate claim and patient billing information, practice timezone and location/operatory/staff structure. No settings were saved.
 
 The Access Control screen exposes resource categories and report-specific access entries, including ledger, receivables, payment distribution, undistributed payments and open claims. This establishes visible configuration surfaces only; backend permission enforcement and role isolation were not tested. Proposed acceptance requirement: test each sensitive operation independently across UI, API, MCP and exports, including undistributed funds and report access.

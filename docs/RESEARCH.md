@@ -34,7 +34,7 @@ Public page observed: [Tab32 all-in-one platform](https://tab32.com/dental-pract
 - [ADA CDT](https://www.ada.org/publications/cdt): terminology/version governance is separate from making our code open source; resolve distribution licensing before bundling datasets.
 - [OpenMolar](https://openmolar.com/om1): existing dental open source is useful prior art; its own site describes the project as mothballed. We are not forking or importing its code.
 
-Supabase changelog reviewed 2026-11-03. Near-term notes include TLS cipher deprecation and timezone-data fixes. Record and test actual database/runtime versions at implementation; no version compatibility is claimed for an uncreated project.
+Supabase changelog reviewed 2026-11-03. Near-term notes include TLS cipher deprecation and timezone-data fixes. Record and test actual database/runtime versions at implementation; the created development project reports PostgreSQL 17.11.0.011, but application compatibility remains untested.
 
 ## Unresolved discovery before construction
 
@@ -57,3 +57,4 @@ Attempting to launch an isolated Edge analysis profile with a loopback debugging
 3. Lawful export/API availability, archival completeness and migration reconciliation samples.
 4. Actual sensor/driver/OS, prescribing, clearinghouse, payment and communications requirements for a consenting pilot.
 5. Practice staffing, support needs and baseline task times/costs. No market demand, savings or clinical claims have yet been validated.
+

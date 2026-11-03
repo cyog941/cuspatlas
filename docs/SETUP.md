@@ -11,19 +11,19 @@ Date: 2026-11-03.
 - Repository contains planning, policy and setup documentation only.
 - No application code, framework dependencies, SQL migrations, patient tables, deployments, API services or UI designs.
 - Working name: CuspAtlas; provisional and replaceable.
-- Proposed new Supabase development project: `cuspatlas-dev`, US East (Ohio), `us-east-2`.
+- Created Supabase development project: `cuspatlas-dev`, US East (Ohio), `us-east-2`.
 - Organization selected explicitly by the user: Santi.
-- Supabase quoted $0/month but rejected creation due to the owner's **two active free-project limit**. No new project ID or URL exists. No existing project was paused, deleted or modified.
+- After the user upgraded Santi to Pro and authorized creation, `cuspatlas-dev` was created and independently verified ACTIVE_HEALTHY. Project reference: `pfnuigldoshdldetkaqk`; PostgreSQL 17.11.0.011. No existing project was changed.
 
-## Resolve the cloud blocker
+## Cloud provisioning completed
 
-Choose an authorized capacity/billing change or defer cloud creation. Never repurpose an existing client database or evade the account limit. For any nonzero cost, obtain the current quote and explicit approval before spending. After capacity is available, create the new named project in the selected organization and verify its identity/region/readiness. Record only non-secret project identifiers in this file.
+Development project: https://supabase.com/dashboard/project/pfnuigldoshdldetkaqk . The earlier free-project capacity blocker is resolved. No application schema or patient data was added.
 
 Initial cloud environment must be labeled synthetic-data development. Do not claim PHI readiness from the free plan. Before product work starts, review Data API exposure, auth redirect allowlists, invite/signup policy, storage defaults, network controls and credentials. Since there are no application tables or users yet, do not invent RLS policies or enable an application login surface now.
 
 ## Local development path after implementation authorization
 
-Inventory Docker/WSL, supported Node LTS, package manager and Supabase CLI versions, then pin documented versions. Initialize the development stack only after the build is authorized. Local development is a valid fallback for synthetic work while cloud capacity is pending; it is not a production deployment or a workaround for managed limits.
+Inventory Docker/WSL, supported Node LTS, package manager and Supabase CLI versions, then pin documented versions. Initialize the development stack only after the build is authorized. Local development is a valid fallback for synthetic work independently of managed cloud availability; it is not a production deployment or a workaround for managed limits.
 
 Do not copy production data into local or preview environments. Keep `.env` and connection secrets outside Git. `.env.example` is only a placeholder inventory, not a functional configuration. Production credentials must be distributed using a secrets manager, not public documentation or AI prompts.
 
@@ -32,5 +32,6 @@ Do not copy production data into local or preview environments. Keep `.env` and 
 - Verified: GitHub URL, owner, public visibility, AGPL license, default branch and pushed commit.
 - Verified: eight planning issues reference acceptance requirements; no claims of shipped functionality.
 - Verified: tracked-file review and targeted secret/private-ID scan; raw captures are ignored.
-- Verified: Supabase creation failed and a subsequent project listing showed only the existing projects.
+- Verified: new Supabase project identity, selected organization, region and ACTIVE_HEALTHY status after creation.
 - Future changes require tests appropriate to their impact; do not scaffold the app to make setup look complete.
+

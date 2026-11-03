@@ -6,7 +6,7 @@ This is a proposed sequence, not a delivery-date commitment. No product implemen
 
 | Stage | Output | Exit condition |
 |---|---|---|
-| P0: foundation and research | Repository, original scope/design, evidence ledger, backlog, development provisioning record | Documents reviewed; cloud capacity blocker explicit |
+| P0: foundation and research | Repository, original scope/design, evidence ledger, backlog, development provisioning record | Documents reviewed; cloud project verified; authenticated REA/Craft attachment remains unresolved |
 | P1: workflow and integration qualification | Pilot workflow inventory, device/partner matrix, licensed-data assessment, migration sample contract | Clinical, billing and reception representatives validate the supported workflow and exception inventory |
 | P2: domain and security contracts | Schema design, state machines, role matrix, API/MCP schemas, threat model, recovery plan | Cross-tenant and high-impact action cases have explicit expected outcomes |
 | P3: synthetic acceptance and operational design | Scenario packs, financial reconciliation oracle, import/restore criteria, operator ownership | Every P1 capability has a measurable acceptance case and an owner |
@@ -43,3 +43,4 @@ This is a clinical/financial product program, not a weekend app. At minimum iden
 - Sustainable maintenance/support can be funded without moving essential security or clinical features behind a license paywall.
 
 Track these against measured baselines. Competitor dissatisfaction or a free license alone does not establish adoption.
+

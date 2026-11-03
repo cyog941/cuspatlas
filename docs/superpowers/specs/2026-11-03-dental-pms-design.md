@@ -138,7 +138,7 @@ Plan: validate workflows and vendor/device constraints; approve contracts/securi
 
 ## Known blockers and matters left to the builder
 
-- Supabase project creation failed because the owner's two active free-project slots are occupied. No existing project was changed. Resolve billing/capacity separately; do not fabricate a project reference.
+- Supabase development project cuspatlas-dev was created after the user upgraded Santi to Pro and authorized creation. Reference pfnuigldoshdldetkaqk, region us-east-2, independently verified ACTIVE_HEALTHY. No application schema or patient data has been added; existing projects were not changed.
 - Direct REA/Craft attachment to the authenticated in-app browser is not established. Authenticated evidence was collected through Codex browser controls; tool captures covered the public page only.
 - Name is provisional; conduct trademark/domain review before launch.
 - Select clearinghouse, payment processor, prescribing partner and certified hardware only after contracts, sandbox tests, costs, BAA scope and ownership are validated. No live vendor integration is configured.
@@ -146,3 +146,4 @@ Plan: validate workflows and vendor/device constraints; approve contracts/securi
 - Pilot practice selection, detailed hardware inventory and staff validation remain pre-build/clinical-release discovery tasks. Do not import production data merely to accelerate research.
 
 Sources and observation scope: [research ledger](../../RESEARCH.md).
+

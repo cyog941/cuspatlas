@@ -4,6 +4,10 @@ Date: 2026-11-03.
 
 ## Current state
 
+- Public GitHub repository: [cyog941/cuspatlas](https://github.com/cyog941/cuspatlas), default branch `main`, AGPL-3.0-or-later.
+- [Eight planning issues](https://github.com/cyog941/cuspatlas/issues) cover pilot qualification, cloud capacity, contracts, migration, integrations, acceptance packs, deferred UI and future platform implementation.
+- Private vulnerability reporting is enabled. `main` protection disables force-push/deletion and requires conversation resolution; administrator bypass remains available. Required CI checks/reviewers are not configured yet because no implementation CI or reviewer team exists.
+- A separate GitHub Projects board was not created: the current GitHub CLI token lacks `read:project` scope. The issue backlog is usable without expanding token access.
 - Repository contains planning, policy and setup documentation only.
 - No application code, framework dependencies, SQL migrations, patient tables, deployments, API services or UI designs.
 - Working name: CuspAtlas; provisional and replaceable.
@@ -25,8 +29,8 @@ Do not copy production data into local or preview environments. Keep `.env` and 
 
 ## Setup readback checklist
 
-- GitHub URL, owner, visibility, license, default branch and commit verified.
-- Planning issues link to acceptance requirements; no claims of shipped functionality.
-- Repository documentation excludes PHI, private URLs, raw captures and credentials.
-- Supabase blocker accurately recorded until a real project exists.
+- Verified: GitHub URL, owner, public visibility, AGPL license, default branch and pushed commit.
+- Verified: eight planning issues reference acceptance requirements; no claims of shipped functionality.
+- Verified: tracked-file review and targeted secret/private-ID scan; raw captures are ignored.
+- Verified: Supabase creation failed and a subsequent project listing showed only the existing projects.
 - Future changes require tests appropriate to their impact; do not scaffold the app to make setup look complete.

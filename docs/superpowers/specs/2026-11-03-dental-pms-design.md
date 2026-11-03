@@ -146,4 +146,3 @@ Plan: validate workflows and vendor/device constraints; approve contracts/securi
 - Pilot practice selection, detailed hardware inventory and staff validation remain pre-build/clinical-release discovery tasks. Do not import production data merely to accelerate research.
 
 Sources and observation scope: [research ledger](../../RESEARCH.md).
-

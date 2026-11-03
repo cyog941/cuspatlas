@@ -136,4 +136,3 @@ Consumes: Tasks 1–7. Produces: repeatable synthetic deployment/test/backup/res
 ## Plan self-review and scope boundary
 
 This plan implements platform guarantees only. Capability rows are intentionally owned by later workstreams in [ROADMAP](../../ROADMAP.md). It does not pretend to specify unvalidated payer, clinical or device contracts. Follow-on plans must include concrete schemas, transition rules and acceptance tests before coding those modules. No UI layout, component implementation, production cutover or clinical migration is included here.
-

@@ -17,9 +17,9 @@ Date: 2026-11-03.
 
 ## Cloud provisioning completed
 
-Development project: https://supabase.com/dashboard/project/pfnuigldoshdldetkaqk . The earlier free-project capacity blocker is resolved. No application schema or patient data was added.
+Development project: [cuspatlas-dev](https://supabase.com/dashboard/project/pfnuigldoshdldetkaqk). The earlier free-project capacity blocker is resolved. No application schema or patient data was added.
 
-Initial cloud environment must be labeled synthetic-data development. Do not claim PHI readiness from the free plan. Before product work starts, review Data API exposure, auth redirect allowlists, invite/signup policy, storage defaults, network controls and credentials. Since there are no application tables or users yet, do not invent RLS policies or enable an application login surface now.
+Initial cloud environment must be labeled synthetic-data development. Do not claim PHI readiness from a Pro subscription. Before product work starts, review Data API exposure, auth redirect allowlists, invite/signup policy, storage defaults, network controls and credentials. Since there are no application tables or users yet, do not invent RLS policies or enable an application login surface now.
 
 ## Local development path after implementation authorization
 
@@ -34,4 +34,3 @@ Do not copy production data into local or preview environments. Keep `.env` and 
 - Verified: tracked-file review and targeted secret/private-ID scan; raw captures are ignored.
 - Verified: new Supabase project identity, selected organization, region and ACTIVE_HEALTHY status after creation.
 - Future changes require tests appropriate to their impact; do not scaffold the app to make setup look complete.
-

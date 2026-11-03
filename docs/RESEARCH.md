@@ -57,4 +57,3 @@ Attempting to launch an isolated Edge analysis profile with a loopback debugging
 3. Lawful export/API availability, archival completeness and migration reconciliation samples.
 4. Actual sensor/driver/OS, prescribing, clearinghouse, payment and communications requirements for a consenting pilot.
 5. Practice staffing, support needs and baseline task times/costs. No market demand, savings or clinical claims have yet been validated.
-

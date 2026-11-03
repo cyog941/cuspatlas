@@ -43,4 +43,3 @@ This is a clinical/financial product program, not a weekend app. At minimum iden
 - Sustainable maintenance/support can be funded without moving essential security or clinical features behind a license paywall.
 
 Track these against measured baselines. Competitor dissatisfaction or a free license alone does not establish adoption.
-

@@ -23,7 +23,7 @@ Status: incomplete. This ledger distinguishes visible workflow inspection from i
 
 REA and Craft Anything MCP servers are available after restart. Their earlier captures cover the public marketing page only. Chrome browser-control access is working again. The installed analysis tools require a loopback Chrome DevTools Protocol endpoint for an existing authenticated page; the current Chrome launch does not advertise one. The browser-control extension is a different connection and is not automatically a CDP endpoint for these tools.
 
-Automatic execution review previously rejected launching a separate debugging-enabled profile. Specific approval of the isolated profile setup has now been requested. Do not retry that action without resolving the approval boundary. Do not transfer browser cookies, saved credentials, patient data or private artifacts into the public repository.
+The user explicitly approved launching an isolated Chrome profile with localhost-only debugging and a separate Tab32 login. The subsequent launch was rejected before execution by automatic policy with only "blocked by policy" as its reason. User approval is therefore resolved; the execution-policy restriction remains. No isolated browser was launched. Do not repeat the launch through another mechanism or transfer browser cookies, saved credentials, patient data or private artifacts into the public repository. Finishing the direct authenticated captures requires an externally enabled, supported connection or a change to the execution restriction.
 
 ## Evidence acceptance
 

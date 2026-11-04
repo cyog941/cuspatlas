@@ -30,7 +30,7 @@ Limitations: Windows-only spike; CI must prove the Linux path. The embedded bina
 | E3 trustworthy mutations (Tasks 4–5) | verified | Task 4 473a748; Task 5 088d9d3; hardening 19abaa0 | exit gate met on the Windows host; Linux CI pending first push |
 | E4 durable integrations (Task 6) | verified | Task 6 8f45038; hardening f44ecfd | exit gate met on the Windows host; Linux CI pending first push |
 | E5 programmatic control (Tasks 7–7a) | verified | Task 7 07f182f (merge c34688e); Task 7a 337a4d5; hardening f44ecfd and 66b867a | exit gate met on the Windows host; Linux CI pending first push |
-| E6 reproducibility and recovery (Task 8) | in progress: all local checks pass on the Windows host and on a clean clone; blocked with cause: Linux CI has never run | part 1 da0aa1b, 3873252 (merge 6540a56); part 2 488b6d1, 370b9c8, 8607db7, cef109f; ledger/handoff: the commit containing this row | CI workflow configured but never run on GitHub |
+| E6 reproducibility and recovery (Task 8) | verified: local Windows host, clean clone, and GitHub Actions Linux verify (342 tests) on PR #9; hosted-Windows embedded PostgreSQL still unresolved | part 1 da0aa1b, 3873252 (merge 6540a56); part 2 488b6d1, 370b9c8, 8607db7, cef109f; ledger/handoff: the commit containing this row | CI workflow configured but never run on GitHub |
 
 ## Command log
 
@@ -368,3 +368,10 @@ Linux CI remains unverified until the first push.
 - `verify (linux)` on ubuntu-24.04: **pass** on both the push and the pull_request run. The log shows 19 files / 342 tests passed against embedded PostgreSQL on Linux, privacy scan ok (162 tracked files), SBOM 270 components, evidence and evidence-verify steps executed. Runs 41785906511 and 41785906515.
 - `windows-smoke` on windows-2022: **fail** on both runs. The integration global setup threw `Unknown Error: undefined` after about 9 s, before any test ran. The identical command passes on the local Windows host. Cause not yet known.
 - Response: global setup now reports the embedded server's phase and log tail on failure and removes its data directory. windows-smoke now gates on install, typecheck and the unit project. The embedded PostgreSQL step stays as a non-blocking diagnostic until the cause is found.
+
+## Second GitHub Actions run (commit e8ba1c2)
+
+- `verify (linux)`: pass on push and pull_request runs (41846601142, 41846609641), 19 files / 342 tests.
+- `windows-smoke (install, typecheck, unit)`: pass, 7 files / 42 unit tests.
+- Non-blocking embedded PostgreSQL diagnostic on windows-2022: the process printed nothing after Vitest's `RUN` banner and ended in about 11 s. The new failure message never appeared, so the runner-side cause is still unknown. Open item: reproduce on a hosted Windows runner with `DEBUG=embedded-postgres` or call `initdb.exe --version` directly. It does not block the runbook's E6 gate, which needs Linux CI.
+- Branch protection and required checks are still not configured. That needs a human maintainer.

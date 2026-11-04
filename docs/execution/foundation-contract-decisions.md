@@ -45,6 +45,7 @@ Status: decided 2026-11-03 for the synthetic foundation; changing any row requir
 ## Synthetic domain
 
 - The only aggregate is `synthetic_tasks` (`taskRef`, `tenantId`, `label` 1–120 chars, `locationRef?`, `version`). It is non-clinical by construction and exists only to exercise the guarantees. Demonstrating an approved synthetic action is not evidence for any clinical or financial operation.
+- Addition (F Task 3, 2026-11-03): operations are `syntheticTasks.create` (POST /v1/synthetic-tasks, 201), `syntheticTasks.list` (cursor pagination, limit 1–100, default 25, larger values refused not clamped), `syntheticTasks.read` (GET by `taskRef`) and `syntheticTasks.relabel` (POST /v1/synthetic-tasks/{taskRef}/relabel with `expectedVersion`; mismatch 409 `stale_version`). Every mutation requires an `Idempotency-Key` header (1–128 of `[A-Za-z0-9._:-]`); replay semantics arrive with Task 5 through the `CommandExecutor` seam. A location-restricted membership may create only inside one of its locations, lists only its locations plus tenant-wide (`locationRef: null`) tasks, and gets 403 on another location's task in its own tenant. Malformed `taskRef` values return the same 404 body as hidden and missing ones. `GET /v1/session` returns the server-derived context.
 - Scopes used: `syntheticTasks.read`, `syntheticTasks.write`, `syntheticTasks.approve`. They are registered here because the foundation needs them; the global scope registry adds them when the matrix is next updated.
 
 ## Worker and proposals

@@ -1,6 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import type { MembershipSource, SecurityAttemptSink } from '@cuspatlas/contracts';
-import { type AttemptRecordingDeps, createAuthorize } from '@cuspatlas/domain';
+import type { MembershipSource, SecurityAttemptSink, WithTenantTransaction } from '@cuspatlas/contracts';
+import {
+  type AttemptRecordingDeps,
+  type CommandExecutor,
+  createAuthorize,
+  createSyntheticTaskService,
+} from '@cuspatlas/domain';
 import Fastify, {
   type FastifyInstance,
   type FastifyReply,
@@ -10,6 +15,7 @@ import Fastify, {
 import { createAuthenticator, type IdentityVerifierConfig, isTestIssuer } from './auth';
 import { mapErrorToRefusal, safeErrorKind } from './errors';
 import { registerSessionRoutes } from './routes/session';
+import { registerSyntheticTaskRoutes } from './routes/synthetic-tasks';
 
 export const RUNTIME_ENVIRONMENTS = ['synthetic-test', 'development', 'production'] as const;
 export type RuntimeEnvironment = (typeof RUNTIME_ENVIRONMENTS)[number];
@@ -27,6 +33,10 @@ export interface AppDeps {
   readonly membership?: MembershipSource;
   /** Security-attempt sink on an independent runtime-role pool. */
   readonly attempts?: SecurityAttemptSink;
+  /** Runtime-role tenant transactions; enables the synthetic-task routes. */
+  readonly tenantTransactions?: WithTenantTransaction;
+  /** Command executor seam (Task 5 supplies executeOnce). */
+  readonly execute?: CommandExecutor;
 }
 
 function sendRefusal(request: FastifyRequest, reply: FastifyReply, err: unknown): FastifyReply {
@@ -95,6 +105,15 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     const authenticator = createAuthenticator(deps.identity, deps.membership, recording);
     const authorize = createAuthorize(deps.membership);
     registerSessionRoutes(app, { authenticator, authorize, recording });
+    if (deps.tenantTransactions) {
+      const service = createSyntheticTaskService({
+        authorize,
+        withTenantTransaction: deps.tenantTransactions,
+        recording,
+        ...(deps.execute ? { execute: deps.execute } : {}),
+      });
+      registerSyntheticTaskRoutes(app, { authenticator, service });
+    }
   }
 
   await app.ready();

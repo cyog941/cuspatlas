@@ -1,13 +1,14 @@
 import { type AttemptRecordingDeps, type Authorize, withAttemptRecording } from '@cuspatlas/domain';
 import type { FastifyInstance } from 'fastify';
 import type { Authenticator } from '../auth';
+import { routeFor } from './manifest';
 
 /** GET /v1/session: the server-derived context for the presented token. Never caller-supplied. */
 export function registerSessionRoutes(
   app: FastifyInstance,
   deps: { authenticator: Authenticator; authorize: Authorize; recording: AttemptRecordingDeps },
 ): void {
-  app.get('/v1/session', async (request) => {
+  app.get(routeFor('session.read').fastifyPath, async (request) => {
     const operation = 'session.read';
     const ctx = await deps.authenticator.authenticate(request.headers.authorization, request.id, operation);
     await withAttemptRecording(

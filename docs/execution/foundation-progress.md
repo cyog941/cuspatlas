@@ -26,7 +26,7 @@ Limitations: Windows-only spike; CI must prove the Linux path. The embedded bina
 |---|---|---|---|
 | E0 environment and baseline | verified | (this commit) | see above |
 | E1 reproducible service (Task 1) | verified | bb25a6b | pnpm workspace, contracts, safe error boundary, ADR 0001 |
-| E2 identity and contracts (Tasks 2–3) | in progress (Task 2 verified, Task 3 in progress) | see E2 log | |
+| E2 identity and contracts (Tasks 2–3) | verified | Task 2 013ef79; Task 3 see git log | exit gate met on the Windows host; Linux CI pending (Task 8) |
 | E3 trustworthy mutations (Tasks 4–5) | not started | | |
 | E4 durable integrations (Task 6) | not started | | |
 | E5 programmatic control (Tasks 7–7a) | not started | | |
@@ -68,3 +68,19 @@ Acceptance cases (tests/integration/tenant-isolation.test.ts, 20 tests, all unde
 - `git check-ignore` confirms `supabase/migrations/<ts>_*.sql` is tracked while other `*.sql` files stay ignored
 
 Deviations recorded in foundation-contract-decisions.md (same commit): schema `cuspatlas`; identity-lookup setting `cuspatlas.auth_principal_id`; token claims `tid`/`sid`; attempt identity rules. Unresolved: migrate.test.ts was written after the migrator (not red-first). Supabase security advisors were not run (no cloud connection by instruction); the local equivalent is the pg_roles/RLS assertions above.
+
+### E2 / Task 3 (versioned transport contract and authorization parity)
+
+Acceptance cases (tests/integration/transport-policy.test.ts, 17 tests; apps/api/src/contract-drift.test.ts, 5 tests): 201 CommandResult with tenant from the token while caller tenant headers are ignored; schema rejection 400 (wrong types, null, arrays, non-JSON, truncated JSON, bad locationRef, non-JSON content type) with nothing created; unknown properties including forged `tenantId`/`tenantRef`/`version` and a marker-named key 400 with a pointer collapsed to `/`; label bounds 0/1/120/121; Idempotency-Key required and bounded; location denial 403 recorded as `location_denied`; read-only member 403 `scope_missing`; service principal creates only in its own tenant; 401 on every route without a token; hidden cross-tenant, missing and malformed refs (read and relabel) return byte-identical 404 bodies apart from the correlation id, with identical header sets, and B's row is untouched; relabel bumps version and stale `expectedVersion` is 409 with `currentVersion`; cursor pagination walks exactly the caller tenant without duplicates; unsafe limits/cursors/unknown query keys 400; location-restricted listing; the marker in labels, location refs, property names, truncated bodies, idempotency keys, path params, query params, auth headers and forwarding headers never reaches responses, headers, logs or attempt rows; security-attempt sink outage keeps the denial closed with a safe 503 and a safe alert line; the domain service called directly refuses exactly as REST does and routes mutations through the `CommandExecutor` seam. Drift check fails on an unresolved `$ref`, an undocumented or unimplemented operation, loosened `additionalProperties`/label bounds and a diverging refusal enum.
+
+- Red: `corepack pnpm test -- transport-policy contract-drift` before the schema/domain/routes existed → exit 1 (17 transport failures, mostly 404 from unregistered routes; drift module missing)
+- One test bug fixed during green: a request carrying the marker only in forwarding headers is valid and correctly returns 201; it was moved out of the error-response list and asserted separately.
+- Mutation check (reverted): `additionalProperties: true` on SyntheticTaskCreate plus disabling the version comparison → 5 tests failed as expected
+- Fresh: `rm -rf node_modules ... && corepack pnpm install --frozen-lockfile` → exit 0
+- `corepack pnpm typecheck` → exit 0; `corepack pnpm lint` → exit 0; `corepack pnpm contract:check` → exit 0
+- `corepack pnpm test` → exit 0, 6 files, 56 tests (unit: contracts 6, contract-drift 5; integration: service-boundary 5, tenant-isolation 20, migrate 3, transport-policy 17)
+- `corepack pnpm test:integration` → exit 0, 4 files, 45 tests; afterwards no postgres.exe and no `cuspatlas-pg-*` temp directory remained
+- `corepack pnpm audit` → no known vulnerabilities
+- Housekeeping: two postgres.exe processes and three temp data directories left by the killed hung runs during Task 2 were terminated/removed by PID and exact path.
+
+Unresolved: replay/idempotency semantics (Task 5), committed-change audit/outbox (Task 4), MCP parity (Task 7) are not implemented; the `executeDirect` executor never replays. Linux CI and Supabase advisors not run. OpenAPI is validated by the in-repo drift check, not yet by an external OpenAPI linter.

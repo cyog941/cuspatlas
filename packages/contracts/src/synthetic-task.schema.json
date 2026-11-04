@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cuspatlas.invalid/schemas/synthetic-task/v1",
+  "title": "Synthetic task contract v1 (non-clinical foundation fixture domain)",
+  "$defs": {
+    "TaskRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "LocationRef": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+    "Label": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "Version": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
+    "IdempotencyKey": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,128}$" },
+    "Cursor": {
+      "type": "string",
+      "pattern": "^st1\\.[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "SyntheticTaskCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label"],
+      "properties": {
+        "label": { "$ref": "#/$defs/Label" },
+        "locationRef": { "$ref": "#/$defs/LocationRef" }
+      }
+    },
+    "SyntheticTaskRelabel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "expectedVersion"],
+      "properties": {
+        "label": { "$ref": "#/$defs/Label" },
+        "expectedVersion": { "$ref": "#/$defs/Version" }
+      }
+    },
+    "SyntheticTaskListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "limit": { "type": "string", "pattern": "^([1-9]|[1-9][0-9]|100)$" },
+        "cursor": { "$ref": "#/$defs/Cursor" }
+      }
+    },
+    "SyntheticTask": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["taskRef", "label", "locationRef", "version"],
+      "properties": {
+        "taskRef": { "$ref": "#/$defs/TaskRef" },
+        "label": { "$ref": "#/$defs/Label" },
+        "locationRef": { "anyOf": [{ "$ref": "#/$defs/LocationRef" }, { "type": "null" }] },
+        "version": { "$ref": "#/$defs/Version" }
+      }
+    },
+    "SyntheticTaskRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": { "data": { "$ref": "#/$defs/SyntheticTask" } }
+    },
+    "SyntheticTaskList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "nextCursor"],
+      "properties": {
+        "data": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/SyntheticTask" } },
+        "nextCursor": { "anyOf": [{ "$ref": "#/$defs/Cursor" }, { "type": "null" }] }
+      }
+    },
+    "SyntheticTaskCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["taskRef", "label"],
+          "properties": { "taskRef": { "$ref": "#/$defs/TaskRef" }, "label": { "$ref": "#/$defs/Label" } }
+        },
+        "version": { "$ref": "#/$defs/Version" },
+        "correlationId": { "type": "string", "format": "uuid" },
+        "replayed": { "type": "boolean" }
+      }
+    },
+    "Refusal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "retryable", "correlationId"],
+      "properties": {
+        "code": {
+          "enum": [
+            "invalid_request",
+            "validation_failed",
+            "unauthenticated",
+            "forbidden",
+            "not_found",
+            "stale_version",
+            "idempotency_conflict",
+            "conflict",
+            "rate_limited",
+            "internal_error",
+            "service_unavailable"
+          ]
+        },
+        "retryable": { "type": "boolean" },
+        "correlationId": { "type": "string", "format": "uuid" },
+        "detail": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "currentVersion": { "$ref": "#/$defs/Version" },
+            "violations": {
+              "type": "array",
+              "maxItems": 5,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["pointer", "rule"],
+                "properties": {
+                  "pointer": { "type": "string", "maxLength": 256 },
+                  "rule": { "type": "string", "pattern": "^[a-zA-Z]{1,32}$" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

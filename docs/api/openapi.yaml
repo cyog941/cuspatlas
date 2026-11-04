@@ -1,0 +1,204 @@
+openapi: 3.1.0
+info:
+  title: CuspAtlas synthetic foundation API
+  version: 0.1.0-synthetic
+  summary: Non-clinical synthetic task domain used only to prove platform guarantees.
+  description: |
+    Synthetic environments only. Request and response bodies are defined by
+    packages/contracts/src/synthetic-task.schema.json, which the service validates at runtime;
+    this document references it instead of restating it. Tenant authority always comes from the
+    verified bearer token and a live membership; no path, query, header or body field selects a
+    tenant. Refusals use the shared Refusal body and the transport mapping in docs/SHARED-CONTRACTS.md.
+    Hidden cross-tenant and missing resources return the same 404 body.
+  license:
+    name: AGPL-3.0-or-later
+    identifier: AGPL-3.0-or-later
+servers:
+  - url: http://127.0.0.1
+    description: Local synthetic test server only
+security:
+  - bearer: []
+paths:
+  /healthz:
+    get:
+      operationId: health.read
+      security: []
+      responses:
+        '200':
+          description: Service is up. Body is exactly {"status":"ok"}.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+  /v1/session:
+    get:
+      operationId: session.read
+      responses:
+        '200':
+          description: Server-derived context for the presented token.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/synthetic-tasks:
+    post:
+      operationId: syntheticTasks.create
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/SyntheticTaskCreate'
+      responses:
+        '201':
+          description: Task created.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/SyntheticTaskCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: syntheticTasks.list
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: 1 to 100, default 25. Larger values are refused, not clamped.
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/SyntheticTaskListQuery/properties/limit'
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/Cursor'
+      responses:
+        '200':
+          description: One page of the caller's tenant tasks.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/SyntheticTaskList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/synthetic-tasks/{taskRef}:
+    get:
+      operationId: syntheticTasks.read
+      parameters:
+        - $ref: '#/components/parameters/TaskRef'
+      responses:
+        '200':
+          description: The task.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/SyntheticTaskRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/synthetic-tasks/{taskRef}/relabel:
+    post:
+      operationId: syntheticTasks.relabel
+      parameters:
+        - $ref: '#/components/parameters/TaskRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/SyntheticTaskRelabel'
+      responses:
+        '200':
+          description: Task relabelled; version incremented.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/SyntheticTaskCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT (EdDSA; claims sub, tid, sid, iss, aud, exp, iat)
+  parameters:
+    TaskRef:
+      name: taskRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/TaskRef'
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Caller-supplied key. Full replay semantics arrive with F Task 5.
+      schema:
+        $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/IdempotencyKey'
+  responses:
+    Refusal:
+      description: Typed refusal (code, retryable, correlationId, optional safe detail).
+      content:
+        application/json:
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/Refusal'
+  schemas:
+    Health:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          const: ok
+    Session:
+      type: object
+      additionalProperties: false
+      required: [tenantRef, principalRef, principal, scopes]
+      properties:
+        tenantRef:
+          type: string
+        principalRef:
+          type: string
+        principal:
+          enum: [human, service]
+        scopes:
+          type: array
+          items:
+            type: string

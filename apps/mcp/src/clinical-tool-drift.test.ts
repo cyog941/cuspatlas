@@ -28,6 +28,7 @@ const LIST_QUERIES: Record<string, string> = {
   'clinical.perio.compare': 'PerioCompareQuery',
   'clinical.noteTemplates.applicable': 'NoteTemplateApplicableQuery',
   'clinical.consents.list': 'ConsentListQuery',
+  'clinical.labCases.worklist': 'LabWorklistQuery',
 };
 const PATH_PARAMS: Record<string, string> = {
   encounterRef: 'EncounterRef',
@@ -47,6 +48,7 @@ const PATH_PARAMS: Record<string, string> = {
   consentRef: 'ConsentRef',
   procedureRef: 'ProcedureRef',
   imageLinkRef: 'ImageLinkRef',
+  labCaseRef: 'LabCaseRef',
 };
 
 function restShape(route: (typeof routes)[number]): { properties: Schema; required?: string[] } {

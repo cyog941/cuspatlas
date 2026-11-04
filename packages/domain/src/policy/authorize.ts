@@ -162,6 +162,17 @@ export const ACTION_POLICIES = {
   'clinical.imageLinks.unlink': { scope: 'clinical.write', principals: ['human'] },
   'clinical.imageLinks.read': { scope: 'clinical.read', principals: ['human', 'service'] },
   'clinical.imageLinks.list': { scope: 'clinical.read', principals: ['human', 'service'] },
+  // C16 lab cases (C-D9 recommended): every case write is a human clinical author's; reads and the
+  // worklist are sensitive reads. Export (the printable package, the only channel) is a person's.
+  'clinical.labCases.create': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.labCases.setState': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.labCases.recordReturn': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.labCases.attach': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.labCases.remake': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.labCases.read': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.labCases.list': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.labCases.worklist': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.labCases.export': { scope: 'clinical.read', principals: ['human'] },
   // C9 progress-note templates (C-D4, recommended-pending-clinical-approval). Templates are practice
   // configuration (human admin only); reads need clinical.read.
   'clinical.noteTemplates.define': { scope: 'admin.configure', principals: ['human'] },

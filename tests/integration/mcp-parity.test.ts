@@ -157,6 +157,16 @@ const TOOL_NAMES = [
   'clinical_image_links_list',
   'clinical_image_links_relink',
   'clinical_image_links_unlink',
+  // C16 lab cases (parity in clinical-lab-cases and negative-harness tests).
+  'clinical_lab_cases_attach',
+  'clinical_lab_cases_create',
+  'clinical_lab_cases_export',
+  'clinical_lab_cases_get',
+  'clinical_lab_cases_list',
+  'clinical_lab_cases_record_return',
+  'clinical_lab_cases_remake',
+  'clinical_lab_cases_set_state',
+  'clinical_lab_cases_worklist',
   // C9 note template tools (parity in clinical-note-templates and negative-harness tests).
   'clinical_note_templates_applicable',
   'clinical_note_templates_define',

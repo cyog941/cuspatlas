@@ -90,6 +90,12 @@ export const CLINICAL_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<Clinica
   'clinical.imageLinks.link': refCodec('imageLinkRef'),
   'clinical.imageLinks.relink': refCodec('imageLinkRef'),
   'clinical.imageLinks.unlink': refCodec('imageLinkRef'),
+  // C16 lab cases (the case, or the remake case, is re-read on replay).
+  'clinical.labCases.create': refCodec('labCaseRef'),
+  'clinical.labCases.setState': refCodec('labCaseRef'),
+  'clinical.labCases.recordReturn': refCodec('labCaseRef'),
+  'clinical.labCases.attach': refCodec('labCaseRef'),
+  'clinical.labCases.remake': refCodec('labCaseRef'),
   // C9 note templates.
   'clinical.noteTemplates.define': refCodec('templateRef'),
   'clinical.noteTemplates.revise': refCodec('templateRef'),

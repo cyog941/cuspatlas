@@ -1770,6 +1770,150 @@ export const COMMANDS: HarnessCommand[] = [
     }),
     mcpArgs: (f) => ({ encounterRef: f.alphaEncounter }),
   },
+  // C16 lab cases (workstream C batch 4).
+  {
+    operation: 'clinical.labCases.create',
+    tool: 'clinical_lab_cases_create',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: '/v1/clinical/lab-cases',
+      body: { patientRef: f.alphaPatient, counterpartyRef: 'syn-lab-harness', caseRef: 'SYN-HARNESS-2' },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      patientRef: f.alphaPatient,
+      counterpartyRef: 'syn-lab-harness',
+      caseRef: 'SYN-HARNESS-2',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.labCases.setState',
+    tool: 'clinical_lab_cases_set_state',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/lab-cases/${f.alphaLabCase}/state`,
+      body: { expectedVersion: 1, state: 'sent' },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({
+      labCaseRef: f.alphaLabCase,
+      expectedVersion: 1,
+      state: 'sent',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.labCases.recordReturn',
+    tool: 'clinical_lab_cases_record_return',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/lab-cases/${f.alphaLabCase}/return`,
+      body: { expectedVersion: 1, receivedDate: '2030-01-07', noAttachmentReason: 'none' },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({
+      labCaseRef: f.alphaLabCase,
+      expectedVersion: 1,
+      receivedDate: '2030-01-07',
+      noAttachmentReason: 'none',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.labCases.attach',
+    tool: 'clinical_lab_cases_attach',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/lab-cases/${f.alphaLabCase}/attachments`,
+      body: { attachmentRef: 'syn-obj-harness' },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      labCaseRef: f.alphaLabCase,
+      attachmentRef: 'syn-obj-harness',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.labCases.remake',
+    tool: 'clinical_lab_cases_remake',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/lab-cases/${f.alphaLabCase}/remake`,
+      body: { expectedVersion: 1, reasonCode: 'shade_mismatch', caseRef: 'SYN-HARNESS-R' },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      labCaseRef: f.alphaLabCase,
+      expectedVersion: 1,
+      reasonCode: 'shade_mismatch',
+      caseRef: 'SYN-HARNESS-R',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.labCases.read',
+    tool: 'clinical_lab_cases_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/lab-cases/${f.alphaLabCase}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ labCaseRef: f.alphaLabCase }),
+  },
+  {
+    operation: 'clinical.labCases.list',
+    tool: 'clinical_lab_cases_list',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/patients/${f.alphaPatient}/lab-cases`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ patientRef: f.alphaPatient }),
+  },
+  {
+    operation: 'clinical.labCases.export',
+    tool: 'clinical_lab_cases_export',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/lab-cases/${f.alphaLabCase}/export`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ labCaseRef: f.alphaLabCase }),
+  },
+  {
+    operation: 'clinical.labCases.worklist',
+    tool: 'clinical_lab_cases_worklist',
+    crossTenant: 'tenant_own_data',
+    downgradedTo: 'noPatientScopes',
+    rest: () => ({ method: 'GET', url: '/v1/clinical/lab-cases/worklist', keyed: false, status: 200 }),
+    mcpArgs: () => ({}),
+  },
   // S12 visit context (every command; producers are absent, but every dimension is refused first).
   ...visitRows(),
   // S13 recurrence series.
@@ -2632,6 +2776,13 @@ beforeAll(async () => {
     imageRef: alphaImageRef,
   });
   expect(imageLink.statusCode).toBe(201);
+  // C16: one draft alpha lab case (version 1) for the alpha patient.
+  const labCase = await owner('/v1/clinical/lab-cases', {
+    patientRef: alphaPatient,
+    counterpartyRef: 'syn-lab-harness',
+    caseRef: 'SYN-HARNESS-1',
+  });
+  expect(labCase.statusCode).toBe(201);
   // S13: one alpha series (one Monday occurrence) for the series rows.
   const series = await owner('/v1/scheduling/series', {
     patientRef: alphaPatient,
@@ -2755,6 +2906,7 @@ beforeAll(async () => {
     alphaProcedure: procedure.json().data.procedureRef,
     alphaImageRef,
     alphaImageLink: imageLink.json().data.imageLinkRef,
+    alphaLabCase: labCase.json().data.labCaseRef,
     alphaPerioExam: perioExam.examRef,
     alphaPerioMeasurement: perioExam.measurements.find(
       (m: { measure: string; site: string | null }) => m.measure === 'probing_depth' && m.site === 'b',
@@ -2934,6 +3086,9 @@ async function state(): Promise<string> {
     await q(
       'SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_encounter_image_links',
     ),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_lab_cases'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_lab_case_transitions'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_lab_case_attachments'),
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_note_templates'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_note_template_versions'),
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_notes'),

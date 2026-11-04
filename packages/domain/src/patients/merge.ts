@@ -58,7 +58,9 @@ export interface MergeRecordClass {
     // C13 consent (workstream C batch 3).
     | 'clinical_consents'
     | 'appointment_series'
-    | 'waitlist_entries';
+    | 'waitlist_entries'
+    // C16 lab cases (workstream C batch 4).
+    | 'clinical_lab_cases';
   readonly column: 'subject_patient_id' | 'counterparty_patient_id';
   /** Public name of the reference in the record's contract. */
   readonly referenceField: string;
@@ -246,6 +248,23 @@ export const MERGE_RECORD_CLASSES: readonly MergeRecordClass[] = [
     factKind: 'administrative',
     digestExclude: ['subject_patient_id', 'state', 'state_reason', 'appointment_id', 'version', 'updated_at'],
   },
+  // C16: a lab case follows its patient; transitions and attachments reference the case; the case
+  // keeps its source patient. State and the return facts are lifecycle (set by later commands).
+  {
+    recordClass: 'clinicalLabCase',
+    table: 'clinical_lab_cases',
+    column: 'subject_patient_id',
+    referenceField: 'patientRef',
+    factKind: 'clinical',
+    digestExclude: [
+      'subject_patient_id',
+      'state',
+      'received_date',
+      'no_attachment_reason',
+      'version',
+      'updated_at',
+    ],
+  },
 ];
 
 /** Foreign keys to patients that a merge deliberately does not move, with the reason. */
@@ -310,6 +329,11 @@ export const MERGE_EXCLUDED_REFERENCES: readonly { table: string; column: string
     table: 'clinical_rendered_procedures',
     column: 'origin_patient_id',
     why: 'the patient a procedure was billed for when rendered is a historical fact (C14); the encounter moves',
+  },
+  {
+    table: 'clinical_lab_cases',
+    column: 'origin_patient_id',
+    why: 'the patient a lab case was recorded for is a historical fact (C16); the subject moves',
   },
 ];
 

@@ -22,6 +22,7 @@ const TRANSPORT: Record<string, string> = {
   procedureRef: 'ProcedureRef',
   encounterRef: 'EncounterRef',
   imageLinkRef: 'ImageLinkRef',
+  labCaseRef: 'LabCaseRef',
 };
 
 /**
@@ -56,6 +57,112 @@ const SAFETY =
   'Synthetic engineering implementation; clinical semantics are recommended-pending-clinical-approval and not clinically validated. No diagnosis and no decision support.';
 
 const SPECS: readonly Spec[] = [
+  // C16 lab cases (record-keeping and print/export only; no electronic ordering).
+  {
+    name: 'clinical_lab_cases_create',
+    operationId: 'clinical.labCases.create',
+    description: `Record a lab case in draft for a patient: the lab as recorded data, a case reference unique per lab, the plan detail or item and the appointment it serves, dates and attachment object references. Nothing is ordered or sent electronically. ${SAFETY}`,
+    body: 'LabCaseCreate',
+    transport: ['idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) => d.clinical.createLabCase(actor, envelope('clinical.labCases.create', args)),
+  },
+  {
+    name: 'clinical_lab_cases_set_state',
+    operationId: 'clinical.labCases.setState',
+    description: `Record a lab case transition (sent, in_progress, seated, cancelled) from the proposed configurable set; each transition records actor and instant. ${SAFETY}`,
+    body: 'LabCaseSetState',
+    transport: ['labCaseRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.setLabCaseState(
+        actor,
+        args.labCaseRef as string,
+        envelope('clinical.labCases.setState', args, 'labCaseRef'),
+      ),
+  },
+  {
+    name: 'clinical_lab_cases_record_return',
+    operationId: 'clinical.labCases.recordReturn',
+    description: `Record the lab return with a received date and either attachment references or a stated reason. ${SAFETY}`,
+    body: 'LabCaseReturn',
+    transport: ['labCaseRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.recordLabReturn(
+        actor,
+        args.labCaseRef as string,
+        envelope('clinical.labCases.recordReturn', args, 'labCaseRef'),
+      ),
+  },
+  {
+    name: 'clinical_lab_cases_attach',
+    operationId: 'clinical.labCases.attach',
+    description: `Add an attachment object reference to a lab case (the document itself is stored elsewhere). ${SAFETY}`,
+    body: 'LabCaseAttach',
+    transport: ['labCaseRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.attachLabDocument(
+        actor,
+        args.labCaseRef as string,
+        envelope('clinical.labCases.attach', args, 'labCaseRef'),
+      ),
+  },
+  {
+    name: 'clinical_lab_cases_remake',
+    operationId: 'clinical.labCases.remake',
+    description: `Create a remake case linked to a received or seated case; the original ends as remake with its history unchanged. ${SAFETY}`,
+    body: 'LabCaseRemake',
+    transport: ['labCaseRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.remakeLabCase(
+        actor,
+        args.labCaseRef as string,
+        envelope('clinical.labCases.remake', args, 'labCaseRef'),
+      ),
+  },
+  {
+    name: 'clinical_lab_cases_get',
+    operationId: 'clinical.labCases.read',
+    description: `One lab case with its transition history, attachment references, derived overdue flag and review flags. ${SAFETY}`,
+    body: null,
+    transport: ['labCaseRef'],
+    readOnly: true,
+    run: async (d, actor, args) => ({ data: await d.clinical.readLabCase(actor, args.labCaseRef as string) }),
+  },
+  {
+    name: 'clinical_lab_cases_list',
+    operationId: 'clinical.labCases.list',
+    description: `A patient's lab cases. ${SAFETY}`,
+    body: null,
+    transport: ['patientRef'],
+    readOnly: true,
+    run: async (d, actor, args) => ({
+      data: await d.clinical.listLabCases(actor, args.patientRef as string),
+    }),
+  },
+  {
+    name: 'clinical_lab_cases_export',
+    operationId: 'clinical.labCases.export',
+    description: `The printable lab case package (the only channel to a lab; nothing is transmitted). ${SAFETY}`,
+    body: null,
+    transport: ['labCaseRef'],
+    readOnly: true,
+    run: async (d, actor, args) => ({
+      data: await d.clinical.exportLabCase(actor, args.labCaseRef as string),
+    }),
+  },
+  {
+    name: 'clinical_lab_cases_worklist',
+    operationId: 'clinical.labCases.worklist',
+    description: `Exception-first lab work items: overdue returns and cases whose plan link or appointment needs review. ${SAFETY}`,
+    body: 'LabWorklistQuery',
+    transport: [],
+    readOnly: true,
+    run: async (d, actor, args) => ({ data: await d.clinical.labWorklist(actor, args) }),
+  },
   // C15 encounter image links (by I3 imageRef only).
   {
     name: 'clinical_image_links_link',

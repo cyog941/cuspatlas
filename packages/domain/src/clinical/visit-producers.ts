@@ -7,6 +7,7 @@ import type {
 } from '../scheduling/visit-context';
 import { UUID } from './base';
 import { resolveHistoryReference } from './history';
+import { LAB_CASE_VISIT_PRODUCER } from './lab-cases';
 
 /**
  * The C producers behind the S12 visit context, through S12's published domain port. Each answer is a
@@ -192,5 +193,8 @@ export function createClinicalVisitContextProducers(deps: ClinicalVisitProducerD
     },
   };
 
-  return { medicalHistory, forms, noteDrafts, treatmentPlanItems };
+  /** C16: a bound lab case resolves to its state; a cancelled case resolves as voided. */
+  const labCases: VisitContextProducer = { available, ...LAB_CASE_VISIT_PRODUCER };
+
+  return { medicalHistory, forms, noteDrafts, treatmentPlanItems, labCases };
 }

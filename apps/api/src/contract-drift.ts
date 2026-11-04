@@ -166,6 +166,13 @@ export const CLINICAL_BODIES = [
   'ConsentListQuery',
   'ConsentTemplateRegister',
   'ConsentEvidence',
+  // C16 lab cases.
+  'LabCaseCreate',
+  'LabCaseSetState',
+  'LabCaseReturn',
+  'LabCaseAttach',
+  'LabCaseRemake',
+  'LabWorklistQuery',
   // C15 encounter image links.
   'ImageLinkCreate',
   'ImageLinkRelink',

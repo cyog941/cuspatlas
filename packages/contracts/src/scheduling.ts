@@ -723,7 +723,12 @@ export type WorkItemKind =
   | 'recall_due'
   | 'recall_task_open'
   | 'request_unbooked'
-  | 'request_booking_lost';
+  | 'request_booking_lost'
+  // C kinds adopted from this shared model (C16 lab returns, C17 referral responses; PT-03).
+  | 'lab_return_overdue'
+  | 'lab_case_review'
+  | 'referral_response_due'
+  | 'referral_review';
 export interface WorkItem {
   readonly workItemRef: string;
   readonly kind: WorkItemKind;
@@ -731,7 +736,7 @@ export interface WorkItem {
   readonly explanation: string;
   readonly evidenceRefs: readonly { readonly kind: string; readonly ref: string }[];
   readonly owner: {
-    readonly queue: 'front_desk' | 'scheduling' | 'recall' | 'practice_manager';
+    readonly queue: 'front_desk' | 'scheduling' | 'recall' | 'practice_manager' | 'clinical';
     readonly principalRef: string | null;
   };
   readonly nextActionOwedBy: 'practice' | 'patient' | 'payer' | 'vendor' | 'platform';

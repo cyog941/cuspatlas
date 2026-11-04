@@ -6209,6 +6209,460 @@
           }
         }
       }
+    },
+    "LabCaseRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque lab case reference (C16)."
+    },
+    "LabCounterpartyRef": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+      "description": "The lab as recorded data (a practice-assigned reference; no lab directory or interface exists)."
+    },
+    "LabCaseNumber": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,64}$",
+      "description": "The case reference, unique per lab counterparty within the practice."
+    },
+    "AttachmentRef": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+      "description": "Opaque object reference to an attachment I stores; C stores no document bytes."
+    },
+    "LabCaseState": {
+      "enum": ["draft", "sent", "in_progress", "received", "seated", "remake", "cancelled"],
+      "description": "Provisional proposed state set (C-D9 pending); each state can be disabled per practice configuration."
+    },
+    "LabCaseCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["patientRef", "counterpartyRef", "caseRef"],
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "counterpartyRef": {
+          "$ref": "#/$defs/LabCounterpartyRef"
+        },
+        "caseRef": {
+          "$ref": "#/$defs/LabCaseNumber"
+        },
+        "planItemRef": {
+          "$ref": "#/$defs/PlanItemRef"
+        },
+        "planDetailRef": {
+          "$ref": "#/$defs/PlanDetailRef"
+        },
+        "appointmentRef": {
+          "$ref": "#/$defs/AppointmentRef"
+        },
+        "requestedDate": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "expectedReturnDate": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "attachmentRefs": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/AttachmentRef"
+          }
+        }
+      },
+      "description": "Record a lab case in draft. No electronic order is sent (print/export is the only channel)."
+    },
+    "LabCaseSetState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "state"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "state": {
+          "enum": ["sent", "in_progress", "seated", "cancelled"]
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      },
+      "description": "Record a lab case transition (received is recordReturn; remake is its own command)."
+    },
+    "LabCaseReturn": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "receivedDate"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "receivedDate": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "attachmentRefs": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/AttachmentRef"
+          }
+        },
+        "noAttachmentReason": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      },
+      "description": "Record the lab return: a received date and either attachment references or a stated reason."
+    },
+    "LabCaseAttach": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["attachmentRef"],
+      "properties": {
+        "attachmentRef": {
+          "$ref": "#/$defs/AttachmentRef"
+        }
+      }
+    },
+    "LabCaseRemake": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "reasonCode", "caseRef"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "caseRef": {
+          "$ref": "#/$defs/LabCaseNumber"
+        },
+        "expectedReturnDate": {
+          "$ref": "#/$defs/LocalDate"
+        }
+      },
+      "description": "Create a remake case linked to this one; this case ends as remake, its history unchanged."
+    },
+    "LabWorklistQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "asOf": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "LabCase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "labCaseRef",
+        "patientRef",
+        "sourcePatientRef",
+        "counterpartyRef",
+        "caseRef",
+        "planItemRef",
+        "planDetailRef",
+        "appointmentRef",
+        "appointmentStatus",
+        "requestedDate",
+        "expectedReturnDate",
+        "receivedDate",
+        "noAttachmentReason",
+        "state",
+        "overdue",
+        "remakeOfRef",
+        "remadeAsRef",
+        "review",
+        "transitions",
+        "attachments",
+        "createdBy",
+        "createdAt",
+        "version"
+      ],
+      "properties": {
+        "labCaseRef": {
+          "$ref": "#/$defs/LabCaseRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "sourcePatientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "counterpartyRef": {
+          "$ref": "#/$defs/LabCounterpartyRef"
+        },
+        "caseRef": {
+          "$ref": "#/$defs/LabCaseNumber"
+        },
+        "planItemRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanItemRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "planDetailRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanDetailRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "appointmentRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AppointmentRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "appointmentStatus": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z_]{1,32}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "requestedDate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalDate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "expectedReturnDate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalDate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "receivedDate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalDate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "noAttachmentReason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "$ref": "#/$defs/LabCaseState"
+        },
+        "overdue": {
+          "type": "boolean",
+          "description": "Derived: expected return date passed while sent or in progress."
+        },
+        "remakeOfRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LabCaseRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "remadeAsRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LabCaseRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "review": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["planLinkSuperseded", "appointmentCancelled"],
+          "properties": {
+            "planLinkSuperseded": {
+              "type": "boolean"
+            },
+            "appointmentCancelled": {
+              "type": "boolean"
+            }
+          }
+        },
+        "transitions": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["sequence", "fromState", "toState", "reasonCode", "actorRef", "at"],
+            "properties": {
+              "sequence": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "fromState": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/LabCaseState"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "toState": {
+                "$ref": "#/$defs/LabCaseState"
+              },
+              "reasonCode": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ReasonCode"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "actorRef": {
+                "$ref": "#/$defs/ActorRef"
+              },
+              "at": {
+                "$ref": "#/$defs/Instant"
+              }
+            }
+          }
+        },
+        "attachments": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["attachmentRef", "addedBy", "addedAt"],
+            "properties": {
+              "attachmentRef": {
+                "$ref": "#/$defs/AttachmentRef"
+              },
+              "addedBy": {
+                "$ref": "#/$defs/ActorRef"
+              },
+              "addedAt": {
+                "$ref": "#/$defs/Instant"
+              }
+            }
+          }
+        },
+        "createdBy": {
+          "$ref": "#/$defs/ActorRef"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      },
+      "description": "C16 lab case with its full transition history and attachment references (no document bytes)."
+    },
+    "LabCaseCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/LabCase"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "LabCaseRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/LabCase"
+        }
+      }
+    },
+    "LabCaseList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "#/$defs/LabCase"
+          }
+        }
+      }
+    },
+    "LabCaseExport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["format", "generatedAt", "labCase"],
+          "properties": {
+            "format": {
+              "const": "cuspatlas-lab-case-export/1"
+            },
+            "generatedAt": {
+              "$ref": "#/$defs/Instant"
+            },
+            "labCase": {
+              "$ref": "#/$defs/LabCase"
+            }
+          }
+        }
+      },
+      "description": "The printable lab case package (C-D9: print/export is the only channel; nothing is transmitted)."
     }
   }
 }

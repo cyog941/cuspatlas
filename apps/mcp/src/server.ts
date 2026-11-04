@@ -163,6 +163,7 @@ const REF_PARAMS = [
   'consentRef',
   'procedureRef',
   'imageLinkRef',
+  'labCaseRef',
   'templateRef',
   'templateVersionRef',
   'noteRef',

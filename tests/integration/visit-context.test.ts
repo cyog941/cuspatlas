@@ -59,8 +59,8 @@ afterAll(async () => {
   await db?.close();
 });
 
-async function appointment(): Promise<{ ref: string; patient: string }> {
-  const patient = await createPatient(h, 'Synthetic Context');
+async function appointment(existing?: string): Promise<{ ref: string; patient: string }> {
+  const patient = existing ?? (await createPatient(h, 'Synthetic Context'));
   const day = 1 + Math.floor(slot / 8) * 7;
   const hour = 13 + (slot % 8);
   slot += 1;
@@ -89,8 +89,8 @@ const OWNERS = {
   treatmentPlanItems: 'C11',
 };
 
-describe('S12 container through the deployed transports (C producers deployed; C16 not yet)', () => {
-  it('5. a deployed producer slot is available; a missing one is an explicit unavailable with owner and reason; none counts toward completion', async () => {
+describe('S12 container through the deployed transports (every C producer deployed)', () => {
+  it('5. every deployed producer slot is available with owner and entries; an empty context counts as complete', async () => {
     const { ref, patient } = await appointment();
     const rest = h.ok<{ data: Record<string, unknown> }>(await h.call('a1', 'GET', ctxUrl(ref)));
     const m = await h.mcp('a1', 'scheduling_visit_context_get', { appointmentRef: ref });
@@ -107,51 +107,49 @@ describe('S12 container through the deployed transports (C producers deployed; C
     expect(data.patient).toMatchObject({ status: 'resolved', patientRef: patient });
     expect(data.attendance).toStrictEqual({ status: 'resolved', state: 'scheduled' });
     expect(data.appointment).toMatchObject({ status: 'booked', acceptsChanges: true });
-    for (const p of C_PRODUCERS) {
+    for (const p of PRODUCERS) {
       expect(data.items[p]).toStrictEqual({ status: 'available', owner: OWNERS[p], entries: [] });
     }
-    expect(data.items.labCases).toStrictEqual({
-      status: 'unavailable',
-      owner: OWNERS.labCases,
-      reason: 'producer_not_deployed',
-    });
-    expect(data.readiness).toStrictEqual({ resolved: 0, unavailable: ['labCases'], complete: false });
-    expect(PRODUCERS).toContain('labCases');
+    expect(data.readiness).toStrictEqual({ resolved: 0, unavailable: [], complete: true });
     // REST and MCP return the same container (asOf differs per call).
     const mData = (m.body as { data: Record<string, unknown> }).data;
     expect({ ...mData, asOf: null }).toStrictEqual({ ...data, asOf: null });
   });
 
-  it('commands bound to an absent producer are typed refusals that write nothing and leave an attempt row', async () => {
+  it('commands bound to an absent producer (a deployment without it) are typed refusals that write nothing and leave an attempt row', async () => {
     const { ref } = await appointment();
+    const a1 = await actorFor(db, USER_A1, T_ALPHA);
+    const none = domainAppointments(db, { visitContextProducers: {} });
     const before = [await count(db, 'visit_context_items'), await count(db, 'audit_events')];
-    const calls: [string, unknown][] = [
-      [`${ctxUrl(ref)}/lab-cases`, { labCaseRef: randomUUID() }],
-      [`${ctxUrl(ref)}/lab-cases/relink`, { labCaseRef: randomUUID(), reasonCode: 'wrong_visit' }],
+    const attemptsBefore = await count(db, 'security_attempt_events');
+    const calls = [
+      () =>
+        none.pinMedicalHistorySnapshot(a1, ref, envelope('scheduling.visitContext.pinMedicalHistory', {})),
+      () =>
+        none.assignForm(a1, ref, envelope('scheduling.visitContext.assignForm', { formRef: randomUUID() })),
+      () =>
+        none.linkLabCase(
+          a1,
+          ref,
+          envelope('scheduling.visitContext.linkLabCase', { labCaseRef: randomUUID() }),
+        ),
+      () =>
+        none.relinkLabCase(
+          a1,
+          ref,
+          envelope('scheduling.visitContext.relinkLabCase', {
+            labCaseRef: randomUUID(),
+            reasonCode: 'wrong_visit',
+          }),
+        ),
     ];
-    for (const [url, body] of calls) {
-      const res = await h.call('a1', 'POST', url, body);
-      expect([url, res.statusCode, res.json().code, res.json().detail?.reason]).toStrictEqual([
-        url,
-        409,
-        'conflict',
-        'producer_unavailable',
-      ]);
-      const attempts = await db.admin.query(
-        'SELECT reason_code FROM cuspatlas.security_attempt_events WHERE correlation_id = $1',
-        [res.headers['x-correlation-id']],
-      );
-      expect(attempts.rows.length).toBe(1);
+    for (const call of calls) {
+      await expect(call()).rejects.toMatchObject({
+        code: 'conflict',
+        detail: { reason: 'producer_unavailable' },
+      });
     }
-    const m = await h.mcp('a1', 'scheduling_visit_context_link_lab_case', {
-      appointmentRef: ref,
-      labCaseRef: randomUUID(),
-      idempotencyKey: randomUUID(),
-    });
-    expect([m.status, (m.body.detail as { reason?: string })?.reason]).toStrictEqual([
-      409,
-      'producer_unavailable',
-    ]);
+    expect(await count(db, 'security_attempt_events')).toBe(attemptsBefore + calls.length);
     expect([await count(db, 'visit_context_items'), await count(db, 'audit_events')]).toStrictEqual(before);
   });
 
@@ -666,7 +664,51 @@ describe('S12 producer-bound cases (C producers through the S12 domain port)', (
     expect(await count(db, 'visit_context_items')).toBe(before);
   });
 
-  it.todo(
-    'C16: a real lab case bound elsewhere requires the relink command; a foreign-tenant C16 case is refused',
-  );
+  it('C16: a real lab case bound elsewhere requires the relink command; a foreign-tenant C16 case is refused', async () => {
+    const first = await appointment();
+    const second = await appointment();
+    const p = first.patient;
+    const labCase = async (patientRef: string, who = 'a1') =>
+      h.ok<{ data: { labCaseRef: string } }>(
+        await h.call(
+          who,
+          'POST',
+          '/v1/clinical/lab-cases',
+          { patientRef, counterpartyRef: 'syn-lab-visit', caseRef: `SYN-VC-${randomUUID().slice(0, 8)}` },
+          randomUUID(),
+        ),
+        201,
+      ).data.labCaseRef;
+    const lc = await labCase(p);
+    h.ok(await h.call('a1', 'POST', `${ctxUrl(first.ref)}/lab-cases`, { labCaseRef: lc }), 201);
+    // The second appointment belongs to another patient; a case of this patient is refused there.
+    const otherPatient = await h.call('a1', 'POST', `${ctxUrl(second.ref)}/lab-cases`, { labCaseRef: lc });
+    expect([otherPatient.statusCode, otherPatient.json().detail?.reason]).toStrictEqual([
+      409,
+      'producer_record_other_patient',
+    ]);
+    // A second visit of the same patient: the case is bound elsewhere, so the plain link is refused.
+    const visit2 = (await appointment(p)).ref;
+    const elsewhere = await h.call('a1', 'POST', `${ctxUrl(visit2)}/lab-cases`, { labCaseRef: lc });
+    expect([elsewhere.statusCode, elsewhere.json().detail?.reason]).toStrictEqual([
+      409,
+      'lab_case_bound_elsewhere',
+    ]);
+    h.ok(
+      await h.call('a1', 'POST', `${ctxUrl(visit2)}/lab-cases/relink`, {
+        labCaseRef: lc,
+        reasonCode: 'wrong_visit',
+      }),
+      201,
+    );
+    const ctx = await context(visit2);
+    expect(ctx.items.labCases?.entries).toMatchObject([
+      { producerRef: lc, provenanceRef: 'C16:draft', resolution: 'resolved', state: 'active' },
+    ]);
+    // Another tenant's case is indistinguishable from a missing one.
+    const beta = await createPatient(h, 'Synthetic Context Beta Lab', 'b1');
+    const betaCase = await labCase(beta, 'b1');
+    const foreign = await h.call('a1', 'POST', `${ctxUrl(visit2)}/lab-cases`, { labCaseRef: betaCase });
+    expect(foreign.statusCode).toBe(404);
+  });
 });

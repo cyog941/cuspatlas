@@ -3527,6 +3527,268 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/clinical/lab-cases:
+    post:
+      operationId: clinical.labCases.create
+      description: >-
+        Record a lab case in draft (C16, C-D9 recommended: record-keeping and print/export only; no electronic ordering). The patient, plan detail or item and appointment must exist in the caller's tenant (404) and belong to the patient (422); a duplicate case reference for the same lab is 409 lab_case_ref_in_use. Attachments are object references only. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/LabCaseCreate'
+      responses:
+        '201':
+          description: Case recorded (draft).
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/LabCaseCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/lab-cases/worklist:
+    get:
+      operationId: clinical.labCases.worklist
+      description: >-
+        PT-03 lab returns, exception first: awaited cases past their expected return date (lab_return_overdue) and open cases whose plan link was superseded or whose appointment was cancelled (lab_case_review). Uses the shared work-item model; computing it changes nothing. A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/LabWorklistAsOf'
+      responses:
+        '200':
+          description: The work items.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/WorkItemList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/lab-cases/{labCaseRef}:
+    get:
+      operationId: clinical.labCases.read
+      description: >-
+        One lab case with its transition history, attachment references, derived overdue flag and review flags. A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/LabCaseRef'
+      responses:
+        '200':
+          description: The case.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/LabCaseRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/lab-cases/{labCaseRef}/export:
+    get:
+      operationId: clinical.labCases.export
+      description: >-
+        The printable lab case package (C-D9: print/export is the only channel; nothing is transmitted). A sensitive read by a person. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/LabCaseRef'
+      responses:
+        '200':
+          description: The package.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/LabCaseExport'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/lab-cases/{labCaseRef}/state:
+    post:
+      operationId: clinical.labCases.setState
+      description: >-
+        Record a lab case transition (sent, in_progress, seated, cancelled) of the proposed set; a step outside it is 409 lab_transition_not_allowed, a state the practice disabled 409 lab_state_disabled. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/LabCaseRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/LabCaseSetState'
+      responses:
+        '200':
+          description: Transition recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/LabCaseCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/lab-cases/{labCaseRef}/return:
+    post:
+      operationId: clinical.labCases.recordReturn
+      description: >-
+        Record the lab return: a received date and either attachment references or a stated reason (422 attachmentOrReasonRequired). Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/LabCaseRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/LabCaseReturn'
+      responses:
+        '200':
+          description: Return recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/LabCaseCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/lab-cases/{labCaseRef}/attachments:
+    post:
+      operationId: clinical.labCases.attach
+      description: >-
+        Add an attachment object reference to a lab case (the document is stored elsewhere). Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/LabCaseRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/LabCaseAttach'
+      responses:
+        '201':
+          description: Attachment recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/LabCaseCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/lab-cases/{labCaseRef}/remake:
+    post:
+      operationId: clinical.labCases.remake
+      description: >-
+        Create a remake case linked to a received or seated case; the original ends as remake with its history unchanged. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/LabCaseRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/LabCaseRemake'
+      responses:
+        '201':
+          description: Remake case recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/LabCaseCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/patients/{patientRef}/lab-cases:
+    get:
+      operationId: clinical.labCases.list
+      description: >-
+        A patient's lab cases (a merged patient's cases follow the survivor). A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/PatientRef'
+      responses:
+        '200':
+          description: The cases.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/LabCaseList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   /v1/scheduling/appointments/{appointmentRef}/visit-context:
     get:
       operationId: scheduling.visitContext.read
@@ -4863,6 +5125,18 @@ components:
       required: true
       schema:
         $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ImageLinkRef'
+    LabCaseRef:
+      name: labCaseRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/LabCaseRef'
+    LabWorklistAsOf:
+      name: asOf
+      in: query
+      required: false
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/Instant'
     ProcedureRef:
       name: procedureRef
       in: path

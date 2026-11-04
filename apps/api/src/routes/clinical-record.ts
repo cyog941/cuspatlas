@@ -70,6 +70,34 @@ export function registerClinicalRecordRoutes(
   mount('clinical.perio.compare', async (r) => ({
     data: await c.comparePerioExams(requireActor(r), query(r)),
   }));
+  // C16 lab cases.
+  mount('clinical.labCases.create', (r) =>
+    c.createLabCase(requireActor(r), env('clinical.labCases.create', r)),
+  );
+  mount('clinical.labCases.worklist', async (r) => ({
+    data: await c.labWorklist(requireActor(r), query(r)),
+  }));
+  mount('clinical.labCases.read', async (r) => ({
+    data: await c.readLabCase(requireActor(r), param(r, 'labCaseRef')),
+  }));
+  mount('clinical.labCases.export', async (r) => ({
+    data: await c.exportLabCase(requireActor(r), param(r, 'labCaseRef')),
+  }));
+  mount('clinical.labCases.setState', (r) =>
+    c.setLabCaseState(requireActor(r), param(r, 'labCaseRef'), env('clinical.labCases.setState', r)),
+  );
+  mount('clinical.labCases.recordReturn', (r) =>
+    c.recordLabReturn(requireActor(r), param(r, 'labCaseRef'), env('clinical.labCases.recordReturn', r)),
+  );
+  mount('clinical.labCases.attach', (r) =>
+    c.attachLabDocument(requireActor(r), param(r, 'labCaseRef'), env('clinical.labCases.attach', r)),
+  );
+  mount('clinical.labCases.remake', (r) =>
+    c.remakeLabCase(requireActor(r), param(r, 'labCaseRef'), env('clinical.labCases.remake', r)),
+  );
+  mount('clinical.labCases.list', async (r) => ({
+    data: await c.listLabCases(requireActor(r), param(r, 'patientRef')),
+  }));
   // C15 encounter image links.
   mount('clinical.imageLinks.link', (r) =>
     c.linkImageToEncounter(requireActor(r), param(r, 'encounterRef'), env('clinical.imageLinks.link', r)),

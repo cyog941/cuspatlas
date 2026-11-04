@@ -6,6 +6,7 @@ import { createEncounterOperations } from './encounters';
 import { createEstimateOperations } from './estimates';
 import { createHistoryOperations } from './history';
 import { createImageLinkOperations } from './image-links';
+import { createLabCaseOperations } from './lab-cases';
 import { createNoteOperations } from './notes/notes';
 import { createNoteTemplateOperations } from './notes/templates';
 import { createPerioOperations } from './perio';
@@ -30,6 +31,7 @@ export function createClinicalService(deps: ClinicalDeps) {
     ...createConsentOperations(base),
     ...createProcedureOperations(base),
     ...createImageLinkOperations(base),
+    ...createLabCaseOperations(base),
     ...createNoteTemplateOperations(base),
     ...createNoteOperations(base),
   };

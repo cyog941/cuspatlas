@@ -338,3 +338,86 @@ export const validateImageLinkUnlink = def('ImageLinkUnlink');
 export const validateImageLinkCommandResult = def('ImageLinkCommandResult');
 export const validateImageLinkRead = def('ImageLinkRead');
 export const validateImageLinkList = def('ImageLinkList');
+
+// C16 lab cases (C-D9 recommended: configurable proposed states; print/export only; no ordering).
+export type LabCaseState = 'draft' | 'sent' | 'in_progress' | 'received' | 'seated' | 'remake' | 'cancelled';
+export interface LabCaseCreate {
+  readonly patientRef: string;
+  readonly counterpartyRef: string;
+  readonly caseRef: string;
+  readonly planItemRef?: string;
+  readonly planDetailRef?: string;
+  readonly appointmentRef?: string;
+  readonly requestedDate?: string;
+  readonly expectedReturnDate?: string;
+  readonly attachmentRefs?: readonly string[];
+}
+export interface LabCaseSetState {
+  readonly expectedVersion: number;
+  readonly state: 'sent' | 'in_progress' | 'seated' | 'cancelled';
+  readonly reasonCode?: string;
+}
+export interface LabCaseReturn {
+  readonly expectedVersion: number;
+  readonly receivedDate: string;
+  readonly attachmentRefs?: readonly string[];
+  readonly noAttachmentReason?: string;
+}
+export interface LabCaseAttach {
+  readonly attachmentRef: string;
+}
+export interface LabCaseRemake {
+  readonly expectedVersion: number;
+  readonly reasonCode: string;
+  readonly caseRef: string;
+  readonly expectedReturnDate?: string;
+}
+export interface LabWorklistQuery {
+  readonly asOf?: string;
+}
+export interface LabCase {
+  readonly labCaseRef: string;
+  readonly patientRef: string;
+  readonly sourcePatientRef: string;
+  readonly counterpartyRef: string;
+  readonly caseRef: string;
+  readonly planItemRef: string | null;
+  readonly planDetailRef: string | null;
+  readonly appointmentRef: string | null;
+  readonly appointmentStatus: string | null;
+  readonly requestedDate: string | null;
+  readonly expectedReturnDate: string | null;
+  readonly receivedDate: string | null;
+  readonly noAttachmentReason: string | null;
+  readonly state: LabCaseState;
+  readonly overdue: boolean;
+  readonly remakeOfRef: string | null;
+  readonly remadeAsRef: string | null;
+  readonly review: { readonly planLinkSuperseded: boolean; readonly appointmentCancelled: boolean };
+  readonly transitions: readonly {
+    readonly sequence: number;
+    readonly fromState: LabCaseState | null;
+    readonly toState: LabCaseState;
+    readonly reasonCode: string | null;
+    readonly actorRef: string;
+    readonly at: string;
+  }[];
+  readonly attachments: readonly {
+    readonly attachmentRef: string;
+    readonly addedBy: string;
+    readonly addedAt: string;
+  }[];
+  readonly createdBy: string;
+  readonly createdAt: string;
+  readonly version: number;
+}
+export const validateLabCaseCreate = def('LabCaseCreate');
+export const validateLabCaseSetState = def('LabCaseSetState');
+export const validateLabCaseReturn = def('LabCaseReturn');
+export const validateLabCaseAttach = def('LabCaseAttach');
+export const validateLabCaseRemake = def('LabCaseRemake');
+export const validateLabWorklistQuery = def('LabWorklistQuery');
+export const validateLabCaseCommandResult = def('LabCaseCommandResult');
+export const validateLabCaseRead = def('LabCaseRead');
+export const validateLabCaseList = def('LabCaseList');
+export const validateLabCaseExport = def('LabCaseExport');

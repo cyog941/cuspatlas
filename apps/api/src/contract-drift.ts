@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { REFUSAL_CODES } from '@cuspatlas/contracts';
 import { parse } from 'yaml';
+import { BILLING_OPS } from './routes/billing-ops';
 import {
   BILLING_SCHEMA_FILE,
   CLINICAL_SCHEMA_FILE,
@@ -432,7 +433,12 @@ export function checkContractDrift(src: ContractSources): string[] {
     }
   }
   const bdef = (name: string) => pointer(billing, `/$defs/${name}`);
-  for (const name of BILLING_BODIES) {
+  // B6/B7/B9: every request body and GET query of the billing operation table is closed too.
+  const billingOpBodies = BILLING_OPS.flatMap((o) => [
+    ...(o.requestBody ? [o.requestBody.replace('billing:', '')] : []),
+    ...(o.query ? [o.query] : []),
+  ]);
+  for (const name of [...BILLING_BODIES, ...billingOpBodies]) {
     if (pointer(bdef(name), '/additionalProperties') !== false) {
       problems.push(`${name} must set additionalProperties: false`);
     }

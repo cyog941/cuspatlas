@@ -133,6 +133,15 @@ export const ACTION_POLICIES = {
   'rcm.coverages.read': { scope: 'coverage.read', principals: ['human', 'service'] },
   'rcm.coverages.resolve': { scope: 'coverage.read', principals: ['human', 'service'] },
   'rcm.eligibility.record': { scope: 'coverage.write', principals: ['human', 'service'] },
+  // B9 fee schedules (configuration: human billing.write), the fee read C12 estimates use, the C14 ->
+  // B consumer (service only: the worker principal), adjustments (contractual by billing.write; a
+  // courtesy or write-off decision is a human-only correction) and the receivables report.
+  'billing.feeSchedules.publish': { scope: 'billing.write', principals: ['human'] },
+  'billing.fees.resolve': { scope: 'ledger.read', principals: ['human', 'service'] },
+  'billing.procedures.consume': { scope: 'billing.write', principals: ['service'] },
+  'billing.adjustments.post': { scope: 'billing.write', principals: ['human', 'service'] },
+  'billing.adjustments.decide': { scope: 'billing.correct', principals: ['human'] },
+  'billing.reports.receivables': { scope: 'receivables.read', principals: ['human', 'service'] },
   // C5 encounters and clinical authorship (recommended-pending-clinical-approval). Clinical
   // mutations are human-only: a model or integration is never a clinical author. Every mutation
   // additionally needs a resolvable clinical author profile (clinical/authorship.ts). Reads are

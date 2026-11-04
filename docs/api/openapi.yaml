@@ -5325,6 +5325,226 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  # BEGIN generated: BILLING_OPS (node_modules/.cache/bb3/openapi-gen.ts)
+  /v1/billing/fee-schedules/versions:
+    post:
+      operationId: billing.feeSchedules.publish
+      description: >-
+        B9: publish a new version of a practice or allowance fee schedule (SYN- codes, integer minor units,
+        effective date). A version is never edited and never reprices a posted charge; a version effective
+        before the latest one is 409 effective_date_out_of_order.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/FeeSchedulePublish'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/FeeScheduleCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/fees:
+    get:
+      operationId: billing.fees.resolve
+      description: >-
+        B9 / C12 seam: the practice fee and (with a coverage) the payer allowance of one SYN- code on a
+        service date at a location. null means no configured fee, never a guessed amount.
+      parameters:
+        - name: codeRef
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/SyntheticProcedureCode'
+        - name: serviceDate
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/LocalDate'
+        - name: locationRef
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/LocationRef'
+        - name: coverageRef
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/FeeResolutionResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/procedure-events/{procedureRef}/consume:
+    post:
+      operationId: billing.procedures.consume
+      description: >-
+        C14 -> B consumer (service principals only; the worker calls the same function): posts the charge of
+        a rendered procedure or the reversal of a reversed one, idempotently per procedure event version.
+      parameters:
+        - name: procedureRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ProcedureConsumeResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/charges/{chargeRef}/adjustments:
+    post:
+      operationId: billing.adjustments.post
+      description: >-
+        B9: adjust one charge with a configured reason. Contractual (insurer) posts a journal entry;
+        courtesy and write-off create a request another human must approve (no silent write-off).
+      parameters:
+        - name: chargeRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ChargeRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/AdjustmentPost'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/AdjustmentCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/adjustment-requests/{requestRef}/decision:
+    post:
+      operationId: billing.adjustments.decide
+      description: >-
+        B9: approve (posts the entry) or reject an adjustment request. Human-only billing.correct; the
+        requester can never decide their own request.
+      parameters:
+        - name: requestRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/AdjustmentDecision'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/AdjustmentCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/reports/receivables:
+    get:
+      operationId: billing.reports.receivables
+      description: >-
+        B9 report scope: open patient and insurer receivables by charge location. Requires receivables.read;
+        a location-restricted reader sees only its locations.
+      parameters:
+        - name: locationRef
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/LocationRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ReceivablesReportResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  # END generated: BILLING_OPS
 components:
   securitySchemes:
     bearer:

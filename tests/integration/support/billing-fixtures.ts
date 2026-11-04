@@ -140,7 +140,7 @@ export async function billingDigest(db: TestDatabase): Promise<string> {
   const parts: string[] = [];
   for (const t of await billingTables(db)) {
     const { rows } = await db.admin.query(
-      `SELECT coalesce(md5(string_agg(to_jsonb(t)::text, '|' ORDER BY t.id)), '') AS d FROM cuspatlas.${t} t`,
+      `SELECT coalesce(md5(string_agg(to_jsonb(t)::text, '|' ORDER BY to_jsonb(t)::text)), '') AS d FROM cuspatlas.${t} t`,
     );
     parts.push(`${t}:${rows[0].d}`);
   }

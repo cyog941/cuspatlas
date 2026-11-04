@@ -132,6 +132,13 @@ const TOOL_NAMES = [
   'rcm_coverages_record',
   'rcm_coverages_resolve',
   'rcm_eligibility_record',
+  // B9 fee schedules, adjustments and report scope; the C14 consumer twin (BILLING_OPS).
+  'billing_fee_schedules_publish',
+  'billing_fees_resolve',
+  'billing_procedures_consume',
+  'billing_adjustments_post',
+  'billing_adjustments_decide',
+  'billing_reports_receivables',
   // C5 encounter and authorship tools (parity in clinical-encounters and negative-harness tests).
   'clinical_author_context',
   'clinical_authors_define',

@@ -1,11 +1,14 @@
 import { createCoverageOperations } from '../rcm/coverage';
+import { createAdjustmentOperations } from './adjustments';
 import { createAllocationOperations } from './allocations';
 import { type BillingDeps, createBillingBase } from './base';
 import { createChargeOperations } from './charges';
 import { createEntryOperations } from './entries';
+import { createFeeOperations } from './fees';
 import { createSyntheticPaymentProvider } from './payment-port';
 import { createPaymentOperations } from './payments';
 import { createPlanOperations } from './plans';
+import { createProcedureConsumer } from './procedure-consumer';
 import { createStatementOperations } from './statements';
 import { createWorklistOperations } from './worklist';
 
@@ -27,6 +30,9 @@ export function createBillingService(deps: BillingDeps) {
     ...createCoverageOperations(base, deps.eligibility),
     ...createAllocationOperations(base),
     ...createWorklistOperations(base),
+    ...createFeeOperations(base),
+    ...createProcedureConsumer(base),
+    ...createAdjustmentOperations(base),
   };
 }
 

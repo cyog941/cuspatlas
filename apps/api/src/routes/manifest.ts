@@ -1,5 +1,6 @@
 import { APPOINTMENT_ROUTES } from './appointment-manifest';
 import { BILLING_ROUTES } from './billing-manifest';
+import { BILLING_OP_ROUTES } from './billing-ops';
 import { CLINICAL_ROUTES } from './clinical-manifest';
 import { CLINICAL_RECORD_ROUTES } from './clinical-record-manifest';
 import { SCHEDULING_OP_ROUTES } from './scheduling-ops';
@@ -334,6 +335,7 @@ export const ROUTES: readonly RouteContract[] = [
   },
   ...APPOINTMENT_ROUTES,
   ...BILLING_ROUTES,
+  ...BILLING_OP_ROUTES(),
   ...CLINICAL_ROUTES,
   ...CLINICAL_RECORD_ROUTES,
   ...SCHEDULING_OP_ROUTES,

@@ -12,6 +12,7 @@ import type {
   StatementCommandData,
 } from '@cuspatlas/contracts';
 import type { ReplayCodec, StoredResult } from '../commands/execute-once';
+import { flatCodec } from '../scheduling/ext-codecs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const malformed = () => new Error('Stored result is malformed');
@@ -221,10 +222,18 @@ export const BILLING_PAYMENT_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<
   'billing.payments.reconcile': reconcile as ReplayCodec<unknown>,
 };
 
+/** B6/B7/B9 commands with flat server-value results (references, enumerations, numbers). */
+export const BILLING_FLAT_OPERATIONS: readonly string[] = [
+  'billing.feeSchedules.publish',
+  'billing.adjustments.post',
+  'billing.adjustments.decide',
+];
+
 /** Every billing operation that runs through executeOnce (B1 and B2). */
 export const BILLING_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<unknown>>> = {
   'billing.charges.post': charge as ReplayCodec<unknown>,
   'billing.entries.reverse': reversal as ReplayCodec<unknown>,
   ...BILLING_PAYMENT_REPLAY_CODECS,
   ...BILLING_PLAN_REPLAY_CODECS,
+  ...Object.fromEntries(BILLING_FLAT_OPERATIONS.map((op) => [op, flatCodec as ReplayCodec<unknown>])),
 };

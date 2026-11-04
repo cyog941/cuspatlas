@@ -29,6 +29,8 @@ export interface LineInput {
   readonly payerRef?: string | null;
   /** B5: the coverage an insurer receivable line names; the sign rule keys on it. */
   readonly coverageId?: string | null;
+  /** B7: the remittance an insurer clearing or insurer cash line belongs to. */
+  readonly remittanceId?: string | null;
 }
 
 export interface EntryInput {
@@ -40,6 +42,8 @@ export interface EntryInput {
   readonly reasonCode?: string | null;
   readonly serviceDate?: string | null;
   readonly externalRef?: string | null;
+  /** B7: the remittance an insurer payment or settlement entry posts. */
+  readonly remittanceId?: string | null;
   readonly lines: readonly LineInput[];
 }
 
@@ -47,7 +51,7 @@ export interface EntryInput {
 const SIGN: Readonly<
   Record<
     LedgerAccount,
-    { keys: readonly ('charge' | 'payer' | 'payment' | 'patient')[]; nonNegative: boolean }
+    { keys: readonly ('charge' | 'payer' | 'payment' | 'patient' | 'remittance')[]; nonNegative: boolean }
   >
 > = {
   patient_receivable: { keys: ['charge'], nonNegative: true },
@@ -56,6 +60,9 @@ const SIGN: Readonly<
   unapplied_credit: { keys: ['payment', 'patient'], nonNegative: false },
   undeposited_funds: { keys: ['payment'], nonNegative: true },
   settled_cash: { keys: ['payment'], nonNegative: true },
+  adjustment_expense: { keys: ['charge'], nonNegative: true },
+  insurer_clearing: { keys: ['remittance'], nonNegative: true },
+  insurer_cash: { keys: ['remittance'], nonNegative: true },
 };
 
 /** A posting would break an account's sign rule; the command maps it to its own reason. */
@@ -101,19 +108,21 @@ const dimensionOf = (l: LineInput) => ({
   payer: SIGN[l.account].keys.includes('payer') ? (l.coverageId ?? l.payerRef ?? null) : null,
   payment: SIGN[l.account].keys.includes('payment') ? (l.paymentId ?? null) : null,
   patient: SIGN[l.account].keys.includes('patient') ? l.patientId : null,
+  remittance: SIGN[l.account].keys.includes('remittance') ? (l.remittanceId ?? null) : null,
 });
 
 /** Current balance of one dimension (exact integer text from PostgreSQL, parsed without floats). */
 export async function dimensionBalance(
   tx: TenantTransaction,
   currency: string,
-  d: ReturnType<typeof dimensionOf>,
+  d: Omit<ReturnType<typeof dimensionOf>, 'remittance'> & { remittance?: string | null },
 ): Promise<Money> {
   const { rows } = await tx.query<{ s: string }>(
     `SELECT coalesce(sum(amount_minor), 0)::text AS s FROM cuspatlas.billing_journal_lines
      WHERE account = $1 AND ($2::uuid IS NULL OR charge_id = $2::uuid) AND ($3::text IS NULL OR coalesce(coverage_id::text, payer_ref) = $3::text)
-       AND ($4::uuid IS NULL OR payment_id = $4::uuid) AND ($5::uuid IS NULL OR patient_id = $5::uuid)`,
-    [d.account, d.charge, d.payer, d.payment, d.patient],
+       AND ($4::uuid IS NULL OR payment_id = $4::uuid) AND ($5::uuid IS NULL OR patient_id = $5::uuid)
+       AND ($6::uuid IS NULL OR remittance_id = $6::uuid)`,
+    [d.account, d.charge, d.payer, d.payment, d.patient, d.remittance ?? null],
   );
   return moneyFromMinorText(currency, rows[0]?.s ?? '0');
 }
@@ -145,8 +154,9 @@ export async function postEntry(tx: TenantTransaction, input: EntryInput): Promi
   await assertSigns(tx, input);
   const { rows } = await tx.query<{ id: string }>(
     `INSERT INTO cuspatlas.billing_journal_entries (tenant_id, kind, currency, line_count, charge_id, payment_id,
-       reverses_entry_id, reason_code, service_date, external_ref, posted_by, correlation_id)
-     VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6, $7, $8::date, $9, cuspatlas.current_actor_id(), $10)
+       reverses_entry_id, reason_code, service_date, external_ref, posted_by, correlation_id, remittance_id)
+     VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6, $7, $8::date, $9, cuspatlas.current_actor_id(), $10,
+       $11)
      RETURNING id`,
     [
       input.kind,
@@ -159,17 +169,19 @@ export async function postEntry(tx: TenantTransaction, input: EntryInput): Promi
       input.serviceDate ?? null,
       input.externalRef ?? null,
       tx.ctx.correlationId,
+      input.remittanceId ?? null,
     ],
   );
   const id = rows[0]?.id;
   if (!id) throw new Error('entry insert returned no row');
   await tx.query(
     `INSERT INTO cuspatlas.billing_journal_lines (tenant_id, entry_id, line_no, account, amount_minor, currency,
-       patient_id, charge_id, payment_id, payer_ref, coverage_id)
+       patient_id, charge_id, payment_id, payer_ref, coverage_id, remittance_id)
      SELECT cuspatlas.current_tenant_id(), $1, l.n, l.account, l.amount, $2, l.patient, l.charge, l.payment, l.payer,
-       l.coverage
-     FROM unnest($3::smallint[], $4::text[], $5::bigint[], $6::uuid[], $7::uuid[], $8::uuid[], $9::text[], $10::uuid[])
-       AS l (n, account, amount, patient, charge, payment, payer, coverage)`,
+       l.coverage, l.remittance
+     FROM unnest($3::smallint[], $4::text[], $5::bigint[], $6::uuid[], $7::uuid[], $8::uuid[], $9::text[], $10::uuid[],
+       $11::uuid[])
+       AS l (n, account, amount, patient, charge, payment, payer, coverage, remittance)`,
     [
       id,
       input.currency,
@@ -181,6 +193,7 @@ export async function postEntry(tx: TenantTransaction, input: EntryInput): Promi
       input.lines.map((l) => l.paymentId ?? null),
       input.lines.map((l) => l.payerRef ?? null),
       input.lines.map((l) => l.coverageId ?? null),
+      input.lines.map((l) => l.remittanceId ?? null),
     ],
   );
   return id;
@@ -199,6 +212,7 @@ export interface EntryRow extends Record<string, unknown> {
   external_ref: string | null;
   posted_by: string;
   posted_at: Date;
+  remittance_id: string | null;
 }
 
 interface LineRow extends Record<string, unknown> {
@@ -211,11 +225,13 @@ interface LineRow extends Record<string, unknown> {
   payment_id: string | null;
   payer_ref: string | null;
   coverage_id: string | null;
+  remittance_id: string | null;
 }
 
 export const ENTRY_COLUMNS = `e.id, e.kind, e.currency, e.charge_id, e.payment_id, e.reverses_entry_id,
   (SELECT r.id FROM cuspatlas.billing_journal_entries r WHERE r.reverses_entry_id = e.id) AS reversed_by,
-  e.reason_code, to_char(e.service_date, 'YYYY-MM-DD') AS service_date, e.external_ref, e.posted_by, e.posted_at`;
+  e.reason_code, to_char(e.service_date, 'YYYY-MM-DD') AS service_date, e.external_ref, e.posted_by, e.posted_at,
+  e.remittance_id`;
 
 /** One entry of the current tenant; hidden, missing and malformed references are one 404. */
 export async function loadEntry(tx: TenantTransaction, entryRef: string): Promise<EntryRow> {
@@ -232,7 +248,7 @@ export async function loadLines(tx: TenantTransaction, entryIds: readonly string
   if (entryIds.length === 0) return [];
   const { rows } = await tx.query<LineRow>(
     `SELECT entry_id, line_no, account, amount_minor::text AS amount, patient_id, charge_id, payment_id, payer_ref,
-       coverage_id
+       coverage_id, remittance_id
      FROM cuspatlas.billing_journal_lines WHERE entry_id = ANY ($1::uuid[]) ORDER BY entry_id, line_no`,
     [[...entryIds]],
   );
@@ -280,6 +296,7 @@ export function negatedLines(lines: readonly LineRow[], currency: string): LineI
     paymentId: l.payment_id,
     payerRef: l.payer_ref,
     coverageId: l.coverage_id,
+    remittanceId: l.remittance_id,
   }));
 }
 

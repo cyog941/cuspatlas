@@ -104,8 +104,8 @@
     },
     "SyntheticProcedureCode": {
       "type": "string",
-      "description": "Synthetic placeholder code only; no licensed code set is bundled (B-S4).",
-      "pattern": "^SYN-[A-Z0-9]{1,12}$"
+      "description": "Synthetic placeholder code only (SYN-, up to 40 characters with hyphens, the C14 code space); no licensed code set is bundled (B-S4).",
+      "pattern": "^SYN-[A-Z0-9-]{1,40}$"
     },
     "PayerRef": {
       "type": "string",
@@ -124,7 +124,8 @@
         "openingBalance",
         "allocation",
         "settlement",
-        "responsibilityTransfer"
+        "responsibilityTransfer",
+        "insurerSettlement"
       ]
     },
     "Account": {
@@ -134,7 +135,10 @@
         "production_revenue",
         "unapplied_credit",
         "undeposited_funds",
-        "settled_cash"
+        "settled_cash",
+        "adjustment_expense",
+        "insurer_clearing",
+        "insurer_cash"
       ]
     },
     "ChargePost": {
@@ -470,7 +474,7 @@
           "$ref": "#/$defs/PatientRef"
         },
         "procedureRef": {
-          "$ref": "#/$defs/SyntheticProcedureRef"
+          "$ref": "#/$defs/ProcedureRef"
         },
         "procedureCode": {
           "anyOf": [
@@ -2389,7 +2393,6 @@
     },
     "FeeScheduleRef": {
       "type": "string",
-      "description": "Synthetic fee schedule version reference (B9 owns fee schedules; B-S4).",
       "pattern": "^syn-fee-[a-z0-9-]{1,40}$"
     },
     "OverlapOverride": {
@@ -3141,6 +3144,373 @@
               "$ref": "#/$defs/Instant"
             }
           }
+        }
+      }
+    },
+    "Uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "ProcedureRef": {
+      "description": "A C14 rendered procedure (UUID) or, for a non-clinical synthetic charge, a syn-proc- reference.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Uuid"
+        },
+        {
+          "$ref": "#/$defs/SyntheticProcedureRef"
+        }
+      ]
+    },
+    "LocationRef": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,64}$"
+    },
+    "FeeItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["codeRef", "fee"],
+      "properties": {
+        "codeRef": {
+          "$ref": "#/$defs/SyntheticProcedureCode"
+        },
+        "fee": {
+          "$ref": "#/$defs/Money"
+        }
+      }
+    },
+    "FeeSchedulePublish": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Publish a new version of a fee schedule (created on first publish). A practice schedule prices charges (tenant-wide or per location); an allowance schedule is a payer allowance named by a coverage fee_schedule_ref. A version is never edited; a later version never reprices a posted charge.",
+      "required": ["scheduleRef", "purpose", "effectiveFrom", "items"],
+      "properties": {
+        "scheduleRef": {
+          "$ref": "#/$defs/FeeScheduleRef"
+        },
+        "purpose": {
+          "enum": ["practice", "allowance"]
+        },
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "effectiveFrom": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 500,
+          "items": {
+            "$ref": "#/$defs/FeeItem"
+          }
+        }
+      }
+    },
+    "FeeScheduleCommandData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["feeScheduleRef", "versionRef", "versionNo"],
+      "properties": {
+        "feeScheduleRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "versionRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "versionNo": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "FeeResolveQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["codeRef", "serviceDate"],
+      "properties": {
+        "codeRef": {
+          "$ref": "#/$defs/SyntheticProcedureCode"
+        },
+        "serviceDate": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "coverageRef": {
+          "$ref": "#/$defs/Uuid"
+        }
+      }
+    },
+    "ResolvedFee": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["fee", "feeScheduleRef", "scheduleRef", "versionRef", "versionNo", "effectiveFrom"],
+          "properties": {
+            "fee": {
+              "$ref": "#/$defs/Money"
+            },
+            "feeScheduleRef": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "scheduleRef": {
+              "$ref": "#/$defs/FeeScheduleRef"
+            },
+            "versionRef": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "versionNo": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "effectiveFrom": {
+              "$ref": "#/$defs/LocalDate"
+            }
+          }
+        }
+      ]
+    },
+    "FeeResolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The C12 seam: the practice fee and (with a coverage) the payer allowance for one SYN- code on a service date. null means no configured fee; never a guessed amount.",
+      "required": ["codeRef", "serviceDate", "practice", "allowance"],
+      "properties": {
+        "codeRef": {
+          "$ref": "#/$defs/SyntheticProcedureCode"
+        },
+        "serviceDate": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "practice": {
+          "$ref": "#/$defs/ResolvedFee"
+        },
+        "allowance": {
+          "$ref": "#/$defs/ResolvedFee"
+        }
+      }
+    },
+    "ProcedureConsumeData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["procedureRef", "eventType", "chargeRef", "entryRef", "replayed"],
+      "properties": {
+        "procedureRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "eventType": {
+          "enum": ["procedure.rendered.v1", "procedure.reversed.v1"]
+        },
+        "chargeRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "entryRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "AdjustmentPost": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "An adjustment of one charge. Contractual (insurer responsibility) posts directly; courtesy and write-off are requests posted only by another human approving them. The reason must be configured for the kind.",
+      "required": ["kind", "responsibility", "amount", "reasonCode"],
+      "properties": {
+        "kind": {
+          "enum": ["contractual", "courtesy", "writeOff"]
+        },
+        "responsibility": {
+          "enum": ["patient", "insurer"]
+        },
+        "coverageRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "amount": {
+          "$ref": "#/$defs/PositiveMoney"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "AdjustmentCommandData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outcome", "requestRef", "entryRef"],
+      "properties": {
+        "outcome": {
+          "enum": ["posted", "pending_approval", "rejected"]
+        },
+        "requestRef": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Uuid"
+            }
+          ]
+        },
+        "entryRef": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Uuid"
+            }
+          ]
+        }
+      }
+    },
+    "AdjustmentDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision"],
+      "properties": {
+        "decision": {
+          "enum": ["approved", "rejected"]
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "ReceivablesQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        }
+      }
+    },
+    "ReceivablesRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locationRef", "patientReceivable", "insurerReceivable", "charges"],
+      "properties": {
+        "locationRef": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/LocationRef"
+            }
+          ]
+        },
+        "patientReceivable": {
+          "$ref": "#/$defs/Money"
+        },
+        "insurerReceivable": {
+          "$ref": "#/$defs/Money"
+        },
+        "charges": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "ReceivablesReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Open receivables by charge location, derived from journal lines at read time. A location-restricted reader sees its locations only (null-location synthetic charges are tenant-wide).",
+      "required": ["rows", "scope", "checkedAt"],
+      "properties": {
+        "rows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ReceivablesRow"
+          }
+        },
+        "scope": {
+          "enum": ["all_locations", "assigned_locations"]
+        },
+        "checkedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "FeeScheduleCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/FeeScheduleCommandData"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "FeeResolutionResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/FeeResolution"
+        }
+      }
+    },
+    "ProcedureConsumeResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/ProcedureConsumeData"
+        }
+      }
+    },
+    "AdjustmentCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/AdjustmentCommandData"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ReceivablesReportResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/ReceivablesReport"
         }
       }
     }

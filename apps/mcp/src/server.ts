@@ -50,6 +50,7 @@ import {
 import { assertDistinctAudience, assertIdentityAllowed, createMcpAuthenticator } from './auth';
 import { APPOINTMENT_TOOLS } from './tools/appointments';
 import { BILLING_TOOLS } from './tools/billing';
+import { BILLING_OP_TOOLS } from './tools/billing-ops';
 import { CLINICAL_TOOLS } from './tools/clinical';
 import { CLINICAL_RECORD_TOOLS } from './tools/clinical-record';
 import { PATIENT_TOOLS } from './tools/patients';
@@ -131,6 +132,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   ...SCHEDULING_TOOLS,
   ...APPOINTMENT_TOOLS,
   ...BILLING_TOOLS,
+  ...BILLING_OP_TOOLS,
   ...CLINICAL_TOOLS,
   ...CLINICAL_RECORD_TOOLS,
   ...SCHEDULING_OP_TOOLS,
@@ -176,6 +178,11 @@ const REF_PARAMS = [
   'recoveryRef',
   'policyRef',
   'recallTaskRef',
+  // B6/B7/B9 path parameters (UUID references).
+  'procedureRef',
+  'claimRef',
+  'appealRef',
+  'submissionRef',
 ] as const;
 const PLACEHOLDER_REF = '00000000-0000-4000-8000-000000000000';
 

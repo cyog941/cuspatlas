@@ -1,4 +1,4 @@
-import { ROUTES } from '@cuspatlas/api';
+import { BILLING_OPS, ROUTES } from '@cuspatlas/api';
 import { billingSchema } from '@cuspatlas/contracts';
 import { describe, expect, it } from 'vitest';
 import { TOOLS } from './server';
@@ -29,6 +29,7 @@ const QUERIES: Record<string, string> = {
   'billing.worklist.list': 'WorklistQuery',
   'billing.plans.worklist': 'PlanWorklistQuery',
   'rcm.coverages.resolve': 'CoverageQuery',
+  ...Object.fromEntries(BILLING_OPS.filter((o) => o.query).map((o) => [o.operationId, o.query as string])),
 };
 function restShape(route: (typeof routes)[number]): { properties: Schema; required?: string[] } {
   if (route.requestBody !== undefined) {
@@ -41,7 +42,8 @@ function restShape(route: (typeof routes)[number]): { properties: Schema; requir
 
 function transportOf(route: (typeof routes)[number]): string[] {
   const out: string[] = [];
-  if (route.method === 'post') out.push('idempotencyKey');
+  const unkeyed = BILLING_OPS.some((o) => o.operationId === route.operationId && o.unkeyed === true);
+  if (route.method === 'post' && !unkeyed) out.push('idempotencyKey');
   for (const p of Object.keys(BILLING_TRANSPORT)) if (route.path.includes(`{${p}}`)) out.push(p);
   return out.sort();
 }

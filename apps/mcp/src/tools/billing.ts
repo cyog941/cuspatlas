@@ -18,6 +18,15 @@ export const BILLING_TRANSPORT: Readonly<Record<string, string>> = {
   planRef: 'PlanRef',
   statementRef: 'StatementRef',
   coverageRef: 'CoverageRef',
+  // B6/B7/B9 operation table path parameters.
+  procedureRef: 'Uuid',
+  requestRef: 'Uuid',
+  claimRef: 'Uuid',
+  appealRef: 'Uuid',
+  policyRef: 'Uuid',
+  submissionRef: 'Uuid',
+  remittanceRef: 'RemittanceRef',
+  lineNo: 'RemittanceLineNo',
 };
 
 /** Input schema = the REST body (or query) properties plus the transport-only properties. */

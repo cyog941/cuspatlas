@@ -288,6 +288,19 @@ Tests: `tests/integration/billing-review-hardening-b3b5.test.ts` (15). Red first
 - S5: the insurer-coverage CHECK became an insert trigger: a reversal line may carry a NULL coverage only when the line it negates did (same payer and charge), so pre-B5 entries reverse exactly; any other insurer line names a coverage and carries that coverage's payer.
 - S6: authorization references are unique per tenant (index plus pre-check, 409 `authorization_reused`).
 
+### B9 (fee schedules, adjustments, report scope) and the C14 -> B consumer
+
+Tests: `tests/integration/billing-fees-procedures.test.ts` (10). Red first with the implementation stashed: exit 1 (suite setup failed on the missing fee-schedule route; 10 skipped). Green: exit 0, 10 passed. Full suite: 1657 passed, 13 todo (one float-guard failure on `Number()` in the new REST registration fixed before commit). Migration `20261120070000_billing_fees_procedures_adjustments.sql`.
+
+- Fee schedules: `billing_fee_schedules` (practice per location or tenant-wide; allowance schedules named by a coverage `fee_schedule_ref`), append-only versions effective from a date with a declared item count (checked at commit) and SYN- items in integer minor units. A version effective before the latest is 409 `effective_date_out_of_order`; a same-day correction is a higher version; no version ever reprices a posted charge (the charge records `fee_schedule_version_id`). Open-ended versions make a gap impossible (recorded deviation from the plan's `effective_date_gap`).
+- `billing.fees.resolve` (GET `/v1/billing/fees`) is the C12 seam: practice fee at the location and, with a coverage, the payer allowance; `null` when nothing is configured.
+- C14 consumer: the worker leases `clinicalRenderedProcedure` events and calls `billing.procedures.consume` in-process (new `WorkerDeps.procedures`), with its own service principal authorized freshly by the domain (`billing.write`, service only); the clinical author is not reauthorized (the clinical fact stands). One consumption row per (procedureRef, event version), inserted first (`ON CONFLICT DO NOTHING`), so duplicates, re-leases and 5 concurrent consumers produce one charge (tested). Rendered: price from the practice schedule at the encounter location (read through C's `loadEncounter`); posted to the merge root. Reversed: exact reversal of the original charge entry (an allocated charge is 409 `allocation_reversal_required` and dead-letters for review). Replacement: needs the replaced charge reversed (retryable 409 `replaced_charge_not_reversed`), links `replaces_charge_id`. No fee: retryable 409 `fee_not_configured`, nothing posted. Non-retryable refusals dead-letter with the existing F reason `provider_rejected` (no F schema change).
+- Contract mismatch fixed: charges accept a UUID `procedureRef` (source `clinical_procedure`) and SYN- codes up to 40 characters with hyphens. The manual `billing.charges.post` stays for non-clinical synthetic charges only (`syn-proc-` references; a UUID is refused by its schema), pending a reviewer decision on whether non-clinical charges exist.
+- Adjustments: kinds contractual (insurer, posts directly, B-D2), courtesy and write-off (a request; another human with `billing.correct` approves and posts; self-decision refused by domain and trigger). Reasons from a configured synthetic vocabulary (`reason_not_configured` otherwise); entries `adjustment`/`writeOff` debit the new `adjustment_expense` account per charge and credit the chosen receivable; sign rules refuse more than the balance (`adjustment_exceeds_balance`); corrected by reversal.
+- Journal: accounts `adjustment_expense`, `insurer_clearing`, `insurer_cash` (B7), kinds `insurerSettlement`, and `remittance_id` on entries and lines; `billing_check_entry` (review nit: B7/B9 kinds) and `billing_check_signs` replaced keeping the race-safety locks and exact reversal (now including the remittance dimension).
+- Report scope: `billing.reports.receivables` needs `receivables.read`; location-restricted readers see only their locations (naming another is 403). Billing code names billing tables only: coverage and location reads moved to `packages/domain/src/rcm/lookups.ts`.
+- REST/MCP: one operation table `apps/api/src/routes/billing-ops.ts` (REST registration, MCP tools and closed-body drift derive from it); OpenAPI block generated from it.
+
 ## Seams for later tasks
 
 - C14: drive `billing.charges.post` as a service principal with the rendered-procedure reference in place of `syn-proc-...` (a new `source` value) and the procedure code once B-S4 settles; one original charge per procedure is already enforced.
@@ -304,6 +317,9 @@ Tests: `tests/integration/billing-review-hardening-b3b5.test.ts` (15). Red first
 - CL-12 closure: a charge closes only when patient and insurer responsibility are zero by payment, approved adjustment or transfer; the journal already distinguishes allocation, transfer and (later) adjustment kinds, and unapplied credit is a first-class worklist item.
 
 - C12 (coverage status): the billing resolution may now be `inactive` (verified inactive member); C12 estimates should treat it as no expected insurer payment. C code not edited.
+
+- C12 (fees): read `billing.fees.resolve` for the practice fee and the coverage allowance of a SYN- code; never compute a fee. C code not edited.
+- Worker deployment: pass the billing service as `WorkerDeps.procedures`; the worker principal needs `outbox.deliver` and `billing.write`.
 
 ## Unresolved
 

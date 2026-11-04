@@ -18,14 +18,18 @@ export type EntryKind =
   | 'openingBalance'
   | 'allocation'
   | 'settlement'
-  | 'responsibilityTransfer';
+  | 'responsibilityTransfer'
+  | 'insurerSettlement';
 export type LedgerAccount =
   | 'patient_receivable'
   | 'insurer_receivable'
   | 'production_revenue'
   | 'unapplied_credit'
   | 'undeposited_funds'
-  | 'settled_cash';
+  | 'settled_cash'
+  | 'adjustment_expense'
+  | 'insurer_clearing'
+  | 'insurer_cash';
 
 export interface ChargePost {
   readonly patientRef: string;

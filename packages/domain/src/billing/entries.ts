@@ -146,6 +146,7 @@ export function createEntryOperations(base: BillingBase) {
                 reversesEntryId: row.id,
                 reasonCode: p.reasonCode,
                 serviceDate: row.service_date,
+                remittanceId: row.remittance_id,
                 lines: negatedLines(lines, row.currency),
               });
             } catch (err) {

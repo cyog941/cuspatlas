@@ -31,6 +31,7 @@ import {
   registerBookingRoutes,
 } from './routes/appointments';
 import { registerBillingRoutes } from './routes/billing';
+import { registerBillingOpRoutes } from './routes/billing-ops-routes';
 import { registerClinicalRoutes } from './routes/clinical';
 import { registerClinicalRecordRoutes } from './routes/clinical-record';
 import { registerPatientRoutes } from './routes/patients';
@@ -203,6 +204,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         execute: deps.execute ?? executeOnce,
       });
       registerBillingRoutes(app, { authenticator, billing });
+      registerBillingOpRoutes(app, { authenticator, billing });
       const clinical = createClinicalService({
         authorize,
         withTenantTransaction: deps.tenantTransactions,

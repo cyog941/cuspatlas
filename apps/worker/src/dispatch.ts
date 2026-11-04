@@ -84,6 +84,17 @@ export interface WorkerDeps {
    * adapter. Without it such events are retried (and eventually dead-lettered), never delivered.
    */
   readonly proposals?: ProposalExecutor;
+  /**
+   * C14 -> B consumer (workstream B). Events on the `clinicalRenderedProcedure` aggregate are
+   * consumed in-process by billing under the worker's own service principal (the domain authorizes
+   * it freshly for `billing.procedures.consume`); they are never sent to an adapter. Without it such
+   * events are retried (and eventually dead-lettered), never delivered.
+   */
+  readonly procedures?: ProcedureEventConsumer;
+}
+
+export interface ProcedureEventConsumer {
+  consumeRenderedProcedure(ctx: ActorContext, procedureRef: string): Promise<unknown>;
 }
 
 export interface ProposalExecutor {
@@ -307,8 +318,72 @@ export function createWorker(deps: WorkerDeps) {
     return ok ? 'delivered' : 'lease-lost';
   }
 
+  /**
+   * In-process consumption of a rendered-procedure fact by billing. The clinical fact stands even if
+   * its author's access later changes, so the event actor is not reauthorized; the worker principal is
+   * authorized freshly by the billing domain for every attempt. Consumption is idempotent per
+   * procedure event version (the billing consumption key), so a crash or a duplicate lease never
+   * posts twice. A retryable refusal (fee not configured, an event before its dependency) is retried
+   * with backoff; any other refusal is dead-lettered for review.
+   */
+  async function settleProcedure(event: LeasedEvent): Promise<DispatchResult> {
+    if (event.attempt > event.maxAttempts) {
+      const ok = await finalize(event, {
+        state: 'dead_letter',
+        reason: 'max_attempts_exhausted',
+        outcome: 'exhausted',
+      });
+      return ok ? 'dead-letter' : 'lease-lost';
+    }
+    if (!deps.procedures) {
+      const ok = await finalize(event, {
+        state: 'retry',
+        delaySeconds: delay(event.attempt),
+        outcome: 'executor_unavailable',
+      });
+      return ok ? 'retry' : 'lease-lost';
+    }
+    const m = await deps.memberships.load(deps.workerPrincipalId, event.tenantId);
+    const executor: ActorContext = {
+      tenantId: event.tenantId,
+      actorId: deps.workerPrincipalId,
+      principal: 'service',
+      sessionId: randomUUID(),
+      scopes: m?.active ? m.scopes : [],
+      correlationId: randomUUID(),
+    };
+    try {
+      await deps.procedures.consumeRenderedProcedure(executor, event.aggregateId);
+    } catch (err) {
+      if (!isRefusalError(err)) throw err;
+      if (err.retryable || err.code === 'service_unavailable') {
+        const ok = await finalize(event, {
+          state: 'retry',
+          delaySeconds: delay(event.attempt),
+          outcome: 'failed',
+        });
+        return ok ? 'retry' : 'lease-lost';
+      }
+      const denied = err.code === 'forbidden' || err.code === 'unauthenticated';
+      const ok = await finalize(event, {
+        state: 'dead_letter',
+        reason: denied
+          ? err.reasonCode === 'membership_inactive'
+            ? 'membership_revoked'
+            : 'authorization_denied'
+          : 'provider_rejected',
+        outcome: denied ? 'denied' : 'rejected',
+      });
+      if (!ok) return 'lease-lost';
+      return denied ? 'denied' : 'dead-letter';
+    }
+    const ok = await finalize(event, { state: 'delivered', outcome: 'executed' });
+    return ok ? 'delivered' : 'lease-lost';
+  }
+
   async function settle(event: LeasedEvent, adapter: DeliveryAdapter): Promise<DispatchResult> {
     if (event.aggregateType === 'actionProposal') return settleProposal(event);
+    if (event.aggregateType === 'clinicalRenderedProcedure') return settleProcedure(event);
     const exhausted = event.attempt >= event.maxAttempts;
 
     // 1. A previous attempt may have reached the provider: reconcile by delivery key, never re-send blind.

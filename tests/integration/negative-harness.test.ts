@@ -16,6 +16,7 @@ import { seedClinicalScopes, seedDispositions } from './support/clinical-fixture
 import { openTestDatabase, type TestDatabase } from './support/db';
 import { seedTenancy, T_ALPHA, T_BETA, USER_A1, USER_A2, USER_A4, USER_B1 } from './support/fixtures';
 import { MARKER } from './support/marker';
+import { seedNoteScopes } from './support/note-fixtures';
 import { patientBody, seedPatientScopes, USER_A5 } from './support/patient-fixtures';
 import { seedSchedulingScopes } from './support/scheduling-fixtures';
 import { createTestTokenIssuer, TEST_AUDIENCE, type TestTokenIssuer } from './support/test-token-issuer';
@@ -909,7 +910,112 @@ export const COMMANDS: HarnessCommand[] = [
       idempotencyKey: randomUUID(),
     }),
   },
+  // C9 progress-note templates (workstream C).
+  {
+    operation: 'clinical.noteTemplates.define',
+    tool: 'clinical_note_templates_define',
+    crossTenant: 'own_tenant_only',
+    downgradedTo: 'readOnly',
+    rest: () => ({
+      method: 'POST',
+      url: '/v1/clinical/note-templates',
+      body: templateBody(),
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: () => ({ ...templateBody(), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'clinical.noteTemplates.revise',
+    tool: 'clinical_note_templates_revise',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/note-templates/${f.alphaTemplate}/versions`,
+      body: { expectedVersion: 1, enforced: false, sections: TEMPLATE_SECTIONS },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      templateRef: f.alphaTemplate,
+      expectedVersion: 1,
+      enforced: false,
+      sections: TEMPLATE_SECTIONS,
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.noteTemplates.retire',
+    tool: 'clinical_note_templates_retire',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/note-templates/${f.alphaTemplate}/retire`,
+      body: { expectedVersion: 1, reasonCode: 'superseded' },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({
+      templateRef: f.alphaTemplate,
+      expectedVersion: 1,
+      reasonCode: 'superseded',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.noteTemplates.read',
+    tool: 'clinical_note_templates_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/note-templates/${f.alphaTemplate}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ templateRef: f.alphaTemplate }),
+  },
+  {
+    operation: 'clinical.noteTemplates.readVersion',
+    tool: 'clinical_note_templates_get_version',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/note-template-versions/${f.alphaTemplateVersion}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ templateVersionRef: f.alphaTemplateVersion }),
+  },
+  {
+    operation: 'clinical.noteTemplates.applicable',
+    tool: 'clinical_note_templates_applicable',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/encounters/${f.alphaEncounter}/note-templates?procedureCodeRefs=SYN-PROC-001`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ encounterRef: f.alphaEncounter, procedureCodeRefs: 'SYN-PROC-001' }),
+  },
 ];
+
+const TEMPLATE_SECTIONS = [{ sectionKey: 'subjective', label: 'Synthetic subjective', required: true }];
+/** A fresh label per call: a second active template with the same type and label is refused. */
+function templateBody() {
+  return {
+    noteType: 'progress',
+    label: `Synthetic harness template ${randomUUID()}`,
+    enforced: true,
+    sections: TEMPLATE_SECTIONS,
+    procedureCodeRefs: ['SYN-PROC-001'],
+  };
+}
 
 function historyBody(f: HarnessFixture) {
   return {
@@ -992,6 +1098,7 @@ beforeAll(async () => {
   await seedPatientScopes(db.admin);
   await seedSchedulingScopes(db.admin);
   await seedClinicalScopes(db.admin);
+  await seedNoteScopes(db.admin);
   await seedDispositions(db.admin, T_ALPHA, ['completed_as_planned']);
   issuer = await createTestTokenIssuer();
   logLines = [];
@@ -1180,7 +1287,12 @@ beforeAll(async () => {
   });
   expect(history.statusCode).toBe(201);
   const recorded = history.json().data;
+  // C9: one active alpha note template (version 1).
+  const template = await owner('/v1/clinical/note-templates', templateBody());
+  expect(template.statusCode).toBe(201);
   fixture = {
+    alphaTemplate: template.json().data.templateRef,
+    alphaTemplateVersion: template.json().data.currentVersion.templateVersionRef,
     alphaHistoryVersion: recorded.header.historyVersionRef,
     alphaHistoryItem: recorded.changes[0].itemRef,
     alphaHistoryChange: recorded.changes[0].change.changeRef,
@@ -1317,6 +1429,8 @@ async function state(): Promise<string> {
     await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_history_changes'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_history_verifications'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_history_reviews'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_note_templates'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_note_template_versions'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.audit_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.outbox_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.command_idempotency'),

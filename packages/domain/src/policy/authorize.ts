@@ -108,6 +108,14 @@ export const ACTION_POLICIES = {
   'clinical.history.read': { scope: 'clinical.read', principals: ['human', 'service'] },
   'clinical.history.readVersion': { scope: 'clinical.read', principals: ['human', 'service'] },
   'clinical.history.alerts': { scope: 'clinical.read', principals: ['human', 'service'] },
+  // C9 progress-note templates (C-D4, recommended-pending-clinical-approval). Templates are practice
+  // configuration (human admin only); reads need clinical.read.
+  'clinical.noteTemplates.define': { scope: 'admin.configure', principals: ['human'] },
+  'clinical.noteTemplates.revise': { scope: 'admin.configure', principals: ['human'] },
+  'clinical.noteTemplates.retire': { scope: 'admin.configure', principals: ['human'] },
+  'clinical.noteTemplates.read': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.noteTemplates.readVersion': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.noteTemplates.applicable': { scope: 'clinical.read', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

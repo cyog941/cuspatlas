@@ -76,6 +76,8 @@ Registered by workstream S scheduling (2026-11-05, synthetic implementation; dec
 
 Registered by workstream C clinical record (batch 1, synthetic implementation; clinical semantics recommended-pending-clinical-approval in ADR 0005 and 0006): `clinical.read` (every clinical read: encounters, medical history, alerts, the caller's author context; each is a sensitive read) and `clinical.write` (clinical mutations; human principals only, and only with a resolvable clinical author profile). `clinical.sign` stays reserved for C10; the clinical-oversight scope of C-D5 is not registered until C10. Clinical author profiles are practice configuration under `admin.configure`.
 
+Workstream C batch 2b, C9 (synthetic implementation; C-D4 recommended-pending-clinical-approval in ADR 0006): progress-note templates are practice configuration under `admin.configure` (human principals only); template reads and applicability need `clinical.read`. No new scope.
+
 Camel-case scope names (`receivables.read` written as `receivablesRead`) are a defect. A scope used in any plan must appear in the registry; a plan that needs a new scope adds it there first.
 
 ### Relationship scopes

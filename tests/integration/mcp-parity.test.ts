@@ -112,6 +112,13 @@ const TOOL_NAMES = [
   'clinical_history_read',
   'clinical_history_record_change',
   'clinical_history_verify_item',
+  // C9 note template tools (parity in clinical-note-templates and negative-harness tests).
+  'clinical_note_templates_applicable',
+  'clinical_note_templates_define',
+  'clinical_note_templates_get',
+  'clinical_note_templates_get_version',
+  'clinical_note_templates_retire',
+  'clinical_note_templates_revise',
 ].sort();
 
 let db: TestDatabase;

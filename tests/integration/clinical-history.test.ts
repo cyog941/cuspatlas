@@ -167,7 +167,9 @@ describe('C8 acceptance cases', () => {
       ],
       reported,
     );
-    const [b, c] = v.data.changes;
+    // A version lists its changes by reference, not by submission order: select each by its text.
+    const b = v.data.changes.find((x) => x.change.displayText === 'Synthetic allergen B');
+    const c = v.data.changes.find((x) => x.change.displayText === 'Synthetic allergen C');
     const verified = h.ok<{ data: Item }>(
       await h.call('a3', 'POST', `/v1/clinical/history/items/${b?.itemRef}/verifications`, {
         expectedChangeRef: b?.change.changeRef,

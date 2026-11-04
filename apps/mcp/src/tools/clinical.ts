@@ -14,6 +14,8 @@ const TRANSPORT: Record<string, string> = {
   patientRef: 'PatientRef',
   itemRef: 'HistoryItemRef',
   historyVersionRef: 'HistoryVersionRef',
+  templateRef: 'NoteTemplateRef',
+  templateVersionRef: 'NoteTemplateVersionRef',
 };
 
 /**
@@ -207,6 +209,87 @@ const SPECS: readonly Spec[] = [
         args.encounterRef as string,
         envelope('clinical.history.attestReview', args, 'encounterRef'),
       ),
+  },
+  // C9 progress-note templates (configuration; nothing here drafts or signs a note).
+  {
+    name: 'clinical_note_templates_define',
+    operationId: 'clinical.noteTemplates.define',
+    description: `Define a versioned note template: note type, label, enforcement flag, sections (key, label, required) and associated synthetic SYN- procedure codes. An enforced template blocks signing, not drafting. Human admin only. ${SAFETY}`,
+    body: 'NoteTemplateDefine',
+    transport: ['idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.defineNoteTemplate(actor, envelope('clinical.noteTemplates.define', args)),
+  },
+  {
+    name: 'clinical_note_templates_get',
+    operationId: 'clinical.noteTemplates.read',
+    description: 'Read a note template with every version (retired templates included).',
+    body: null,
+    transport: ['templateRef'],
+    readOnly: true,
+    async run(d, actor, args) {
+      return { data: await d.clinical.readNoteTemplate(actor, args.templateRef as string) };
+    },
+  },
+  {
+    name: 'clinical_note_templates_revise',
+    operationId: 'clinical.noteTemplates.revise',
+    description:
+      'Append a new version of an active template if expectedVersion matches. Earlier versions stay immutable and resolvable for notes that pinned them.',
+    body: 'NoteTemplateRevise',
+    transport: ['templateRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.reviseNoteTemplate(
+        actor,
+        args.templateRef as string,
+        envelope('clinical.noteTemplates.revise', args, 'templateRef'),
+      ),
+  },
+  {
+    name: 'clinical_note_templates_retire',
+    operationId: 'clinical.noteTemplates.retire',
+    description:
+      'Retire a template with a reason: absent from new drafts, still resolvable for existing references.',
+    body: 'NoteTemplateRetire',
+    transport: ['templateRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.retireNoteTemplate(
+        actor,
+        args.templateRef as string,
+        envelope('clinical.noteTemplates.retire', args, 'templateRef'),
+      ),
+  },
+  {
+    name: 'clinical_note_templates_get_version',
+    operationId: 'clinical.noteTemplates.readVersion',
+    description: 'Read one immutable note template version.',
+    body: null,
+    transport: ['templateVersionRef'],
+    readOnly: true,
+    async run(d, actor, args) {
+      return { data: await d.clinical.readNoteTemplateVersion(actor, args.templateVersionRef as string) };
+    },
+  },
+  {
+    name: 'clinical_note_templates_applicable',
+    operationId: 'clinical.noteTemplates.applicable',
+    description:
+      'Active templates for an encounter: those associated with one of the given SYN- procedure codes, and separately those with no code association. Nothing is applied silently.',
+    body: 'NoteTemplateApplicableQuery',
+    transport: ['encounterRef'],
+    readOnly: true,
+    async run(d, actor, args) {
+      return {
+        data: await d.clinical.listApplicableTemplates(
+          actor,
+          args.encounterRef as string,
+          without(args, 'encounterRef'),
+        ),
+      };
+    },
   },
 ];
 

@@ -24,12 +24,15 @@ const tools = TOOLS.filter((t) => isClinical(t.operationId));
 const LIST_QUERIES: Record<string, string> = {
   'clinical.encounters.list': 'EncounterListQuery',
   'clinical.history.read': 'HistoryReadQuery',
+  'clinical.noteTemplates.applicable': 'NoteTemplateApplicableQuery',
 };
 const PATH_PARAMS: Record<string, string> = {
   encounterRef: 'EncounterRef',
   patientRef: 'PatientRef',
   itemRef: 'HistoryItemRef',
   historyVersionRef: 'HistoryVersionRef',
+  templateRef: 'NoteTemplateRef',
+  templateVersionRef: 'NoteTemplateVersionRef',
 };
 
 function restShape(route: (typeof routes)[number]): { properties: Schema; required?: string[] } {

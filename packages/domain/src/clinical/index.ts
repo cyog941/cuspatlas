@@ -15,4 +15,6 @@ export {
   resolveHistoryReference,
 } from './history';
 export { CLINICAL_POST_MERGE_FACT_PROBES } from './merge-probes';
+export { checkAgainstTemplate, type TemplateCheck } from './notes/template-check';
+export { NOTE_TEMPLATE_RESOURCE } from './notes/templates';
 export { type ClinicalService, createClinicalService } from './service';

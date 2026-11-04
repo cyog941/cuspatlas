@@ -76,4 +76,24 @@ export function registerClinicalRoutes(
   mount('clinical.history.attestReview', (r) =>
     c.attestHistoryReview(requireActor(r), param(r, 'encounterRef'), env('clinical.history.attestReview', r)),
   );
+  mount('clinical.noteTemplates.define', (r) =>
+    c.defineNoteTemplate(requireActor(r), env('clinical.noteTemplates.define', r)),
+  );
+  mount('clinical.noteTemplates.read', async (r) => ({
+    data: await c.readNoteTemplate(requireActor(r), param(r, 'templateRef')),
+  }));
+  mount('clinical.noteTemplates.revise', (r) =>
+    c.reviseNoteTemplate(requireActor(r), param(r, 'templateRef'), env('clinical.noteTemplates.revise', r)),
+  );
+  mount('clinical.noteTemplates.retire', (r) =>
+    c.retireNoteTemplate(requireActor(r), param(r, 'templateRef'), env('clinical.noteTemplates.retire', r)),
+  );
+  mount('clinical.noteTemplates.readVersion', async (r) => ({
+    data: await c.readNoteTemplateVersion(requireActor(r), param(r, 'templateVersionRef')),
+  }));
+  mount('clinical.noteTemplates.applicable', async (r) => ({
+    data: await c.listApplicableTemplates(requireActor(r), param(r, 'encounterRef'), {
+      ...(r.query as object),
+    }),
+  }));
 }

@@ -45,4 +45,8 @@ export const CLINICAL_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<Clinica
   'clinical.history.recordChange': refCodec('historyVersionRef'),
   'clinical.history.verifyItem': refCodec('itemRef'),
   'clinical.history.attestReview': refCodec('reviewRef'),
+  // C9 note templates.
+  'clinical.noteTemplates.define': refCodec('templateRef'),
+  'clinical.noteTemplates.revise': refCodec('templateRef'),
+  'clinical.noteTemplates.retire': refCodec('templateRef'),
 };

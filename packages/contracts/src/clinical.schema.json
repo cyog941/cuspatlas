@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cuspatlas.invalid/schemas/clinical/v1",
-  "title": "Clinical record contract v1 (C5 encounters and authorship, C8 medical history; synthetic data only; recommended-pending-clinical-approval)",
+  "title": "Clinical record contract v1 (C5 encounters and authorship, C8 medical history, C9 note templates, C10 notes; synthetic data only; recommended-pending-clinical-approval)",
   "$defs": {
     "ActiveAlerts": {
       "type": "object",
@@ -50,6 +50,16 @@
       "type": "string",
       "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
       "description": "Opaque principal reference of a tenant member."
+    },
+    "ActorStamp": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actorRef"],
+      "properties": {
+        "actorRef": {
+          "$ref": "#/$defs/ActorRef"
+        }
+      }
     },
     "AlertSection": {
       "type": "object",
@@ -181,6 +191,28 @@
     "AlertStatus": {
       "enum": ["unknown", "none_reported", "reviewed_none", "present"],
       "description": "unknown: nothing recorded or reviewed (never \"no allergies\"); none_reported: a none-known statement is recorded; reviewed_none: a clinician attested none at an encounter and nothing of the kind was recorded since; present: active items exist."
+    },
+    "ApplicableTemplate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["templateRef", "noteType", "label", "current", "matchedCodeRefs"],
+      "properties": {
+        "templateRef": {
+          "$ref": "#/$defs/NoteTemplateRef"
+        },
+        "noteType": {
+          "$ref": "#/$defs/NoteType"
+        },
+        "label": {
+          "$ref": "#/$defs/NoteTemplateLabel"
+        },
+        "current": {
+          "$ref": "#/$defs/NoteTemplateVersion"
+        },
+        "matchedCodeRefs": {
+          "$ref": "#/$defs/ProcedureCodeRefs"
+        }
+      }
     },
     "AppointmentRef": {
       "type": "string",
@@ -1347,10 +1379,321 @@
         }
       }
     },
+    "NoteTemplate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "templateRef",
+        "noteType",
+        "label",
+        "state",
+        "retirement",
+        "currentVersion",
+        "versions",
+        "createdBy",
+        "createdAt",
+        "version"
+      ],
+      "properties": {
+        "templateRef": {
+          "$ref": "#/$defs/NoteTemplateRef"
+        },
+        "noteType": {
+          "$ref": "#/$defs/NoteType"
+        },
+        "label": {
+          "$ref": "#/$defs/NoteTemplateLabel"
+        },
+        "state": {
+          "enum": ["active", "retired"]
+        },
+        "retirement": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["reasonCode", "retiredBy", "retiredAt"],
+              "properties": {
+                "reasonCode": {
+                  "$ref": "#/$defs/ReasonCode"
+                },
+                "retiredBy": {
+                  "$ref": "#/$defs/ActorStamp"
+                },
+                "retiredAt": {
+                  "$ref": "#/$defs/Instant"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "currentVersion": {
+          "$ref": "#/$defs/NoteTemplateVersion"
+        },
+        "versions": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 200,
+          "items": {
+            "$ref": "#/$defs/NoteTemplateVersion"
+          }
+        },
+        "createdBy": {
+          "$ref": "#/$defs/ActorStamp"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "NoteTemplateApplicable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["encounterRef", "procedureCodeRefs", "procedureSource", "associated", "general"],
+          "properties": {
+            "encounterRef": {
+              "$ref": "#/$defs/EncounterRef"
+            },
+            "procedureCodeRefs": {
+              "$ref": "#/$defs/ProcedureCodeRefs"
+            },
+            "procedureSource": {
+              "const": "caller_supplied",
+              "description": "Encounter procedures (C11 proposed, C14 rendered) do not exist yet; the caller supplies the codes."
+            },
+            "associated": {
+              "type": "array",
+              "maxItems": 200,
+              "items": {
+                "$ref": "#/$defs/ApplicableTemplate"
+              }
+            },
+            "general": {
+              "type": "array",
+              "maxItems": 200,
+              "items": {
+                "$ref": "#/$defs/ApplicableTemplate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "NoteTemplateApplicableQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "procedureCodeRefs": {
+          "type": "string",
+          "pattern": "^SYN-[A-Z0-9-]{1,40}(,SYN-[A-Z0-9-]{1,40}){0,49}$",
+          "description": "Comma-separated synthetic procedure codes proposed or rendered at the encounter (caller-supplied until C11/C14)."
+        }
+      }
+    },
+    "NoteTemplateCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/NoteTemplate"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "NoteTemplateDefine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["noteType", "label", "enforced", "sections"],
+      "properties": {
+        "noteType": {
+          "$ref": "#/$defs/NoteType"
+        },
+        "label": {
+          "$ref": "#/$defs/NoteTemplateLabel"
+        },
+        "enforced": {
+          "type": "boolean",
+          "description": "C-D4: an enforced template blocks signing (not drafting) until satisfied."
+        },
+        "sections": {
+          "$ref": "#/$defs/NoteTemplateSections"
+        },
+        "procedureCodeRefs": {
+          "$ref": "#/$defs/ProcedureCodeRefs"
+        }
+      }
+    },
+    "NoteTemplateLabel": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "NoteTemplateRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/NoteTemplate"
+        }
+      }
+    },
+    "NoteTemplateRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque note template reference (C9)."
+    },
+    "NoteTemplateRetire": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "reasonCode"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "NoteTemplateRevise": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "enforced", "sections"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "enforced": {
+          "type": "boolean"
+        },
+        "sections": {
+          "$ref": "#/$defs/NoteTemplateSections"
+        },
+        "procedureCodeRefs": {
+          "$ref": "#/$defs/ProcedureCodeRefs"
+        }
+      }
+    },
+    "NoteTemplateSection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sectionKey", "label", "required"],
+      "properties": {
+        "sectionKey": {
+          "$ref": "#/$defs/SectionKey"
+        },
+        "label": {
+          "$ref": "#/$defs/NoteTemplateLabel"
+        },
+        "required": {
+          "type": "boolean"
+        }
+      }
+    },
+    "NoteTemplateSections": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 30,
+      "items": {
+        "$ref": "#/$defs/NoteTemplateSection"
+      }
+    },
+    "NoteTemplateVersion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "templateVersionRef",
+        "templateRef",
+        "sequence",
+        "enforced",
+        "sections",
+        "procedureCodeRefs",
+        "definedBy",
+        "definedAt"
+      ],
+      "properties": {
+        "templateVersionRef": {
+          "$ref": "#/$defs/NoteTemplateVersionRef"
+        },
+        "templateRef": {
+          "$ref": "#/$defs/NoteTemplateRef"
+        },
+        "sequence": {
+          "$ref": "#/$defs/Version"
+        },
+        "enforced": {
+          "type": "boolean"
+        },
+        "sections": {
+          "$ref": "#/$defs/NoteTemplateSections"
+        },
+        "procedureCodeRefs": {
+          "$ref": "#/$defs/ProcedureCodeRefs"
+        },
+        "definedBy": {
+          "$ref": "#/$defs/ActorStamp"
+        },
+        "definedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "NoteTemplateVersionRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/NoteTemplateVersion"
+        }
+      }
+    },
+    "NoteTemplateVersionRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque note template version reference (C9); a signed note pins one."
+    },
+    "NoteType": {
+      "type": "string",
+      "pattern": "^[a-z][a-z_]{0,63}$",
+      "description": "Note type key (for example progress). Configuration, not a clinical code."
+    },
     "PatientRef": {
       "type": "string",
       "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
       "description": "Opaque patient reference (S4)."
+    },
+    "ProcedureCodeRefs": {
+      "type": "array",
+      "maxItems": 50,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/SyntheticCodeRef"
+      },
+      "description": "Provisional synthetic procedure-code references (C-D2); never a licensed code table."
     },
     "ReasonCode": {
       "type": "string",
@@ -1369,6 +1712,11 @@
     "ReviewOutcome": {
       "enum": ["none", "confirmed"],
       "description": "none: reviewed with the patient and none present; confirmed: the recorded list was reviewed."
+    },
+    "SectionKey": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,63}$",
+      "description": "Section key of a note template (synthetic placeholder; required sections are C-S2-Q1, blocking)."
     },
     "SourceRef": {
       "type": "string",

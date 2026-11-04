@@ -1946,6 +1946,179 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/clinical/note-templates:
+    post:
+      operationId: clinical.noteTemplates.define
+      description: >-
+        Define a versioned progress-note template (version 1): note type, label, enforcement flag, sections (key, label, required) and associated synthetic SYN- procedure-code references (never a licensed code set). An enforced template blocks signing, not drafting (C-D4, recommended-pending-clinical-approval). One active template per note type and case-insensitive label (409 template_exists with blockingRefs). Requires admin.configure; human principals only.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteTemplateDefine'
+      responses:
+        '201':
+          description: Template defined.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteTemplateCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/note-templates/{templateRef}:
+    get:
+      operationId: clinical.noteTemplates.read
+      description: >-
+        A note template with every immutable version and its current version; retired templates stay readable. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/NoteTemplateRef'
+      responses:
+        '200':
+          description: The template.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteTemplateRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/note-templates/{templateRef}/versions:
+    post:
+      operationId: clinical.noteTemplates.revise
+      description: >-
+        Append the next immutable version of an active template if expectedVersion matches (409 stale_version otherwise; 409 template_retired for a retired template). Earlier versions, including their code associations, are retained unchanged for every note that pinned them. Requires admin.configure; human principals only.
+      parameters:
+        - $ref: '#/components/parameters/NoteTemplateRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteTemplateRevise'
+      responses:
+        '201':
+          description: Version appended.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteTemplateCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/note-templates/{templateRef}/retire:
+    post:
+      operationId: clinical.noteTemplates.retire
+      description: >-
+        Retire an active template with a reason code. A retired template is absent from new drafts and applicability lists and stays resolvable for existing references; retirement is one-way. Requires admin.configure; human principals only.
+      parameters:
+        - $ref: '#/components/parameters/NoteTemplateRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteTemplateRetire'
+      responses:
+        '200':
+          description: Template retired.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteTemplateCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/note-template-versions/{templateVersionRef}:
+    get:
+      operationId: clinical.noteTemplates.readVersion
+      description: >-
+        One immutable note template version (also for retired templates). Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/NoteTemplateVersionRef'
+      responses:
+        '200':
+          description: The template version.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteTemplateVersionRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/encounters/{encounterRef}/note-templates:
+    get:
+      operationId: clinical.noteTemplates.applicable
+      description: >-
+        Active templates for a visible encounter, in two groups: associated (the current version associates one of the given SYN- procedure codes, with the matched codes) and general (no code association). The codes are caller-supplied until C11/C14 record encounter procedures. Nothing is applied to a note. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/EncounterRef'
+        - $ref: '#/components/parameters/NoteTemplateProcedureCodes'
+      responses:
+        '200':
+          description: The applicable templates.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteTemplateApplicable'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
 components:
   securitySchemes:
     bearer:
@@ -2084,6 +2257,25 @@ components:
       description: RFC 3339 instant; the history as recorded at that instant (default now).
       schema:
         $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/Instant'
+    NoteTemplateRef:
+      name: templateRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteTemplateRef'
+    NoteTemplateVersionRef:
+      name: templateVersionRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteTemplateVersionRef'
+    NoteTemplateProcedureCodes:
+      name: procedureCodeRefs
+      in: query
+      required: false
+      description: Comma-separated synthetic SYN- procedure codes proposed or rendered at the encounter.
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteTemplateApplicableQuery/properties/procedureCodeRefs'
   responses:
     Refusal:
       description: Typed refusal (code, retryable, correlationId, optional safe detail).

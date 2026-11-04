@@ -147,6 +147,12 @@ const TOOL_NAMES = [
   'imaging_ingress_failures',
   'imaging_ingress_get',
   'imaging_ingress_complete',
+  'imaging_associations_candidates',
+  'imaging_associations_confirm',
+  'imaging_associations_correct',
+  'imaging_associations_history',
+  'imaging_associations_unmatched',
+  'imaging_image_refs_resolve',
 ].sort();
 
 let db: TestDatabase;

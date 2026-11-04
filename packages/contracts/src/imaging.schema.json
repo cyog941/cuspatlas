@@ -255,6 +255,9 @@
           "items": {
             "$ref": "#/$defs/Provenance"
           }
+        },
+        "association": {
+          "$ref": "#/$defs/Association"
         }
       }
     },
@@ -469,6 +472,9 @@
         "intendedPatientRef": {
           "$ref": "#/$defs/PatientRef",
           "description": "Patient the uploader names (scopes dedupe and becomes a match candidate); never an association by itself."
+        },
+        "patientHints": {
+          "$ref": "#/$defs/PatientHints"
         }
       },
       "description": "Begin an ingress: declare the media type, exact length and SHA-256; the server checks them all again against the bytes."
@@ -869,6 +875,467 @@
       "additionalProperties": false,
       "required": [],
       "properties": {}
+    },
+    "PatientHints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "familyName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "givenName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "birthDate": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
+        },
+        "identifier": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "issuer", "value"],
+          "properties": {
+            "type": {
+              "enum": ["chart_number", "prior_system", "external_record"]
+            },
+            "issuer": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._:-]{1,64}$"
+            },
+            "value": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._:/-]{1,64}$"
+            }
+          }
+        },
+        "phone": {
+          "type": "string",
+          "pattern": "^\\+?[0-9 ().-]{7,24}$"
+        }
+      },
+      "description": "Patient metadata an upload carried (for example from an acquisition-software export). Stored only as tenant-bound HMAC match keys, never as text, and never an association by itself."
+    },
+    "DecisionRef": {
+      "$ref": "#/$defs/EntityRef",
+      "description": "Opaque match decision reference."
+    },
+    "ImageRef": {
+      "$ref": "#/$defs/EntityRef",
+      "description": "Opaque, stable image handle minted at the first association (the only image identifier C stores)."
+    },
+    "MatchBasis": {
+      "enum": ["operatorSelected", "metadataExact", "metadataAssisted"]
+    },
+    "Association": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status"],
+          "properties": {
+            "status": {
+              "const": "unassociated"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "decisionRef", "patientRef", "imageRef", "basis", "decidedAt", "inherited"],
+          "properties": {
+            "status": {
+              "const": "associated"
+            },
+            "decisionRef": {
+              "$ref": "#/$defs/DecisionRef"
+            },
+            "patientRef": {
+              "$ref": "#/$defs/PatientRef"
+            },
+            "imageRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ImageRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "basis": {
+              "$ref": "#/$defs/MatchBasis"
+            },
+            "decidedAt": {
+              "$ref": "#/$defs/Instant"
+            },
+            "inherited": {
+              "type": "boolean",
+              "description": "True for a derived object, which follows its source original."
+            }
+          }
+        }
+      ]
+    },
+    "MatchCandidateList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["objectRef", "candidates", "limitations", "autoAssociated"],
+          "properties": {
+            "objectRef": {
+              "$ref": "#/$defs/ObjectRef"
+            },
+            "candidates": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["patientRef", "reasons", "suggestedBasis", "exact"],
+                "properties": {
+                  "patientRef": {
+                    "$ref": "#/$defs/PatientRef"
+                  },
+                  "reasons": {
+                    "type": "array",
+                    "maxItems": 5,
+                    "items": {
+                      "enum": [
+                        "operator_selected",
+                        "same_identifier",
+                        "same_legal_name",
+                        "same_birth_date",
+                        "same_phone"
+                      ]
+                    }
+                  },
+                  "suggestedBasis": {
+                    "$ref": "#/$defs/MatchBasis"
+                  },
+                  "exact": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            },
+            "limitations": {
+              "type": "array",
+              "maxItems": 5,
+              "items": {
+                "$ref": "#/$defs/ReasonCode"
+              }
+            },
+            "autoAssociated": {
+              "const": false
+            }
+          }
+        }
+      }
+    },
+    "AssociationConfirm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["patientRef", "basis"],
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "basis": {
+          "$ref": "#/$defs/MatchBasis"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "AssociationCorrect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["patientRef", "reasonCode"],
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "AssociationCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["decisionRef", "imageRef", "objectRef", "patientRef"],
+          "properties": {
+            "decisionRef": {
+              "$ref": "#/$defs/DecisionRef"
+            },
+            "imageRef": {
+              "$ref": "#/$defs/ImageRef"
+            },
+            "objectRef": {
+              "$ref": "#/$defs/ObjectRef"
+            },
+            "patientRef": {
+              "$ref": "#/$defs/PatientRef"
+            },
+            "basis": {
+              "$ref": "#/$defs/MatchBasis"
+            },
+            "supersededRef": {
+              "$ref": "#/$defs/DecisionRef"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "MatchDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decisionRef",
+        "objectRef",
+        "patientRef",
+        "basis",
+        "confidence",
+        "reasonCode",
+        "decidedBy",
+        "decidedAt",
+        "supersedes",
+        "supersededBy",
+        "supersededAt"
+      ],
+      "properties": {
+        "decisionRef": {
+          "$ref": "#/$defs/DecisionRef"
+        },
+        "objectRef": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "basis": {
+          "$ref": "#/$defs/MatchBasis"
+        },
+        "confidence": {
+          "const": "confirmed"
+        },
+        "reasonCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "decidedBy": {
+          "$ref": "#/$defs/EntityRef"
+        },
+        "decidedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "supersedes": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DecisionRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "supersededBy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DecisionRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "supersededAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "AssociationHistory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["objectRef", "imageRef", "decisions"],
+          "properties": {
+            "objectRef": {
+              "$ref": "#/$defs/ObjectRef"
+            },
+            "imageRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ImageRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "decisions": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "$ref": "#/$defs/MatchDecision"
+              }
+            }
+          }
+        }
+      }
+    },
+    "ImageRefQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "expectedPatientRef": {
+          "$ref": "#/$defs/PatientRef"
+        }
+      }
+    },
+    "ImageRefRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "imageRef",
+            "objectRef",
+            "objectState",
+            "contentType",
+            "byteLength",
+            "digestSha256",
+            "mintedAt",
+            "association",
+            "decisionCount",
+            "matchesExpected"
+          ],
+          "properties": {
+            "imageRef": {
+              "$ref": "#/$defs/ImageRef"
+            },
+            "objectRef": {
+              "$ref": "#/$defs/ObjectRef"
+            },
+            "objectState": {
+              "$ref": "#/$defs/ObjectState"
+            },
+            "contentType": {
+              "$ref": "#/$defs/ContentType"
+            },
+            "byteLength": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "digestSha256": {
+              "$ref": "#/$defs/Sha256"
+            },
+            "mintedAt": {
+              "$ref": "#/$defs/Instant"
+            },
+            "association": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["status"],
+                  "properties": {
+                    "status": {
+                      "const": "unassociated"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["status", "decisionRef", "patientRef", "basis", "decidedAt"],
+                  "properties": {
+                    "status": {
+                      "const": "associated"
+                    },
+                    "decisionRef": {
+                      "$ref": "#/$defs/DecisionRef"
+                    },
+                    "patientRef": {
+                      "$ref": "#/$defs/PatientRef"
+                    },
+                    "basis": {
+                      "$ref": "#/$defs/MatchBasis"
+                    },
+                    "decidedAt": {
+                      "$ref": "#/$defs/Instant"
+                    }
+                  }
+                }
+              ]
+            },
+            "decisionCount": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "matchesExpected": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "False when the association moved or the object is no longer available: a consumer (C15, CL-04) must not use it."
+            }
+          },
+          "description": "Reference read consumed by C15 and B attachment packages: a hash-bound image handle and its current association."
+        }
+      }
     }
   }
 }

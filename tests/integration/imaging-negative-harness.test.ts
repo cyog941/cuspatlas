@@ -13,6 +13,7 @@ import {
   type Who,
 } from './support/imaging-fixtures';
 import { MARKER } from './support/marker';
+import { patientBody } from './support/patient-fixtures';
 
 /**
  * Imaging negative harness (Global Constraints of the imaging plan): every imaging command is
@@ -175,6 +176,81 @@ export const ROWS: ImagingHarnessRow[] = [
     rest: () => ({ method: 'GET', url: '/v1/imaging/ingress/failures', keyed: false, status: 200 }),
     mcpArgs: () => ({}),
   },
+  // I3 association and the imageRef.
+  {
+    operation: 'imaging.associations.candidates',
+    crossTenant: 'not_found',
+    downgradedTo: 'imagingReadOnly',
+    rest: (x) => ({
+      method: 'GET',
+      url: `/v1/imaging/objects/${x.object}/match-candidates`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (x) => ({ objectRef: x.object }),
+  },
+  {
+    operation: 'imaging.associations.confirm',
+    crossTenant: 'not_found',
+    downgradedTo: 'imagingReadOnly',
+    rest: (x) => ({
+      method: 'POST',
+      url: `/v1/imaging/objects/${x.object}/association`,
+      body: { patientRef: x.patient, basis: 'operatorSelected' },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (x) => ({
+      objectRef: x.object,
+      patientRef: x.patient,
+      basis: 'operatorSelected',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'imaging.associations.correct',
+    crossTenant: 'not_found',
+    downgradedTo: 'imagingReadOnly',
+    rest: (x) => ({
+      method: 'POST',
+      url: `/v1/imaging/associations/${x.decision}/correct`,
+      body: { patientRef: x.patient2, reasonCode: 'wrong_patient' },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (x) => ({
+      decisionRef: x.decision,
+      patientRef: x.patient2,
+      reasonCode: 'wrong_patient',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'imaging.associations.history',
+    crossTenant: 'not_found',
+    downgradedTo: 'noImagingScopes',
+    rest: (x) => ({
+      method: 'GET',
+      url: `/v1/imaging/objects/${x.associated}/associations`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (x) => ({ objectRef: x.associated }),
+  },
+  {
+    operation: 'imaging.associations.unmatched',
+    crossTenant: 'own_tenant_only',
+    downgradedTo: 'noImagingScopes',
+    rest: () => ({ method: 'GET', url: '/v1/imaging/worklists/unmatched', keyed: false, status: 200 }),
+    mcpArgs: () => ({}),
+  },
+  {
+    operation: 'imaging.imageRefs.resolve',
+    crossTenant: 'not_found',
+    downgradedTo: 'noImagingScopes',
+    rest: (x) => ({ method: 'GET', url: `/v1/imaging/image-refs/${x.imageRef}`, keyed: false, status: 200 }),
+    mcpArgs: (x) => ({ imageRef: x.imageRef }),
+  },
 ];
 
 beforeAll(async () => {
@@ -201,7 +277,40 @@ beforeAll(async () => {
     'idempotency-key': randomUUID(),
   });
   expect(up.status).toBe(200);
-  f = { object, grant: grant.grantRef, token: grant.token, ingress, staged };
+  const patientOf = async (given: string) => {
+    const r = await s.inject('owner', 'POST', '/v1/patients', patientBody(given), {
+      'idempotency-key': randomUUID(),
+    });
+    return (r.json.data as { patientRef: string }).patientRef;
+  };
+  const patient = await patientOf('Synthetic Harness Imaging');
+  const patient2 = await patientOf('Synthetic Harness Imaging Two');
+  const associated = await putFixtureObject(s.db.admin, s.store, {
+    tenantId: T_ALPHA,
+    createdBy: USER_A1,
+    bytes: pngBytes(13),
+  });
+  const c = await s.inject(
+    'owner',
+    'POST',
+    `/v1/imaging/objects/${associated}/association`,
+    { patientRef: patient, basis: 'operatorSelected' },
+    { 'idempotency-key': randomUUID() },
+  );
+  expect(c.status).toBe(201);
+  const assoc = c.json.data as { decisionRef: string; imageRef: string };
+  f = {
+    object,
+    grant: grant.grantRef,
+    token: grant.token,
+    ingress,
+    staged,
+    patient,
+    patient2,
+    associated,
+    decision: assoc.decisionRef,
+    imageRef: assoc.imageRef,
+  };
 });
 afterAll(async () => {
   await s?.close();

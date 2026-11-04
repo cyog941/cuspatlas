@@ -443,5 +443,6 @@ describe('I1 database boundary under the runtime role', () => {
     } finally {
       await bare.close();
     }
-  });
+    // A second database and server start inside this case; allow for a loaded host.
+  }, 120_000);
 });

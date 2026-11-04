@@ -49,7 +49,8 @@ export interface MergeRecordClass {
     | 'appointment_requests'
     | 'appointments'
     | 'appointment_series'
-    | 'waitlist_entries';
+    | 'waitlist_entries'
+    | 'imaging_match_decisions';
   readonly column: 'subject_patient_id' | 'counterparty_patient_id';
   /** Public name of the reference in the record's contract. */
   readonly referenceField: string;
@@ -161,6 +162,17 @@ export const MERGE_RECORD_CLASSES: readonly MergeRecordClass[] = [
     referenceField: 'patientRef',
     factKind: 'administrative',
     digestExclude: ['subject_patient_id', 'state', 'state_reason', 'appointment_id', 'version', 'updated_at'],
+  },
+  // I3: an image association decision (current or superseded) follows its patient. The digest covers
+  // the object, basis, reason, decider and decision time; supersession bookkeeping is lifecycle. The
+  // image bytes and their digest live on imaging_objects and are never touched by a merge.
+  {
+    recordClass: 'imagingAssociation',
+    table: 'imaging_match_decisions',
+    column: 'subject_patient_id',
+    referenceField: 'patientRef',
+    factKind: 'clinical',
+    digestExclude: ['subject_patient_id', 'superseded_by_id', 'superseded_at', 'version', 'updated_at'],
   },
 ];
 

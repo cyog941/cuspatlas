@@ -195,6 +195,84 @@ export const IMAGING_OPS: readonly ImagingOp[] = [
     invoke: (svc, actor, i) =>
       svc.completeIngress(actor, param(i, 'ingressRef'), env('imaging.ingress.complete', i)),
   },
+  // I3 patient matching, association correction and the imageRef.
+  {
+    method: 'get',
+    path: `${OBJ}/match-candidates`,
+    operationId: 'imaging.associations.candidates',
+    protected: true,
+    success: { status: '200', schema: I('MatchCandidateList') },
+    refusals: READ,
+    tool: 'imaging_associations_candidates',
+    description:
+      'Patient candidates for an object from its upload metadata, each with its reasons (identifier, legal name, birth date; a shared phone alone never qualifies). Candidates never bind; nothing is associated automatically.',
+    invoke: (svc, actor, i) => data(svc.proposeMatch(actor, param(i, 'objectRef'))),
+  },
+  {
+    method: 'post',
+    path: `${OBJ}/association`,
+    operationId: 'imaging.associations.confirm',
+    protected: true,
+    requestBody: I('AssociationConfirm'),
+    success: { status: '201', schema: I('AssociationCommandResult') },
+    refusals: COMMAND,
+    tool: 'imaging_associations_confirm',
+    description:
+      'Record the association decision for an available original (a person decides; a metadata basis must match the candidate evidence). Mints the stable imageRef on the first decision; an existing current decision is a conflict (use the correction).',
+    invoke: (svc, actor, i) =>
+      svc.confirmAssociation(actor, param(i, 'objectRef'), env('imaging.associations.confirm', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/imaging/associations/{decisionRef}/correct',
+    operationId: 'imaging.associations.correct',
+    protected: true,
+    requestBody: I('AssociationCorrect'),
+    success: { status: '201', schema: I('AssociationCommandResult') },
+    refusals: COMMAND,
+    tool: 'imaging_associations_correct',
+    description:
+      'Move an object to another patient with a reason: appends a decision superseding the current one (both stay readable). The imageRef stays stable; its reference read reports the change.',
+    invoke: (svc, actor, i) =>
+      svc.correctAssociation(actor, param(i, 'decisionRef'), env('imaging.associations.correct', i)),
+  },
+  {
+    method: 'get',
+    path: `${OBJ}/associations`,
+    operationId: 'imaging.associations.history',
+    protected: true,
+    success: { status: '200', schema: I('AssociationHistory') },
+    refusals: READ,
+    tool: 'imaging_associations_history',
+    description:
+      'Every association decision of an object in order, with who decided, why and what superseded it.',
+    invoke: (svc, actor, i) => data(svc.associationHistory(actor, param(i, 'objectRef'))),
+  },
+  {
+    method: 'get',
+    path: '/v1/imaging/worklists/unmatched',
+    operationId: 'imaging.associations.unmatched',
+    protected: true,
+    success: { status: '200', schema: I('ImagingWorkItemList') },
+    refusals: ['401', '403', '503'],
+    tool: 'imaging_associations_unmatched',
+    description:
+      'Work items for available images with no patient association, with their age; escalated after the configured age (I-D8), never discarded.',
+    invoke: (svc, actor) => data(svc.listUnmatched(actor)),
+  },
+  {
+    method: 'get',
+    path: '/v1/imaging/image-refs/{imageRef}',
+    operationId: 'imaging.imageRefs.resolve',
+    protected: true,
+    success: { status: '200', schema: I('ImageRefRead') },
+    refusals: ['400', '401', '403', '404', '503'],
+    query: 'ImageRefQuery',
+    tool: 'imaging_image_refs_resolve',
+    description:
+      'Reference read for consumers (C15 encounters, B attachment packages): object state, media type, length, SHA-256 and the current association; matchesExpected is false when it no longer matches the patient the consumer expected.',
+    invoke: (svc, actor, i) => data(svc.resolveImageRef(actor, param(i, 'imageRef'), i.body)),
+  },
 ];
 
 /** The route contracts only (spread into ROUTES). */

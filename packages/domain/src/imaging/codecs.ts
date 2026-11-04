@@ -10,6 +10,7 @@ const SAFE = [
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
   /^[0-9a-f]{64}$/,
   /^[a-z][a-z0-9_.:-]{0,79}$/,
+  /^[a-z][A-Za-z]{0,63}$/,
   /^[0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9:.]+Z)?$/,
 ];
 const safe = (v: unknown) =>
@@ -58,6 +59,8 @@ export const IMAGING_OPERATIONS: readonly string[] = [
   'imaging.ingress.begin',
   'imaging.ingress.upload',
   'imaging.ingress.complete',
+  'imaging.associations.confirm',
+  'imaging.associations.correct',
 ];
 
 export const IMAGING_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<unknown>>> = Object.fromEntries(

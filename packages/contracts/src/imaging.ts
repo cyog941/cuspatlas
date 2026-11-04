@@ -177,6 +177,7 @@ export interface IngressBegin {
   readonly declaredDigest: string;
   readonly provenance: ProvenanceInput;
   readonly intendedPatientRef?: string;
+  readonly patientHints?: PatientHints;
 }
 export interface IngressComplete {
   readonly observedDigest: string;
@@ -198,3 +199,28 @@ export interface IngressRead {
 export const validateIngressBegin = def('IngressBegin');
 export const validateIngressComplete = def('IngressComplete');
 export const validateIngressFailureQuery = def('IngressFailureQuery');
+
+// I3 matching, association and the imageRef.
+export interface PatientHints {
+  readonly familyName?: string;
+  readonly givenName?: string;
+  readonly birthDate?: string;
+  readonly identifier?: { readonly type: string; readonly issuer: string; readonly value: string };
+  readonly phone?: string;
+}
+export type MatchBasis = 'operatorSelected' | 'metadataExact' | 'metadataAssisted';
+export interface AssociationConfirm {
+  readonly patientRef: string;
+  readonly basis: MatchBasis;
+  readonly reasonCode?: string;
+}
+export interface AssociationCorrect {
+  readonly patientRef: string;
+  readonly reasonCode: string;
+}
+export interface ImageRefQuery {
+  readonly expectedPatientRef?: string;
+}
+export const validateAssociationConfirm = def('AssociationConfirm');
+export const validateAssociationCorrect = def('AssociationCorrect');
+export const validateImageRefQuery = def('ImageRefQuery');

@@ -1,3 +1,4 @@
+import { associationExtension, createAssociationOperations, sameObject } from './association';
 import { createImagingBase, type ImagingDeps } from './base';
 import { createIngressOperations, sweepAbandonedIngress } from './ingress';
 import { createObjectOperations } from './objects';
@@ -9,8 +10,9 @@ import { createObjectOperations } from './objects';
 export function createImagingService(deps: ImagingDeps) {
   const base = createImagingBase(deps);
   return {
-    ...createObjectOperations(base, [], [sweepAbandonedIngress]),
+    ...createObjectOperations(base, [associationExtension(() => sameObject)], [sweepAbandonedIngress]),
     ...createIngressOperations(base),
+    ...createAssociationOperations(base, [], deps.limits?.unmatchedEscalationHours ?? 48),
   };
 }
 

@@ -19,6 +19,7 @@ import {
   validateIngressComplete,
 } from '@cuspatlas/contracts';
 import { recordCommand } from '../events/record-command';
+import { hintKeys, tenantKeyer } from './association';
 import { checkEnvelope, checkRef, failed, type ImagingBase, notFound, refused } from './base';
 import { dotOnlyName, knownTimeZone, sniffContentType } from './gating';
 import { OBJECT_RESOURCE, type ReconcileStep } from './objects';
@@ -168,8 +169,9 @@ export function createIngressOperations(base: ImagingBase) {
             const { rows } = await tx.query<{ id: string; created_at: Date }>(
               `INSERT INTO cuspatlas.imaging_ingress_sessions (tenant_id, declared_content_type, declared_byte_length,
                  declared_digest, intended_patient_id, source, device_ref, capture_software, original_filename,
-                 acquired_at, acquired_time_zone, created_by)
-               VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, cuspatlas.current_actor_id())
+                 acquired_at, acquired_time_zone, hint_match_keys, created_by)
+               VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::text[],
+                 cuspatlas.current_actor_id())
                RETURNING id, created_at`,
               [
                 p.contentType,
@@ -182,6 +184,7 @@ export function createIngressOperations(base: ImagingBase) {
                 v.originalFilename ?? null,
                 v.acquiredAt ?? null,
                 v.acquiredTimeZone ?? null,
+                hintKeys(p.patientHints, tenantKeyer(deps.matchKeyPepper, ctx.tenantId)),
               ],
             );
             const row = rows[0];

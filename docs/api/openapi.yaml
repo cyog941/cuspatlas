@@ -2964,6 +2964,195 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/imaging/objects/{objectRef}/match-candidates:
+    get:
+      operationId: imaging.associations.candidates
+      description: >-
+        Patient candidates for an object from its upload metadata, each with its reasons (identifier, legal
+        name, birth date; a shared phone alone never qualifies). Candidates never bind; nothing is
+        associated automatically.
+      parameters:
+        - name: objectRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/MatchCandidateList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/objects/{objectRef}/association:
+    post:
+      operationId: imaging.associations.confirm
+      description: >-
+        Record the association decision for an available original (a person decides; a metadata basis must
+        match the candidate evidence). Mints the stable imageRef on the first decision; an existing current
+        decision is a conflict (use the correction).
+      parameters:
+        - name: objectRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/AssociationConfirm'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/AssociationCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/associations/{decisionRef}/correct:
+    post:
+      operationId: imaging.associations.correct
+      description: >-
+        Move an object to another patient with a reason: appends a decision superseding the current one
+        (both stay readable). The imageRef stays stable; its reference read reports the change.
+      parameters:
+        - name: decisionRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DecisionRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/AssociationCorrect'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/AssociationCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/objects/{objectRef}/associations:
+    get:
+      operationId: imaging.associations.history
+      description: >-
+        Every association decision of an object in order, with who decided, why and what superseded it.
+      parameters:
+        - name: objectRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/AssociationHistory'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/worklists/unmatched:
+    get:
+      operationId: imaging.associations.unmatched
+      description: >-
+        Work items for available images with no patient association, with their age; escalated after the
+        configured age (I-D8), never discarded.
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ImagingWorkItemList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/image-refs/{imageRef}:
+    get:
+      operationId: imaging.imageRefs.resolve
+      description: >-
+        Reference read for consumers (C15 encounters, B attachment packages): object state, media type,
+        length, SHA-256 and the current association; matchesExpected is false when it no longer matches the
+        patient the consumer expected.
+      parameters:
+        - name: imageRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ImageRef'
+        - name: expectedPatientRef
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/PatientRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ImageRefRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   # --- end imaging ---
 components:
   securitySchemes:

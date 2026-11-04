@@ -322,3 +322,29 @@ export async function attemptReasons(admin: pg.Pool, correlationId: unknown): Pr
   );
   return rows.map((r) => r.reason_code as string);
 }
+
+/** Begin, upload and complete one ingress through REST as `who`; returns the completion response. */
+export async function ingestVia(
+  s: ImagingStack,
+  bytes: Uint8Array,
+  extra: Record<string, unknown> = {},
+  who: Who = 'owner',
+): Promise<{ ingressRef: string; objectRef: string; status: number }> {
+  const b = await s.command(who, '/v1/imaging/ingress', {
+    contentType: 'image/png',
+    byteLength: bytes.byteLength,
+    declaredDigest: sha256(bytes),
+    provenance: { source: 'operatorUpload' },
+    ...extra,
+  });
+  const ingressRef = (b.json.data as { ingressRef: string }).ingressRef;
+  await s.command(who, `/v1/imaging/ingress/${ingressRef}/content`, bytes);
+  const c = await s.command(who, `/v1/imaging/ingress/${ingressRef}/complete`, {
+    observedDigest: sha256(bytes),
+  });
+  return {
+    ingressRef,
+    objectRef: (c.json.data as { objectRef?: string } | undefined)?.objectRef ?? '',
+    status: c.status,
+  };
+}

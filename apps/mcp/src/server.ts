@@ -164,6 +164,8 @@ const REF_PARAMS = [
   'objectRef',
   'grantRef',
   'ingressRef',
+  'decisionRef',
+  'imageRef',
 ] as const;
 const PLACEHOLDER_REF = '00000000-0000-4000-8000-000000000000';
 

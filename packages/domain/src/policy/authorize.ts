@@ -157,6 +157,15 @@ export const ACTION_POLICIES = {
   'imaging.ingress.complete': { scope: 'imaging.write', principals: ['human', 'service'] },
   'imaging.ingress.read': { scope: 'imaging.read', principals: ['human', 'service'] },
   'imaging.ingress.failures': { scope: 'imaging.read', principals: ['human', 'service'] },
+  // I3 patient association: reviewing candidates and recording or correcting a decision is a human
+  // decision (imaging.associate); the history, the unmatched worklist and the imageRef read need
+  // imaging.read (C15 and B attachment packages consume the imageRef read).
+  'imaging.associations.candidates': { scope: 'imaging.associate', principals: ['human'] },
+  'imaging.associations.confirm': { scope: 'imaging.associate', principals: ['human'] },
+  'imaging.associations.correct': { scope: 'imaging.associate', principals: ['human'] },
+  'imaging.associations.history': { scope: 'imaging.read', principals: ['human', 'service'] },
+  'imaging.associations.unmatched': { scope: 'imaging.read', principals: ['human', 'service'] },
+  'imaging.imageRefs.resolve': { scope: 'imaging.read', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

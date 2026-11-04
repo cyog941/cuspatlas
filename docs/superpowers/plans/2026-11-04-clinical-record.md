@@ -14,6 +14,10 @@
 
 **Task numbering:** this plan's prefix is `C`. Implementation tasks are `C1`–`C18`, discovery spikes are `C-S1`–`C-S4`, and open decisions are `C-D1`–`C-D10`. A cross-workstream reference names the fully qualified task: `F` is [platform foundation](2026-11-03-platform-foundation.md), `S` is [patients and scheduling](2026-11-04-scheduling-and-patients.md), `B` billing, `I` imaging, `E` portal, `M` migration. Spikes have owners, sit in the dependency graph and can block a task. `Blocks` is derived from `Dependencies` and is never maintained as a second list.
 
+## Practice-time acceptance requirements
+
+Consume [PT-01–06 and UX-01–03](../../PRACTICE-TIME-AND-AUTOMATION.md) in the owning tasks: reuse authoritative data, expose current state/next owner, distinguish unavailable from empty, and automate eligible routine steps under explicit policy. Clinical and imaging tasks provide correctly linked evidence for CL-04; scheduling/engagement tasks coordinate cancellation recovery, recall and treatment follow-up with consent and race-safe booking. Preserve human clinical judgment and signatures. Add exception, retry, revocation and provenance cases before implementing these extensions; UI design stays deferred.
+
 ## Global Constraints
 
 - This is a reviewed proposal. Nothing here is implemented, tested, clinically validated or authorized.

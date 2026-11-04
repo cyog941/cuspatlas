@@ -453,3 +453,15 @@ Additions only; no frozen row changed. Synthetic data only; clinical semantics a
 - S16 (S-owned policy): basis `completed_procedure` with `procedureCodeRefs` (`20261109060000`); the C14 read is `SchedulingDeps.completedProcedures` (`readLatestCompletedProcedures`); that due list also needs `clinical.procedures.list`.
 - C18: `clinical.export` (`admin.configure`, human, tenant-wide) `cuspatlas-clinical-export/1` over `CLINICAL_EXPORT_TABLES`; `importClinicalExport` (synthetic round trip, not the M1 import); parity matrix derived from the route manifest and MCP tool list.
 - Merge registry (`MERGE_RECORD_CLASSES` and the SQL mirror) gained `appointmentSeries`, `waitlistEntry` (merge of codex/scheduling-patients), `clinicalLabCase`, `clinicalReferral`.
+
+## Task record: hardening of C15-C18 and the S6 reversal guard (workstream C, branch codex/c-chart)
+
+Additions only; no frozen row changed. Migration `20261109100000_review_hardening_c15_c18.sql`.
+
+- Relink binding: a clinical patient reference moves only with the merge or the reversal recorded in the same transaction (merge or reversal row stamped `now()` and the `merged_into` transition observed in that transaction); a reversal relink also requires that the reversed merge is the latest merge that moved the record. Every reference move observed in a merge or reversal transaction for that patient pair must be a listed move of that merge (deferred).
+- `patient_reference_observations` retention: rows of finished transactions are never read by any guard; `prune_patient_reference_observations()` (migration owner only) removes them.
+- C18 import: `importClinicalExport(pool, tenant, doc, verifyNoteDigests)`; after the foreign-key pass (now tenant-aware for tenant-scoped parents and principal membership) it runs `clinical_import_violations(tenant)` and recomputes note version digests; any failure rolls back.
+- Concurrency: a unique-index race on lab case references, remakes and image links is the same typed 409 as the pre-check (`uniqueOr`), never a 500.
+- C17 export: only `prepared` or `sent` outgoing referrals, with the disclosure consent still standing.
+- S12 port (S-owned, minimal): `VisitProducerRecord.patientRef` is required; C `listFor` producers filter by the visit patient.
+- Lab case rows (case, transition, attachment) are authored by the acting human member (`human_actor_guard`).

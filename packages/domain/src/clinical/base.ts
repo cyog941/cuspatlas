@@ -4,6 +4,7 @@ import {
   type CommandEnvelope,
   type RefusalDetail,
   RefusalError,
+  type TenantTransaction,
   validateClinicalIdempotencyKey,
   type WithTenantTransaction,
 } from '@cuspatlas/contracts';
@@ -61,6 +62,24 @@ export const failedAt = (pointer: string, rule: string) =>
   new RefusalError({ code: 'validation_failed', detail: { violations: [{ pointer, rule }] } });
 export const conflict = (reason: string, extra: Omit<RefusalDetail, 'reason'> = {}) =>
   new RefusalError({ code: 'conflict', detail: { reason, ...extra } });
+
+/**
+ * Runs an insert guarded by a unique index inside a savepoint. A unique violation (23505: a concurrent
+ * writer passed the same pre-check and committed first) is rolled back to the savepoint and answered by
+ * `refuse`, which re-reads the now-visible winner and returns the same typed refusal as the pre-check.
+ */
+export async function uniqueOr<T>(
+  tx: TenantTransaction,
+  work: () => Promise<T>,
+  refuse: () => Promise<RefusalError>,
+): Promise<T> {
+  try {
+    return await tx.savepoint(work);
+  } catch (err) {
+    if (typeof err !== 'object' || err === null || (err as { code?: unknown }).code !== '23505') throw err;
+    throw await refuse();
+  }
+}
 
 /** The envelope must name the operation it is sent to, and carry a well-formed key (checked after authorization). */
 export function checkEnvelope(envelope: CommandEnvelope<unknown>, operation: string): void {

@@ -131,12 +131,12 @@ export function createClinicalVisitContextProducers(deps: ClinicalVisitProducerD
       );
       return rows[0] ? noteRow(rows[0]) : null;
     },
-    async listFor(tx, appointmentRef) {
+    async listFor(tx, appointmentRef, patientRef) {
       const { rows } = await tx.query<{ id: string; state: string; head_sequence: number; subject: string }>(
         `SELECT n.id, n.state, n.head_sequence, e.subject_patient_id AS subject FROM cuspatlas.clinical_notes n
          JOIN cuspatlas.clinical_encounters e ON e.id = n.encounter_id AND e.tenant_id = n.tenant_id
-         WHERE e.appointment_id = $1 ORDER BY n.created_at, n.id LIMIT 50`,
-        [appointmentRef],
+         WHERE e.appointment_id = $1 AND e.subject_patient_id = $2 ORDER BY n.created_at, n.id LIMIT 50`,
+        [appointmentRef, patientRef],
       );
       return rows.map(noteRow);
     },
@@ -177,7 +177,7 @@ export function createClinicalVisitContextProducers(deps: ClinicalVisitProducerD
       }>(`${itemSql} WHERE i.id = $1`, [uuid(ref)]);
       return rows[0] ? itemRow(rows[0]) : null;
     },
-    async listFor(tx, appointmentRef) {
+    async listFor(tx, appointmentRef, patientRef) {
       const { rows } = await tx.query<{
         id: string;
         sequence: number;
@@ -185,9 +185,9 @@ export function createClinicalVisitContextProducers(deps: ClinicalVisitProducerD
         superseded: boolean;
         subject: string;
       }>(
-        `${itemSql} WHERE last.to_state = 'scheduled' AND last.appointment_id = $1 AND NOT ${superseded}
-         ORDER BY i.sequence, i.id LIMIT 50`,
-        [appointmentRef],
+        `${itemSql} WHERE last.to_state = 'scheduled' AND last.appointment_id = $1 AND p.subject_patient_id = $2
+         AND NOT ${superseded} ORDER BY i.sequence, i.id LIMIT 50`,
+        [appointmentRef, patientRef],
       );
       return rows.map(itemRow);
     },

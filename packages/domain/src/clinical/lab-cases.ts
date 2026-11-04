@@ -30,7 +30,7 @@ import { recordSensitiveRead } from '../events/record-sensitive-read';
 import type { VisitContextProducer } from '../scheduling/visit-context';
 import { AVAILABLE, workItem, workList } from '../work-items';
 import { resolveClinicalAuthor } from './authorship';
-import { type ClinicalBase, checkEnvelope, conflict, failedAt, notFound, UUID } from './base';
+import { type ClinicalBase, checkEnvelope, conflict, failedAt, notFound, UUID, uniqueOr } from './base';
 import { assertNotMerged, loadClinicalPatient } from './encounters';
 
 export const LAB_CASE_RESOURCE = 'clinicalLabCase';
@@ -248,6 +248,26 @@ export function createLabCaseOperations(base: ClinicalBase) {
     if (rows[0])
       throw conflict('lab_case_ref_in_use', { blockingRefs: [{ kind: 'labCase', ref: rows[0].id }] });
   };
+  /**
+   * The insert of a case under the (lab, case reference) and one-remake unique indexes: a concurrent
+   * writer that passed the same pre-check and committed first is the same typed 409 as the pre-check
+   * (`lab_case_ref_in_use` naming the winner), or `lab_case_remade` for a concurrent remake.
+   */
+  const caseRefUnique = <T>(
+    tx: TenantTransaction,
+    counterparty: string,
+    caseRef: string,
+    work: () => Promise<T>,
+  ) =>
+    uniqueOr(tx, work, async () => {
+      try {
+        await caseRefFree(tx, counterparty, caseRef);
+      } catch (err) {
+        if (err instanceof RefusalError) return err;
+        throw err;
+      }
+      return conflict('lab_case_remade');
+    });
   /** A plan link and the appointment must exist in this tenant (404) and belong to the patient (422). */
   const checkLinks = async (tx: TenantTransaction, patientId: string, p: LabCaseCreate) => {
     const owner = async (sql: string, ref: string | undefined, pointer: string, rule: string) => {
@@ -339,24 +359,26 @@ export function createLabCaseOperations(base: ClinicalBase) {
               [patient.id],
             );
             if ((n[0]?.n ?? 0) >= MAX_CASES) throw failedAt('/', 'tooManyLabCases');
-            const { rows } = await tx.query<{ id: string }>(
-              `INSERT INTO cuspatlas.clinical_lab_cases (tenant_id, subject_patient_id, origin_patient_id, counterparty_ref,
+            const { rows } = await caseRefUnique(tx, p.counterpartyRef, p.caseRef, () =>
+              tx.query<{ id: string }>(
+                `INSERT INTO cuspatlas.clinical_lab_cases (tenant_id, subject_patient_id, origin_patient_id, counterparty_ref,
                  case_ref, plan_item_id, plan_detail_id, appointment_id, requested_date, expected_return_date, created_by,
                  created_by_role, created_by_credential_ref)
                VALUES (cuspatlas.current_tenant_id(), $1, $1, $2, $3, $4, $5, $6, $7, $8, cuspatlas.current_actor_id(), $9, $10)
                RETURNING id`,
-              [
-                patient.id,
-                p.counterpartyRef,
-                p.caseRef,
-                p.planItemRef ?? null,
-                p.planDetailRef ?? null,
-                p.appointmentRef ?? null,
-                p.requestedDate ?? null,
-                p.expectedReturnDate ?? null,
-                who.role,
-                who.credentialRef,
-              ],
+                [
+                  patient.id,
+                  p.counterpartyRef,
+                  p.caseRef,
+                  p.planItemRef ?? null,
+                  p.planDetailRef ?? null,
+                  p.appointmentRef ?? null,
+                  p.requestedDate ?? null,
+                  p.expectedReturnDate ?? null,
+                  who.role,
+                  who.credentialRef,
+                ],
+              ),
             );
             const id = rows[0]?.id;
             if (!id) throw new Error('insert returned no row');
@@ -462,23 +484,25 @@ export function createLabCaseOperations(base: ClinicalBase) {
           );
           await transition(tx, r.id, r.state, 'remake', p.reasonCode, who);
           await audit(tx, op, r.id, r.version + 1, ['state']);
-          const { rows } = await tx.query<{ id: string }>(
-            `INSERT INTO cuspatlas.clinical_lab_cases (tenant_id, subject_patient_id, origin_patient_id, counterparty_ref,
+          const { rows } = await caseRefUnique(tx, r.counterparty_ref, p.caseRef, () =>
+            tx.query<{ id: string }>(
+              `INSERT INTO cuspatlas.clinical_lab_cases (tenant_id, subject_patient_id, origin_patient_id, counterparty_ref,
              case_ref, plan_item_id, plan_detail_id, expected_return_date, remake_of_id, created_by, created_by_role,
              created_by_credential_ref)
            VALUES (cuspatlas.current_tenant_id(), $1, $1, $2, $3, $4, $5, $6, $7, cuspatlas.current_actor_id(), $8, $9)
            RETURNING id`,
-            [
-              r.subject_patient_id,
-              r.counterparty_ref,
-              p.caseRef,
-              r.plan_item_id,
-              r.plan_detail_id,
-              p.expectedReturnDate ?? null,
-              r.id,
-              who.role,
-              who.credentialRef,
-            ],
+              [
+                r.subject_patient_id,
+                r.counterparty_ref,
+                p.caseRef,
+                r.plan_item_id,
+                r.plan_detail_id,
+                p.expectedReturnDate ?? null,
+                r.id,
+                who.role,
+                who.credentialRef,
+              ],
+            ),
           );
           const id = rows[0]?.id;
           if (!id) throw new Error('insert returned no row');

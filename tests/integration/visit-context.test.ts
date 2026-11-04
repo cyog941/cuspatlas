@@ -225,7 +225,7 @@ describe('S12 container through the deployed transports (every C producer deploy
 
 /** Synthetic producer stub: records keyed by tenant so another tenant's reference is "not found". */
 function stubProducer(): VisitContextProducer & {
-  put(tenant: string, ref: string, rec: Partial<VisitProducerRecord>): void;
+  put(tenant: string, ref: string, rec: Partial<VisitProducerRecord> & { patientRef: string }): void;
   currentFor: Map<string, string>;
 } {
   const records = new Map<string, VisitProducerRecord>();
@@ -264,12 +264,12 @@ describe('S12 container mechanics against a synthetic producer stub (domain port
   it('pin: the context names the captured version; a later producer version leaves the pin intact', async () => {
     const { ref, patient } = await appointment();
     const mh = randomUUID();
-    history.put(T_ALPHA, mh, { version: 3 });
+    history.put(T_ALPHA, mh, { version: 3, patientRef: patient });
     history.currentFor.set(patient, mh);
     const a1 = await actorFor(db, USER_A1, T_ALPHA);
     const pinned = await svc().pinMedicalHistorySnapshot(a1, ref, envelope(op('pinMedicalHistory'), {}));
     expect(pinned.data).toMatchObject({ itemKind: 'medical_history_pin', producerRef: mh, itemVersion: 3 });
-    history.put(T_ALPHA, mh, { version: 4 });
+    history.put(T_ALPHA, mh, { version: 4, patientRef: patient });
     const ctx = await svc().getVisitContext(a1, ref);
     expect(ctx.items.medicalHistory).toMatchObject({
       status: 'available',
@@ -282,9 +282,9 @@ describe('S12 container mechanics against a synthetic producer stub (domain port
   });
 
   it('2. assigning the same form twice returns the recorded assignment once; unassign is explicit with a reason', async () => {
-    const { ref } = await appointment();
+    const { ref, patient } = await appointment();
     const form = randomUUID();
-    forms.put(T_ALPHA, form, {});
+    forms.put(T_ALPHA, form, { patientRef: patient });
     const a1 = await actorFor(db, USER_A1, T_ALPHA);
     const first = await svc().assignForm(a1, ref, envelope(op('assignForm'), { formRef: form }));
     const second = await svc().assignForm(a1, ref, envelope(op('assignForm'), { formRef: form }));
@@ -313,9 +313,9 @@ describe('S12 container mechanics against a synthetic producer stub (domain port
 
   it('3. a lab case bound to another appointment is refused unless relinked; the relink preserves both references', async () => {
     const one = await appointment();
-    const two = await appointment();
+    const two = await appointment(one.patient);
     const lab = randomUUID();
-    labs.put(T_ALPHA, lab, {});
+    labs.put(T_ALPHA, lab, { patientRef: one.patient });
     const a1 = await actorFor(db, USER_A1, T_ALPHA);
     const linked = await svc().linkLabCase(a1, one.ref, envelope(op('linkLabCase'), { labCaseRef: lab }));
     await expect(
@@ -353,9 +353,9 @@ describe('S12 container mechanics against a synthetic producer stub (domain port
   });
 
   it('4. a producer record of another tenant cannot be linked (indistinguishable from missing)', async () => {
-    const { ref } = await appointment();
+    const { ref, patient } = await appointment();
     const foreign = randomUUID();
-    labs.put(T_BETA, foreign, {});
+    labs.put(T_BETA, foreign, { patientRef: patient });
     const a1 = await actorFor(db, USER_A1, T_ALPHA);
     await expect(
       svc().linkLabCase(a1, ref, envelope(op('linkLabCase'), { labCaseRef: foreign })),
@@ -365,12 +365,12 @@ describe('S12 container mechanics against a synthetic producer stub (domain port
   });
 
   it('failure 1. a producer record voided after linking resolves to an explicit voided status, never omitted', async () => {
-    const { ref } = await appointment();
+    const { ref, patient } = await appointment();
     const lab = randomUUID();
-    labs.put(T_ALPHA, lab, {});
+    labs.put(T_ALPHA, lab, { patientRef: patient });
     const a1 = await actorFor(db, USER_A1, T_ALPHA);
     await svc().linkLabCase(a1, ref, envelope(op('linkLabCase'), { labCaseRef: lab }));
-    labs.put(T_ALPHA, lab, { status: 'voided' });
+    labs.put(T_ALPHA, lab, { status: 'voided', patientRef: patient });
     const ctx = await svc().getVisitContext(a1, ref);
     expect(ctx.items.labCases).toMatchObject({
       status: 'available',
@@ -380,9 +380,9 @@ describe('S12 container mechanics against a synthetic producer stub (domain port
   });
 
   it('failure 2. a failed link rolls back its assignment, audit and outbox together', async () => {
-    const { ref } = await appointment();
+    const { ref, patient } = await appointment();
     const lab = randomUUID();
-    labs.put(T_ALPHA, lab, {});
+    labs.put(T_ALPHA, lab, { patientRef: patient });
     const a1 = await actorFor(db, USER_A1, T_ALPHA);
     const tables = ['visit_context_items', 'audit_events', 'outbox_events'];
     const before = await Promise.all(tables.map((t) => count(db, t)));
@@ -400,9 +400,9 @@ describe('S12 container mechanics against a synthetic producer stub (domain port
   });
 
   it('failure 3. a cancelled appointment keeps its pending forms for review', async () => {
-    const { ref } = await appointment();
+    const { ref, patient } = await appointment();
     const form = randomUUID();
-    forms.put(T_ALPHA, form, {});
+    forms.put(T_ALPHA, form, { patientRef: patient });
     const a1 = await actorFor(db, USER_A1, T_ALPHA);
     await svc().assignForm(a1, ref, envelope(op('assignForm'), { formRef: form }));
     h.ok(
@@ -419,7 +419,7 @@ describe('S12 container mechanics against a synthetic producer stub (domain port
     expect(ctx.appointment.acceptsChanges).toBe(false);
     // 6. No new assignment on a cancelled appointment, even with the producer present.
     const other = randomUUID();
-    forms.put(T_ALPHA, other, {});
+    forms.put(T_ALPHA, other, { patientRef: patient });
     await expect(
       svc().assignForm(a1, ref, envelope(op('assignForm'), { formRef: other })),
     ).rejects.toMatchObject({ code: 'conflict', detail: { reason: 'appointment_not_open' } });
@@ -634,6 +634,75 @@ describe('S12 producer-bound cases (C producers through the S12 domain port)', (
     expect(ctx.items.treatmentPlanItems?.entries).toMatchObject([
       { itemRef: null, producerRef: item, provenanceRef: 'C11:scheduled', resolution: 'resolved' },
     ]);
+  });
+
+  it('C10/C11 listed records are filtered by the visit patient as well as the appointment', async () => {
+    const { ref, patient } = await appointment();
+    const other = await appointment();
+    expect(other.patient).not.toBe(patient);
+    const encounterRef = await encounterFor(other.patient, other.ref);
+    const note = h.ok<{ data: { noteRef: string } }>(
+      await h.call('a1', 'POST', `/v1/clinical/encounters/${encounterRef}/notes`, {
+        noteType: 'progress',
+        content: {
+          sections: [{ sectionKey: 'subjective', text: 'Synthetic other note' }],
+          procedureCodeRefs: [],
+        },
+      }),
+      201,
+    ).data.noteRef;
+    const PLANS = '/v1/clinical/treatment-plans';
+    const plan = h.ok<{ data: { plan: { headVersionRef: string } } }>(
+      await h.call('a1', 'POST', PLANS, { patientRef: other.patient }, randomUUID()),
+      201,
+    ).data.plan;
+    const detail = h.ok<{ data: { targetRef: string } }>(
+      await h.call('a1', 'POST', `${PLANS}/versions/${plan.headVersionRef}/details`, {
+        expectedRevision: 1,
+        scope: 'whole_mouth',
+      }),
+      201,
+    ).data.targetRef;
+    const item = h.ok<{ data: { targetRef: string } }>(
+      await h.call('a1', 'POST', `${PLANS}/details/${detail}/items`, {
+        expectedRevision: 2,
+        procedureCodeRef: 'SYN-PROC-902',
+        sequence: 1,
+      }),
+      201,
+    ).data.targetRef;
+    h.ok(
+      await h.call('a1', 'POST', `${PLANS}/items/${item}/state`, { expectedRevision: 3, state: 'accepted' }),
+    );
+    h.ok(
+      await h.call('a1', 'POST', `${PLANS}/items/${item}/state`, {
+        expectedRevision: 4,
+        state: 'scheduled',
+        appointmentRef: other.ref,
+      }),
+    );
+    // A corrupted association (written with every guard off, as a restore could) names this visit's
+    // appointment for another patient's encounter and plan item.
+    const client = await db.admin.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query("SET LOCAL session_replication_role = 'replica'");
+      await client.query('UPDATE cuspatlas.clinical_encounters SET appointment_id = $1 WHERE id = $2', [
+        ref,
+        encounterRef,
+      ]);
+      await client.query(
+        'UPDATE cuspatlas.clinical_plan_item_events SET appointment_id = $1 WHERE item_id = $2 AND appointment_id = $3',
+        [ref, item, other.ref],
+      );
+      await client.query('COMMIT');
+    } finally {
+      client.release();
+    }
+    const ctx = await context(ref);
+    expect(ctx.items.noteDrafts?.entries).toStrictEqual([]);
+    expect(ctx.items.treatmentPlanItems?.entries).toStrictEqual([]);
+    expect(JSON.stringify(ctx)).not.toContain(note);
   });
 
   it('a caller without clinical.read sees every C slot unavailable and cannot pin or assign (403, nothing written)', async () => {

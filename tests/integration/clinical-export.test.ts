@@ -1,12 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { CLINICAL_EXPORT_FORMAT, CLINICAL_EXPORT_TABLES, validateClinicalExport } from '@cuspatlas/contracts';
-import { importClinicalExport, importSchedulingExport } from '@cuspatlas/db';
+import { importClinicalExport as importClinical, importSchedulingExport } from '@cuspatlas/db';
+import { verifyImportedNoteDigests } from '@cuspatlas/domain';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   type AppointmentHarness,
   openAppointmentHarness,
   seedLocation,
   T_ALPHA,
+  USER_B1,
 } from './support/appointment-fixtures';
 import {
   CLINICAL_RW,
@@ -34,6 +36,8 @@ let h: AppointmentHarness;
 let t: AppointmentHarness;
 const images = fakeImageResolver();
 let rec: Awaited<ReturnType<typeof buildClinicalRecord>>;
+const importClinicalExport = (pool: Parameters<typeof importClinical>[0], tenant: string, doc: never) =>
+  importClinical(pool, tenant, doc, verifyImportedNoteDigests);
 type Doc = { format: string; exportedAt: string; tables: Record<string, Record<string, unknown>[]> };
 
 beforeAll(async () => {
@@ -193,6 +197,69 @@ describe('C18 clinical export round trip', () => {
             tables: { ...doc.tables, patients: [] },
           } as never),
         ).rejects.toThrow(/Unknown table/);
+      } finally {
+        await fh.close();
+      }
+    } finally {
+      await fresh.close();
+    }
+  });
+
+  it('a tampered digest, estimate sum or acceptance, or a foreign-tenant parent, rolls the whole import back', {
+    timeout: 240_000,
+  }, async () => {
+    const fresh = await openTestDatabase('clinical_export_tampered');
+    try {
+      const doc = await exportOf(h);
+      const sched = await schedulingOf(h);
+      const fh = await openAppointmentHarness(fresh);
+      try {
+        await importSchedulingExport(fresh.admin, T_ALPHA, sched as never);
+        await copyTenancy(fresh);
+        const tamper = (
+          table: string,
+          change: (r: Record<string, unknown>) => Record<string, unknown>,
+        ): Doc => ({
+          ...doc,
+          tables: {
+            ...doc.tables,
+            [table]: (doc.tables[table] ?? []).map((r, i) => (i === 0 ? change(r) : r)),
+          },
+        });
+        const empty = async () =>
+          (await fresh.admin.query('SELECT count(*)::int AS n FROM cuspatlas.clinical_encounters')).rows[0].n;
+        const cases: [string, Doc, RegExp][] = [
+          [
+            'note version digest',
+            tamper('clinical_note_versions', (r) => ({ ...r, content_digest: `sha256:${'0'.repeat(64)}` })),
+            /verification failed: note_version_digest/,
+          ],
+          [
+            'estimate gross',
+            tamper('clinical_estimates', (r) => ({ ...r, gross_minor: Number(r.gross_minor) + 1 })),
+            /verification failed: estimate_sum/,
+          ],
+          [
+            'acceptance revision',
+            tamper('clinical_plan_acceptances', (r) => ({ ...r, accepted_revision: 999 })),
+            /verification failed: acceptance/,
+          ],
+          [
+            'foreign-tenant author',
+            tamper('clinical_lab_cases', (r) => ({ ...r, created_by: USER_B1 })),
+            /tenant/,
+          ],
+        ];
+        expect(cases.every(([, d]) => d.tables.clinical_note_versions?.length)).toBe(true);
+        for (const [label, d, pattern] of cases) {
+          await expect(importClinicalExport(fresh.admin, T_ALPHA, d as never), label).rejects.toThrow(
+            pattern,
+          );
+          expect([label, await empty()]).toStrictEqual([label, 0]);
+        }
+        // The untampered export still imports into the same database (control).
+        await importClinicalExport(fresh.admin, T_ALPHA, doc as never);
+        expect(await empty()).toBe(doc.tables.clinical_encounters?.length);
       } finally {
         await fh.close();
       }

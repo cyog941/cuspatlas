@@ -43,8 +43,8 @@ export interface VisitProducerRecord {
   readonly version: number;
   readonly provenanceRef: string;
   readonly status: 'resolved' | 'voided';
-  /** The record's current patient, when the producer knows it: a record of another patient is refused. */
-  readonly patientRef?: string;
+  /** The record's current patient (required): a record of another patient is refused. */
+  readonly patientRef: string;
 }
 
 /**
@@ -238,8 +238,7 @@ export function createVisitContextOperations(base: AppointmentBase) {
     if (!validateSchedulingEntityRef(ref)) throw notFound();
     const rec = await p.resolve(tx, ref);
     if (rec === null) throw notFound();
-    if (rec.patientRef !== undefined && rec.patientRef !== appt.subject_patient_id)
-      throw refused('producer_record_other_patient');
+    if (rec.patientRef !== appt.subject_patient_id) throw refused('producer_record_other_patient');
     if (rec.status === 'voided') throw refused('producer_record_voided');
     return rec;
   };

@@ -643,7 +643,11 @@ export function createReferralOperations(base: ClinicalBase) {
         await base.authorize(ctx, op);
         return deps.withTenantTransaction(ctx, async (tx) => {
           const r = await located(tx, referralRef);
-          if (r.direction !== 'outgoing') throw notAllowed(r);
+          // Only an outgoing referral that is prepared or sent is printed; a cancelled, closed or
+          // responded one is not. The disclosure consent must still stand (C-D10), as at sending.
+          if (r.direction !== 'outgoing' || (r.state !== 'prepared' && r.state !== 'sent'))
+            throw notAllowed(r);
+          await disclosureConsent(tx, r.subject_patient_id, r.consent_id);
           const shareRef = await coveringShare(tx, r);
           const referral = await view(tx, r);
           await recordSensitiveRead(tx, {

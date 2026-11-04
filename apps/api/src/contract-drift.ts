@@ -230,6 +230,23 @@ export const PATIENT_BODIES = [
   'MergeHistoryQuery',
 ] as const;
 
+/** Every operation the OpenAPI document declares, parsed (method, path, operationId). */
+export function documentedOperations(
+  openapiText: string,
+): { method: string; path: string; operationId: string }[] {
+  const api = parse(openapiText) as Json;
+  const out: { method: string; path: string; operationId: string }[] = [];
+  const paths = isObj(api.paths) ? api.paths : {};
+  for (const [p, item] of Object.entries(paths)) {
+    if (!isObj(item)) continue;
+    for (const [method, op] of Object.entries(item)) {
+      if (isObj(op) && typeof op.operationId === 'string')
+        out.push({ method, path: p, operationId: op.operationId });
+    }
+  }
+  return out;
+}
+
 /**
  * Returns every disagreement between the OpenAPI document, the JSON Schema it references, the
  * service route table and the shared refusal contract. An empty list means no drift.

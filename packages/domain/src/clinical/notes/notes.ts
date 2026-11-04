@@ -183,6 +183,37 @@ function digestInputOf(n: NoteRow, v: VersionRow): DigestInput {
   };
 }
 
+/** A minimal query surface (a privileged pg client during an import). */
+export interface DigestQueryable {
+  query<R extends Record<string, unknown>>(sql: string, params?: unknown[]): Promise<{ rows: R[] }>;
+}
+
+/**
+ * C18 import verification: recomputes the digest of every frozen note version of one tenant from its
+ * stored content (the same function the reads verify with) and returns the versions whose stored
+ * digest does not match. The C18 import runs it before commit, with triggers off.
+ */
+export async function verifyImportedNoteDigests(q: DigestQueryable, tenantId: string): Promise<string[]> {
+  const notes = await q.query<NoteRow>(
+    `SELECT ${NOTE_COLUMNS} FROM cuspatlas.clinical_notes WHERE tenant_id = $1`,
+    [tenantId],
+  );
+  const byId = new Map(notes.rows.map((n) => [n.id, n]));
+  const versions = await q.query<VersionRow & { note_id: string }>(
+    `SELECT v.note_id, v.id, v.sequence, v.kind, v.references_sequence, v.reason_code, v.sections, v.code_refs,
+       v.addendum_text, v.template_version_id, v.template_check, v.history_refs, v.authored_by, v.authored_by_role,
+       v.authored_by_credential_ref, v.authored_at, v.cosign_required, v.supervising_resource_id, v.content_digest
+     FROM cuspatlas.clinical_note_versions v WHERE v.tenant_id = $1 ORDER BY v.note_id, v.sequence`,
+    [tenantId],
+  );
+  const bad: string[] = [];
+  for (const v of versions.rows) {
+    const n = byId.get(v.note_id);
+    if (!n || noteVersionDigest(digestInputOf(n, v)) !== v.content_digest) bad.push(v.id);
+  }
+  return bad;
+}
+
 function toVersion(n: NoteRow, v: VersionRow, all: readonly VersionRow[]): NoteVersion {
   const supersededBy =
     v.kind === 'addendum'

@@ -35,7 +35,12 @@ export { IMAGE_LINK_RESOURCE, type ImageRefResolution, type ImageRefResolver } f
 export { LAB_CASE_RESOURCE, LAB_EXPORT_FORMAT } from './lab-cases';
 export { CLINICAL_POST_MERGE_FACT_PROBES } from './merge-probes';
 export { NOTE_DIGEST_FORMAT, noteVersionDigest } from './notes/digest';
-export { NOTE_POST_MERGE_FACT_PROBE, NOTE_RESOURCE } from './notes/notes';
+export {
+  type DigestQueryable,
+  NOTE_POST_MERGE_FACT_PROBE,
+  NOTE_RESOURCE,
+  verifyImportedNoteDigests,
+} from './notes/notes';
 export { checkAgainstTemplate, type TemplateCheck } from './notes/template-check';
 export { NOTE_TEMPLATE_RESOURCE } from './notes/templates';
 export { PERIO_DERIVATION_RESOURCE, PERIO_EXAM_RESOURCE, PROVISIONAL_SITES } from './perio';

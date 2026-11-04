@@ -573,3 +573,47 @@ describe('C17 boundaries', () => {
     }
   });
 });
+
+describe('C17 export re-checks consent and lifecycle (review hardening)', () => {
+  async function prepared(name: string) {
+    const p = await createPatient(h, name);
+    const entry = await chartEntry(p);
+    const r = await outgoing(p);
+    okR(
+      await post(r.referralRef, 'package', {
+        expectedVersion: 1,
+        selections: [{ kind: 'chartEntry', ref: entry }],
+      }),
+      200,
+    );
+    okR(await share(r.referralRef, ['chartEntry']));
+    expect((await h.call('a1', 'GET', `${REF}/${r.referralRef}/export`)).statusCode).toBe(200);
+    return r;
+  }
+
+  it('a referral whose disclosure consent was withdrawn is not exported', async () => {
+    const r = await prepared('Synthetic Referral Export Withdrawn');
+    h.ok(
+      await h.call('a1', 'POST', `/v1/clinical/consents/${r.consentRef}/withdrawal`, {
+        expectedVersion: 1,
+        reasonCode: 'patient_request',
+        signer: { kind: 'patient' },
+      }),
+      201,
+    );
+    expect(reason(await h.call('a1', 'GET', `${REF}/${r.referralRef}/export`))).toStrictEqual([
+      409,
+      'disclosure_consent_required',
+    ]);
+  });
+
+  it('a cancelled referral is not exported', async () => {
+    const r = await prepared('Synthetic Referral Export Cancelled');
+    okR(await post(r.referralRef, 'close', { expectedVersion: 3, reasonCode: 'no_longer_needed' }), 200);
+    expect((await read(r.referralRef)).state).toBe('cancelled');
+    expect(reason(await h.call('a1', 'GET', `${REF}/${r.referralRef}/export`))).toStrictEqual([
+      409,
+      'referral_step_not_allowed',
+    ]);
+  });
+});

@@ -19,7 +19,7 @@ import { recordCommand } from '../events/record-command';
 import { recordSensitiveRead } from '../events/record-sensitive-read';
 import type { AuthorizationDecision } from '../policy/authorize';
 import { resolveClinicalAuthor } from './authorship';
-import { type ClinicalBase, checkEnvelope, conflict, notFound, UUID } from './base';
+import { type ClinicalBase, checkEnvelope, conflict, notFound, UUID, uniqueOr } from './base';
 import { loadClinicalPatient, loadEncounter } from './encounters';
 
 export const IMAGE_LINK_RESOURCE = 'clinicalEncounterImageLink';
@@ -118,6 +118,13 @@ export function createImageLinkOperations(base: ClinicalBase) {
         imageRef,
       ])
     ).rows[0];
+  const linkedConflict = (existing: LinkRow | undefined, encounterId: string) =>
+    existing
+      ? conflict(existing.encounter_id === encounterId ? 'image_already_linked' : 'image_linked_elsewhere', {
+          blockingRefs: [{ kind: 'imageLink', ref: existing.id }],
+          alternative: 'clinical.imageLinks.relink',
+        })
+      : conflict('image_linked_elsewhere', { alternative: 'clinical.imageLinks.relink' });
   const view = async (tx: TenantTransaction, r: LinkRow): Promise<EncounterImageLink> => {
     let status: ImageResolutionStatus = 'resolver_unavailable';
     const res = deps.imageRefResolver ? await deps.imageRefResolver.resolve(tx, r.image_ref) : null;
@@ -213,30 +220,32 @@ export function createImageLinkOperations(base: ClinicalBase) {
             async () => {
               const image = await claimable(tx, p.imageRef, encounter.subject_patient_id);
               const existing = await activeFor(tx, p.imageRef);
-              if (existing) {
-                throw conflict(
-                  existing.encounter_id === encounter.id ? 'image_already_linked' : 'image_linked_elsewhere',
-                  {
-                    blockingRefs: [{ kind: 'imageLink', ref: existing.id }],
-                    alternative: 'clinical.imageLinks.relink',
-                  },
-                );
-              }
+              if (existing) throw linkedConflict(existing, encounter.id);
               const { rows: n } = await tx.query<{ n: number }>(
                 'SELECT count(*)::int AS n FROM cuspatlas.clinical_encounter_image_links WHERE encounter_id = $1',
                 [encounter.id],
               );
               if ((n[0]?.n ?? 0) >= MAX_LINKS) throw conflict('too_many_image_links');
-              const id = await insertLink(
+              const id = await uniqueOr(
                 tx,
-                {
-                  encounterId: encounter.id,
-                  imageRef: p.imageRef,
-                  associationRef: image.associationRef,
-                  reason: p.reasonCode ?? null,
-                  from: null,
+                () =>
+                  insertLink(
+                    tx,
+                    {
+                      encounterId: encounter.id,
+                      imageRef: p.imageRef,
+                      associationRef: image.associationRef,
+                      reason: p.reasonCode ?? null,
+                      from: null,
+                    },
+                    who,
+                  ),
+                // A concurrent link of the same image won the one-active index: the same typed answer
+                // as the pre-check, naming the link that is now active.
+                async () => {
+                  const winner = await activeFor(tx, p.imageRef);
+                  return linkedConflict(winner, encounter.id);
                 },
-                who,
               );
               await audit(tx, op, id, 1, ['encounterRef', 'imageRef']);
               return { data: { ref: id }, version: 1 };

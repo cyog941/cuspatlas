@@ -265,3 +265,15 @@ Shared files touched: `packages/contracts/src/context.ts` (one reason code), `cl
 | C11-P6 | Who may accept items and change item states | any active clinical author (consent is C13) | blocking for release (no plan recommendation) | clinical lead; practice manager |
 | C5-P6 | Who may define a clinical author profile | two-person rule: never the profiled actor (an elevated scope is the alternative) | recommended-pending-approval (engineering proposal from the review) | practice manager; compliance/records owner |
 | C8-P2 | Which clinical roles may verify a history item or attest a review | still permissive (any active clinical author, role recorded); flagged again by the review | blocking for release (unresolved) | clinical lead |
+
+### Batch 2a gate
+
+| Task | Status | Commit | Notes |
+|---|---|---|---|
+| C6 structured chart | verified on synthetic data (Windows host); semantics pending clinical approval; C-S1-Q1/Q2 blocking | b2d6191 | 803 tests at commit |
+| C7 periodontal exams | verified on synthetic data; C-D3 and every formula pending; C-S1-Q5 blocking | 5d6e8ae | 841 tests at commit |
+| C11 treatment plans | verified on synthetic data; transition set pending approval; acceptance is a C12 seam | 19ecd94 | 887 tests at commit |
+| C5/C8 hardening | verified on synthetic data | 2d93817 | 902 tests at commit |
+
+- `corepack pnpm run ci` at 2d93817 → exit 0: typecheck, lint, contract drift, 40 files / 902 tests passed, privacy scan ok, SBOM, evidence generated and verified (integrity and freshness only; controls unreviewed, not certified).
+- Status language: C6, C7 and C11 are tested on synthetic data on a Windows host. Nothing is approved, deployed, compliant or clinically validated; every clinical semantic is recommended-pending-clinical-approval or blocking (tables above). Branch `codex/c-chart` is not pushed; the orchestrator merges it with `codex/c-notes` (C9/C10) and `codex/scheduling-patients` (S12-S17). Expected merge-conflict points for the integrator: `clinical.schema.json` (sorted `$defs`), `clinical/service.ts`, `clinical/codecs.ts`, `clinical/index.ts`, `clinical/merge-probes.ts`, `policy/authorize.ts`, `patients/merge.ts`, `contract-drift.ts`, `apps/mcp/src/server.ts`, `tools/synthetic-tasks.ts`, `clinical-tool-drift.test.ts`, OpenAPI, the negative harness, tenant-isolation and mcp-parity inventories, `context.ts` (one reason code) and both ledgers.

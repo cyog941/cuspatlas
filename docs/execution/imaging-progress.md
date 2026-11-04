@@ -220,6 +220,8 @@ Acceptance cases (`tests/integration/imaging-offline.test.ts`, 8 tests): an offl
 
 ## Workstream I handoff
 
+Batch 2 gate: at `88a2937`, `corepack pnpm run ci` ran three consecutive times, each exit 0 with 57 files, 1270 passed and 13 todo (typecheck, lint, contract check, tests, privacy scan, SBOM, evidence and verification).
+
 Status: I1-I9 implemented and **verified on synthetic data** (Windows host) at the head of `codex/i-imaging-1`; not approved, not deployed, not compliant, not clinically validated. Blocked-on-discovery and not claimed: I-S1 (hardware matrix), I-S2 (DICOM conformance and parser licensing), I-S3 (where acquisition runs). The native bridge is **not built**; only its server contracts exist, exercised by a test-only synthetic client.
 
 | Area | Where | Consumers and rules |

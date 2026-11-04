@@ -127,6 +127,63 @@ export interface TimeBlockSummary {
   readonly timeBlockRef: string;
 }
 
+/** S9 availability search (read-only, advisory). */
+export interface AvailabilityRequirement {
+  readonly kind: ResourceKind;
+  readonly resourceRef?: string;
+}
+export interface AvailabilitySearch {
+  readonly locationRef: string;
+  readonly from: string;
+  readonly to: string;
+  readonly durationMinutes: number;
+  readonly bufferMinutes?: number;
+  readonly slotMinutes?: 5 | 10 | 15 | 20 | 30 | 60;
+  readonly displayTimeZone: string;
+  readonly appointmentTypeCode?: string;
+  readonly requirements: readonly AvailabilityRequirement[];
+  readonly limit?: number;
+  readonly cursor?: string;
+}
+export interface AvailabilityWindow {
+  readonly startsAt: string;
+  readonly endsAt: string;
+  readonly durationMinutes: number;
+  readonly localStart: string;
+  readonly localEnd: string;
+  readonly timeZone: string;
+  readonly resources: readonly ResourceRef[];
+}
+export type AvailabilityOutcome =
+  | 'windows'
+  | 'none_free'
+  | 'no_availability_configured'
+  | 'no_eligible_resource';
+export interface AvailabilitySearchResult {
+  readonly outcome: AvailabilityOutcome;
+  readonly advisory: true;
+  readonly windows: readonly AvailabilityWindow[];
+  readonly nextCursor: string | null;
+  readonly constraints: {
+    readonly applied: readonly string[];
+    readonly durationMinutes: number;
+    readonly bufferMinutes: number;
+    readonly slotMinutes: number;
+    readonly locationTimeZone: string;
+    readonly displayTimeZone: string;
+    readonly appointmentTypeCode?: string;
+    readonly policyRef: string;
+  };
+  readonly coverage: {
+    readonly notConsidered: readonly string[];
+    readonly excludedResources: readonly {
+      readonly resourceRef: ResourceRef;
+      readonly reason: 'inactive' | 'no_availability_configured';
+    }[];
+    readonly statement: string;
+  };
+}
+
 export const schedulingSchema = schema;
 export const SCHEDULING_SCHEMA_ID = schema.$id;
 export const SCHEDULING_PROPERTIES: ReadonlySet<string> = collectPropertyNames(schema);
@@ -151,3 +208,4 @@ export const validateResourceRefId = def('ResourceRefId');
 export const validateSchedulingLocationRef = def('LocationRef');
 export const validateSchedulingIdempotencyKey = def('IdempotencyKey');
 export const validateAppointmentOperatoryAssignment = def('AppointmentOperatoryAssignment');
+export const validateAvailabilitySearch = def('AvailabilitySearch');

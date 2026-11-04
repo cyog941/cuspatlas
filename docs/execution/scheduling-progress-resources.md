@@ -39,3 +39,32 @@ Shared files touched (append-only where possible): `packages/contracts/src/conte
 Deviations: (a) the plan's "audit records a read" for search is not implemented; there is no foundation read-audit path and the orchestrator's no-persisted-side-effect rule wins (recorded as unresolved). (b) The no-operatory reason vocabulary is a published contract enum, not per-tenant configuration. (c) The explicit recorded zone migration is not implemented; zone changes under future occupied time are refused. (d) "Booking that names another tenant's operatory is refused" is proved through the shared resolver (time blocks, availability) and the foreign key, because bookings are S10.
 
 Unresolved: scheduling outbox events have no delivery consumer yet (the worker would reauthorize and deliver them to whatever adapter is configured); Linux CI on this branch; reviewer sign-off for ADR 0009.
+
+## S9 availability search
+
+Red: `corepack pnpm test -- tests/integration/availability.test.ts tests/integration/resources-negative.test.ts` with the tests and no implementation, exit 1 (15 failed: all 12 availability tests and the 3 search rows of the negative file; `POST /v1/availability/search` was 404).
+
+Green: the same command exit 0, 47 tests. Unit `packages/domain/src/scheduling/zoned-time.test.ts` 4 tests. Full suite before the S9 commit: typecheck 0, lint 0, contract:check 0, test 0 with 24 files / 423 tests.
+
+Acceptance cases (`tests/integration/availability.test.ts`):
+
+1. Windows are free for duration plus buffer on every required resource: with a booking 09:30-10:00 and a 15-minute buffer, 08:45 is offered and 09:00/09:30/09:45/11:30 are not; without a named operatory the search falls through to Operatory 2 during the booking.
+2a. Effective-dated hours (provider 09:00-11:00 from 2030-02-04), a resource time block (10:00-10:30 removed) and a location-wide holiday (`none_free`) are applied.
+2b. Spring-forward 2030-03-10, Sunday hours 00:30-04:00 local (150 real minutes), 60-minute windows every 30 minutes. Recorded output:
+    `[["2030-03-10T05:30:00.000Z","2030-03-10T00:30:00-05:00","2030-03-10T01:30:00-05:00",60],["2030-03-10T06:00:00.000Z","2030-03-10T01:00:00-05:00","2030-03-10T03:00:00-04:00",60],["2030-03-10T06:30:00.000Z","2030-03-10T01:30:00-05:00","2030-03-10T03:30:00-04:00",60],["2030-03-10T07:00:00.000Z","2030-03-10T03:00:00-04:00","2030-03-10T04:00:00-04:00",60]]`
+2c. Fall-back 2030-11-03, the same hours (270 real minutes): 8 windows, each exactly 3600 s; recorded output:
+    `[["2030-11-03T04:30:00.000Z","2030-11-03T00:30:00-04:00","2030-11-03T01:30:00-04:00"],["2030-11-03T05:00:00.000Z","2030-11-03T01:00:00-04:00","2030-11-03T01:00:00-05:00"],["2030-11-03T05:30:00.000Z","2030-11-03T01:30:00-04:00","2030-11-03T01:30:00-05:00"],["2030-11-03T06:00:00.000Z","2030-11-03T01:00:00-05:00","2030-11-03T02:00:00-05:00"],["2030-11-03T06:30:00.000Z","2030-11-03T01:30:00-05:00","2030-11-03T02:30:00-05:00"],["2030-11-03T07:00:00.000Z","2030-11-03T02:00:00-05:00","2030-11-03T03:00:00-05:00"],["2030-11-03T07:30:00.000Z","2030-11-03T02:30:00-05:00","2030-11-03T03:30:00-05:00"],["2030-11-03T08:00:00.000Z","2030-11-03T03:00:00-05:00","2030-11-03T04:00:00-05:00"]]`
+    A Los Angeles display zone changes only the rendering (`2030-11-02T21:30:00-07:00`).
+2d. Month-end: 2030-01-31 (Thu) to 2030-02-01 (Fri) and 2030-02-28 (Thu) to 2030-03-03 (Sun) produce exactly the weekday windows.
+3. No side effect: three searches leave the row count of every `cuspatlas` table unchanged (outbox, audit, idempotency, occupancy included; security attempts excluded); the response is `advisory` and lists what was not considered.
+4. Another tenant's resource 404 identical to missing; beta never sees alpha identifiers; beta naming an alpha resource 404; a loc-north scheduler searching another location 403.
+5. Duration 0, 4 and 481 are 400; a malformed zone 400; an unknown zone 422 `unknownTimeZone`; 2030-02-30 422.
+6. 32 days 422 `beyondHorizon`, reversed range 422, 31 days 200; pages concatenate to the full list; a cursor reused with another query, from another tenant or altered is 400; `limit` 101 is 400.
+
+Failure and recovery cases: (1) after a booking lands in a returned window the next search omits it and a second occupant for the stale window is refused by the exclusion constraint (23P01): the search is advisory, the constraint is authoritative; (2) a deactivated resource is absent with `coverage.excludedResources` `inactive` and outcome `no_eligible_resource`; (3) a location without availability returns `no_availability_configured` with the excluded resource named, not an empty list.
+
+Negative rows: `scheduling.availability.search` added to `tests/integration/resources-negative.test.ts` (cross-tenant 404, revoked 403, downgraded 403 on REST and MCP, nothing written, one attempt row per refusal): 11 rows x 3 cases, 35 tests in the file.
+
+Shared files touched by S9: `apps/api/src/routes/manifest.ts`, `apps/api/src/contract-drift.ts` (closed-body list), `docs/api/openapi.yaml`, `tests/integration/mcp-parity.test.ts` (tool name), `docs/execution/foundation-contract-decisions.md` (S9 record).
+
+Deviations: plan case 3 says "the audit records a read"; not implemented (no read-audit path; the orchestrator's no-side-effect assertion wins). Appointment types, credentials, equipment eligibility, patient availability and payer rules are stated as not considered rather than modelled.

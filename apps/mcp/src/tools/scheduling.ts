@@ -208,4 +208,27 @@ export const SCHEDULING_TOOLS: readonly ToolDefinition[] = [
       return { data: await deps.scheduling.stateLabelledResources(actor) };
     },
   },
+  {
+    name: 'availability_search',
+    operationId: 'scheduling.availability.search',
+    description:
+      'Search advisory availability windows (read-only: no hold, no booking). States applied constraints and what was not considered.',
+    inputSchema: inputSchema(
+      Object.fromEntries(
+        Object.keys((DEFS.AvailabilitySearch as { properties: Record<string, object> }).properties).map(
+          (k) => [
+            k,
+            (DEFS.AvailabilitySearch as { properties: Record<string, object> }).properties[k] as object,
+          ],
+        ),
+      ),
+      (DEFS.AvailabilitySearch as { required: string[] }).required,
+      DEFS,
+    ),
+    readOnly: true,
+    onInvalid: { action: 'scheduling.availability.search' },
+    async run(deps, actor, args) {
+      return { data: await deps.scheduling.searchAvailability(actor, { ...args }) };
+    },
+  },
 ];

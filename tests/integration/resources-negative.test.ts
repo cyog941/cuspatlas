@@ -268,6 +268,16 @@ const ROWS: readonly Row[] = [
     args: () => ({}),
     write: false,
   },
+  // S9: the only read that names a target in its body; cross-tenant is 404 like a targeted read.
+  {
+    operation: 'scheduling.availability.search',
+    tool: 'availability_search',
+    method: 'POST',
+    url: () => '/v1/availability/search',
+    body: searchBody,
+    args: searchBody,
+    write: false,
+  },
 ];
 
 /** Reads that hold no target return the tenant's own (empty) data to a foreign member, by design. */

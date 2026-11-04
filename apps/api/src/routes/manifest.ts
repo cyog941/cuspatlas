@@ -196,6 +196,16 @@ export const ROUTES: readonly RouteContract[] = [
     success: { status: '200', schema: 'scheduling:StateLabelReport' },
     refusals: ['401', '403', '503'],
   },
+  // S9: read-only availability search (POST because the query is a structured body).
+  {
+    method: 'post',
+    path: '/v1/availability/search',
+    operationId: 'scheduling.availability.search',
+    protected: true,
+    requestBody: 'scheduling:AvailabilitySearch',
+    success: { status: '200', schema: 'scheduling:AvailabilitySearchResult' },
+    refusals: ['400', '401', '403', '404', '422', '503'],
+  },
 ];
 
 export function routeFor(operationId: string): RouteContract & { fastifyPath: string } {

@@ -76,6 +76,8 @@ const SCHEDULING_BODIES = [
   'TimeBlockCreate',
   'ResourceRef',
   'WeeklyInterval',
+  'AvailabilitySearch',
+  'AvailabilityRequirement',
 ] as const;
 
 /** Definitions the proposal contract copies from the task contract; they must stay byte-identical. */

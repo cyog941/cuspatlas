@@ -38,7 +38,8 @@ import {
 
 const MCP_AUDIENCE = 'urn:cuspatlas:mcp:synthetic';
 const TOOL_NAMES = [
-  // S7 scheduling resources (resources track), sorted with the synthetic tools.
+  // S7/S9 scheduling resources and availability (resources track), sorted with the synthetic tools.
+  'availability_search',
   'scheduling_locations_change_time_zone',
   'scheduling_locations_define',
   'scheduling_locations_list',

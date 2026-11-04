@@ -1,5 +1,6 @@
 import {
   type ActorContext,
+  type AvailabilitySearchResult,
   type AvailabilitySet,
   type AvailabilitySummary,
   type AvailabilityVersion,
@@ -51,6 +52,7 @@ import {
   type Authorize,
   assertLocation,
 } from '../policy/authorize';
+import { assertAvailabilitySearch, searchAvailabilityIn } from './availability';
 import { createSchedulingCursorCodec, type SchedulingCursorCodec } from './cursor';
 import { isKnownTimeZone, isRealDate, minutesOf } from './zoned-time';
 
@@ -781,6 +783,18 @@ export function createSchedulingResourceService(deps: SchedulingDeps) {
             })),
           };
         });
+      });
+    },
+
+    /** S9: read-only, advisory availability search (packages/domain/src/scheduling/availability.ts). */
+    searchAvailability(ctx: ActorContext, query: unknown): Promise<AvailabilitySearchResult> {
+      return guarded(ctx, 'scheduling.availability.search', async () => {
+        const decision = await authorize(ctx, 'scheduling.availability.search');
+        assertAvailabilitySearch(query);
+        assertLocation(decision.locationRefs, query.locationRef);
+        return deps.withTenantTransaction(ctx, (tx) =>
+          searchAvailabilityIn(tx, ctx, decision, query, cursors),
+        );
       });
     },
   };

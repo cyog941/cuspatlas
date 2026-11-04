@@ -1,3 +1,4 @@
+export * from './availability';
 export * from './codecs';
 export * from './cursor';
 export * from './resources';

@@ -109,4 +109,10 @@ export function registerSchedulingRoutes(
   app.get(dataQuality.fastifyPath, on(dataQuality.operationId), async (request) => ({
     data: await s.stateLabelledResources(requireActor(request)),
   }));
+
+  // S9: read-only; takes no Idempotency-Key and writes nothing.
+  const search = routeFor('scheduling.availability.search');
+  app.post(search.fastifyPath, on(search.operationId), async (request) => ({
+    data: await s.searchAvailability(requireActor(request), request.body),
+  }));
 }

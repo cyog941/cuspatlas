@@ -11,4 +11,5 @@ export * from './integrations/adapter';
 export * from './patients';
 export * from './policy/authorize';
 export * from './policy/patient-access';
+export * from './scheduling';
 export * from './synthetic-tasks';

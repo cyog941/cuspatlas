@@ -7,6 +7,7 @@ import {
   createAuthorize,
   createPatientService,
   createProposalService,
+  createSchedulingResourceService,
   createSyntheticTaskService,
   executeOnce,
 } from '@cuspatlas/domain';
@@ -20,6 +21,7 @@ import { createAuthenticator, type IdentityVerifierConfig, isConfiguredIdentity,
 import { mapErrorToRefusal, safeErrorKind } from './errors';
 import { registerPatientRoutes } from './routes/patients';
 import { registerProposalRoutes } from './routes/proposals';
+import { registerSchedulingRoutes } from './routes/scheduling';
 import { registerSessionRoutes } from './routes/session';
 import { registerSyntheticTaskRoutes } from './routes/synthetic-tasks';
 
@@ -157,6 +159,13 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         ...(deps.cursors ? { cursors: deps.cursors } : {}),
       });
       registerPatientRoutes(app, { authenticator, patients });
+      const scheduling = createSchedulingResourceService({
+        authorize,
+        withTenantTransaction: deps.tenantTransactions,
+        recording,
+        execute: deps.execute ?? executeOnce,
+      });
+      registerSchedulingRoutes(app, { authenticator, scheduling });
     }
   }
 

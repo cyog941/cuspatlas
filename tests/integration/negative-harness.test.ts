@@ -15,6 +15,7 @@ import { openTestDatabase, type TestDatabase } from './support/db';
 import { seedTenancy, T_ALPHA, T_BETA, USER_A1, USER_A2, USER_A4, USER_B1 } from './support/fixtures';
 import { MARKER } from './support/marker';
 import { patientBody, seedPatientScopes, USER_A5 } from './support/patient-fixtures';
+import { seedSchedulingScopes } from './support/scheduling-fixtures';
 import { createTestTokenIssuer, TEST_AUDIENCE, type TestTokenIssuer } from './support/test-token-issuer';
 
 /**
@@ -56,8 +57,17 @@ export interface HarnessCommand {
   /** Operation id (also the security-attempt `operation`). */
   readonly operation: string;
   readonly tool: string;
-  /** What another tenant's member gets: hidden (404) for targeted commands, an empty page for searches. */
-  readonly crossTenant: 'not_found' | 'empty_page' | 'own_tenant_only' | 'confirmation_denied';
+  /**
+   * What another tenant's member gets: hidden (404) for targeted commands, an empty page for searches,
+   * a write into its own tenant for creates, or (tenant_own_data) a success computed over its own
+   * tenant only, which must carry no alpha fixture reference.
+   */
+  readonly crossTenant:
+    | 'not_found'
+    | 'empty_page'
+    | 'own_tenant_only'
+    | 'confirmation_denied'
+    | 'tenant_own_data';
   /** Who stands for "downgraded": a member lacking this command's scope. */
   readonly downgradedTo: 'readOnly' | 'noPatientScopes';
   rest(f: HarnessFixture): RestCall;
@@ -286,12 +296,202 @@ export const COMMANDS: HarnessCommand[] = [
     }),
     mcpArgs: (f) => ({ patientRef: f.alphaMergedPatient }),
   },
+  // S7 and S9 (resources track, folded in from resources-negative.test.ts). Writes are downgraded
+  // to a scheduling-read-only member; reads to a member holding no scheduling scope.
+  {
+    operation: 'scheduling.locations.define',
+    tool: 'scheduling_locations_define',
+    crossTenant: 'tenant_own_data',
+    downgradedTo: 'readOnly',
+    rest: () => ({
+      method: 'POST',
+      url: '/v1/scheduling/locations',
+      body: {
+        locationRef: uniqueLocation(),
+        displayLabel: 'Synthetic Location',
+        timeZone: 'America/New_York',
+      },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: () => ({
+      locationRef: uniqueLocation(),
+      displayLabel: 'Synthetic Location',
+      timeZone: 'America/New_York',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'scheduling.locations.list',
+    tool: 'scheduling_locations_list',
+    crossTenant: 'tenant_own_data',
+    downgradedTo: 'noPatientScopes',
+    rest: () => ({ method: 'GET', url: '/v1/scheduling/locations', keyed: false, status: 200 }),
+    mcpArgs: () => ({}),
+  },
+  {
+    operation: 'scheduling.locations.changeTimeZone',
+    tool: 'scheduling_locations_change_time_zone',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/scheduling/locations/${f.alphaLocation}/time-zone`,
+      body: { timeZone: 'America/Chicago', expectedVersion: 1 },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({
+      locationRef: f.alphaLocation,
+      timeZone: 'America/Chicago',
+      expectedVersion: 1,
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'scheduling.resources.define',
+    tool: 'scheduling_resources_define',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: '/v1/scheduling/resources',
+      body: { kind: 'operatory', locationRef: f.alphaLocation, displayLabel: 'Operatory 7' },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      kind: 'operatory',
+      locationRef: f.alphaLocation,
+      displayLabel: 'Operatory 7',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'scheduling.resources.list',
+    tool: 'scheduling_resources_list',
+    crossTenant: 'tenant_own_data',
+    downgradedTo: 'noPatientScopes',
+    rest: () => ({ method: 'GET', url: '/v1/scheduling/resources', keyed: false, status: 200 }),
+    mcpArgs: () => ({}),
+  },
+  {
+    operation: 'scheduling.resources.read',
+    tool: 'scheduling_resources_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/scheduling/resources/${f.alphaResource}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ resourceRef: f.alphaResource }),
+  },
+  {
+    operation: 'scheduling.resources.setAvailability',
+    tool: 'scheduling_resources_set_availability',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/scheduling/resources/${f.alphaResource}/availability`,
+      body: { effectiveFrom: '2030-06-03', weekly: [] },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      resourceRef: f.alphaResource,
+      effectiveFrom: '2030-06-03',
+      weekly: [],
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'scheduling.resources.deactivate',
+    tool: 'scheduling_resources_deactivate',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/scheduling/resources/${f.alphaOtherResource}/deactivate`,
+      body: { expectedVersion: 1 },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ resourceRef: f.alphaOtherResource, expectedVersion: 1, idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'scheduling.timeBlocks.create',
+    tool: 'scheduling_time_blocks_create',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: '/v1/scheduling/time-blocks',
+      body: blockBody(f),
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({ ...blockBody(f), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'scheduling.resources.dataQuality',
+    tool: 'scheduling_resources_data_quality',
+    crossTenant: 'tenant_own_data',
+    downgradedTo: 'noPatientScopes',
+    rest: () => ({
+      method: 'GET',
+      url: '/v1/scheduling/data-quality/state-labelled-resources',
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: () => ({}),
+  },
+  {
+    operation: 'scheduling.availability.search',
+    tool: 'availability_search',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'POST',
+      url: '/v1/availability/search',
+      body: searchBody(f),
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => searchBody(f),
+  },
 ];
+
+function uniqueLocation(): string {
+  return `loc-${randomUUID().slice(0, 8)}`;
+}
+function blockBody(f: HarnessFixture) {
+  return {
+    locationRef: f.alphaLocation,
+    startsAt: '2030-03-05T15:00:00Z',
+    endsAt: '2030-03-05T16:00:00Z',
+    reasonCode: 'meeting',
+    resources: [{ kind: 'operatory', resourceRef: f.alphaResource }],
+  };
+}
+function searchBody(f: HarnessFixture) {
+  return {
+    locationRef: f.alphaLocation,
+    from: '2030-01-07',
+    to: '2030-01-07',
+    durationMinutes: 30,
+    displayTimeZone: 'America/New_York',
+    requirements: [{ kind: 'operatory', resourceRef: f.alphaResource }],
+  };
+}
 
 beforeAll(async () => {
   db = await openTestDatabase('negative_harness');
   await seedTenancy(db.admin);
   await seedPatientScopes(db.admin);
+  await seedSchedulingScopes(db.admin);
   issuer = await createTestTokenIssuer();
   logLines = [];
   const stream = { write: (l: string) => logLines.push(l) };
@@ -377,7 +577,40 @@ beforeAll(async () => {
     reasonCode: 'duplicate_registration',
   });
   expect(merged.statusCode).toBe(201);
+  // S7/S9: an alpha location with two operatories, one of which has weekly hours.
+  const alphaLocation = 'loc-harness';
+  expect(
+    (
+      await owner('/v1/scheduling/locations', {
+        locationRef: alphaLocation,
+        displayLabel: 'Synthetic Location',
+        timeZone: 'America/New_York',
+      })
+    ).statusCode,
+  ).toBe(201);
+  const operatory = async (label: string) => {
+    const r = await owner('/v1/scheduling/resources', {
+      kind: 'operatory',
+      locationRef: alphaLocation,
+      displayLabel: label,
+    });
+    expect(r.statusCode).toBe(201);
+    return r.json().data.resourceRef as string;
+  };
+  const alphaResource = await operatory('Operatory 1');
+  const alphaOtherResource = await operatory('Operatory 2');
+  expect(
+    (
+      await owner(`/v1/scheduling/resources/${alphaResource}/availability`, {
+        effectiveFrom: '2030-01-07',
+        weekly: [{ weekday: 1, start: '08:00', end: '17:00' }],
+      })
+    ).statusCode,
+  ).toBe(201);
   fixture = {
+    alphaLocation,
+    alphaResource,
+    alphaOtherResource,
     alphaPatient,
     alphaCounterparty,
     alphaRelationship: rel.json().data.relationshipRef,
@@ -480,6 +713,11 @@ async function state(): Promise<string> {
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.patient_relationships'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.patient_merges'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.patient_merge_reversals'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.scheduling_locations'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.scheduling_resources'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.scheduling_availability_versions'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.scheduling_time_blocks'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.scheduling_occupancy'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.audit_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.outbox_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.command_idempotency'),
@@ -530,6 +768,18 @@ describe('negative harness: every S command, every dimension, REST and MCP', () 
       // Another tenant searching sees only its own (empty) tenant, never alpha's patients.
       for (const o of [r, m]) expect(o.body?.data).toStrictEqual([]);
     }
+    if (want.code === null && cmd.crossTenant === 'tenant_own_data') {
+      // Computed over the caller's own tenant: no alpha fixture reference crosses the boundary.
+      for (const o of [r, m]) {
+        expect(o.raw).not.toContain(MARKER);
+        for (const ref of Object.values(fixture)) expect(o.raw).not.toContain(ref);
+      }
+      const { rows } = await db.admin.query(
+        'SELECT count(*)::int AS n FROM cuspatlas.scheduling_locations WHERE tenant_id = $1',
+        [T_ALPHA],
+      );
+      expect(rows[0].n).toBe(1);
+    }
     if (want.code !== null) expect(await state()).toBe(before);
     if (cmd.crossTenant === 'own_tenant_only' && d === 'crossTenant') {
       // A create by another tenant's member lands in its own tenant only.
@@ -547,6 +797,30 @@ describe('negative harness: every S command, every dimension, REST and MCP', () 
     )) {
       const r = await viaRest('owner', cmd.rest(fixture));
       expect([cmd.operation, r.status]).toStrictEqual([cmd.operation, cmd.rest(fixture).status]);
+    }
+  });
+
+  it('a role downgraded after the token was issued is refused on the next command', async () => {
+    await db.admin.query(
+      `UPDATE cuspatlas.memberships SET scopes = array_remove(scopes, 'admin.configure') WHERE principal_id = $1`,
+      [USER_A1],
+    );
+    try {
+      const cmd = COMMANDS.find((c) => c.operation === 'scheduling.resources.define');
+      if (!cmd) throw new Error('missing row');
+      const before = await state();
+      const r = await viaRest('owner', cmd.rest(fixture));
+      const m = await viaMcp('owner', cmd.tool, cmd.mcpArgs(fixture), 201);
+      for (const o of [r, m]) {
+        expect([o.status, o.code]).toStrictEqual([403, 'forbidden']);
+        expect(await attemptReasons(o.correlationId)).toStrictEqual(['scope_missing']);
+      }
+      expect(await state()).toBe(before);
+    } finally {
+      await db.admin.query(
+        `UPDATE cuspatlas.memberships SET scopes = scopes || ARRAY['admin.configure'] WHERE principal_id = $1`,
+        [USER_A1],
+      );
     }
   });
 

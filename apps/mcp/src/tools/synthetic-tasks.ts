@@ -4,6 +4,7 @@ import {
   createAjv,
   PATIENT_PROPERTIES,
   RefusalError,
+  SCHEDULING_PROPERTIES,
   SYNTHETIC_TASK_PROPERTIES,
   safeViolations,
   syntheticTaskSchema,
@@ -14,6 +15,7 @@ import {
   type Authorize,
   type PatientService,
   type ProposalService,
+  type SchedulingResourceService,
   type SyntheticTaskService,
   withAttemptRecording,
   withRefusalRecording,
@@ -83,6 +85,8 @@ export interface ToolDeps {
   readonly service: SyntheticTaskService;
   readonly proposals: ProposalService;
   readonly patients: PatientService;
+  /** S7/S9 scheduling resources and availability (resources track). */
+  readonly scheduling: SchedulingResourceService;
   readonly authorize: Authorize;
   readonly recording: AttemptRecordingDeps;
 }
@@ -117,6 +121,7 @@ const KNOWN_PROPERTIES: ReadonlySet<string> = new Set([
   ...SYNTHETIC_TASK_PROPERTIES,
   ...ACTION_PROPOSAL_PROPERTIES,
   ...PATIENT_PROPERTIES,
+  ...SCHEDULING_PROPERTIES,
   'idempotencyKey',
   'proposalRef',
   'patientRef',

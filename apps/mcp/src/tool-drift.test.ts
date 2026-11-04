@@ -20,6 +20,8 @@ function resolve(schema: unknown, local: Record<string, Schema>): unknown {
 
 const TRANSPORT_ONLY = new Set(['idempotencyKey', 'taskRef', 'proposalRef']);
 const synthetic = ROUTES.filter((r) => r.operationId.startsWith('syntheticTasks.'));
+// Scheduling tools (S7/S9) have their own drift test: scheduling-tool-drift.test.ts.
+const SYNTHETIC_TOOLS = TOOLS.filter((t) => t.operationId.startsWith('syntheticTasks.'));
 
 /** The REST request shape of a route: its body definition, or the list query, or nothing. */
 function restShape(operationId: string, requestBody: string | undefined) {
@@ -32,8 +34,6 @@ function restShape(operationId: string, requestBody: string | undefined) {
   const defs = operationId.startsWith('syntheticTasks.proposals.') ? PROPOSAL_DEFS : TASK_DEFS;
   return { defs, shape: { properties: {}, required: [] } };
 }
-
-const SYNTHETIC_TOOLS = TOOLS.filter((t) => t.operationId.startsWith('syntheticTasks.'));
 
 describe('REST/MCP contract drift (synthetic tasks and proposals)', () => {
   it('exposes exactly one tool per REST operation and no others', () => {

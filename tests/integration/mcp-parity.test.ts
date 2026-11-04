@@ -1,0 +1,1005 @@
+import { randomUUID } from 'node:crypto';
+import { buildApp } from '@cuspatlas/api';
+import { REFUSAL_HTTP_STATUS, type RefusalCode } from '@cuspatlas/contracts';
+import {
+  createMembershipSource,
+  createSecurityAttemptSink,
+  createTenantTransactionRunner,
+} from '@cuspatlas/db';
+import { buildMcpServer, type McpServerHandle } from '@cuspatlas/mcp';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import type { FastifyInstance } from 'fastify';
+import { SignJWT } from 'jose';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { openTestDatabase, type TestDatabase } from './support/db';
+import {
+  SVC_B1,
+  seedTenancy,
+  T_ALPHA,
+  T_BETA,
+  TASK_A,
+  TASK_A_NORTH,
+  TASK_A_SOUTH,
+  TASK_B,
+  USER_A1,
+  USER_A2,
+  USER_A3,
+  USER_A4,
+} from './support/fixtures';
+import { MARKER } from './support/marker';
+import {
+  createTestTokenIssuer,
+  TEST_AUDIENCE,
+  TEST_ISSUER,
+  type TestTokenIssuer,
+} from './support/test-token-issuer';
+
+const MCP_AUDIENCE = 'urn:cuspatlas:mcp:synthetic';
+const TOOL_NAMES = [
+  'synthetic_tasks_create',
+  'synthetic_tasks_get',
+  'synthetic_tasks_list',
+  'synthetic_tasks_relabel',
+];
+
+let db: TestDatabase;
+let issuer: TestTokenIssuer;
+let app: FastifyInstance;
+let mcp: McpServerHandle;
+let mcpUrl: string;
+let logLines: string[];
+
+interface TokenPair {
+  readonly rest: string | undefined;
+  readonly mcp: string | undefined;
+}
+const tokens: Record<string, TokenPair> = {};
+
+const mcpIssue = (o: Parameters<TestTokenIssuer['issue']>[0]) =>
+  issuer.issue({ audience: MCP_AUDIENCE, ...o });
+
+beforeAll(async () => {
+  db = await openTestDatabase('mcp_parity');
+  await seedTenancy(db.admin);
+  issuer = await createTestTokenIssuer();
+  logLines = [];
+  const stream = { write: (l: string) => logLines.push(l) };
+  const membership = createMembershipSource(db.app);
+  const attempts = createSecurityAttemptSink(db.sink);
+  const tenantTransactions = createTenantTransactionRunner(db.app);
+  app = await buildApp({
+    env: 'synthetic-test',
+    logger: { level: 'info', stream },
+    identity: issuer.verifierConfig,
+    membership,
+    attempts,
+    tenantTransactions,
+  });
+  mcp = buildMcpServer({
+    env: 'synthetic-test',
+    identity: { ...issuer.verifierConfig, audience: MCP_AUDIENCE },
+    restAudience: TEST_AUDIENCE,
+    membership,
+    attempts,
+    tenantTransactions,
+    logger: { stream },
+  });
+  mcpUrl = (await mcp.listen({ host: '127.0.0.1', port: 0 })).url;
+
+  const both = async (sub: string, tid: string): Promise<TokenPair> => ({
+    rest: await issuer.issue({ sub, tid }),
+    mcp: await mcpIssue({ sub, tid }),
+  });
+  tokens.a1 = await both(USER_A1, T_ALPHA);
+  tokens.a2 = await both(USER_A2, T_ALPHA); // revoked
+  tokens.a3 = await both(USER_A3, T_ALPHA); // loc-north only
+  tokens.a4 = await both(USER_A4, T_ALPHA); // read only
+  tokens.svcB1 = await both(SVC_B1, T_BETA);
+  tokens.wrongTenant = await both(USER_A1, T_BETA); // a1 has no membership in beta
+  tokens.none = { rest: undefined, mcp: undefined };
+  tokens.garbage = { rest: MARKER, mcp: MARKER };
+  const bad = async (o: Partial<Parameters<TestTokenIssuer['issue']>[0]>): Promise<TokenPair> => ({
+    rest: await issuer.issue({ sub: USER_A1, tid: T_ALPHA, ...o }),
+    mcp: await mcpIssue({ sub: USER_A1, tid: T_ALPHA, ...o }),
+  });
+  tokens.expired = await bad({ expiresInSec: -60 });
+  tokens.notYetValid = await bad({ notBeforeSec: 600 });
+  tokens.wrongIssuer = await bad({ issuer: 'urn:cuspatlas:synthetic-test-evil' });
+  tokens.foreignKey = await bad({ foreignKey: true });
+  // Audience confusion: each transport is offered the other transport's token.
+  tokens.crossAudience = {
+    rest: await mcpIssue({ sub: USER_A1, tid: T_ALPHA }),
+    mcp: await issuer.issue({ sub: USER_A1, tid: T_ALPHA }),
+  };
+  tokens.malformedAudience = {
+    rest: await issuer.issue({ sub: USER_A1, tid: T_ALPHA, audience: 'not-an-audience' }),
+    mcp: await mcpIssue({ sub: USER_A1, tid: T_ALPHA, audience: 'not-an-audience' }),
+  };
+  const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const claims = {
+    sub: USER_A1,
+    tid: T_ALPHA,
+    sid: 'sid-1',
+    iss: TEST_ISSUER,
+    iat: Math.floor(Date.now() / 1000),
+    exp: Math.floor(Date.now() / 1000) + 300,
+  };
+  const algNone = (aud: string) => `${b64({ alg: 'none', typ: 'JWT' })}.${b64({ ...claims, aud })}.`;
+  tokens.algNone = { rest: algNone(TEST_AUDIENCE), mcp: algNone(MCP_AUDIENCE) };
+  const hs = (aud: string) =>
+    new SignJWT({ tid: T_ALPHA, sid: 'sid-1' })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setSubject(USER_A1)
+      .setIssuer(TEST_ISSUER)
+      .setAudience(aud)
+      .setIssuedAt()
+      .setExpirationTime('5m')
+      .sign(new TextEncoder().encode('synthetic-shared-secret-synthetic-shared-secret'));
+  tokens.hs256 = { rest: await hs(TEST_AUDIENCE), mcp: await hs(MCP_AUDIENCE) };
+});
+
+afterAll(async () => {
+  await mcp?.close();
+  await app?.close();
+  await db?.close();
+});
+
+// ---------------------------------------------------------------------------------------------
+// Transport drivers. Both reduce a call to the same Outcome so parity is asserted mechanically.
+
+type Op = 'create' | 'list' | 'get' | 'relabel';
+type Args = Record<string, unknown>;
+
+interface Outcome {
+  /** REST: the HTTP status. MCP: the HTTP status of a protocol-level refusal, else the REST-equivalent status of the tool result. */
+  readonly status: number;
+  readonly code: string | null;
+  readonly correlationId: string | null;
+  readonly retryable: boolean | null;
+  /** Everything the caller received, for marker scans. */
+  readonly raw: string;
+  readonly body: Record<string, unknown> | null;
+}
+
+const SUCCESS_STATUS: Record<Op, number> = { create: 201, list: 200, get: 200, relabel: 200 };
+const TOOL: Record<Op, string> = {
+  create: 'synthetic_tasks_create',
+  list: 'synthetic_tasks_list',
+  get: 'synthetic_tasks_get',
+  relabel: 'synthetic_tasks_relabel',
+};
+
+function outcomeOf(status: number, body: Record<string, unknown> | null, raw: string): Outcome {
+  const refused = body !== null && typeof body.code === 'string' && typeof body.retryable === 'boolean';
+  return {
+    status,
+    code: refused ? (body.code as string) : null,
+    correlationId: body !== null && typeof body.correlationId === 'string' ? body.correlationId : null,
+    retryable: refused ? (body.retryable as boolean) : null,
+    raw,
+    body,
+  };
+}
+
+async function viaRest(op: Op, token: string | undefined, args: Args): Promise<Outcome> {
+  const { idempotencyKey, taskRef, ...rest } = args;
+  const headers: Record<string, string> = {};
+  if (token !== undefined) headers.authorization = `Bearer ${token}`;
+  if (op === 'create' || op === 'relabel') {
+    headers['content-type'] = 'application/json';
+    if (idempotencyKey !== undefined) headers['idempotency-key'] = String(idempotencyKey);
+  }
+  const res = await app.inject({
+    method: op === 'create' || op === 'relabel' ? 'POST' : 'GET',
+    url:
+      op === 'create'
+        ? '/v1/synthetic-tasks'
+        : op === 'relabel'
+          ? `/v1/synthetic-tasks/${String(taskRef)}/relabel`
+          : op === 'get'
+            ? `/v1/synthetic-tasks/${encodeURIComponent(String(taskRef))}`
+            : '/v1/synthetic-tasks',
+    ...(op === 'list'
+      ? { query: Object.fromEntries(Object.entries(args).map(([k, v]) => [k, String(v)])) }
+      : {}),
+    headers,
+    ...(op === 'create' || op === 'relabel' ? { payload: JSON.stringify(rest) } : {}),
+  });
+  let body: Record<string, unknown> | null = null;
+  try {
+    body = res.json();
+  } catch {
+    body = null;
+  }
+  return outcomeOf(res.statusCode, body, `${res.body}${JSON.stringify(res.headers)}`);
+}
+
+async function withClient<T>(token: string | undefined, fn: (c: Client) => Promise<T>): Promise<T> {
+  const transport = new StreamableHTTPClientTransport(new URL(mcpUrl), {
+    requestInit: { headers: token === undefined ? {} : { authorization: `Bearer ${token}` } },
+  });
+  const client = new Client({ name: 'synthetic-test-client', version: '0.0.0' });
+  await client.connect(transport);
+  try {
+    return await fn(client);
+  } finally {
+    await client.close().catch(() => undefined);
+  }
+}
+
+/** A protocol-level refusal surfaces as a transport error carrying the HTTP status and body text. */
+function fromTransportError(e: unknown): Outcome {
+  const err = e as { code?: unknown; message?: string };
+  if (typeof err.code !== 'number') throw e;
+  const message = String(err.message);
+  let body: Record<string, unknown> | null = null;
+  const start = message.indexOf('{');
+  if (start >= 0) {
+    try {
+      body = JSON.parse(message.slice(start));
+    } catch {
+      body = null;
+    }
+  }
+  return outcomeOf(err.code, body, message);
+}
+
+async function viaMcp(op: Op, token: string | undefined, args: Args): Promise<Outcome> {
+  try {
+    return await withClient(token, async (client) => {
+      const result = await client.callTool({ name: TOOL[op], arguments: args });
+      const raw = JSON.stringify(result);
+      if (result.isError === true) {
+        const body = result.structuredContent as Record<string, unknown>;
+        const status = REFUSAL_HTTP_STATUS[body.code as RefusalCode];
+        return outcomeOf(status, body, raw);
+      }
+      return outcomeOf(SUCCESS_STATUS[op], result.structuredContent as Record<string, unknown>, raw);
+    });
+  } catch (e) {
+    return fromTransportError(e);
+  }
+}
+
+async function attempts(correlationId: string | null) {
+  if (correlationId === null) return [];
+  return (
+    await db.admin.query(
+      'SELECT tenant_id, actor_id, operation, reason_code FROM cuspatlas.security_attempt_events WHERE correlation_id = $1',
+      [correlationId],
+    )
+  ).rows;
+}
+
+async function freshTask(location: string | null = null, tenant = T_ALPHA): Promise<string> {
+  const { rows } = await db.admin.query(
+    'INSERT INTO cuspatlas.synthetic_tasks (tenant_id, label, location_ref, created_by) VALUES ($1, $2, $3, $4) RETURNING id',
+    [tenant, 'fresh task', location, tenant === T_ALPHA ? USER_A1 : SVC_B1],
+  );
+  return rows[0].id;
+}
+
+async function taskCount(): Promise<number> {
+  return (await db.admin.query('SELECT count(*)::int AS n FROM cuspatlas.synthetic_tasks')).rows[0].n;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Table-driven parity harness: every case runs through REST and MCP and must agree.
+
+interface ParityCase {
+  readonly op: Op;
+  readonly name: string;
+  readonly who: string;
+  /** Built per transport so state-changing cases get fresh keys and tasks. */
+  readonly args: () => Promise<Args> | Args;
+  readonly status: number;
+  readonly code: string | null;
+  /** Expected reason_code of the security attempt row when the case is a denial. */
+  readonly reason?: string;
+  /** The Idempotency-Key header (REST) and argument (MCP) are validated at different points, so their detail may differ. */
+  readonly detailMayDiffer?: boolean;
+}
+
+const key = () => randomUUID();
+const longLabel = 'x'.repeat(121);
+
+const CASES: readonly ParityCase[] = [
+  // allowed
+  {
+    op: 'create',
+    name: 'allowed',
+    who: 'a1',
+    args: () => ({ label: 'water the plants', idempotencyKey: key() }),
+    status: 201,
+    code: null,
+  },
+  { op: 'list', name: 'allowed', who: 'a1', args: () => ({ limit: '5' }), status: 200, code: null },
+  { op: 'get', name: 'allowed', who: 'a1', args: () => ({ taskRef: TASK_A }), status: 200, code: null },
+  {
+    op: 'relabel',
+    name: 'allowed',
+    who: 'a1',
+    args: async () => ({
+      taskRef: await freshTask(),
+      label: 'renamed',
+      expectedVersion: 1,
+      idempotencyKey: key(),
+    }),
+    status: 200,
+    code: null,
+  },
+  // unauthorized tenant: a verified principal naming a tenant it does not belong to
+  {
+    op: 'create',
+    name: 'unauthorized tenant',
+    who: 'wrongTenant',
+    args: () => ({ label: 'x', idempotencyKey: key() }),
+    status: 403,
+    code: 'forbidden',
+    reason: 'membership_inactive',
+  },
+  {
+    op: 'list',
+    name: 'unauthorized tenant',
+    who: 'wrongTenant',
+    args: () => ({}),
+    status: 403,
+    code: 'forbidden',
+    reason: 'membership_inactive',
+  },
+  {
+    op: 'get',
+    name: 'unauthorized tenant',
+    who: 'wrongTenant',
+    args: () => ({ taskRef: TASK_A }),
+    status: 403,
+    code: 'forbidden',
+    reason: 'membership_inactive',
+  },
+  {
+    op: 'relabel',
+    name: 'unauthorized tenant',
+    who: 'wrongTenant',
+    args: () => ({ taskRef: TASK_A, label: 'x', expectedVersion: 1, idempotencyKey: key() }),
+    status: 403,
+    code: 'forbidden',
+    reason: 'membership_inactive',
+  },
+  // revoked membership
+  {
+    op: 'create',
+    name: 'revoked member',
+    who: 'a2',
+    args: () => ({ label: 'x', idempotencyKey: key() }),
+    status: 403,
+    code: 'forbidden',
+    reason: 'membership_inactive',
+  },
+  {
+    op: 'get',
+    name: 'revoked member',
+    who: 'a2',
+    args: () => ({ taskRef: TASK_A }),
+    status: 403,
+    code: 'forbidden',
+    reason: 'membership_inactive',
+  },
+  // insufficient scope: a4 holds read only
+  {
+    op: 'create',
+    name: 'insufficient scope',
+    who: 'a4',
+    args: () => ({ label: 'x', idempotencyKey: key() }),
+    status: 403,
+    code: 'forbidden',
+    reason: 'scope_missing',
+  },
+  {
+    op: 'relabel',
+    name: 'insufficient scope',
+    who: 'a4',
+    args: () => ({ taskRef: TASK_A, label: 'x', expectedVersion: 1, idempotencyKey: key() }),
+    status: 403,
+    code: 'forbidden',
+    reason: 'scope_missing',
+  },
+  { op: 'list', name: 'read scope allowed', who: 'a4', args: () => ({}), status: 200, code: null },
+  {
+    op: 'get',
+    name: 'read scope allowed',
+    who: 'a4',
+    args: () => ({ taskRef: TASK_A }),
+    status: 200,
+    code: null,
+  },
+  // insufficient scope is decided before schema: an invalid payload from a read-only caller is still a denial
+  {
+    op: 'create',
+    name: 'insufficient scope before schema',
+    who: 'a4',
+    args: () => ({ label: longLabel, idempotencyKey: key() }),
+    status: 403,
+    code: 'forbidden',
+    reason: 'scope_missing',
+  },
+  // location denial: a3 may only act in loc-north
+  {
+    op: 'create',
+    name: 'location denied',
+    who: 'a3',
+    args: () => ({ label: 'x', locationRef: 'loc-south', idempotencyKey: key() }),
+    status: 403,
+    code: 'forbidden',
+    reason: 'location_denied',
+  },
+  {
+    op: 'create',
+    name: 'location allowed',
+    who: 'a3',
+    args: () => ({ label: 'x', locationRef: 'loc-north', idempotencyKey: key() }),
+    status: 201,
+    code: null,
+  },
+  {
+    op: 'get',
+    name: 'location denied',
+    who: 'a3',
+    args: () => ({ taskRef: TASK_A_SOUTH }),
+    status: 403,
+    code: 'forbidden',
+    reason: 'location_denied',
+  },
+  {
+    op: 'get',
+    name: 'location allowed',
+    who: 'a3',
+    args: () => ({ taskRef: TASK_A_NORTH }),
+    status: 200,
+    code: null,
+  },
+  {
+    op: 'relabel',
+    name: 'location denied',
+    who: 'a3',
+    args: async () => ({
+      taskRef: await freshTask('loc-south'),
+      label: 'x',
+      expectedVersion: 1,
+      idempotencyKey: key(),
+    }),
+    status: 403,
+    code: 'forbidden',
+    reason: 'location_denied',
+  },
+  // hidden cross-tenant resources are indistinguishable from missing ones
+  {
+    op: 'get',
+    name: 'cross-tenant hidden',
+    who: 'a1',
+    args: () => ({ taskRef: TASK_B }),
+    status: 404,
+    code: 'not_found',
+    reason: 'resource_hidden_or_missing',
+  },
+  {
+    op: 'get',
+    name: 'missing',
+    who: 'a1',
+    args: () => ({ taskRef: '40000000-0000-4000-8000-0000000000ee' }),
+    status: 404,
+    code: 'not_found',
+    reason: 'resource_hidden_or_missing',
+  },
+  {
+    op: 'get',
+    name: 'malformed taskRef',
+    who: 'a1',
+    args: () => ({ taskRef: 'not-a-uuid' }),
+    status: 404,
+    code: 'not_found',
+    reason: 'resource_hidden_or_missing',
+  },
+  {
+    op: 'relabel',
+    name: 'cross-tenant hidden',
+    who: 'a1',
+    args: () => ({ taskRef: TASK_B, label: 'x', expectedVersion: 1, idempotencyKey: key() }),
+    status: 404,
+    code: 'not_found',
+    reason: 'resource_hidden_or_missing',
+  },
+  // schema violations
+  {
+    op: 'create',
+    name: 'label too long',
+    who: 'a1',
+    args: () => ({ label: longLabel, idempotencyKey: key() }),
+    status: 400,
+    code: 'invalid_request',
+  },
+  {
+    op: 'create',
+    name: 'unknown property',
+    who: 'a1',
+    args: () => ({ label: 'x', tenantId: T_BETA, idempotencyKey: key() }),
+    status: 400,
+    code: 'invalid_request',
+  },
+  {
+    op: 'create',
+    name: 'missing idempotency key',
+    who: 'a1',
+    args: () => ({ label: 'x' }),
+    status: 400,
+    code: 'invalid_request',
+    detailMayDiffer: true,
+  },
+  {
+    op: 'create',
+    name: 'bad idempotency key',
+    who: 'a1',
+    args: () => ({ label: 'x', idempotencyKey: 'has space' }),
+    status: 400,
+    code: 'invalid_request',
+    detailMayDiffer: true,
+  },
+  {
+    op: 'create',
+    name: 'missing label',
+    who: 'a1',
+    args: () => ({ idempotencyKey: key() }),
+    status: 400,
+    code: 'invalid_request',
+  },
+  {
+    op: 'create',
+    name: 'wrong type',
+    who: 'a1',
+    args: () => ({ label: 42, idempotencyKey: key() }),
+    status: 400,
+    code: 'invalid_request',
+  },
+  {
+    op: 'create',
+    name: 'bad location',
+    who: 'a1',
+    args: () => ({ label: 'x', locationRef: 'Bad Loc', idempotencyKey: key() }),
+    status: 400,
+    code: 'invalid_request',
+  },
+  {
+    op: 'list',
+    name: 'limit zero',
+    who: 'a1',
+    args: () => ({ limit: '0' }),
+    status: 400,
+    code: 'invalid_request',
+  },
+  {
+    op: 'list',
+    name: 'unknown property',
+    who: 'a1',
+    args: () => ({ tenantId: T_BETA }),
+    status: 400,
+    code: 'invalid_request',
+  },
+  {
+    op: 'list',
+    name: 'cursor malformed',
+    who: 'a1',
+    args: () => ({ cursor: '!!' }),
+    status: 400,
+    code: 'invalid_request',
+  },
+  {
+    op: 'list',
+    name: 'cursor forged',
+    who: 'a1',
+    args: () => ({ cursor: 'e30.AAAAAAAAAAAAAAAAAAAAAA' }),
+    status: 400,
+    code: 'invalid_request',
+  },
+  {
+    op: 'relabel',
+    name: 'version zero',
+    who: 'a1',
+    args: () => ({ taskRef: TASK_A, label: 'x', expectedVersion: 0, idempotencyKey: key() }),
+    status: 400,
+    code: 'invalid_request',
+  },
+  {
+    op: 'relabel',
+    name: 'missing expectedVersion',
+    who: 'a1',
+    args: () => ({ taskRef: TASK_A, label: 'x', idempotencyKey: key() }),
+    status: 400,
+    code: 'invalid_request',
+  },
+  // optimistic concurrency
+  {
+    op: 'relabel',
+    name: 'stale version',
+    who: 'a1',
+    args: async () => ({ taskRef: await freshTask(), label: 'x', expectedVersion: 7, idempotencyKey: key() }),
+    status: 409,
+    code: 'stale_version',
+  },
+  // authentication failures
+  ...(
+    [
+      'none',
+      'garbage',
+      'expired',
+      'notYetValid',
+      'wrongIssuer',
+      'foreignKey',
+      'algNone',
+      'hs256',
+      'crossAudience',
+      'malformedAudience',
+    ] as const
+  ).flatMap((who): ParityCase[] =>
+    (['create', 'list', 'get', 'relabel'] as const).map((op) => ({
+      op,
+      name: `token ${who}`,
+      who,
+      args: () =>
+        op === 'create'
+          ? { label: 'x', idempotencyKey: key() }
+          : op === 'get'
+            ? { taskRef: TASK_A }
+            : op === 'relabel'
+              ? { taskRef: TASK_A, label: 'x', expectedVersion: 1, idempotencyKey: key() }
+              : {},
+      status: 401,
+      code: 'unauthenticated',
+      reason: who === 'none' ? 'token_missing' : 'token_invalid',
+    })),
+  ),
+];
+
+const DENIAL_STATUSES = new Set([401, 403, 404]);
+
+interface Row {
+  readonly op: Op;
+  readonly name: string;
+  readonly rest: string;
+  readonly mcp: string;
+}
+const table: Row[] = [];
+
+describe('REST and MCP parity (table-driven)', () => {
+  it.each(CASES)('$op / $name ($who)', async (c) => {
+    const t = tokens[c.who] as TokenPair;
+    const restArgs = await c.args();
+    const mcpArgs = await c.args();
+    const before = await taskCount();
+    const rest = await viaRest(c.op, t.rest, restArgs);
+    const viaTool = await viaMcp(c.op, t.mcp, mcpArgs);
+
+    const fmt = (o: Outcome) => `${o.status}${o.code ? ` ${o.code}` : ''}`;
+    table.push({ op: c.op, name: `${c.name} (${c.who})`, rest: fmt(rest), mcp: fmt(viaTool) });
+
+    expect([rest.status, rest.code]).toStrictEqual([c.status, c.code]);
+    expect([viaTool.status, viaTool.code]).toStrictEqual([rest.status, rest.code]);
+    expect(viaTool.retryable).toBe(rest.retryable);
+    if (c.code !== null) {
+      // Same shape: code, retryable, correlationId (and detail when present), nothing else.
+      if (c.detailMayDiffer !== true) {
+        expect(Object.keys(viaTool.body ?? {}).sort()).toStrictEqual(Object.keys(rest.body ?? {}).sort());
+        expect(viaTool.body?.detail).toStrictEqual(rest.body?.detail);
+      }
+      expect(viaTool.correlationId).toMatch(/^[0-9a-f-]{36}$/);
+    }
+
+    if (c.status >= 400 && c.status < 500 && !DENIAL_STATUSES.has(c.status)) {
+      // Validation refusals are not denials, create nothing and write no attempt row.
+      expect(await taskCount()).toBe(before);
+    }
+
+    if (DENIAL_STATUSES.has(c.status)) {
+      for (const o of [rest, viaTool]) {
+        const rows = await attempts(o.correlationId);
+        expect(rows).toHaveLength(1);
+        expect(rows[0].reason_code).toBe(c.reason);
+        if (c.status === 401) expect([rows[0].tenant_id, rows[0].actor_id]).toStrictEqual([null, null]);
+      }
+      expect((await attempts(viaTool.correlationId))[0].operation).toMatch(
+        c.status === 401 ? /^mcp\.request$/ : /^(mcp\.request|syntheticTasks\.\w+)$/,
+      );
+    } else if (c.status === 400 || c.status === 409) {
+      expect(await attempts(viaTool.correlationId)).toHaveLength(0);
+    }
+  });
+
+  afterAll(() => {
+    const w = Math.max(...table.map((r) => r.name.length));
+    const lines = table.map(
+      (r) => `${r.op.padEnd(8)} ${r.name.padEnd(w)}  REST ${r.rest.padEnd(24)} MCP ${r.mcp}`,
+    );
+    process.stdout.write(`\nPARITY TABLE (${table.length} rows)\n${lines.join('\n')}\n`);
+  });
+});
+
+describe('protocol surface', () => {
+  it('lists exactly the four tools and advertises nothing else', async () => {
+    await withClient(tokens.a1?.mcp, async (client) => {
+      const { tools } = await client.listTools();
+      expect(tools.map((t) => t.name).sort()).toStrictEqual(TOOL_NAMES);
+      for (const t of tools) {
+        expect(t.inputSchema.additionalProperties).toBe(false);
+        expect(Object.keys(t.inputSchema.properties ?? {})).not.toContain('tenantId');
+      }
+      expect(Object.keys(client.getServerCapabilities() ?? {})).toStrictEqual(['tools']);
+      // No tool-name probing: an unknown tool is a protocol error that does not echo the name.
+      await expect(client.callTool({ name: `${MARKER}_sql`, arguments: {} })).rejects.toSatisfy(
+        (e: Error) => !e.message.includes(MARKER),
+      );
+    });
+  });
+
+  it('a token for the REST audience is refused by MCP and an MCP token is refused by REST', async () => {
+    const a = tokens.a1 as TokenPair;
+    const toMcp = await viaMcp('list', a.rest, {});
+    const toRest = await viaRest('list', a.mcp, {});
+    expect([toMcp.status, toMcp.code]).toStrictEqual([401, 'unauthenticated']);
+    expect([toRest.status, toRest.code]).toStrictEqual([401, 'unauthenticated']);
+    expect((await viaMcp('list', a.mcp, {})).status).toBe(200);
+    expect((await viaRest('list', a.rest, {})).status).toBe(200);
+  });
+
+  it('answers a bad token at the HTTP layer with 401, a Bearer challenge and protected-resource metadata', async () => {
+    const res = await fetch(mcpUrl, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+        authorization: `Bearer ${tokens.expired?.mcp}`,
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+    });
+    expect(res.status).toBe(401);
+    expect(res.headers.get('www-authenticate')).toMatch(/^Bearer /);
+    expect(res.headers.get('www-authenticate')).toContain('resource_metadata=');
+    const meta = await fetch(new URL('/.well-known/oauth-protected-resource', mcpUrl));
+    expect(meta.status).toBe(200);
+    expect(await meta.json()).toMatchObject({ resource: MCP_AUDIENCE, bearer_methods_supported: ['header'] });
+  });
+
+  it('refuses browser origins, non-POST methods, wrong paths and oversized bodies', async () => {
+    const headers = {
+      'content-type': 'application/json',
+      accept: 'application/json, text/event-stream',
+      authorization: `Bearer ${tokens.a1?.mcp}`,
+    };
+    const body = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' });
+    expect(
+      (await fetch(mcpUrl, { method: 'POST', headers: { ...headers, origin: 'https://evil.example' }, body }))
+        .status,
+    ).toBe(403);
+    expect((await fetch(mcpUrl, { method: 'GET', headers })).status).toBe(405);
+    expect((await fetch(mcpUrl, { method: 'DELETE', headers })).status).toBe(405);
+    expect((await fetch(new URL('/other', mcpUrl), { method: 'POST', headers, body })).status).toBe(404);
+    const big = JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/list',
+      params: { pad: 'x'.repeat(40_000) },
+    });
+    expect((await fetch(mcpUrl, { method: 'POST', headers, body: big })).status).toBe(413);
+  });
+
+  it('refuses to start with a shared audience or a test issuer outside synthetic-test', () => {
+    const base = {
+      membership: createMembershipSource(db.app),
+      attempts: createSecurityAttemptSink(db.sink),
+      tenantTransactions: createTenantTransactionRunner(db.app),
+    };
+    expect(() =>
+      buildMcpServer({
+        env: 'synthetic-test',
+        identity: issuer.verifierConfig,
+        restAudience: TEST_AUDIENCE,
+        ...base,
+      }),
+    ).toThrow(/audience/i);
+    expect(() =>
+      buildMcpServer({
+        env: 'production',
+        identity: { ...issuer.verifierConfig, audience: MCP_AUDIENCE },
+        ...base,
+      }),
+    ).toThrow(/synthetic-test/);
+  });
+});
+
+describe('idempotency shared with REST', () => {
+  it('an MCP replay returns the same task with replayed: true', async () => {
+    const k = key();
+    const first = await viaMcp('create', tokens.a1?.mcp, { label: 'once', idempotencyKey: k });
+    const second = await viaMcp('create', tokens.a1?.mcp, { label: 'once', idempotencyKey: k });
+    const d1 = first.body as { data: { taskRef: string }; replayed: boolean; version: number };
+    const d2 = second.body as typeof d1;
+    expect([d1.replayed, d2.replayed]).toStrictEqual([false, true]);
+    expect(d2.data.taskRef).toBe(d1.data.taskRef);
+    expect(d2.version).toBe(d1.version);
+    const rows = await db.admin.query(
+      'SELECT count(*)::int AS n FROM cuspatlas.synthetic_tasks WHERE id = $1',
+      [d1.data.taskRef],
+    );
+    expect(rows.rows[0].n).toBe(1);
+  });
+
+  it('a REST replay of an MCP-created key replays, and the reverse holds', async () => {
+    const k = key();
+    const viaTool = await viaMcp('create', tokens.a1?.mcp, { label: 'shared', idempotencyKey: k });
+    const viaHttp = await viaRest('create', tokens.a1?.rest, { label: 'shared', idempotencyKey: k });
+    expect(viaHttp.status).toBe(201);
+    expect(viaHttp.body).toMatchObject({ replayed: true });
+    expect((viaHttp.body as { data: { taskRef: string } }).data.taskRef).toBe(
+      (viaTool.body as { data: { taskRef: string } }).data.taskRef,
+    );
+
+    const k2 = key();
+    const restFirst = await viaRest('create', tokens.a1?.rest, { label: 'shared2', idempotencyKey: k2 });
+    const mcpReplay = await viaMcp('create', tokens.a1?.mcp, { label: 'shared2', idempotencyKey: k2 });
+    expect(mcpReplay.body).toMatchObject({ replayed: true });
+    expect((mcpReplay.body as { data: { taskRef: string } }).data.taskRef).toBe(
+      (restFirst.body as { data: { taskRef: string } }).data.taskRef,
+    );
+  });
+
+  it('the same key with a different payload is idempotency_conflict on both transports', async () => {
+    const k = key();
+    await viaMcp('create', tokens.a1?.mcp, { label: 'first', idempotencyKey: k });
+    const mcpConflict = await viaMcp('create', tokens.a1?.mcp, { label: 'second', idempotencyKey: k });
+    const restConflict = await viaRest('create', tokens.a1?.rest, { label: 'second', idempotencyKey: k });
+    for (const o of [mcpConflict, restConflict])
+      expect([o.status, o.code]).toStrictEqual([409, 'idempotency_conflict']);
+    expect(mcpConflict.retryable).toBe(restConflict.retryable);
+  });
+
+  it('does not share keys across principals or tenants', async () => {
+    const k = key();
+    const a = await viaMcp('create', tokens.a1?.mcp, { label: 'alpha', idempotencyKey: k });
+    const b = await viaMcp('create', tokens.svcB1?.mcp, { label: 'alpha', idempotencyKey: k });
+    expect((b.body as { replayed: boolean }).replayed).toBe(false);
+    expect((b.body as { data: { taskRef: string } }).data.taskRef).not.toBe(
+      (a.body as { data: { taskRef: string } }).data.taskRef,
+    );
+  });
+
+  it('a relabel retry through MCP does not bump the version twice', async () => {
+    const ref = await freshTask();
+    const k = key();
+    const args = { taskRef: ref, label: 'again', expectedVersion: 1, idempotencyKey: k };
+    const one = await viaMcp('relabel', tokens.a1?.mcp, args);
+    const two = await viaMcp('relabel', tokens.a1?.mcp, args);
+    expect([one.body?.version, two.body?.version]).toStrictEqual([2, 2]);
+    expect(two.body?.replayed).toBe(true);
+  });
+
+  it('a member revoked after the first call is denied on replay', async () => {
+    const t = await mcpIssue({ sub: USER_A3, tid: T_ALPHA });
+    const k = key();
+    const args = { label: 'then revoked', locationRef: 'loc-north', idempotencyKey: k };
+    expect((await viaMcp('create', t, args)).status).toBe(201);
+    await db.admin.query('UPDATE cuspatlas.memberships SET revoked_at = now() WHERE principal_id = $1', [
+      USER_A3,
+    ]);
+    try {
+      const replay = await viaMcp('create', t, args);
+      expect([replay.status, replay.code]).toStrictEqual([403, 'forbidden']);
+      expect(replay.raw).not.toContain('then revoked');
+    } finally {
+      await db.admin.query('UPDATE cuspatlas.memberships SET revoked_at = NULL WHERE principal_id = $1', [
+        USER_A3,
+      ]);
+    }
+  });
+});
+
+describe('tool results', () => {
+  it('returns the CommandResult as structured content and never reports a refusal as success', async () => {
+    await withClient(tokens.a1?.mcp, async (client) => {
+      const ok = await client.callTool({
+        name: 'synthetic_tasks_create',
+        arguments: { label: 'structured', idempotencyKey: key() },
+      });
+      expect(ok.isError).not.toBe(true);
+      const s = ok.structuredContent as Record<string, unknown>;
+      expect(Object.keys(s).sort()).toStrictEqual(['correlationId', 'data', 'replayed', 'version']);
+      expect(Object.keys(s.data as object).sort()).toStrictEqual(['label', 'taskRef']);
+
+      const list = await client.callTool({ name: 'synthetic_tasks_list', arguments: { limit: '1' } });
+      const page = list.structuredContent as { data: unknown[]; nextCursor: string | null };
+      expect(page.data).toHaveLength(1);
+      expect(typeof page.nextCursor).toBe('string');
+      const next = await client.callTool({
+        name: 'synthetic_tasks_list',
+        arguments: { limit: '1', cursor: page.nextCursor },
+      });
+      expect(next.isError).not.toBe(true);
+
+      const denied = await client.callTool({ name: 'synthetic_tasks_get', arguments: { taskRef: TASK_B } });
+      expect(denied.isError).toBe(true);
+      expect(Object.keys(denied.structuredContent as object).sort()).toStrictEqual([
+        'code',
+        'correlationId',
+        'retryable',
+      ]);
+    });
+  });
+
+  it('cross-tenant and missing tasks produce byte-identical refusals apart from the correlation id', async () => {
+    const strip = (o: Outcome) => JSON.stringify({ ...o.body, correlationId: undefined });
+    const hidden = await viaMcp('get', tokens.a1?.mcp, { taskRef: TASK_B });
+    const missing = await viaMcp('get', tokens.a1?.mcp, { taskRef: '40000000-0000-4000-8000-0000000000ee' });
+    expect(strip(hidden)).toBe(strip(missing));
+  });
+
+  it('never takes a tenant from the client', async () => {
+    const before = await taskCount();
+    const o = await viaMcp('create', tokens.a1?.mcp, { label: 'x', tenantId: T_BETA, idempotencyKey: key() });
+    expect(o.status).toBe(400);
+    expect(await taskCount()).toBe(before);
+    const created = await viaMcp('create', tokens.a1?.mcp, { label: 'mine', idempotencyKey: key() });
+    const ref = (created.body as { data: { taskRef: string } }).data.taskRef;
+    const row = (
+      await db.admin.query('SELECT tenant_id, created_by FROM cuspatlas.synthetic_tasks WHERE id = $1', [ref])
+    ).rows[0];
+    expect(row).toStrictEqual({ tenant_id: T_ALPHA, created_by: USER_A1 });
+  });
+});
+
+describe('privacy: the marker never appears in errors, logs or attempt rows', () => {
+  it('keeps SYNTHETIC_SECRET_42 out of every refusal and log line', async () => {
+    const a = tokens.a1 as TokenPair;
+    const seed = key();
+    await viaMcp('create', a.mcp, { label: 'plain', idempotencyKey: MARKER });
+    const outcomes: Outcome[] = [
+      // label (too long, carrying the marker), idempotency key (conflict), cursor, unknown property, task reference, token
+      await viaMcp('create', a.mcp, { label: MARKER.repeat(7), idempotencyKey: seed }),
+      await viaMcp('create', a.mcp, { label: 'different', idempotencyKey: MARKER }),
+      await viaMcp('create', a.mcp, { label: 'x', idempotencyKey: `${MARKER} nope` }),
+      await viaMcp('create', a.mcp, { label: 'x', [MARKER]: 1, idempotencyKey: seed }),
+      await viaMcp('list', a.mcp, { cursor: `${MARKER}.${MARKER}` }),
+      await viaMcp('list', a.mcp, { cursor: MARKER }),
+      await viaMcp('get', a.mcp, { taskRef: MARKER }),
+      await viaMcp('relabel', a.mcp, {
+        taskRef: MARKER,
+        label: MARKER.repeat(7),
+        expectedVersion: 1,
+        idempotencyKey: MARKER,
+      }),
+      await viaMcp('create', tokens.a4?.mcp, { label: MARKER.repeat(7), idempotencyKey: MARKER }),
+      await viaMcp('get', tokens.garbage?.mcp, { taskRef: MARKER }),
+      await viaMcp('create', `${MARKER}.${MARKER}.${MARKER}`, { label: MARKER, idempotencyKey: MARKER }),
+    ];
+    for (const o of outcomes) {
+      expect(o.status).toBeGreaterThanOrEqual(400);
+      expect(o.raw).not.toContain(MARKER);
+    }
+    const attemptRows = JSON.stringify(
+      (await db.admin.query('SELECT * FROM cuspatlas.security_attempt_events')).rows,
+    );
+    expect(attemptRows).not.toContain(MARKER);
+    expect(logLines.length).toBeGreaterThan(0);
+    expect(logLines.join('\n')).not.toContain(MARKER);
+    // The log carries actor, tool and correlation id only.
+    const toolLines = logLines.map((l) => JSON.parse(l)).filter((l) => l.tool !== undefined);
+    expect(toolLines.length).toBeGreaterThan(0);
+    for (const l of toolLines) {
+      expect(Object.keys(l).sort()).toStrictEqual([
+        'actorId',
+        'code',
+        'correlationId',
+        'level',
+        'msg',
+        'tool',
+      ]);
+      expect(TOOL_NAMES).toContain(l.tool);
+    }
+  });
+});

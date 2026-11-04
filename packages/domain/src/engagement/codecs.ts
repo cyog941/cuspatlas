@@ -25,6 +25,13 @@ const E_OPERATIONS = [
   'intake.submissions.submit',
   'portal.forms.submit',
   'intake.reviews.resolve',
+  'messaging.threads.open',
+  'messaging.messages.post',
+  'messaging.threads.close',
+  'messaging.threads.assign',
+  'messaging.threads.hold',
+  'portal.threads.open',
+  'portal.threads.post',
 ] as const;
 
 // biome-ignore lint/suspicious/noExplicitAny: codecs are heterogeneous per operation.

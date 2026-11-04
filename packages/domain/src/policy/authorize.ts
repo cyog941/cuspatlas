@@ -183,6 +183,16 @@ export const ACTION_POLICIES = {
   'intake.reviews.worklist': { scope: 'patients.read', principals: ['human', 'service'] },
   'intake.reviews.read': { scope: 'patients.read', principals: ['human', 'service'] },
   'intake.reviews.resolve': { scope: 'patients.write', principals: ['human'] },
+  // E5 secure messaging: its own scopes, so patient access alone never opens a thread. Writing is a
+  // person's act; reads and the worklist are access-audited. Legal hold is administration.
+  'messaging.threads.open': { scope: 'messaging.write', principals: ['human'] },
+  'messaging.messages.post': { scope: 'messaging.write', principals: ['human'] },
+  'messaging.threads.read': { scope: 'messaging.read', principals: ['human', 'service'] },
+  'messaging.threads.worklist': { scope: 'messaging.read', principals: ['human', 'service'] },
+  'messaging.threads.close': { scope: 'messaging.write', principals: ['human'] },
+  'messaging.threads.assign': { scope: 'messaging.write', principals: ['human'] },
+  'messaging.threads.hold': { scope: 'admin.configure', principals: ['human'] },
+  'messaging.retention.evaluate': { scope: 'messaging.read', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

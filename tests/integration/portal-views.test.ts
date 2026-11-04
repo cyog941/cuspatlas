@@ -126,10 +126,7 @@ describe('E2 acceptance', () => {
   });
 
   it('views whose producer is not deployed are explicit unavailable states, never empty', async () => {
-    for (const [view, owner] of [
-      ['documents', 'C15'],
-      ['messages', 'E5'],
-    ] as const) {
+    for (const [view, owner] of [['documents', 'C15']] as const) {
       const v = h.ok<{ data: View }>(await read(parentP, parent, view)).data;
       expect(v.coverage).toStrictEqual({ status: 'unavailable', reason: 'producer_not_deployed', owner });
       expect(v.fields).toBeNull();
@@ -138,6 +135,10 @@ describe('E2 acceptance', () => {
     const forms = h.ok<{ data: View }>(await read(parentP, parent, 'forms')).data;
     expect(forms.coverage).toStrictEqual({ status: 'available' });
     expect(forms.fields).toStrictEqual({ submissions: [] });
+    // E5 deployed the messages producer likewise.
+    const messages = h.ok<{ data: View }>(await read(parentP, parent, 'messages')).data;
+    expect(messages.coverage).toStrictEqual({ status: 'available' });
+    expect(messages.fields).toStrictEqual({ threads: [] });
     // The guarantor relationship holds `financial`: balances is reachable and explicitly unavailable.
     const bal = h.ok<{ data: View }>(await read(parentP, guarantee, 'balances')).data;
     expect(bal.coverage).toStrictEqual({

@@ -1,0 +1,677 @@
+import {
+  type ActorContext,
+  assertValid,
+  type CommandEnvelope,
+  ENGAGEMENT_PROPERTIES,
+  RefusalError,
+  type TenantTransaction,
+  validateEmptyQuery,
+  validateMessagePost,
+  validateThreadAssign,
+  validateThreadClose,
+  validateThreadLegalHold,
+  validateThreadOpen,
+} from '@cuspatlas/contracts';
+import { executeOnce } from '../../commands/execute-once';
+import { recordCommand } from '../../events/record-command';
+import { recordSensitiveRead } from '../../events/record-sensitive-read';
+import type { AuthorizationDecision } from '../../policy/authorize';
+import { AVAILABLE, workItem, workList } from '../../work-items';
+import { assertRef, checkEnvelope, conflict, type EngagementBase, failedAt, notFound } from '../common';
+import { decideSuppression } from '../communications/suppression';
+import { requirePortalAccess } from '../portal/access';
+
+/**
+ * E5 secure messaging. Threads belong to one patient and one location and are worked by a staff
+ * queue (front desk, billing, clinical team) with an optional assignee and an exception-first work
+ * item while the practice owes a reply. Messages are immutable once posted (append-only; no edit or
+ * delete path exists, and the database refuses both). Attachments are image or object references
+ * only, authorized separately when opened (I owns the bytes). Every read of a thread, staff or
+ * portal, is access-audited in the read's transaction. Bodies never reach logs, audit, outbox,
+ * attempts, idempotency rows or a notification.
+ *
+ * A staff reply is noticed through E6/E7 only: E6 decides (purpose `message_notice`, consent purpose
+ * `messaging`) and E7 delivers a notice-only template; a suppressed notice leaves the message
+ * readable in the portal and reported `unnotified` with E6's reason.
+ *
+ * Retention (E-D5, legal review pending): the policy is data with no period decided, so no thread is
+ * ever eligible; a legal-hold placeholder marks threads that must outlive any future period. Nothing
+ * here deletes.
+ */
+export const MESSAGING_POLICY_VERSION = 'messaging.pending-approval.1';
+export const RETENTION_POLICY = {
+  recordClass: 'secure_messaging_administrative',
+  retainDays: null,
+  status: 'pending_legal_review',
+  version: 'retention.pending-approval.1',
+} as const;
+const QUEUE: Readonly<Record<string, 'front_desk' | 'billing' | 'clinical_team'>> = {
+  appointment: 'front_desk',
+  forms: 'front_desk',
+  general: 'front_desk',
+  billing: 'billing',
+};
+const WORK_QUEUE = {
+  front_desk: 'front_desk',
+  billing: 'practice_manager',
+  clinical_team: 'practice_manager',
+} as const;
+/** Proposed reply target while a thread awaits the practice (pending practice policy). */
+const REPLY_HOURS = 24;
+
+interface ThreadRow extends Record<string, unknown> {
+  id: string;
+  patient_id: string;
+  location_ref: string;
+  topic: string;
+  queue: 'front_desk' | 'billing' | 'clinical_team';
+  state: 'open' | 'closed';
+  awaiting: 'practice' | 'patient';
+  assigned_to: string | null;
+  retention_class: string;
+  legal_hold: boolean;
+  legal_hold_reason: string | null;
+  opened_via: string;
+  close_reason: string | null;
+  last_message_at: Date;
+  version: number;
+  created_at: Date;
+}
+type Attachment = { kind: 'imageRef' | 'objectRef'; ref: string };
+
+const THREAD_SELECT = `SELECT t.id, t.patient_id, l.location_ref, t.topic, t.queue, t.state, t.awaiting, t.assigned_to,
+  t.retention_class, t.legal_hold, t.legal_hold_reason, t.opened_via, t.close_reason, t.last_message_at, t.version,
+  t.created_at
+  FROM cuspatlas.message_threads t
+  JOIN cuspatlas.scheduling_locations l ON l.id = t.location_id AND l.tenant_id = t.tenant_id`;
+
+async function loadThread(
+  tx: TenantTransaction,
+  threadRef: string,
+  decision: AuthorizationDecision | null,
+  lock = false,
+): Promise<ThreadRow> {
+  assertRef(threadRef);
+  const { rows } = await tx.query<ThreadRow>(
+    `${THREAD_SELECT} WHERE t.id = $1${lock ? ' FOR UPDATE OF t' : ''}`,
+    [threadRef],
+  );
+  const t = rows[0];
+  if (!t) throw notFound();
+  // A location-restricted member sees only threads of its locations (indistinguishable from missing).
+  if (decision?.locationRefs && !decision.locationRefs.includes(t.location_ref)) throw notFound();
+  return t;
+}
+
+async function insertMessage(
+  tx: TenantTransaction,
+  operation: string,
+  m: {
+    thread: { id: string; patient_id: string };
+    authorKind: 'portal' | 'staff';
+    via: string | null;
+    body: string;
+    attachments: Attachment[];
+  },
+): Promise<{
+  messageRef: string;
+  notice: { decisionRef: string; outcome: string; reason: string | null } | null;
+}> {
+  // E6 decides the notice of a staff reply in the same transaction (fail closed on any error).
+  const decision =
+    m.authorKind === 'staff'
+      ? await decideSuppression(tx, {
+          stage: 'intent',
+          purpose: 'message_notice',
+          subject: { kind: 'message_thread', id: m.thread.id },
+          patientRef: m.thread.patient_id,
+        })
+      : null;
+  const { rows } = await tx.query<{ id: string }>(
+    `INSERT INTO cuspatlas.thread_messages (tenant_id, thread_id, author_id, author_kind, via_relationship_id, body,
+       attachments, notice_decision_id)
+     VALUES (cuspatlas.current_tenant_id(), $1, cuspatlas.current_actor_id(), $2, $3, $4, $5::jsonb, $6) RETURNING id`,
+    [m.thread.id, m.authorKind, m.via, m.body, JSON.stringify(m.attachments), decision?.decisionRef ?? null],
+  );
+  const id = rows[0]?.id as string;
+  await recordCommand(
+    tx,
+    { operation, resourceType: 'threadMessage', resourceRef: id, resourceVersion: 1 },
+    { changedFields: ['body', 'attachments'] },
+  );
+  return {
+    messageRef: id,
+    notice: decision
+      ? { decisionRef: decision.decisionRef, outcome: decision.outcome, reason: decision.reason }
+      : null,
+  };
+}
+
+async function touchThread(
+  tx: TenantTransaction,
+  operation: string,
+  t: ThreadRow,
+  set: { awaiting?: 'practice' | 'patient' },
+): Promise<number> {
+  const { rows } = await tx.query<{ version: number }>(
+    `UPDATE cuspatlas.message_threads SET awaiting = coalesce($2, awaiting), last_message_at = clock_timestamp(),
+       version = version + 1 WHERE id = $1 RETURNING version`,
+    [t.id, set.awaiting ?? null],
+  );
+  const version = rows[0]?.version as number;
+  await recordCommand(
+    tx,
+    { operation, resourceType: 'messageThread', resourceRef: t.id, resourceVersion: version },
+    { changedFields: ['lastMessage', 'awaiting'] },
+  );
+  return version;
+}
+
+async function locationId(
+  tx: TenantTransaction,
+  locationRef: string,
+  decision: AuthorizationDecision | null,
+) {
+  if (decision?.locationRefs && !decision.locationRefs.includes(locationRef)) throw notFound();
+  const { rows } = await tx.query<{ id: string }>(
+    'SELECT id FROM cuspatlas.scheduling_locations WHERE location_ref = $1',
+    [locationRef],
+  );
+  if (!rows[0]) throw notFound();
+  return rows[0].id;
+}
+
+/** The notice state of each staff message: E7's delivery, else E6's suppression (unnotified). */
+async function messagesOf(tx: TenantTransaction, threadRef: string) {
+  const { rows } = await tx.query<{
+    id: string;
+    author_id: string;
+    author_kind: 'portal' | 'staff';
+    body: string;
+    attachments: Attachment[];
+    created_at: Date;
+    decision_outcome: string | null;
+    decision_reason: string | null;
+    delivery_state: string | null;
+    delivery_reason: string | null;
+  }>(
+    `SELECT tm.id, tm.author_id, tm.author_kind, tm.body, tm.attachments, tm.created_at, d.outcome AS decision_outcome,
+       d.reason AS decision_reason, o.state AS delivery_state, o.suppression_reason AS delivery_reason
+     FROM cuspatlas.thread_messages tm
+     LEFT JOIN cuspatlas.suppression_decisions d ON d.id = tm.notice_decision_id AND d.tenant_id = tm.tenant_id
+     LEFT JOIN cuspatlas.outbound_messages o ON o.thread_message_id = tm.id AND o.tenant_id = tm.tenant_id
+     WHERE tm.thread_id = $1 ORDER BY tm.created_at, tm.id LIMIT 500`,
+    [threadRef],
+  );
+  return rows.map((r) => {
+    const notice =
+      r.author_kind !== 'staff'
+        ? null
+        : r.delivery_state !== null
+          ? {
+              state: r.delivery_state === 'suppressed' ? 'unnotified' : r.delivery_state,
+              reason: r.delivery_reason,
+            }
+          : r.decision_outcome === 'suppressed'
+            ? { state: 'unnotified', reason: r.decision_reason }
+            : { state: 'pending', reason: null };
+    return { ...r, notice };
+  });
+}
+
+const attachmentsOut = (a: Attachment[]) =>
+  a.map((x) => ({ kind: x.kind, ref: x.ref, authorization: 'separate_grant_required' }));
+
+export function createMessagingOperations(base: EngagementBase) {
+  const { deps } = base;
+  const execute = deps.execute ?? executeOnce;
+
+  function threadOut(t: ThreadRow) {
+    return {
+      threadRef: t.id,
+      patientRef: t.patient_id,
+      locationRef: t.location_ref,
+      topic: t.topic,
+      queue: t.queue,
+      state: t.state,
+      awaiting: t.awaiting,
+      assigneeRef: t.assigned_to,
+      retentionClass: t.retention_class,
+      legalHold: t.legal_hold,
+      openedVia: t.opened_via,
+      closeReason: t.close_reason,
+      lastMessageAt: t.last_message_at.toISOString(),
+      version: t.version,
+    };
+  }
+
+  async function openThreadIn(
+    tx: TenantTransaction,
+    op: string,
+    o: {
+      patientRef: string;
+      via: 'portal' | 'staff';
+      viaRelationship: string | null;
+      locationId: string;
+      topic: string;
+      body: string;
+      attachments: Attachment[];
+    },
+  ) {
+    const { rows } = await tx.query<{ id: string }>(
+      `INSERT INTO cuspatlas.message_threads (tenant_id, patient_id, location_id, topic, queue, awaiting, opened_via,
+         opened_by, via_relationship_id)
+       VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6, cuspatlas.current_actor_id(), $7) RETURNING id`,
+      [
+        o.patientRef,
+        o.locationId,
+        o.topic,
+        QUEUE[o.topic] ?? 'front_desk',
+        o.via === 'portal' ? 'practice' : 'patient',
+        o.via,
+        o.viaRelationship,
+      ],
+    );
+    const threadId = rows[0]?.id as string;
+    await recordCommand(
+      tx,
+      { operation: op, resourceType: 'messageThread', resourceRef: threadId, resourceVersion: 1 },
+      { changedFields: ['patient', 'topic', 'queue'] },
+    );
+    const m = await insertMessage(tx, op, {
+      thread: { id: threadId, patient_id: o.patientRef },
+      authorKind: o.via,
+      via: o.viaRelationship,
+      body: o.body,
+      attachments: o.attachments,
+    });
+    return {
+      data: {
+        threadRef: threadId,
+        messageRef: m.messageRef,
+        state: 'open',
+        noticeOutcome: m.notice?.outcome ?? null,
+        noticeReason: m.notice?.reason ?? null,
+      },
+      version: 1,
+    };
+  }
+
+  const portalVia = (access: Awaited<ReturnType<typeof requirePortalAccess>>) =>
+    access.via === 'self'
+      ? null
+      : (access.access?.relationships.find((r) => r.status === 'active' && r.scopes.includes('consent'))
+          ?.relationshipRef ?? null);
+
+  return {
+    // ---- staff ----
+    openStaffThread(ctx: ActorContext, patientRef: string, envelope: CommandEnvelope<unknown>) {
+      const op = 'messaging.threads.open';
+      return base.guarded(ctx, op, async () => {
+        const decision = await base.authorize(ctx, op);
+        checkEnvelope(envelope, op);
+        assertValid(validateThreadOpen, envelope.payload, ENGAGEMENT_PROPERTIES);
+        const p = envelope.payload as {
+          topic: string;
+          locationRef: string;
+          body: string;
+          attachments?: Attachment[];
+        };
+        return deps.withTenantTransaction(ctx, async (tx) => {
+          assertRef(patientRef);
+          const pt = await tx.query<{ merged_into: string | null }>(
+            'SELECT merged_into FROM cuspatlas.patients WHERE id = $1 FOR SHARE',
+            [patientRef],
+          );
+          if (!pt.rows[0]) throw notFound();
+          const loc = await locationId(tx, p.locationRef, decision);
+          return execute(ctx, { ...envelope, payload: { patientRef, ...p } }, tx, async () => {
+            if (pt.rows[0]?.merged_into !== null) throw conflict('patient_merged');
+            return openThreadIn(tx, op, {
+              patientRef,
+              via: 'staff',
+              viaRelationship: null,
+              locationId: loc,
+              topic: p.topic,
+              body: p.body,
+              attachments: p.attachments ?? [],
+            });
+          });
+        });
+      });
+    },
+
+    postStaffMessage(ctx: ActorContext, threadRef: string, envelope: CommandEnvelope<unknown>) {
+      const op = 'messaging.messages.post';
+      return base.guarded(ctx, op, async () => {
+        const decision = await base.authorize(ctx, op);
+        checkEnvelope(envelope, op);
+        assertValid(validateMessagePost, envelope.payload, ENGAGEMENT_PROPERTIES);
+        const p = envelope.payload as { body: string; attachments?: Attachment[] };
+        return deps.withTenantTransaction(ctx, async (tx) => {
+          const t = await loadThread(tx, threadRef, decision, true);
+          return execute(ctx, { ...envelope, payload: { threadRef, ...p } }, tx, async () => {
+            // Closing stops participant messages, not staff replies.
+            const m = await insertMessage(tx, op, {
+              thread: t,
+              authorKind: 'staff',
+              via: null,
+              body: p.body,
+              attachments: p.attachments ?? [],
+            });
+            const version = await touchThread(tx, op, t, { awaiting: 'patient' });
+            return {
+              data: {
+                threadRef: t.id,
+                messageRef: m.messageRef,
+                noticeOutcome: m.notice?.outcome ?? null,
+                noticeReason: m.notice?.reason ?? null,
+              },
+              version,
+            };
+          });
+        });
+      });
+    },
+
+    readStaffThread(ctx: ActorContext, threadRef: string) {
+      const op = 'messaging.threads.read';
+      return base.guarded(ctx, op, async () => {
+        const decision = await base.authorize(ctx, op);
+        return deps.withTenantTransaction(ctx, async (tx) => {
+          const t = await loadThread(tx, threadRef, decision);
+          const messages = await messagesOf(tx, t.id);
+          // Access audit of every read (who read which thread of which patient, never the content).
+          await recordSensitiveRead(tx, {
+            operation: op,
+            resourceType: 'messageThread',
+            resourceRefs: [t.id, t.patient_id],
+            queryFields: [],
+          });
+          return {
+            ...threadOut(t),
+            messages: messages.map((m) => ({
+              messageRef: m.id,
+              authorKind: m.author_kind,
+              authorRef: m.author_id,
+              body: m.body,
+              attachments: attachmentsOut(m.attachments),
+              postedAt: m.created_at.toISOString(),
+              notice: m.notice,
+            })),
+          };
+        });
+      });
+    },
+
+    threadWorklist(ctx: ActorContext, query: unknown) {
+      const op = 'messaging.threads.worklist';
+      return base.guarded(ctx, op, async () => {
+        const decision = await base.authorize(ctx, op);
+        assertValid(validateEmptyQuery, query, ENGAGEMENT_PROPERTIES);
+        return deps.withTenantTransaction(ctx, async (tx) => {
+          const { rows } = await tx.query<ThreadRow>(
+            `${THREAD_SELECT} WHERE t.state = 'open' AND t.awaiting = 'practice'
+               AND ($1::text[] IS NULL OR l.location_ref = ANY ($1::text[]))
+             ORDER BY t.last_message_at, t.id LIMIT 500`,
+            [decision.locationRefs],
+          );
+          const now = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+          return workList(
+            now,
+            AVAILABLE,
+            rows.map((t) =>
+              workItem({
+                workItemRef: t.id,
+                kind: 'message_awaiting_reply',
+                reasonCode: 'patient_message_unanswered',
+                explanation:
+                  'A patient or guardian wrote in a secure-message thread and the practice has not replied yet. Read the thread in the staff view and reply, or close it with a reason.',
+                evidenceRefs: [
+                  { kind: 'messageThread', ref: t.id },
+                  { kind: 'patient', ref: t.patient_id },
+                ],
+                owner: { queue: WORK_QUEUE[t.queue], principalRef: t.assigned_to },
+                dueAt: new Date(t.last_message_at.getTime() + REPLY_HOURS * 3_600_000).toISOString(),
+                suggestedNextAction: t.assigned_to === null ? 'assign_then_reply' : 'reply',
+                blockingDependencies: [],
+                priorityRationale: 'reply_target_pending_practice_policy',
+              }),
+            ),
+          );
+        });
+      });
+    },
+
+    closeThread(ctx: ActorContext, threadRef: string, envelope: CommandEnvelope<unknown>) {
+      const op = 'messaging.threads.close';
+      return base.guarded(ctx, op, async () => {
+        const decision = await base.authorize(ctx, op);
+        checkEnvelope(envelope, op);
+        assertValid(validateThreadClose, envelope.payload, ENGAGEMENT_PROPERTIES);
+        const p = envelope.payload as { expectedVersion: number; reasonCode: string };
+        return deps.withTenantTransaction(ctx, async (tx) => {
+          const t = await loadThread(tx, threadRef, decision, true);
+          return execute(ctx, { ...envelope, payload: { threadRef, ...p } }, tx, async () => {
+            if (t.version !== p.expectedVersion)
+              throw new RefusalError({ code: 'stale_version', detail: { currentVersion: t.version } });
+            if (t.state === 'closed') throw conflict('thread_closed');
+            const { rows } = await tx.query<{ version: number }>(
+              `UPDATE cuspatlas.message_threads SET state = 'closed', close_reason = $2, closed_by = cuspatlas.current_actor_id(),
+                 closed_at = now(), version = version + 1 WHERE id = $1 RETURNING version`,
+              [t.id, p.reasonCode],
+            );
+            const version = rows[0]?.version as number;
+            await recordCommand(
+              tx,
+              { operation: op, resourceType: 'messageThread', resourceRef: t.id, resourceVersion: version },
+              { changedFields: ['state'] },
+            );
+            return { data: { threadRef: t.id, state: 'closed' }, version };
+          });
+        });
+      });
+    },
+
+    assignThread(ctx: ActorContext, threadRef: string, envelope: CommandEnvelope<unknown>) {
+      const op = 'messaging.threads.assign';
+      return base.guarded(ctx, op, async () => {
+        const decision = await base.authorize(ctx, op);
+        checkEnvelope(envelope, op);
+        assertValid(validateThreadAssign, envelope.payload, ENGAGEMENT_PROPERTIES);
+        const p = envelope.payload as { expectedVersion: number; assigneeRef: string | null };
+        return deps.withTenantTransaction(ctx, async (tx) => {
+          const t = await loadThread(tx, threadRef, decision, true);
+          return execute(ctx, { ...envelope, payload: { threadRef, ...p } }, tx, async () => {
+            if (t.version !== p.expectedVersion)
+              throw new RefusalError({ code: 'stale_version', detail: { currentVersion: t.version } });
+            if (p.assigneeRef !== null) {
+              // The assignee must be a live human member of this tenant who may write messages.
+              const m = await tx.query(
+                `SELECT 1 FROM cuspatlas.memberships m JOIN cuspatlas.principals pr ON pr.id = m.principal_id
+                 WHERE m.principal_id = $1 AND m.revoked_at IS NULL AND pr.kind = 'human'
+                   AND 'messaging.write' = ANY (m.scopes)`,
+                [p.assigneeRef],
+              );
+              if (m.rowCount === 0) throw failedAt('/assigneeRef', 'assigneeNotEligible');
+            }
+            const { rows } = await tx.query<{ version: number }>(
+              'UPDATE cuspatlas.message_threads SET assigned_to = $2, version = version + 1 WHERE id = $1 RETURNING version',
+              [t.id, p.assigneeRef],
+            );
+            const version = rows[0]?.version as number;
+            await recordCommand(
+              tx,
+              { operation: op, resourceType: 'messageThread', resourceRef: t.id, resourceVersion: version },
+              { changedFields: ['assignee'] },
+            );
+            return { data: { threadRef: t.id, assigneeRef: p.assigneeRef }, version };
+          });
+        });
+      });
+    },
+
+    setLegalHold(ctx: ActorContext, threadRef: string, envelope: CommandEnvelope<unknown>) {
+      const op = 'messaging.threads.hold';
+      return base.guarded(ctx, op, async () => {
+        const decision = await base.authorize(ctx, op);
+        checkEnvelope(envelope, op);
+        assertValid(validateThreadLegalHold, envelope.payload, ENGAGEMENT_PROPERTIES);
+        const p = envelope.payload as { expectedVersion: number; hold: boolean; reasonCode?: string };
+        if (p.hold && p.reasonCode === undefined) throw failedAt('/reasonCode', 'required');
+        return deps.withTenantTransaction(ctx, async (tx) => {
+          const t = await loadThread(tx, threadRef, decision, true);
+          return execute(ctx, { ...envelope, payload: { threadRef, ...p } }, tx, async () => {
+            if (t.version !== p.expectedVersion)
+              throw new RefusalError({ code: 'stale_version', detail: { currentVersion: t.version } });
+            const { rows } = await tx.query<{ version: number }>(
+              `UPDATE cuspatlas.message_threads SET legal_hold = $2, legal_hold_reason = $3, version = version + 1
+               WHERE id = $1 RETURNING version`,
+              [t.id, p.hold, p.hold ? (p.reasonCode ?? null) : null],
+            );
+            const version = rows[0]?.version as number;
+            await recordCommand(
+              tx,
+              { operation: op, resourceType: 'messageThread', resourceRef: t.id, resourceVersion: version },
+              { changedFields: ['legalHold'] },
+            );
+            return { data: { threadRef: t.id, legalHold: p.hold }, version };
+          });
+        });
+      });
+    },
+
+    /** Names whether a thread is eligible under the retention policy, without deleting anything. */
+    evaluateRetention(ctx: ActorContext, threadRef: string) {
+      const op = 'messaging.retention.evaluate';
+      return base.guarded(ctx, op, async () => {
+        const decision = await base.authorize(ctx, op);
+        return deps.withTenantTransaction(ctx, async (tx) => {
+          const t = await loadThread(tx, threadRef, decision);
+          return {
+            threadRef: t.id,
+            retentionClass: t.retention_class,
+            policy: RETENTION_POLICY,
+            eligible: false,
+            heldReason: t.legal_hold ? 'legal_hold' : 'retention_period_undecided',
+            legalHoldReason: t.legal_hold_reason,
+            evaluatedAt:
+              (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at.toISOString() ?? null,
+          };
+        });
+      });
+    },
+
+    // ---- portal ----
+    openPortalThread(ctx: ActorContext, patientRef: string, envelope: CommandEnvelope<unknown>) {
+      const op = 'portal.threads.open';
+      return base.guarded(ctx, op, async () => {
+        checkEnvelope(envelope, op);
+        assertValid(validateThreadOpen, envelope.payload, ENGAGEMENT_PROPERTIES);
+        const p = envelope.payload as {
+          topic: string;
+          locationRef: string;
+          body: string;
+          attachments?: Attachment[];
+        };
+        return deps.withTenantTransaction(ctx, async (tx) => {
+          const access = await requirePortalAccess(tx, patientRef, ['consent']);
+          const loc = await locationId(tx, p.locationRef, null);
+          return execute(ctx, { ...envelope, payload: { patientRef, ...p } }, tx, () =>
+            openThreadIn(tx, op, {
+              patientRef: access.patientRef,
+              via: 'portal',
+              viaRelationship: portalVia(access),
+              locationId: loc,
+              topic: p.topic,
+              body: p.body,
+              attachments: p.attachments ?? [],
+            }),
+          );
+        });
+      });
+    },
+
+    postPortalMessage(
+      ctx: ActorContext,
+      patientRef: string,
+      threadRef: string,
+      envelope: CommandEnvelope<unknown>,
+    ) {
+      const op = 'portal.threads.post';
+      return base.guarded(ctx, op, async () => {
+        checkEnvelope(envelope, op);
+        assertValid(validateMessagePost, envelope.payload, ENGAGEMENT_PROPERTIES);
+        const p = envelope.payload as { body: string; attachments?: Attachment[] };
+        return deps.withTenantTransaction(ctx, async (tx) => {
+          const access = await requirePortalAccess(tx, patientRef, ['consent']);
+          const t = await loadThread(tx, threadRef, null, true);
+          if (t.patient_id !== access.patientRef) throw notFound();
+          return execute(ctx, { ...envelope, payload: { patientRef, threadRef, ...p } }, tx, async () => {
+            if (t.state === 'closed') throw conflict('thread_closed');
+            const m = await insertMessage(tx, op, {
+              thread: t,
+              authorKind: 'portal',
+              via: portalVia(access),
+              body: p.body,
+              attachments: p.attachments ?? [],
+            });
+            const version = await touchThread(tx, op, t, { awaiting: 'practice' });
+            return { data: { threadRef: t.id, messageRef: m.messageRef }, version };
+          });
+        });
+      });
+    },
+
+    readPortalThread(ctx: ActorContext, patientRef: string, threadRef: string, query: unknown) {
+      return base.guarded(ctx, 'portal.threads.read', async () => {
+        assertValid(validateEmptyQuery, query, ENGAGEMENT_PROPERTIES);
+        return deps.withTenantTransaction(ctx, async (tx) => {
+          const access = await requirePortalAccess(tx, patientRef, ['consent']);
+          const t = await loadThread(tx, threadRef, null);
+          if (t.patient_id !== access.patientRef) throw notFound();
+          const messages = await messagesOf(tx, t.id);
+          await recordSensitiveRead(tx, {
+            operation: 'portal.threads.read',
+            resourceType: 'messageThread',
+            resourceRefs: [t.id, t.patient_id],
+            queryFields: [],
+          });
+          // The portal never learns which staff member wrote, nor the notice internals.
+          return {
+            threadRef: t.id,
+            topic: t.topic,
+            state: t.state,
+            lastMessageAt: t.last_message_at.toISOString(),
+            messages: messages.map((m) => ({
+              messageRef: m.id,
+              from: m.author_kind === 'staff' ? 'practice' : 'patient_side',
+              mine: m.author_id === ctx.actorId,
+              body: m.body,
+              attachments: attachmentsOut(m.attachments),
+              postedAt: m.created_at.toISOString(),
+            })),
+          };
+        });
+      });
+    },
+  };
+}
+
+/** The E2 `messages` view producer: the patient's threads (no bodies). */
+export async function messagesView(tx: TenantTransaction, patientRef: string) {
+  const { rows } = await tx.query<{ id: string; topic: string; state: string; awaiting: string; last: Date }>(
+    `SELECT id, topic, state, awaiting, last_message_at AS last FROM cuspatlas.message_threads
+     WHERE patient_id = $1 ORDER BY last_message_at DESC, id LIMIT 50`,
+    [patientRef],
+  );
+  return {
+    threads: rows.map((r) => ({
+      threadRef: r.id,
+      topic: r.topic,
+      state: r.state,
+      awaitingReplyFrom: r.awaiting,
+      lastMessageAt: r.last.toISOString(),
+    })),
+  };
+}

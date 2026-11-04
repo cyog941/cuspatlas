@@ -430,6 +430,113 @@ export const ENGAGEMENT_OPS: readonly EngagementOp[] = [
     invoke: (svc, actor, i) =>
       svc.resolveReview(actor, param(i, 'reviewRef'), env('intake.reviews.resolve', i)),
   },
+  // E5 secure messaging: staff queues, immutable messages, access-audited reads, retention data.
+  {
+    method: 'post',
+    path: '/v1/patients/{patientRef}/message-threads',
+    operationId: 'messaging.threads.open',
+    protected: true,
+    requestBody: E('ThreadOpen'),
+    success: { status: '201', schema: E('EngagementCommandResult') },
+    refusals: COMMAND,
+    tool: 'messaging_threads_open',
+    description:
+      'Open a secure-message thread to a patient with its first message. The notice to the patient is decided by E6 and is notice-only; the content stays in the portal. Human staff only.',
+    invoke: (svc, actor, i) =>
+      svc.openStaffThread(actor, param(i, 'patientRef'), env('messaging.threads.open', i)),
+  },
+  {
+    method: 'get',
+    path: '/v1/messaging/threads/worklist',
+    operationId: 'messaging.threads.worklist',
+    protected: true,
+    query: 'EmptyQuery',
+    success: { status: '200', schema: 'scheduling:WorkItemList' },
+    refusals: ['400', '401', '403', '503'],
+    tool: 'messaging_threads_worklist',
+    description:
+      'Open threads awaiting a practice reply as work items with queue, assignee, reply target and next action.',
+    invoke: (svc, actor, i) => data(svc.threadWorklist(actor, i.body)),
+  },
+  {
+    method: 'get',
+    path: '/v1/messaging/threads/{threadRef}',
+    operationId: 'messaging.threads.read',
+    protected: true,
+    success: { status: '200', schema: E('EngagementRead') },
+    refusals: ['401', '403', '404', '503'],
+    tool: 'messaging_threads_get',
+    description:
+      'One thread with its messages, attachment references and the notice state of each staff reply. Every read is access-audited.',
+    invoke: (svc, actor, i) => data(svc.readStaffThread(actor, param(i, 'threadRef'))),
+  },
+  {
+    method: 'post',
+    path: '/v1/messaging/threads/{threadRef}/messages',
+    operationId: 'messaging.messages.post',
+    protected: true,
+    requestBody: E('MessagePost'),
+    success: { status: '201', schema: E('EngagementCommandResult') },
+    refusals: COMMAND,
+    tool: 'messaging_messages_post',
+    description:
+      'Post an immutable staff reply (allowed on a closed thread). Its notice is decided by E6 and delivered by E7 as a notice-only template. Human staff only.',
+    invoke: (svc, actor, i) =>
+      svc.postStaffMessage(actor, param(i, 'threadRef'), env('messaging.messages.post', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/messaging/threads/{threadRef}/close',
+    operationId: 'messaging.threads.close',
+    protected: true,
+    requestBody: E('ThreadClose'),
+    success: { status: '200', schema: E('EngagementCommandResult') },
+    refusals: COMMAND,
+    tool: 'messaging_threads_close',
+    description: 'Close a thread with a reason: participants can no longer post; staff can still reply.',
+    invoke: (svc, actor, i) =>
+      svc.closeThread(actor, param(i, 'threadRef'), env('messaging.threads.close', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/messaging/threads/{threadRef}/assign',
+    operationId: 'messaging.threads.assign',
+    protected: true,
+    requestBody: E('ThreadAssign'),
+    success: { status: '200', schema: E('EngagementCommandResult') },
+    refusals: COMMAND,
+    tool: 'messaging_threads_assign',
+    description:
+      'Assign a thread to a staff member holding messaging.write in this tenant, or clear the assignment.',
+    invoke: (svc, actor, i) =>
+      svc.assignThread(actor, param(i, 'threadRef'), env('messaging.threads.assign', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/messaging/threads/{threadRef}/legal-hold',
+    operationId: 'messaging.threads.hold',
+    protected: true,
+    requestBody: E('ThreadLegalHold'),
+    success: { status: '200', schema: E('EngagementCommandResult') },
+    refusals: COMMAND,
+    tool: 'messaging_threads_legal_hold',
+    description:
+      'Place or release the legal-hold placeholder of a thread (E-D5 pending legal review). Human administrators only.',
+    invoke: (svc, actor, i) =>
+      svc.setLegalHold(actor, param(i, 'threadRef'), env('messaging.threads.hold', i)),
+  },
+  {
+    method: 'get',
+    path: '/v1/messaging/threads/{threadRef}/retention',
+    operationId: 'messaging.retention.evaluate',
+    protected: true,
+    success: { status: '200', schema: E('EngagementRead') },
+    refusals: ['401', '403', '404', '503'],
+    tool: 'messaging_retention_evaluate',
+    description:
+      'Whether a thread is eligible under the retention policy (no period is decided, so never) and why it is held. Deletes nothing.',
+    invoke: (svc, actor, i) => data(svc.evaluateRetention(actor, param(i, 'threadRef'))),
+  },
 ];
 
 export const ENGAGEMENT_OP_ROUTES: readonly RouteContract[] = ENGAGEMENT_OPS.map((o) => ({

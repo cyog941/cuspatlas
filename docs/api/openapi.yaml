@@ -3590,6 +3590,279 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/patients/{patientRef}/message-threads:
+    post:
+      operationId: messaging.threads.open
+      description: >-
+        Open a secure-message thread to a patient with its first message. The notice to the patient is
+        decided by E6 and is notice-only; the content stays in the portal. Human staff only.
+      parameters:
+        - name: patientRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/PatientRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/ThreadOpen'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/messaging/threads/worklist:
+    get:
+      operationId: messaging.threads.worklist
+      description: >-
+        Open threads awaiting a practice reply as work items with queue, assignee, reply target and next
+        action.
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/WorkItemList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/messaging/threads/{threadRef}:
+    get:
+      operationId: messaging.threads.read
+      description: >-
+        One thread with its messages, attachment references and the notice state of each staff reply. Every
+        read is access-audited.
+      parameters:
+        - name: threadRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EntityRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/messaging/threads/{threadRef}/messages:
+    post:
+      operationId: messaging.messages.post
+      description: >-
+        Post an immutable staff reply (allowed on a closed thread). Its notice is decided by E6 and
+        delivered by E7 as a notice-only template. Human staff only.
+      parameters:
+        - name: threadRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EntityRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/MessagePost'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/messaging/threads/{threadRef}/close:
+    post:
+      operationId: messaging.threads.close
+      description: >-
+        Close a thread with a reason: participants can no longer post; staff can still reply.
+      parameters:
+        - name: threadRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EntityRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/ThreadClose'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/messaging/threads/{threadRef}/assign:
+    post:
+      operationId: messaging.threads.assign
+      description: >-
+        Assign a thread to a staff member holding messaging.write in this tenant, or clear the assignment.
+      parameters:
+        - name: threadRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EntityRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/ThreadAssign'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/messaging/threads/{threadRef}/legal-hold:
+    post:
+      operationId: messaging.threads.hold
+      description: >-
+        Place or release the legal-hold placeholder of a thread (E-D5 pending legal review). Human
+        administrators only.
+      parameters:
+        - name: threadRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EntityRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/ThreadLegalHold'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/messaging/threads/{threadRef}/retention:
+    get:
+      operationId: messaging.retention.evaluate
+      description: >-
+        Whether a thread is eligible under the retention policy (no period is decided, so never) and why it
+        is held. Deletes nothing.
+      parameters:
+        - name: threadRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EntityRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   /portal/v1/session:
     get:
       operationId: portal.session.read
@@ -3779,6 +4052,125 @@ paths:
           application/json:
             schema:
               $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/FormSubmissionInput'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /portal/v1/patients/{patientRef}/message-threads:
+    post:
+      operationId: portal.threads.open
+      description: >-
+        Portal-audience operation portal.threads.open (portal principals only; never a staff or MCP
+        surface).
+      parameters:
+        - name: patientRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/PatientRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/ThreadOpen'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /portal/v1/patients/{patientRef}/message-threads/{threadRef}:
+    get:
+      operationId: portal.threads.read
+      description: >-
+        Portal-audience operation portal.threads.read (portal principals only; never a staff or MCP
+        surface).
+      parameters:
+        - name: patientRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/PatientRef'
+        - name: threadRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EntityRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /portal/v1/patients/{patientRef}/message-threads/{threadRef}/messages:
+    post:
+      operationId: portal.threads.post
+      description: >-
+        Portal-audience operation portal.threads.post (portal principals only; never a staff or MCP
+        surface).
+      parameters:
+        - name: patientRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/PatientRef'
+        - name: threadRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EntityRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/MessagePost'
       responses:
         '201':
           description: Success.

@@ -383,7 +383,13 @@ export function createConsentOperations(base: EngagementBase) {
         assertValid(validateEmptyQuery, query, ENGAGEMENT_PROPERTIES);
         return deps.withTenantTransaction(ctx, async (tx) => {
           const out = [];
-          for (const purpose of ['reminder', 'cancellation', 'waitlist_offer', 'recall'] as const) {
+          for (const purpose of [
+            'reminder',
+            'cancellation',
+            'waitlist_offer',
+            'recall',
+            'message_notice',
+          ] as const) {
             const c = await currentChannelPolicy(tx, purpose);
             out.push({
               purpose,

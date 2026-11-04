@@ -35,7 +35,8 @@ export const SUPPRESSION_REASONS = [
 ] as const;
 export type SuppressionReason = (typeof SUPPRESSION_REASONS)[number];
 
-export type IntentPurpose = 'reminder' | 'cancellation' | 'waitlist_offer' | 'recall';
+/** S14 intent purposes plus E5's notice of a staff reply in a secure-message thread. */
+export type IntentPurpose = 'reminder' | 'cancellation' | 'waitlist_offer' | 'recall' | 'message_notice';
 export type MessageChannel = 'email' | 'sms';
 export type ConsentPurpose = 'reminders' | 'recall' | 'messaging' | 'treatment';
 
@@ -45,6 +46,7 @@ export const CONSENT_PURPOSE: Readonly<Record<IntentPurpose, ConsentPurpose>> = 
   cancellation: 'reminders',
   waitlist_offer: 'messaging',
   recall: 'recall',
+  message_notice: 'messaging',
 };
 /** Message channel to the S4 contact-point channel that can reach it. */
 export const CONTACT_CHANNEL: Readonly<Record<MessageChannel, 'email' | 'phone'>> = {
@@ -95,7 +97,7 @@ export async function currentChannelPolicy(
 }
 
 export interface SubjectRef {
-  readonly kind: 'appointment' | 'waitlist_offer' | 'recall_task';
+  readonly kind: 'appointment' | 'waitlist_offer' | 'recall_task' | 'message_thread';
   readonly id: string;
 }
 
@@ -162,6 +164,14 @@ async function subjectState(
     if (!r) return { patientRef: null, reason: 'appointment_missing' };
     // An accepted, declined, expired or withdrawn offer is never announced after the fact.
     return { patientRef: r.subject_patient_id, reason: r.closed ? 'offer_closed' : null };
+  }
+  if (subject.kind === 'message_thread') {
+    // A staff reply is noticed even on a closed thread (staff may reply after closing).
+    const { rows } = await tx.query<{ patient_id: string }>(
+      'SELECT patient_id FROM cuspatlas.message_threads WHERE id = $1',
+      [subject.id],
+    );
+    return { patientRef: rows[0]?.patient_id ?? null, reason: rows[0] ? null : 'appointment_missing' };
   }
   const { rows } = await tx.query<{ subject_patient_id: string; state: string }>(
     'SELECT subject_patient_id, state FROM cuspatlas.recall_tasks WHERE id = $1',

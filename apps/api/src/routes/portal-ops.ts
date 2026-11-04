@@ -98,6 +98,48 @@ export const PORTAL_OPS: readonly PortalOp[] = [
         payload: i.body,
       }),
   },
+  // E5 secure messaging through the portal (self, or a relationship holding consent; messages view).
+  {
+    method: 'post',
+    path: '/portal/v1/patients/{patientRef}/message-threads',
+    operationId: 'portal.threads.open',
+    protected: true,
+    requestBody: E('ThreadOpen'),
+    success: { status: '201', schema: E('EngagementCommandResult') },
+    refusals: ['400', '401', '403', '404', '409', '422', '503'],
+    invoke: (svc, actor, i) =>
+      svc.openPortalThread(actor, i.params.patientRef ?? '', {
+        operation: 'portal.threads.open',
+        idempotencyKey: i.key,
+        payload: i.body,
+      }),
+  },
+  {
+    method: 'get',
+    path: '/portal/v1/patients/{patientRef}/message-threads/{threadRef}',
+    operationId: 'portal.threads.read',
+    protected: true,
+    query: 'EmptyQuery',
+    success: { status: '200', schema: E('EngagementRead') },
+    refusals: ['400', '401', '403', '404', '503'],
+    invoke: (svc, actor, i) =>
+      data(svc.readPortalThread(actor, i.params.patientRef ?? '', i.params.threadRef ?? '', i.body)),
+  },
+  {
+    method: 'post',
+    path: '/portal/v1/patients/{patientRef}/message-threads/{threadRef}/messages',
+    operationId: 'portal.threads.post',
+    protected: true,
+    requestBody: E('MessagePost'),
+    success: { status: '201', schema: E('EngagementCommandResult') },
+    refusals: ['400', '401', '403', '404', '409', '422', '503'],
+    invoke: (svc, actor, i) =>
+      svc.postPortalMessage(actor, i.params.patientRef ?? '', i.params.threadRef ?? '', {
+        operation: 'portal.threads.post',
+        idempotencyKey: i.key,
+        payload: i.body,
+      }),
+  },
   // E6 consent through the portal (self, or a relationship holding the consent scope).
   {
     method: 'post',

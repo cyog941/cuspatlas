@@ -20,7 +20,13 @@ export const SVC_R1 = '30000000-0000-4000-8000-0000000000e2';
 /** Beta messaging worker. */
 export const SVC_WB = '30000000-0000-4000-8000-0000000000e3';
 
-export const E_ALL = ['portal.manage', 'communications.read', 'communications.write'];
+export const E_ALL = [
+  'portal.manage',
+  'communications.read',
+  'communications.write',
+  'messaging.read',
+  'messaging.write',
+];
 
 export async function seedEngagementScopes(admin: pg.Pool): Promise<void> {
   const add: [string, string[]][] = [

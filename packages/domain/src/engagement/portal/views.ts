@@ -10,6 +10,7 @@ import {
 import { recordSensitiveRead } from '../../events/record-sensitive-read';
 import type { EngagementBase } from '../common';
 import { formsView } from '../intake/forms';
+import { messagesView } from '../messaging/threads';
 import { requirePortalAccess } from './access';
 
 /**
@@ -174,10 +175,10 @@ export const PORTAL_VIEWS: Readonly<Record<PortalViewName, ViewDefinition>> = {
   },
   messages: {
     requiredScope: ['consent'],
-    fields: [],
-    itemFields: [],
-    redactions: [],
-    unavailable: { owner: 'E5', reason: 'producer_not_deployed' },
+    fields: ['threads'],
+    itemFields: ['threadRef', 'topic', 'state', 'awaitingReplyFrom', 'lastMessageAt'],
+    redactions: ['bodies', 'attachments', 'queue', 'assignee', 'legalHold', 'staffAuthors'],
+    project: messagesView,
   },
   forms: {
     requiredScope: ['demographics', 'consent'],

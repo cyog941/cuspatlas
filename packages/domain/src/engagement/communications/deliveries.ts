@@ -52,10 +52,13 @@ export function createDeliveryOperations(base: EngagementBase) {
             due_at: Date | null;
             updated_at: Date;
           }>(
-            `SELECT m.id, m.state, m.state_reason, i.subject_kind, i.subject_id, i.due_at, m.updated_at
+            `SELECT m.id, m.state, m.state_reason, coalesce(i.subject_kind, 'message_thread') AS subject_kind,
+               coalesce(i.subject_id, t.id) AS subject_id, i.due_at, m.updated_at
              FROM cuspatlas.outbound_messages m
-             JOIN cuspatlas.notification_intents i ON i.id = m.intent_id AND i.tenant_id = m.tenant_id
-             JOIN cuspatlas.scheduling_locations l ON l.id = i.location_id AND l.tenant_id = i.tenant_id
+             LEFT JOIN cuspatlas.notification_intents i ON i.id = m.intent_id AND i.tenant_id = m.tenant_id
+             LEFT JOIN cuspatlas.thread_messages tm ON tm.id = m.thread_message_id AND tm.tenant_id = m.tenant_id
+             LEFT JOIN cuspatlas.message_threads t ON t.id = tm.thread_id AND t.tenant_id = tm.tenant_id
+             JOIN cuspatlas.scheduling_locations l ON l.id = coalesce(i.location_id, t.location_id) AND l.tenant_id = m.tenant_id
              WHERE (m.state IN ('failed', 'unknown') OR (m.state = 'queued' AND m.state_reason = 'decision_unavailable'))
                AND ($1::text[] IS NULL OR l.location_ref = ANY ($1::text[]))
              ORDER BY m.updated_at, m.id LIMIT 500`,
@@ -89,7 +92,9 @@ export function createDeliveryOperations(base: EngagementBase) {
                         ? 'appointment'
                         : r.subject_kind === 'waitlist_offer'
                           ? 'waitlistOffer'
-                          : 'recallTask',
+                          : r.subject_kind === 'message_thread'
+                            ? 'messageThread'
+                            : 'recallTask',
                     ref: r.subject_id,
                   },
                 ],
@@ -119,7 +124,9 @@ export function createDeliveryOperations(base: EngagementBase) {
           assertRef(messageRef);
           const { rows } = await tx.query<{
             id: string;
-            intent_id: string;
+            intent_id: string | null;
+            intent_decision_id: string;
+            thread_message_id: string | null;
             purpose: string;
             channel: string;
             delivery_key: string;
@@ -132,11 +139,13 @@ export function createDeliveryOperations(base: EngagementBase) {
             location_ref: string;
             created_at: Date;
           }>(
-            `SELECT m.id, m.intent_id, m.purpose, m.channel, m.delivery_key, m.state, m.state_reason, m.suppression_reason,
+            `SELECT m.id, m.intent_id, m.intent_decision_id, m.thread_message_id, m.purpose, m.channel, m.delivery_key, m.state, m.state_reason, m.suppression_reason,
                m.provider_ref, m.attempt, m.version, l.location_ref, m.created_at
              FROM cuspatlas.outbound_messages m
-             JOIN cuspatlas.notification_intents i ON i.id = m.intent_id AND i.tenant_id = m.tenant_id
-             JOIN cuspatlas.scheduling_locations l ON l.id = i.location_id AND l.tenant_id = i.tenant_id
+             LEFT JOIN cuspatlas.notification_intents i ON i.id = m.intent_id AND i.tenant_id = m.tenant_id
+             LEFT JOIN cuspatlas.thread_messages tm ON tm.id = m.thread_message_id AND tm.tenant_id = m.tenant_id
+             LEFT JOIN cuspatlas.message_threads t ON t.id = tm.thread_id AND t.tenant_id = tm.tenant_id
+             JOIN cuspatlas.scheduling_locations l ON l.id = coalesce(i.location_id, t.location_id) AND l.tenant_id = m.tenant_id
              WHERE m.id = $1`,
             [messageRef],
           );
@@ -157,8 +166,8 @@ export function createDeliveryOperations(base: EngagementBase) {
             decided_at: Date;
           }>(
             `SELECT id, stage, outcome, reason, deferred_until, decided_at FROM cuspatlas.suppression_decisions
-             WHERE intent_id = $1 ORDER BY decided_at, id LIMIT 100`,
-            [m.intent_id],
+             WHERE intent_id = $1 OR message_id = $2 OR id = $3 ORDER BY decided_at, id LIMIT 100`,
+            [m.intent_id, m.id, m.intent_decision_id],
           );
           const receipts = await tx.query<{
             state: string;
@@ -172,6 +181,7 @@ export function createDeliveryOperations(base: EngagementBase) {
           return {
             messageRef: m.id,
             intentRef: m.intent_id,
+            threadMessageRef: m.thread_message_id,
             purpose: m.purpose,
             channel: m.channel,
             deliveryKey: m.delivery_key,

@@ -118,8 +118,23 @@ export async function enqueueAllowed(tx: TenantTransaction, maxAttempts: number)
      ON CONFLICT DO NOTHING RETURNING id`,
     [maxAttempts],
   );
-  for (const r of rows) await audit(tx, r.id, 1, ['intent', 'state']);
-  return rows.length;
+  // E5: the notice of a staff reply in a secure-message thread, when E6 allowed it (notice-only
+  // template; the message content never leaves the portal).
+  const notices = await tx.query<{ id: string }>(
+    `INSERT INTO cuspatlas.outbound_messages (tenant_id, thread_message_id, patient_id, purpose, channel, template_id,
+       delivery_key, intent_decision_id, state, send_after, next_attempt_at, max_attempts, created_by)
+     SELECT tm.tenant_id, tm.id, d.subject_patient_id, 'message_notice', d.channel, d.template_id,
+       'message_notice:' || tm.id, d.id, 'queued', tm.created_at, tm.created_at, $1, cuspatlas.current_actor_id()
+     FROM cuspatlas.thread_messages tm
+     JOIN cuspatlas.suppression_decisions d ON d.id = tm.notice_decision_id AND d.tenant_id = tm.tenant_id
+     WHERE d.outcome = 'allowed' AND d.channel <> 'none' AND d.template_id IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM cuspatlas.outbound_messages m WHERE m.thread_message_id = tm.id)
+     ORDER BY tm.created_at, tm.id LIMIT 100
+     ON CONFLICT DO NOTHING RETURNING id`,
+    [maxAttempts],
+  );
+  for (const r of [...rows, ...notices.rows]) await audit(tx, r.id, 1, ['source', 'state']);
+  return rows.length + notices.rows.length;
 }
 
 /** Leases due messages of the current tenant; the attempt number is the fencing token. */
@@ -162,7 +177,7 @@ async function owned(tx: TenantTransaction, m: LeasedMessage, minRemainingSecond
   const { rows } = await tx.query<{
     id: string;
     version: number;
-    intent_id: string;
+    intent_id: string | null;
     purpose: IntentPurpose;
     channel: MessageChannel;
     patient_id: string;
@@ -229,15 +244,23 @@ export async function prepareSend(
 ): Promise<PrepareResult> {
   const row = await owned(tx, m, minRemainingSeconds);
   if (!row) return { action: 'lease_lost' };
+  // The message's source: an S14 intent, or (E5) the thread of a staff reply, whose location zone
+  // governs quiet hours.
   const intent = await tx.query<{
     subject_kind: SubjectRef['kind'];
     subject_id: string;
     due_at: Date | null;
     time_zone: string;
   }>(
-    `SELECT i.subject_kind, i.subject_id, i.due_at, l.time_zone FROM cuspatlas.notification_intents i
-     JOIN cuspatlas.scheduling_locations l ON l.id = i.location_id AND l.tenant_id = i.tenant_id WHERE i.id = $1`,
-    [row.intent_id],
+    row.intent_id !== null
+      ? `SELECT i.subject_kind, i.subject_id, i.due_at, l.time_zone FROM cuspatlas.notification_intents i
+         JOIN cuspatlas.scheduling_locations l ON l.id = i.location_id AND l.tenant_id = i.tenant_id WHERE i.id = $1`
+      : `SELECT 'message_thread' AS subject_kind, t.id AS subject_id, NULL::timestamptz AS due_at, l.time_zone
+         FROM cuspatlas.outbound_messages m
+         JOIN cuspatlas.thread_messages tm ON tm.id = m.thread_message_id AND tm.tenant_id = m.tenant_id
+         JOIN cuspatlas.message_threads t ON t.id = tm.thread_id AND t.tenant_id = tm.tenant_id
+         JOIN cuspatlas.scheduling_locations l ON l.id = t.location_id AND l.tenant_id = t.tenant_id WHERE m.id = $1`,
+    [row.intent_id ?? row.id],
   );
   const it = intent.rows[0];
   if (!it) throw new Error('intent missing');

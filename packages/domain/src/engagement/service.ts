@@ -3,6 +3,7 @@ import { createConsentOperations } from './communications/consent';
 import { createDeliveryOperations } from './communications/deliveries';
 import { createRecallEnrollmentOperations } from './communications/recall-enrollment';
 import { createIntakeOperations } from './intake/forms';
+import { createMessagingOperations } from './messaging/threads';
 import { createPortalOfferOperations } from './portal/offers';
 import { createPortalPrincipalOperations } from './portal/principals';
 import { createPortalRequestOperations } from './portal/requests';
@@ -27,6 +28,7 @@ export function createEngagementService(deps: EngagementDeps) {
     ...createRecallEnrollmentOperations(base),
     ...createDeliveryOperations(base),
     ...createIntakeOperations(base),
+    ...createMessagingOperations(base),
   };
 }
 

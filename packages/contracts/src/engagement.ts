@@ -115,6 +115,11 @@ export const validateFormPublish = def('FormPublish');
 export const validateFormRetire = def('FormRetire');
 export const validateFormSubmissionInput = def('FormSubmissionInput');
 export const validateIntakeReviewResolve = def('IntakeReviewResolve');
+export const validateThreadOpen = def('ThreadOpen');
+export const validateMessagePost = def('MessagePost');
+export const validateThreadClose = def('ThreadClose');
+export const validateThreadAssign = def('ThreadAssign');
+export const validateThreadLegalHold = def('ThreadLegalHold');
 
 /**
  * E9 minimal engagement export (E scope; M1 owns the full export contract). Every E table of a
@@ -130,6 +135,8 @@ export const ENGAGEMENT_EXPORT_TABLES = [
   'channel_policies',
   'suppression_decisions',
   'recall_enrollments',
+  'message_threads',
+  'thread_messages',
   'outbound_messages',
   'delivery_attempts',
   'message_receipts',

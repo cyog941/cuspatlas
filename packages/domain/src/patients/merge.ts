@@ -231,6 +231,11 @@ export const MERGE_EXCLUDED_REFERENCES: readonly { table: string; column: string
     why: 'a review item proposes a change to that identity; an open one is rejected and re-proposed',
   },
   {
+    table: 'message_threads',
+    column: 'patient_id',
+    why: 'a thread is correspondence about that identity; it is never re-addressed by a merge',
+  },
+  {
     table: 'outbound_messages',
     column: 'patient_id',
     why: 'a message is history of what was sent to that identity; it is never re-addressed by a merge',

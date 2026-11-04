@@ -309,7 +309,7 @@
       "pattern": "^[a-z0-9.-]{1,32}$"
     },
     "IntentPurpose": {
-      "enum": ["reminder", "cancellation", "waitlist_offer", "recall"]
+      "enum": ["reminder", "cancellation", "waitlist_offer", "recall", "message_notice"]
     },
     "TemplateRef": {
       "type": "string",
@@ -772,6 +772,125 @@
         },
         "patientVersion": {
           "$ref": "#/$defs/Version"
+        },
+        "reasonCode": {
+          "type": "string",
+          "pattern": "^[a-z_]{1,64}$"
+        }
+      }
+    },
+    "ThreadTopic": {
+      "enum": ["appointment", "billing", "forms", "general"]
+    },
+    "MessageBody": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000,
+      "pattern": "^[^\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f]+$"
+    },
+    "MessageAttachment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "ref"],
+      "description": "A reference to an image (I) or a stored object; never bytes. Each reference is authorized separately from the message when it is opened.",
+      "properties": {
+        "kind": {
+          "enum": ["imageRef", "objectRef"]
+        },
+        "ref": {
+          "$ref": "#/$defs/EntityRef"
+        }
+      }
+    },
+    "ThreadOpen": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["topic", "locationRef", "body"],
+      "description": "E5: open a secure-message thread for a patient with its first message (portal or staff).",
+      "properties": {
+        "topic": {
+          "$ref": "#/$defs/ThreadTopic"
+        },
+        "locationRef": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,64}$"
+        },
+        "body": {
+          "$ref": "#/$defs/MessageBody"
+        },
+        "attachments": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "$ref": "#/$defs/MessageAttachment"
+          }
+        }
+      }
+    },
+    "MessagePost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["body"],
+      "description": "E5: post one immutable message to a thread.",
+      "properties": {
+        "body": {
+          "$ref": "#/$defs/MessageBody"
+        },
+        "attachments": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "$ref": "#/$defs/MessageAttachment"
+          }
+        }
+      }
+    },
+    "ThreadClose": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "reasonCode"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reasonCode": {
+          "type": "string",
+          "pattern": "^[a-z_]{1,64}$"
+        }
+      }
+    },
+    "ThreadAssign": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "assigneeRef"],
+      "description": "Assign a thread to a staff member of the tenant holding messaging.write, or clear it (null).",
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "assigneeRef": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/EntityRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "ThreadLegalHold": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "hold"],
+      "description": "Legal-hold placeholder (E-D5 pending legal review): a held thread is never eligible under any future retention period.",
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "hold": {
+          "type": "boolean"
         },
         "reasonCode": {
           "type": "string",

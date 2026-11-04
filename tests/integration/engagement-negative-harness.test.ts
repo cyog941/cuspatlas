@@ -100,6 +100,7 @@ const INTAKE_FORM = {
   ],
 };
 const OTHER_FORM = { ...INTAKE_FORM, formRef: 'e-harness-other-form' };
+const THREAD = { topic: 'general', locationRef: 'loc-e-harness', body: 'Synthetic harness thread' };
 const INTAKE_ANSWERS = { formRef: 'e-harness-intake', formVersion: 1, answers: { agree: true } };
 
 export const COMMANDS: HarnessCommand[] = [
@@ -532,9 +533,119 @@ export const COMMANDS: HarnessCommand[] = [
       idempotencyKey: randomUUID(),
     }),
   },
+  // E5 secure messaging (a patient-read scope alone never opens a thread: downgraded = readOnly).
+  {
+    operation: 'messaging.threads.open',
+    tool: 'messaging_threads_open',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/patients/${f.parent}/message-threads`,
+      body: THREAD,
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({ patientRef: f.parent, ...THREAD, idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'messaging.threads.worklist',
+    tool: 'messaging_threads_worklist',
+    crossTenant: 'tenant_own_data',
+    downgradedTo: 'readOnly',
+    rest: () => ({ method: 'GET', url: '/v1/messaging/threads/worklist', keyed: false, status: 200 }),
+    mcpArgs: () => ({}),
+  },
+  {
+    operation: 'messaging.threads.read',
+    tool: 'messaging_threads_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({ method: 'GET', url: `/v1/messaging/threads/${f.thread}`, keyed: false, status: 200 }),
+    mcpArgs: (f) => ({ threadRef: f.thread }),
+  },
+  {
+    operation: 'messaging.messages.post',
+    tool: 'messaging_messages_post',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/messaging/threads/${f.thread}/messages`,
+      body: { body: 'Synthetic harness reply' },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({ threadRef: f.thread, body: 'Synthetic harness reply', idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'messaging.threads.close',
+    tool: 'messaging_threads_close',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/messaging/threads/${f.thread}/close`,
+      body: { expectedVersion: 1, reasonCode: 'resolved' },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({
+      threadRef: f.thread,
+      expectedVersion: 1,
+      reasonCode: 'resolved',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'messaging.threads.assign',
+    tool: 'messaging_threads_assign',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/messaging/threads/${f.thread}/assign`,
+      body: { expectedVersion: 1, assigneeRef: null },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({
+      threadRef: f.thread,
+      expectedVersion: 1,
+      assigneeRef: null,
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'messaging.threads.hold',
+    tool: 'messaging_threads_legal_hold',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/messaging/threads/${f.thread}/legal-hold`,
+      body: { expectedVersion: 1, hold: false },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ threadRef: f.thread, expectedVersion: 1, hold: false, idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'messaging.retention.evaluate',
+    tool: 'messaging_retention_evaluate',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/messaging/threads/${f.thread}/retention`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ threadRef: f.thread }),
+  },
 ];
 
-/** Every portal-audience route (E1-E4, E6, the S15 seam). */
+/** Every portal-audience route (E1-E6, the S15 seam). */
 export const PORTAL_CALLS: PortalCall[] = [
   {
     operation: 'portal.session.read',
@@ -598,6 +709,35 @@ export const PORTAL_CALLS: PortalCall[] = [
       method: 'POST',
       url: `/portal/v1/patients/${f.child}/intake-submissions`,
       body: INTAKE_ANSWERS,
+      keyed: true,
+      status: 201,
+    }),
+  },
+  {
+    operation: 'portal.threads.open',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/portal/v1/patients/${f.child}/message-threads`,
+      body: THREAD,
+      keyed: true,
+      status: 201,
+    }),
+  },
+  {
+    operation: 'portal.threads.read',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/portal/v1/patients/${f.parent}/message-threads/${f.thread}`,
+      keyed: false,
+      status: 200,
+    }),
+  },
+  {
+    operation: 'portal.threads.post',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/portal/v1/patients/${f.parent}/message-threads/${f.thread}/messages`,
+      body: { body: 'Synthetic harness portal message' },
       keyed: true,
       status: 201,
     }),
@@ -791,7 +931,13 @@ beforeAll(async () => {
       submission,
     ])
   ).rows[0].id as string;
+  // E5 fixture: one staff-opened thread to the parent.
+  const thread = h.ok<{ data: { threadRef: string } }>(
+    await h.call('a1', 'POST', `/v1/patients/${parent}/message-threads`, THREAD),
+    201,
+  ).data.threadRef;
   fixture = {
+    thread,
     submission,
     review,
     message: sent.id as string,
@@ -896,7 +1042,7 @@ async function state(): Promise<string> {
       `SELECT table_name FROM information_schema.tables WHERE table_schema = 'cuspatlas'
        AND table_name IN ('portal_principals', 'principals', 'appointment_requests', 'communication_consents',
          'suppression_decisions', 'channel_policies', 'message_templates', 'outbound_messages', 'delivery_attempts',
-         'message_receipts', 'recall_enrollments', 'contact_verifications', 'intake_form_versions', 'intake_submissions', 'intake_submission_consents', 'intake_review_items', 'audit_events', 'outbox_events', 'command_idempotency')
+         'message_receipts', 'recall_enrollments', 'contact_verifications', 'intake_form_versions', 'intake_submissions', 'intake_submission_consents', 'intake_review_items', 'message_threads', 'thread_messages', 'audit_events', 'outbox_events', 'command_idempotency')
        ORDER BY table_name`,
     )
   ).rows.map((r) => r.table_name as string);

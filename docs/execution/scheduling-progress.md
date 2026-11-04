@@ -296,3 +296,30 @@ S10 fix found during this task (full-suite runs): under load, concurrent inserts
 Deviations: attendance uses `scheduling.write` / `scheduling.read` (no separate attendance scope exists in the registry); the transition guard table is proposed (not in ADR 0009); `cancelled` and `rescheduled` are attendance kinds appended only by the booking commands; the amendment is an attribute of a transition (`amendsTransitionRef`) rather than an extra kind; the reason vocabulary is a per-tenant table without a write command (tests seed it).
 
 Unresolved: no reinstate command for a cancelled appointment exists (the "reinstated" half of failure case 4 is not implemented; after cancellation attendance stays closed); the transition guards, reason vocabulary and confirmation provenance format need practice review; attendance and worklist reads are not sensitive-read logged.
+
+### Review hardening of S4-S9 (independent review of 1b387f4 / 7929f77)
+
+Test file: `tests/integration/review-hardening-s.test.ts` (11 cases, runtime role, synthetic data). Red: `corepack pnpm test -- tests/integration/review-hardening-s.test.ts` before the fixes: exit 1, 9 failed / 1 passed (the location-wide-block case already held); each failure reproduced the reviewed defect (`allowed` instead of `forbidden:relationship_revoked`; unmerge 500 twice; two equal-tenant match-key sets; crossing relationship adds and crossing merges 500; second unmerge `merge_state_inconsistent`; 403 vs 404 oracle; `existingRef` leaked). The revoked-by freeze case was shown red separately by running it without the new migration (exit 1, 1 failed). Green: exit 0, 11 passed.
+
+REQUIRED
+
+1. Revocation race (fails open). `packages/domain/src/policy/patient-access.ts`: any non-null `revoked_at` is revoked (the revoking transaction's clock can be later than an older evaluating transaction's `now()`), and the evaluation clock is `clock_timestamp()`. Test: the command transaction begins first (`SELECT now()`), the revocation commits through REST on another connection, then the command evaluates under its row lock: denied `relationship_revoked`.
+2. Unmerge after a post-merge lifecycle change. Relationship digests exclude `revoked_at`, `revoked_by`, `revoke_reason` (S8/S10 classes already excluded their lifecycle columns); any remaining digest mismatch is a typed 409 `conflict` with `detail.reason` `unmerge_blocked` and `blockingRefs` naming the records (never a 500). Tests: merge B into A moving R, revoke R, unmerge succeeds and R stays revoked under B; a forced content change (superuser fixture path) yields the typed refusal naming R.
+
+SHOULD
+
+3. Match keys: `createMatchKeyer(pepper, tenantId)` = HMAC-SHA-256 over tenant id, prefix and normalized value, truncated to 128 bits; `PatientServiceDeps.matchKeyPepper` is required; `resolveMatchKeyPepper(env, configured)` accepts the test-only pepper only under `synthetic-test` and refuses a missing pepper (or the test pepper) elsewhere; the API reads `CUSPATLAS_MATCH_KEY_PEPPER` (base64, >= 32 bytes). Migration path: no schema change; the pepper is not available to SQL, so rows re-key on their next write; only synthetic rows exist (recorded in `20261106030000_review_hardening_s.sql`). Tests: the same identity in alpha and beta shares no key and no key equals the old bare SHA-256; pepper and tenant both change a key; a short pepper is refused; the MCP server refuses development without a pepper and with the test pepper.
+4. Deadlocks: merge relink locks every affected row of each registered table in one statement in id order before updating; `addRelationship` locks subject and counterparty `FOR UPDATE` in id order; unmerge locks the pair before re-reading the merge state; the tenant transaction runner maps 40P01/40001 to a retryable 409 `conflict`. Tests: 6 pairs of concurrent A->B / B->A adds all end 201/409; two merges over crossing relationships both 201; two concurrent unmerges give 200 and 409 `merge_already_reversed`.
+5. Same-tenant oracle: `resolveResourceRefs`, `getResource` and `deactivateResource` hide other-location resources as 404; `changeLocationTimeZone` hides a location outside the caller's policy before any lookup; S7/S9 conflicts include `existingRef` only for callers holding `scheduling.read` (probed before the transaction), as S10 does. Tests: a3 (loc-north) gets the same 404 body for another location's resource and for a random one (read, time-zone change, availability search); a time-block conflict names the blocking booking to a1 but not to a writer without `scheduling.read`. Existing expectation changed: `resources.test.ts` other-location read 403 -> 404.
+
+NITS
+
+- `revoked_by` is frozen once revoked (guard trigger replaced in `20261106030000_review_hardening_s.sql`; test: even the fixture superuser cannot rewrite it).
+- Age-of-majority check in `addRelationship` uses the database clock (`clock_timestamp()`), not the app clock. The window pre-check before the transaction still uses the app clock (documented; it only validates input shape).
+- `createTimeBlock` locks named resources `FOR SHARE` (serializes with deactivation and with bookings, which hold them `FOR NO KEY UPDATE`).
+- Concurrency test: a location-wide block and a booking at the same location and window, 5 rounds in parallel: always one 201 and one 409 (passed before the change too; it is evidence for the S7 FOR UPDATE / S10 FOR SHARE design).
+- Not done: computing the age-of-majority instant in the practice or patient zone (still UTC midnight; tenants carry no zone and patient zone is optional). Recorded as unresolved.
+
+Existing tests updated for the new rules: `patient-merge.test.ts` digest expression (revocation columns excluded) and two direct `createPatientService` constructions (explicit test pepper); `mcp-parity.test.ts` development build passes a configured pepper and asserts both refusals.
+
+Verification: `typecheck`, `lint`, `contract:check` exit 0; `corepack pnpm test` exit 0, 32 files / 655 tests.

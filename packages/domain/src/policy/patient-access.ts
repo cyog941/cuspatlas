@@ -79,11 +79,15 @@ export interface RelationshipRow extends Record<string, unknown> {
   evaluated_at: Date;
 }
 
-/** Relationship columns plus the subject's birth date and the transaction clock. */
+/**
+ * Relationship columns plus the subject's birth date and the statement clock. clock_timestamp(), not
+ * now(): a command whose transaction began before a revocation or an expiry and that evaluates (and
+ * locks) the row afterwards must see the world as of the evaluation, never as of its transaction start.
+ */
 export const RELATIONSHIP_SELECT = `SELECT r.id, r.subject_patient_id, r.counterparty_patient_id, r.kind, r.scopes,
     r.effective_from, r.effective_until, r.evidence_ref, r.revoked_at, r.revoke_reason, r.version,
     to_char(s.birth_date, 'YYYY-MM-DD') AS subject_birth, s.birth_date_precision AS subject_precision,
-    now() AS evaluated_at
+    clock_timestamp() AS evaluated_at
   FROM cuspatlas.patient_relationships r JOIN cuspatlas.patients s ON s.id = r.subject_patient_id`;
 
 const iso = (d: Date | null) => (d === null ? null : d.toISOString());
@@ -99,7 +103,9 @@ export function relationshipView(r: RelationshipRow, policy: PatientPolicySettin
   const end = candidates.length === 0 ? null : new Date(Math.min(...candidates.map((c) => c.getTime())));
   let status: RelationshipStatus;
   let statusReason: RelationshipStatusReason;
-  if (r.revoked_at !== null && r.revoked_at.getTime() <= now) {
+  // Any recorded revocation is final: revoked_at is set to the revoking transaction's clock, which may
+  // be later than an older evaluating transaction's clock (the race fixed in review hardening).
+  if (r.revoked_at !== null) {
     status = 'revoked';
     statusReason = 'revoked';
   } else if (r.effective_from.getTime() > now) {
@@ -154,7 +160,8 @@ export async function evaluatePatientAccess(
      ORDER BY r.created_at, r.id LIMIT 100 ${lock ? 'FOR SHARE OF r' : ''}`,
     [subjectRef, counterpartyRef],
   );
-  const clock = rows[0]?.evaluated_at ?? (await tx.query<{ now: Date }>('SELECT now() AS now')).rows[0]?.now;
+  const clock =
+    rows[0]?.evaluated_at ?? (await tx.query<{ now: Date }>('SELECT clock_timestamp() AS now')).rows[0]?.now;
   const views = rows.map((r) => relationshipView(r, policy));
   const active = views.filter((v) => v.status === 'active');
   const scopes = RELATIONSHIP_SCOPES.filter((s) => active.some((v) => v.scopes.includes(s)));

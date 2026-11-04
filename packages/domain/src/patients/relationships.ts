@@ -109,10 +109,16 @@ export function createRelationshipCommands(s: PatientServiceContext) {
         if (!validatePatientRef(patientRef)) throw notFound();
         const window = checkCreate(patientRef, payload, Date.now());
         return deps.withTenantTransaction(ctx, async (tx) => {
-          // Lock the subject: serializes exclusivity checks for one patient. Another tenant's (or a
-          // missing) counterparty is hidden exactly like a missing one and nothing is written.
-          const subject = await loadPatient(tx, patientRef, 'FOR UPDATE');
-          const counterparty = await loadPatient(tx, payload.counterpartyRef, 'FOR SHARE');
+          // Lock both patients in id order (FOR UPDATE): serializes exclusivity checks for the subject,
+          // and an A->B add never deadlocks with a concurrent B->A add. Another tenant's (or a missing)
+          // counterparty is hidden exactly like a missing one and nothing is written.
+          const [first, second] = [patientRef, payload.counterpartyRef].sort();
+          const locked = new Map<string, Awaited<ReturnType<typeof loadPatient>>>();
+          for (const id of first === second ? [first as string] : [first as string, second as string]) {
+            locked.set(id, await loadPatient(tx, id, 'FOR UPDATE'));
+          }
+          const subject = locked.get(patientRef) as Awaited<ReturnType<typeof loadPatient>>;
+          const counterparty = locked.get(payload.counterpartyRef) as Awaited<ReturnType<typeof loadPatient>>;
           return viewOf(
             tx,
             await execute<Ack>(ctx, { ...envelope, payload: { patientRef, ...payload } }, tx, async () => {
@@ -134,7 +140,7 @@ export function createRelationshipCommands(s: PatientServiceContext) {
                 );
                 if (majority === null && window.until === null)
                   throw invalid('guardian_requires_birth_date_or_end');
-                if (majority !== null && majority.getTime() <= Date.now())
+                if (majority !== null && majority.getTime() <= (await dbNow(tx)))
                   throw invalid('subject_reached_majority');
               }
               const existing = await tx.query<{ id: string; kind: string; counterparty_patient_id: string }>(
@@ -317,4 +323,10 @@ export function createRelationshipCommands(s: PatientServiceContext) {
       });
     },
   };
+}
+
+/** The database clock at this statement (review hardening: one clock for age-of-majority checks). */
+async function dbNow(tx: TenantTransaction): Promise<number> {
+  const { rows } = await tx.query<{ now: Date }>('SELECT clock_timestamp() AS now');
+  return (rows[0]?.now ?? new Date()).getTime();
 }

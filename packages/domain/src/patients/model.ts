@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import {
   type Address,
   type BirthDate,
@@ -243,9 +243,6 @@ export function normalizeText(s: string): string {
   return s.normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
-const digest = (prefix: string, value: string) =>
-  `${prefix}:${createHash('sha256').update(value).digest('hex').slice(0, 32)}`;
-
 /** Match-key prefixes; the duplicate scorer maps each to a reason. */
 export const MATCH_KEY = {
   name: 'n',
@@ -256,29 +253,31 @@ export const MATCH_KEY = {
   identifier: 'i',
 } as const;
 
-export const phoneKey = (value: string) => digest(MATCH_KEY.phone, phoneDigits(value));
+export const phoneKey = (value: string, keyer: MatchKeyer) => keyer.key(MATCH_KEY.phone, phoneDigits(value));
 
-/** SHA-256 match keys of normalized values. Plaintext is never copied into the key column. */
-export function matchKeys(r: IdentityRecord): string[] {
+/** Tenant-bound HMAC match keys of normalized values. Plaintext is never copied into the key column. */
+export function matchKeys(r: IdentityRecord, keyer: MatchKeyer): string[] {
   const keys = new Set<string>();
   if (r.legalName.known) {
     keys.add(
-      digest(MATCH_KEY.name, `${normalizeText(r.legalName.family)}|${normalizeText(r.legalName.given)}`),
+      keyer.key(MATCH_KEY.name, `${normalizeText(r.legalName.family)}|${normalizeText(r.legalName.given)}`),
     );
   }
   if (r.birthDate.known && r.birthDate.precision === 'day')
-    keys.add(digest(MATCH_KEY.birthDate, r.birthDate.value));
+    keys.add(keyer.key(MATCH_KEY.birthDate, r.birthDate.value));
   if (r.contact.known) {
     for (const p of r.contact.points) {
       keys.add(
-        p.channel === 'phone' ? phoneKey(p.value) : digest(MATCH_KEY.email, p.value.trim().toLowerCase()),
+        p.channel === 'phone'
+          ? phoneKey(p.value, keyer)
+          : keyer.key(MATCH_KEY.email, p.value.trim().toLowerCase()),
       );
     }
   }
   if (r.address.known) {
     const a = r.address;
     keys.add(
-      digest(
+      keyer.key(
         MATCH_KEY.address,
         [...a.lines, a.postalCode, a.country]
           .map((x) => normalizeText(x).replace(/[^a-z0-9]/g, ''))
@@ -287,7 +286,7 @@ export function matchKeys(r: IdentityRecord): string[] {
     );
   }
   for (const i of r.identifiers) {
-    keys.add(digest(MATCH_KEY.identifier, `${i.type}|${i.issuer.toLowerCase()}|${i.value.toLowerCase()}`));
+    keys.add(keyer.key(MATCH_KEY.identifier, `${i.type}|${i.issuer.toLowerCase()}|${i.value.toLowerCase()}`));
   }
   return [...keys].slice(0, 32);
 }
@@ -297,7 +296,7 @@ export function contactable(c: Contact): boolean {
 }
 
 /** SQL parameters for the identity columns, in PATIENT_WRITE_COLUMNS order. */
-export function identityParams(r: IdentityRecord): unknown[] {
+export function identityParams(r: IdentityRecord, keyer: MatchKeyer): unknown[] {
   const b = r.birthDate;
   const birth = b.known
     ? b.precision === 'day'
@@ -322,7 +321,7 @@ export function identityParams(r: IdentityRecord): unknown[] {
     r.homeLocationRef,
     r.legalName.known ? normalizeText(r.legalName.family) : null,
     r.legalName.known ? normalizeText(r.legalName.given) : null,
-    matchKeys(r),
+    matchKeys(r, keyer),
     contactable(r.contact),
   ];
 }
@@ -349,3 +348,50 @@ export const PATIENT_WRITE_COLUMNS = [
 
 /** Escapes LIKE wildcards in caller text (used with ESCAPE '!'). */
 export const likePrefix = (s: string) => `${s.replace(/[!%_]/g, (c) => `!${c}`)}%`;
+
+/**
+ * Tenant-bound match keys (review hardening, SHOULD 3): HMAC-SHA-256 under a server pepper of the
+ * tenant id, the key prefix and the normalized value, truncated to 128 bits. Equal inputs in two
+ * tenants never share a key, and a key cannot be recomputed from low-entropy inputs without the
+ * pepper. Plaintext is never copied into the key column.
+ */
+export interface MatchKeyer {
+  key(prefix: string, value: string): string;
+}
+
+export function createMatchKeyer(pepper: Uint8Array, tenantId: string): MatchKeyer {
+  if (pepper.byteLength < 32) throw new Error('match-key pepper must be at least 32 bytes');
+  return {
+    key: (prefix, value) =>
+      `${prefix}:${createHmac('sha256', pepper).update(`${tenantId}\u0000${prefix}\u0000${value}`).digest('hex').slice(0, 32)}`,
+  };
+}
+
+/**
+ * Test-only pepper, accepted solely when the runtime environment is synthetic-test (the same rule
+ * as the test token issuer). Any other environment must configure CUSPATLAS_MATCH_KEY_PEPPER.
+ */
+export const SYNTHETIC_TEST_MATCH_KEY_PEPPER: Uint8Array = new Uint8Array(
+  createHash('sha256').update('cuspatlas synthetic-test match-key pepper (never for real data)').digest(),
+);
+
+/**
+ * The pepper a transport must use: the configured secret, or the test-only pepper under
+ * synthetic-test. Refuses a missing pepper, and the test-only pepper, in any other environment.
+ */
+export function resolveMatchKeyPepper(env: string, configured: Uint8Array | undefined): Uint8Array {
+  const isTest = (p: Uint8Array) =>
+    p.byteLength === SYNTHETIC_TEST_MATCH_KEY_PEPPER.byteLength &&
+    p.every((b, i) => b === SYNTHETIC_TEST_MATCH_KEY_PEPPER[i]);
+  if (configured !== undefined) {
+    if (env !== 'synthetic-test' && isTest(configured)) {
+      throw new Error(
+        'Refusing to start: the test-only match-key pepper is permitted only in synthetic-test',
+      );
+    }
+    createMatchKeyer(configured, '00000000-0000-4000-8000-000000000000');
+    return configured;
+  }
+  if (env === 'synthetic-test') return SYNTHETIC_TEST_MATCH_KEY_PEPPER;
+  throw new Error('Refusing to start: CUSPATLAS_MATCH_KEY_PEPPER must be configured outside synthetic-test');
+}

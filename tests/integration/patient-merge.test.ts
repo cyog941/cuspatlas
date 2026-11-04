@@ -12,6 +12,7 @@ import {
   createPatientService,
   MERGE_EXCLUDED_REFERENCES,
   MERGE_RECORD_CLASSES,
+  SYNTHETIC_TEST_MATCH_KEY_PEPPER,
 } from '@cuspatlas/domain';
 import { buildMcpServer, type McpServerHandle } from '@cuspatlas/mcp';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -166,8 +167,9 @@ async function relOwner(rel: string) {
   ).rows[0];
 }
 
+// Review hardening: revocation columns are lifecycle, not content (a later revocation never blocks unmerge).
 const RELATIONSHIP_DIGEST = `encode(sha256(convert_to((to_jsonb(r) - 'subject_patient_id' - 'counterparty_patient_id'
-  - 'version' - 'updated_at')::text, 'UTF8')), 'hex')`;
+  - 'revoked_at' - 'revoked_by' - 'revoke_reason' - 'version' - 'updated_at')::text, 'UTF8')), 'hex')`;
 
 describe('S6 acceptance', () => {
   it('1. candidates show reasons and write nothing; shared phone or household never qualifies alone (pairs P1, P2)', async () => {
@@ -602,6 +604,7 @@ describe('S6 elevated reversal after new facts (S-D2, pending approval)', () => 
     const membership = createMembershipSource(db.app);
     // No clinical or financial record class exists yet; a probe stands in for one (registered by C/B later).
     const service = createPatientService({
+      matchKeyPepper: SYNTHETIC_TEST_MATCH_KEY_PEPPER,
       authorize: createAuthorize(membership),
       withTenantTransaction: createTenantTransactionRunner(db.app),
       recording: { sink: createSecurityAttemptSink(db.sink), alert: () => undefined },
@@ -641,6 +644,7 @@ describe('S6 elevated reversal after new facts (S-D2, pending approval)', () => 
     const [survivor, merged] = await duplicatePair('Synthetic Duplicate Expiry');
     const membership = createMembershipSource(db.app);
     const service = createPatientService({
+      matchKeyPepper: SYNTHETIC_TEST_MATCH_KEY_PEPPER,
       authorize: createAuthorize(membership),
       withTenantTransaction: createTenantTransactionRunner(db.app),
       recording: { sink: createSecurityAttemptSink(db.sink), alert: () => undefined },

@@ -34,6 +34,9 @@ export async function startServer(env: NodeJS.ProcessEnv): Promise<FastifyInstan
     membership: createMembershipSource(appPool),
     attempts: createSecurityAttemptSink(attemptPool),
     tenantTransactions: createTenantTransactionRunner(appPool),
+    ...(env.CUSPATLAS_MATCH_KEY_PEPPER
+      ? { matchKeyPepper: new Uint8Array(Buffer.from(env.CUSPATLAS_MATCH_KEY_PEPPER, 'base64')) }
+      : {}),
   });
   app.addHook('onClose', async () => {
     await Promise.all([appPool.end(), attemptPool.end()]);

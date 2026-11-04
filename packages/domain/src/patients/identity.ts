@@ -142,7 +142,7 @@ export function createIdentityCommands(s: PatientServiceContext) {
           summaryOf(
             tx,
             await execute<Ack>(ctx, envelope, tx, async () => {
-              const params = identityParams(record);
+              const params = identityParams(record, s.keyer(tx.ctx.tenantId));
               const { rows } = await tx.query<PatientRow>(
                 `INSERT INTO cuspatlas.patients (tenant_id, ${PATIENT_WRITE_COLUMNS.join(', ')}, status,
                    status_effective_at, created_by)
@@ -229,7 +229,7 @@ export function createIdentityCommands(s: PatientServiceContext) {
                   payload,
                   payload.requestedBy === undefined ? 'staff_entry' : 'guardian_reported',
                 );
-                const params = identityParams(next);
+                const params = identityParams(next, s.keyer(tx.ctx.tenantId));
                 const n = PATIENT_WRITE_COLUMNS.length;
                 const { rows } = await tx.query<PatientRow>(
                   `UPDATE cuspatlas.patients SET ${SET_IDENTITY}, version = version + 1, updated_at = now()
@@ -354,7 +354,7 @@ export function createIdentityCommands(s: PatientServiceContext) {
         const after = query.cursor === undefined ? null : cursors.decode(ctx.tenantId, query.cursor);
         const name = query.name === undefined ? null : normalizeText(query.name);
         if (name !== null && name.length < 2) throw new RefusalError({ code: 'invalid_request' });
-        const phone = query.phone === undefined ? null : phoneKey(query.phone);
+        const phone = query.phone === undefined ? null : phoneKey(query.phone, s.keyer(ctx.tenantId));
         return deps.withTenantTransaction(ctx, async (tx) => {
           const { rows } = await tx.query<PatientRow>(
             `SELECT ${PATIENT_COLUMNS} FROM cuspatlas.patients

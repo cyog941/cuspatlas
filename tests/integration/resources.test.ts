@@ -611,8 +611,9 @@ describe('S7 database enforcement, policy and privacy', () => {
       displayLabel: 'Operatory 9',
     });
     expect(svc.statusCode).toBe(403);
+    // Review hardening: another location's resource is hidden like a missing one (no existence oracle).
     const southRead = await call('a3', 'GET', `/v1/scheduling/resources/${southOperatory}`);
-    expect(southRead.statusCode).toBe(403);
+    expect(southRead.statusCode).toBe(404);
     const list = (await call('a3', 'GET', '/v1/scheduling/resources?limit=100')).json();
     expect(list.data.every((r: { locationRef: string }) => r.locationRef === 'loc-north')).toBe(true);
     expect(await count('scheduling_resources')).toBe(before);

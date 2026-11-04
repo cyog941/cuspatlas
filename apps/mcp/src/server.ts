@@ -33,6 +33,7 @@ import {
   createSchedulingResourceService,
   createSyntheticTaskService,
   executeOnce,
+  resolveMatchKeyPepper,
 } from '@cuspatlas/domain';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -76,6 +77,8 @@ function hostAllowed(host: string | undefined, allowed: ReadonlySet<string>): bo
 
 export interface McpServerDeps {
   readonly env: RuntimeEnvironment;
+  /** Match-key pepper (CUSPATLAS_MATCH_KEY_PEPPER); optional only under synthetic-test. */
+  readonly matchKeyPepper?: Uint8Array;
   /** Verifier whose audience is the MCP resource identifier (distinct from the REST audience). */
   readonly identity: IdentityVerifierConfig;
   /** The REST audience; the server refuses to start if it equals the MCP audience. */
@@ -217,6 +220,7 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     ...(deps.proposalPolicyVersion ? { policyVersion: deps.proposalPolicyVersion } : {}),
   });
   const patients = createPatientService({
+    matchKeyPepper: resolveMatchKeyPepper(deps.env, deps.matchKeyPepper),
     authorize,
     withTenantTransaction: deps.tenantTransactions,
     recording,

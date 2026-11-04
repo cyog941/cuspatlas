@@ -18,6 +18,12 @@ export interface TenantTransactionOptions {
   readonly lockTimeoutMs?: number;
 }
 
+/** SQLSTATE 40P01 deadlock_detected or 40001 serialization_failure. */
+export function isContention(err: unknown): boolean {
+  const code = typeof err === 'object' && err !== null ? (err as { code?: unknown }).code : undefined;
+  return code === '40P01' || code === '40001';
+}
+
 /** SQLSTATE 55P03 lock_not_available: raised when `lock_timeout` expires. */
 export function isLockTimeout(err: unknown): boolean {
   return typeof err === 'object' && err !== null && (err as { code?: unknown }).code === '55P03';
@@ -110,6 +116,8 @@ export function createTenantTransactionRunner(
           destroy = e;
         });
         if (isLockTimeout(err)) throw new RefusalError({ code: 'conflict', retryable: true });
+        // Deadlock victim or serialization failure: a retryable conflict, never a raw database error.
+        if (isContention(err)) throw new RefusalError({ code: 'conflict', retryable: true });
         throw err;
       }
     } finally {

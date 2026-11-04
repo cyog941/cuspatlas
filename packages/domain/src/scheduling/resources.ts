@@ -121,13 +121,22 @@ const OCCUPIED: Readonly<Record<BusyRow['source_kind'], string>> = {
   time_block: 'The resource is already blocked in this window.',
 };
 
-function busyConflict(row: BusyRow, kind: Conflict['kind'], explanation?: string): Conflict {
+/**
+ * One conflict for a busy row. The blocking record (booking, hold or block) is named only to callers
+ * who may read bookings (scheduling.read); the resource is one the caller already addressed.
+ */
+function busyConflict(
+  row: BusyRow,
+  kind: Conflict['kind'],
+  canRead: boolean,
+  explanation?: string,
+): Conflict {
   return {
     kind,
     ...(row.resource_id && row.resource_kind
       ? { resourceRef: { kind: row.resource_kind, resourceRef: row.resource_id } }
       : {}),
-    existingRef: row.source_id,
+    ...(canRead ? { existingRef: row.source_id } : {}),
     explanation: explanation ?? OCCUPIED[row.source_kind],
     overrideable: false,
   };
@@ -196,32 +205,37 @@ export async function loadResource(
 
 /**
  * Resolves caller-named resources inside the current tenant (RLS makes another tenant's resource
- * indistinguishable from a missing one: 404) and applies the caller's location policy (403).
- * Exported for S10, which must resolve a booking's resources through the same path.
+ * indistinguishable from a missing one: 404). A resource at a location the caller may not see is a
+ * 404 too (review hardening: no same-tenant existence oracle). `share` locks the rows FOR SHARE so
+ * a concurrent deactivation serializes with the command.
  */
 export async function resolveResourceRefs(
   tx: TenantTransaction,
   decision: AuthorizationDecision,
   refs: readonly SchedulingResourceRef[],
+  lock: 'none' | 'share' = 'none',
 ): Promise<ResourceRow[]> {
   if (refs.length === 0) return [];
+  for (const r of refs) if (!validateResourceRefId(r.resourceRef)) throw notFound();
   const ids = refs.map((r) => r.resourceRef);
   const { rows } = await tx.query<ResourceRow>(
     `SELECT ${RESOURCE_COLUMNS} FROM cuspatlas.scheduling_resources r
      JOIN cuspatlas.scheduling_locations l ON l.id = r.location_id AND l.tenant_id = r.tenant_id
-     WHERE r.id = ANY ($1::uuid[]) ORDER BY r.id`,
+     WHERE r.id = ANY ($1::uuid[]) ORDER BY r.id${lock === 'share' ? ' FOR SHARE OF r' : ''}`,
     [ids],
   );
   const byId = new Map(rows.map((r) => [r.id, r]));
   const out: ResourceRow[] = [];
   for (const ref of refs) {
     const row = byId.get(ref.resourceRef);
-    if (!row) throw notFound();
-    assertLocation(decision.locationRefs, row.location_ref);
+    if (!row || !visible(decision, row.location_ref)) throw notFound();
     out.push(row);
   }
   return out;
 }
+
+const visible = (decision: AuthorizationDecision, locationRef: string) =>
+  decision.locationRefs === null || decision.locationRefs.includes(locationRef);
 
 const toResource = (r: ResourceRow): Resource => ({
   resourceRef: r.id,
@@ -260,6 +274,15 @@ export function createSchedulingResourceService(deps: SchedulingDeps) {
   }
   const authorize = (ctx: ActorContext, action: ActionName) =>
     deps.authorize(ctx, action, { tenantId: ctx.tenantId, id: 'scheduling' });
+  /** Probe (no attempt row): may the caller read bookings, and so see which record blocks a slot? */
+  const canReadBookings = async (ctx: ActorContext) =>
+    authorize(ctx, 'scheduling.appointments.read').then(
+      () => true,
+      (err: unknown) => {
+        if (err instanceof RefusalError && err.code === 'forbidden') return false;
+        throw err;
+      },
+    );
 
   return {
     defineLocation(
@@ -313,9 +336,11 @@ export function createSchedulingResourceService(deps: SchedulingDeps) {
         const payload = envelope.payload;
         assertValid<LocationTimeZoneChange>(validateLocationTimeZoneChange, payload, SCHEDULING_PROPERTIES);
         if (!validateSchedulingLocationRef(locationRef)) throw notFound();
+        // A location outside the caller's policy is hidden like a missing one, before any lookup.
+        if (!visible(decision, locationRef)) throw notFound();
+        const canRead = await canReadBookings(ctx);
         return deps.withTenantTransaction(ctx, async (tx) => {
           const current = await loadLocation(tx, locationRef, 'update');
-          assertLocation(decision.locationRefs, current.location_ref);
           return execute<LocationSummary>(
             ctx,
             {
@@ -348,6 +373,7 @@ export function createSchedulingResourceService(deps: SchedulingDeps) {
                     busyConflict(
                       b,
                       'policy_override_required',
+                      canRead,
                       'The location has future occupied time; changing its zone requires an explicit recorded migration.',
                     ),
                   ),
@@ -537,9 +563,10 @@ export function createSchedulingResourceService(deps: SchedulingDeps) {
         checkEnvelope(envelope, 'scheduling.resources.deactivate');
         const payload = envelope.payload;
         assertValid<ResourceDeactivate>(validateResourceDeactivate, payload, SCHEDULING_PROPERTIES);
+        const canRead = await canReadBookings(ctx);
         return deps.withTenantTransaction(ctx, async (tx) => {
           const resource = await loadResource(tx, resourceRef, 'update');
-          assertLocation(decision.locationRefs, resource.location_ref);
+          if (!visible(decision, resource.location_ref)) throw notFound();
           return execute<ResourceSummary>(
             ctx,
             { ...envelope, payload: { resourceRef, expectedVersion: payload.expectedVersion } },
@@ -565,6 +592,7 @@ export function createSchedulingResourceService(deps: SchedulingDeps) {
                     busyConflict(
                       b,
                       'resource_overlap',
+                      canRead,
                       'The resource has a future booking or hold; end its availability at a date instead.',
                     ),
                   ),
@@ -632,7 +660,7 @@ export function createSchedulingResourceService(deps: SchedulingDeps) {
         const decision = await authorize(ctx, 'scheduling.resources.read');
         return deps.withTenantTransaction(ctx, async (tx) => {
           const resource = await loadResource(tx, resourceRef);
-          assertLocation(decision.locationRefs, resource.location_ref);
+          if (!visible(decision, resource.location_ref)) throw notFound();
           const versions = await tx.query<{
             id: string;
             effective_from: string;
@@ -665,12 +693,13 @@ export function createSchedulingResourceService(deps: SchedulingDeps) {
         const payload = envelope.payload;
         assertValid<TimeBlockCreate>(validateTimeBlockCreate, payload, SCHEDULING_PROPERTIES);
         assertLocation(decision.locationRefs, payload.locationRef);
+        const canRead = await canReadBookings(ctx);
         return deps.withTenantTransaction(ctx, async (tx) => {
           // A location-wide block takes the location row exclusively; S10 bookings take it FOR SHARE,
           // so a location-wide block and a booking at that location serialize.
           const wide = payload.resources.length === 0;
           const location = await loadLocation(tx, payload.locationRef, wide ? 'update' : 'share');
-          const resources = await resolveResourceRefs(tx, decision, payload.resources);
+          const resources = await resolveResourceRefs(tx, decision, payload.resources, 'share');
           return execute<TimeBlockSummary>(ctx, envelope, tx, async () => {
             const startsAt = new Date(payload.startsAt);
             const endsAt = new Date(payload.endsAt);
@@ -699,7 +728,7 @@ export function createSchedulingResourceService(deps: SchedulingDeps) {
               );
             const pre = await overlapping();
             if (pre.rows.length > 0)
-              throw conflicts(pre.rows.map((b) => busyConflict(b, 'resource_overlap')));
+              throw conflicts(pre.rows.map((b) => busyConflict(b, 'resource_overlap', canRead)));
             const { rows } = await tx.query<{ id: string; version: number }>(
               `INSERT INTO cuspatlas.scheduling_time_blocks (tenant_id, location_id, starts_at, ends_at, time_zone,
                  reason_code, resource_count, created_by)
@@ -726,7 +755,7 @@ export function createSchedulingResourceService(deps: SchedulingDeps) {
               } catch (err) {
                 if (!isPgError(err, '23P01')) throw err;
                 const post = await overlapping();
-                throw conflicts(post.rows.map((b) => busyConflict(b, 'resource_overlap')));
+                throw conflicts(post.rows.map((b) => busyConflict(b, 'resource_overlap', canRead)));
               }
             }
             await recordCommand(

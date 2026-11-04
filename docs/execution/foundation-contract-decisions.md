@@ -243,3 +243,12 @@ Additions only; no frozen row changed. Synthetic data only. Policy items come fr
 - Booking coupling: cancel and reschedule refuse a started visit (409 `attendance_started`) and append the matching `cancelled` / `rescheduled` transition in their own transaction. Attendance takes the appointment row `FOR UPDATE`, so it serializes with cancel and reschedule.
 - Clinical completion (C5) and billing (B1) appear only as `{ref: null, owner}` placeholders in visit status; S11 implements neither.
 - S10 lock change: booking and hold commands lock named resources `FOR NO KEY UPDATE` (was `FOR SHARE`), and the occupancy insert retries a deadlock victim up to 5 times before a retryable conflict that names the contended resources.
+
+## Task record: review hardening of S4-S9 (batch 2, 2026-11-05)
+
+- Relationship authority: a relationship with any recorded revocation is revoked regardless of the evaluating transaction's start time; status is evaluated with `clock_timestamp()`. Supersedes the S5 statement that status uses "the database clock of the command's own transaction".
+- Merge digests exclude lifecycle columns a later command may change (relationships: `revoked_at`, `revoked_by`, `revoke_reason`); a remaining mismatch at unmerge is 409 `unmerge_blocked` with `blockingRefs`. Relink locks all affected rows per table in id order; unmerge locks the pair before reading the merge state; relationship add locks both patients in id order.
+- Match keys are tenant-bound HMAC-SHA-256 under a required server pepper (`CUSPATLAS_MATCH_KEY_PEPPER`, >= 32 bytes); a test-only pepper is accepted only under `synthetic-test` (same rule as the test token issuer). No schema change; rows re-key on write.
+- The tenant transaction runner maps 40P01 and 40001 to a retryable 409 `conflict` (like 55P03).
+- Location visibility: other-location resources and locations named in a path are 404 for location-restricted callers (no same-tenant existence oracle); a location named in a body remains a 403 (the caller states it). Blocking-record references in S7/S9 conflicts require `scheduling.read`.
+- `patient_relationships_guard` freezes `revoked_by` with the rest of a revocation (migration `20261106030000_review_hardening_s.sql`).

@@ -5,6 +5,7 @@ import type { CursorCodec } from '../cursor';
 import type { ActionName, Authorize } from '../policy/authorize';
 import type { PostMergeFactProbe } from './merge';
 import type { MergeConfirmationCodec } from './merge-confirmation';
+import type { MatchKeyer } from './model';
 
 export interface PatientServiceDeps {
   readonly authorize: Authorize;
@@ -18,6 +19,11 @@ export interface PatientServiceDeps {
   readonly mergeConfirmations?: MergeConfirmationCodec;
   /** S6 (S-D2): counters of clinical/financial facts on a survivor after a merge. None exist yet. */
   readonly postMergeFactProbes?: readonly PostMergeFactProbe[];
+  /**
+   * Server pepper for tenant-bound match keys (at least 32 bytes). Required: transports pass the
+   * configured secret, or the test-only pepper when the runtime environment is synthetic-test.
+   */
+  readonly matchKeyPepper: Uint8Array;
 }
 
 /** Shared plumbing handed to each patient command group. */
@@ -26,5 +32,7 @@ export interface PatientServiceContext {
   readonly execute: CommandExecutor;
   readonly cursors: CursorCodec;
   readonly confirmations: MergeConfirmationCodec;
+  /** Match keyer bound to one tenant. */
+  keyer(tenantId: string): MatchKeyer;
   guarded<T>(ctx: ActorContext, operation: ActionName, work: () => Promise<T>): Promise<T>;
 }

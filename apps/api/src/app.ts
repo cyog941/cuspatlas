@@ -11,6 +11,7 @@ import {
   createSchedulingResourceService,
   createSyntheticTaskService,
   executeOnce,
+  resolveMatchKeyPepper,
 } from '@cuspatlas/domain';
 import Fastify, {
   type FastifyInstance,
@@ -55,6 +56,8 @@ export interface AppDeps {
   readonly cursors?: CursorCodec;
   /** Proposal policy version (defaults to PROPOSAL_POLICY_VERSION); tests bump it. */
   readonly proposalPolicyVersion?: string;
+  /** Match-key pepper (CUSPATLAS_MATCH_KEY_PEPPER); optional only under synthetic-test. */
+  readonly matchKeyPepper?: Uint8Array;
 }
 
 function sendRefusal(request: FastifyRequest, reply: FastifyReply, err: unknown): FastifyReply {
@@ -158,6 +161,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       });
       registerProposalRoutes(app, { authenticator, proposals });
       const patients = createPatientService({
+        matchKeyPepper: resolveMatchKeyPepper(deps.env, deps.matchKeyPepper),
         authorize,
         withTenantTransaction: deps.tenantTransactions,
         recording,

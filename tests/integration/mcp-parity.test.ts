@@ -1,4 +1,4 @@
-import { generateKeyPairSync, randomUUID } from 'node:crypto';
+import { generateKeyPairSync, randomBytes, randomUUID } from 'node:crypto';
 import { request as httpRequest } from 'node:http';
 import { buildApp } from '@cuspatlas/api';
 import { REFUSAL_HTTP_STATUS, type RefusalCode } from '@cuspatlas/contracts';
@@ -7,6 +7,7 @@ import {
   createSecurityAttemptSink,
   createTenantTransactionRunner,
 } from '@cuspatlas/db';
+import { SYNTHETIC_TEST_MATCH_KEY_PEPPER } from '@cuspatlas/domain';
 import { buildMcpServer, loadConfiguredMcpIdentity, type McpServerHandle } from '@cuspatlas/mcp';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -1187,8 +1188,26 @@ describe('E4/E5 hardening: transport and validation', () => {
       membership: createMembershipSource(db.app),
       attempts: createSecurityAttemptSink(db.sink),
       tenantTransactions: createTenantTransactionRunner(db.app),
+      // Outside synthetic-test the match-key pepper is a configured secret (review hardening).
+      matchKeyPepper: new Uint8Array(randomBytes(32)),
     };
     expect(() => buildMcpServer({ env: 'development', ...base })).toThrow(/resourceMetadataUrl/);
+    const { matchKeyPepper: _pepper, ...withoutPepper } = base;
+    expect(() =>
+      buildMcpServer({
+        env: 'development',
+        ...withoutPepper,
+        resourceMetadataUrl: 'https://mcp.synthetic.invalid/.well-known/oauth-protected-resource',
+      }),
+    ).toThrow(/CUSPATLAS_MATCH_KEY_PEPPER/);
+    expect(() =>
+      buildMcpServer({
+        env: 'development',
+        ...base,
+        matchKeyPepper: SYNTHETIC_TEST_MATCH_KEY_PEPPER,
+        resourceMetadataUrl: 'https://mcp.synthetic.invalid/.well-known/oauth-protected-resource',
+      }),
+    ).toThrow(/test-only match-key pepper/);
     const configured = buildMcpServer({
       env: 'development',
       ...base,

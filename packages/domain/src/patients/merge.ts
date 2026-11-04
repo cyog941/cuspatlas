@@ -53,9 +53,14 @@ export interface MergeRecordClass {
   readonly digestExclude: readonly string[];
 }
 
+// Lifecycle columns a later command may legitimately change (revocation) are not content: they stay
+// out of the digest so a post-merge revocation never blocks an unmerge (review hardening, REQUIRED 2).
 const RELATIONSHIP_DIGEST_EXCLUDE = [
   'subject_patient_id',
   'counterparty_patient_id',
+  'revoked_at',
+  'revoked_by',
+  'revoke_reason',
   'version',
   'updated_at',
 ];
@@ -350,6 +355,16 @@ async function relink(
   only?: ReadonlySet<string>,
 ): Promise<Relinked[]> {
   const out: Relinked[] = [];
+  // Lock every affected row of each table in one statement, in id order, before any update: two
+  // merges whose records cross (A->B and B->A relationships) then queue instead of deadlocking.
+  const tables = [...new Set(MERGE_RECORD_CLASSES.map((c) => c.table))].sort();
+  for (const table of tables) {
+    const cols = MERGE_RECORD_CLASSES.filter((c) => c.table === table).map((c) => c.column);
+    await tx.query(
+      `SELECT id FROM cuspatlas.${table} WHERE ${cols.map((c) => `${c} = $1`).join(' OR ')} ORDER BY id FOR UPDATE`,
+      [from],
+    );
+  }
   for (const cls of MERGE_RECORD_CLASSES) {
     const digest = digestSql('r', cls.digestExclude);
     const before = await tx.query<{ id: string; digest: string }>(
@@ -604,8 +619,11 @@ export function createMergeCommands(s: PatientServiceContext) {
         if (!validateMergeRef(mergeRef)) throw notFound();
         const elevated = await holds(ctx, 'patients.unmerge.reconcile', mergeRef);
         return deps.withTenantTransaction(ctx, async (tx) => {
+          // The pair is locked before the merge state is read, so a second concurrent unmerge waits and
+          // then sees the first reversal (merge_already_reversed).
+          const head = await loadMerge(tx, mergeRef);
+          const pair = await lockPair(tx, head.survivorRef, head.mergedRef);
           const merge = await loadMerge(tx, mergeRef);
-          const pair = await lockPair(tx, merge.survivorRef, merge.mergedRef);
           const survivor = pair.get(merge.survivorRef) as PatientRow;
           const merged = pair.get(merge.mergedRef) as PatientRow;
           return resultOf(
@@ -660,9 +678,19 @@ export function createMergeCommands(s: PatientServiceContext) {
                   m.content_digest_before,
                 ]),
               );
+              const changed = restored.filter(
+                (r) => digests.get(`${r.cls.recordClass}:${r.cls.column}:${r.id}`) !== r.digest,
+              );
+              if (changed.length > 0) {
+                // Content changed since the merge: refuse, typed, naming the records (never a 500).
+                throw conflict(
+                  'unmerge_blocked',
+                  [
+                    ...new Map(changed.map((r) => [r.id, { kind: r.cls.recordClass, ref: r.id }])).values(),
+                  ].slice(0, 20),
+                );
+              }
               for (const r of restored) {
-                if (digests.get(`${r.cls.recordClass}:${r.cls.column}:${r.id}`) !== r.digest)
-                  throw new Error('content digest changed since merge');
                 await recordCommand(
                   tx,
                   {

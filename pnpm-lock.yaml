@@ -52,6 +52,15 @@ importers:
         specifier: 2.9.1
         version: 2.9.1
 
+  apps/worker:
+    dependencies:
+      '@cuspatlas/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@cuspatlas/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+
   packages/contracts:
     dependencies:
       ajv:
@@ -94,6 +103,9 @@ importers:
       '@cuspatlas/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@cuspatlas/worker':
+        specifier: workspace:*
+        version: link:../../apps/worker
       '@types/pg':
         specifier: 8.23.1
         version: 8.23.1

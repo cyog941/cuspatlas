@@ -19,6 +19,8 @@ export const ACTION_POLICIES = {
   'syntheticTasks.create': { scope: 'syntheticTasks.write', principals: ['human', 'service'] },
   'syntheticTasks.relabel': { scope: 'syntheticTasks.write', principals: ['human', 'service'] },
   'syntheticTasks.approve': { scope: 'syntheticTasks.approve', principals: ['human'] },
+  // The outbox worker's own principal: leases and finalizes delivery state in one tenant (F Task 6).
+  'outbox.deliver': { scope: 'outbox.deliver', principals: ['service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 export type ActionName = keyof typeof ACTION_POLICIES;

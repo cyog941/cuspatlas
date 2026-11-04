@@ -1,4 +1,10 @@
 export {
+  type ClaimsPartnerPort,
+  createFakeClearinghouse,
+  type FakeClearinghouse,
+  type RemittanceAdvice,
+} from '../rcm/clearinghouse';
+export {
   createFakeEligibilityAdapter,
   type EligibilityAnswer,
   type EligibilityPort,

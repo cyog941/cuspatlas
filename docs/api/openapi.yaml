@@ -5544,6 +5544,443 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/rcm/claims:
+    post:
+      operationId: rcm.claims.prepare
+      description: >-
+        B6: prepare a claim (version 1) only from C14 rendered procedures with posted charges, for one
+        coverage of the patient account. Lines carry SYN- codes, billed amounts and the coverage allowance.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimPrepare'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/claims/worklist:
+    get:
+      operationId: rcm.claims.worklist
+      description: >-
+        B6 (CL-08): open claim work with owner, reason, due time and next action: validation issues by
+        owner, submit, reconcile an unknown submission, correct a rejection, review a denial or appeal
+        draft, follow up a silent payer.
+      parameters:
+        - name: owner
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimWorklistQuery'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimWorklistResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/claims/{claimRef}:
+    get:
+      operationId: rcm.claims.read
+      description: >-
+        B6: one claim with every immutable version, validation (and whether it is still current),
+        submissions, distinct response events (with code source and version) and appeals.
+      parameters:
+        - name: claimRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimReadResult'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/claims/{claimRef}/validation:
+    post:
+      operationId: rcm.claims.validate
+      description: >-
+        B6 (CL-03): deterministic readiness rules naming each missing fact, its owner and source; bound to
+        the head version and its inputs (any change invalidates it).
+      parameters:
+        - name: claimRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimVersioned'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/claims/{claimRef}/attachments:
+    post:
+      operationId: rcm.claims.attach
+      description: >-
+        B6: attach an object reference (imaging is I-owned; no bytes) as a new immutable claim version; a
+        submitted version is never changed.
+      parameters:
+        - name: claimRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimAttach'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/claims/{claimRef}/replacement:
+    post:
+      operationId: rcm.claims.replace
+      description: >-
+        B6 (CL-06/CL-10): a corrective replacement version linked to the rejected or denied one; it needs
+        its own validation and submission.
+      parameters:
+        - name: claimRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimReplace'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/claims/{claimRef}/submissions:
+    post:
+      operationId: rcm.claims.submit
+      description: >-
+        B6 (CL-04/CL-05): submit the validated head version through the fake clearinghouse under explicit
+        human approval or a standing policy rechecked now; one submission per version; an unknown outcome is
+        reconciled, never resubmitted.
+      parameters:
+        - name: claimRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimSubmit'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/claims/{claimRef}/poll:
+    post:
+      operationId: rcm.claims.poll
+      description: >-
+        B6: reconcile an unknown submission by lookup and record new partner responses (acknowledgement,
+        rejection, adjudication, denial codes) once each.
+      parameters:
+        - name: claimRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/claims/{claimRef}/appeals:
+    post:
+      operationId: rcm.appeals.draft
+      description: >-
+        B6 (CL-07): draft an appeal package for a recorded denial; it is never sent before another human
+        reviews it; one appeal per basis.
+      parameters:
+        - name: claimRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/AppealDraft'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/AppealCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/appeals/{appealRef}/review:
+    post:
+      operationId: rcm.appeals.review
+      description: >-
+        B6: review an appeal draft (never by its drafter): approve and send through the fake clearinghouse,
+        or reject.
+      parameters:
+        - name: appealRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/AppealReview'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/AppealCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/submission-policies:
+    post:
+      operationId: rcm.submissionPolicies.create
+      description: >-
+        B6: a revocable standing submission policy (payer and billed limit), rechecked at every execution.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/SubmissionPolicyCreate'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PolicyCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/submission-policies/{policyRef}/revoke:
+    post:
+      operationId: rcm.submissionPolicies.revoke
+      description: >-
+        B6: revoke a standing submission policy; later submissions under it are refused.
+      parameters:
+        - name: policyRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/SubmissionPolicyRevoke'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PolicyCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   # END generated: BILLING_OPS
 components:
   securitySchemes:

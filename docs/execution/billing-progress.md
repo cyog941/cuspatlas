@@ -301,6 +301,17 @@ Tests: `tests/integration/billing-fees-procedures.test.ts` (10). Red first with 
 - Report scope: `billing.reports.receivables` needs `receivables.read`; location-restricted readers see only their locations (naming another is 403). Billing code names billing tables only: coverage and location reads moved to `packages/domain/src/rcm/lookups.ts`.
 - REST/MCP: one operation table `apps/api/src/routes/billing-ops.ts` (REST registration, MCP tools and closed-body drift derive from it); OpenAPI block generated from it.
 
+### B6 (claims, denial codes and appeals; fake clearinghouse only)
+
+Tests: `tests/integration/rcm-claims.test.ts` (8). Red first with the implementation stashed: exit 1, 8 failed. Green: exit 0, 8 passed. Full suite: 1677 passed, 1 failed (`patient-merge` 7: the new `rcm_claims.patient_id` foreign key was not registered; now a `MERGE_EXCLUDED_REFERENCES` row, no SQL mirror change since it is not a record class), then the affected suites green (129). Migration `20261120080000_rcm_claims.sql`.
+
+- Claims (CL-02) are prepared only from C14 rendered procedures with posted, unreversed clinical charges (a procedure without a charge is retryable 409 `missing_completion_fact`; another tenant's or an unknown procedure is 404); lines carry SYN- code, date of service, rendering provider, billed amount (the charge) and the coverage allowance (B9 allowance schedule). Claim versions are immutable rows (attachment or corrective replacement = a new version linked by `supersedes_id`).
+- Readiness (CL-03): deterministic rules with owner and source: `eligibility_not_current` and `coverage_not_effective` / `coverage_inactive` (front_office), `charge_reversed` and `coverage_changed` (billing), `attachment_required` for `SYN-ATT-` codes (clinical). The validation row stores an input digest; any change makes it not current and submission is 409 `validation_stale`.
+- Submission (CL-04/CL-05): one submission per claim version (409 `already_submitted`, never a blind resubmission), recorded `pending` before the fake adapter is called outside any transaction (timeout = unknown). Authorization: explicit (human caller) or a revocable standing policy (`rcm_submission_policies`, a minimal billing record: the S standing-policy model is scheduling-specific) rechecked at execution (`policy_revoked`, `policy_payer_mismatch`, `policy_limit_exceeded`). Transmission moves the billed amount to insurer receivable of the claim's coverage.
+- Responses: transport acknowledgement/rejection, payer acknowledgement/rejection and adjudication (paid/denied) are distinct `rcm_claim_events`, idempotent per partner event reference; rejection and denial codes carry their synthetic source and version (`syn-clearinghouse-rejections` / `syn-denial-codes`, `v1`). An unknown submission is resolved once by lookup (`resolved_by_lookup`).
+- Appeals (CL-07): drafts tied to a recorded denial (one per basis, 409 `duplicate_appeal`), sent only after another human (billing.correct, never the drafter: domain and trigger) approves.
+- Worklist (CL-08): validation issues by owner, submit, reconcile unknown, correct and replace, review denial, review appeal draft, and follow-up 30 days after transmission without adjudication; each with owner, reason, due time and source.
+
 ## Seams for later tasks
 
 - C14: drive `billing.charges.post` as a service principal with the rendered-procedure reference in place of `syn-proc-...` (a new `source` value) and the procedure code once B-S4 settles; one original charge per procedure is already enforced.
@@ -320,6 +331,10 @@ Tests: `tests/integration/billing-fees-procedures.test.ts` (10). Red first with 
 
 - C12 (fees): read `billing.fees.resolve` for the practice fee and the coverage allowance of a SYN- code; never compute a fee. C code not edited.
 - Worker deployment: pass the billing service as `WorkerDeps.procedures`; the worker principal needs `outbox.deliver` and `billing.write`.
+
+- I (attachments, CL-04): a claim version holds object references only (`syn-img-`/`syn-obj-`); I supplies the manifest-bound package and its digest; B never stores bytes.
+- B8 (secondary/COB): prepare a secondary claim from the same procedures with the secondary coverage after the primary adjudication; the event and remittance facts are per claim.
+- CL workflow: the claim worklist items are the owned exceptions; a durable workflow engine can drive validate/submit/poll under a standing policy.
 
 ## Unresolved
 

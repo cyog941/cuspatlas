@@ -17,6 +17,7 @@ export const BILLING_READS = [
   'undistributedFunds.read',
   'receivables.read',
   'coverage.read',
+  'openClaims.read',
 ];
 export const BILLING_WRITE = ['billing.write', 'coverage.write'];
 export const BILLING_CORRECT = 'billing.correct';

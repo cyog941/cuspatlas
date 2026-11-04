@@ -227,6 +227,15 @@ export const BILLING_FLAT_OPERATIONS: readonly string[] = [
   'billing.feeSchedules.publish',
   'billing.adjustments.post',
   'billing.adjustments.decide',
+  'rcm.claims.prepare',
+  'rcm.claims.validate',
+  'rcm.claims.attach',
+  'rcm.claims.replace',
+  'rcm.claims.submit',
+  'rcm.appeals.draft',
+  'rcm.appeals.review',
+  'rcm.submissionPolicies.create',
+  'rcm.submissionPolicies.revoke',
 ];
 
 /** Every billing operation that runs through executeOnce (B1 and B2). */

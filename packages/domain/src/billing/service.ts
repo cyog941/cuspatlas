@@ -1,3 +1,5 @@
+import { createClaimOperations } from '../rcm/claims';
+import { createFakeClearinghouse } from '../rcm/clearinghouse';
 import { createCoverageOperations } from '../rcm/coverage';
 import { createAdjustmentOperations } from './adjustments';
 import { createAllocationOperations } from './allocations';
@@ -21,6 +23,7 @@ import { createWorklistOperations } from './worklist';
 export function createBillingService(deps: BillingDeps) {
   const base = createBillingBase(deps);
   const provider = deps.payments ?? createSyntheticPaymentProvider();
+  const partner = deps.claims ?? createFakeClearinghouse();
   return {
     ...createChargeOperations(base),
     ...createEntryOperations(base),
@@ -33,6 +36,7 @@ export function createBillingService(deps: BillingDeps) {
     ...createFeeOperations(base),
     ...createProcedureConsumer(base),
     ...createAdjustmentOperations(base),
+    ...createClaimOperations(base, partner),
   };
 }
 

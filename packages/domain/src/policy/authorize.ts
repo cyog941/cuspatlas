@@ -142,6 +142,21 @@ export const ACTION_POLICIES = {
   'billing.adjustments.post': { scope: 'billing.write', principals: ['human', 'service'] },
   'billing.adjustments.decide': { scope: 'billing.correct', principals: ['human'] },
   'billing.reports.receivables': { scope: 'receivables.read', principals: ['human', 'service'] },
+  // B6 claims (fake clearinghouse only): reads need openClaims.read; preparation, validation,
+  // versions, submission and polling are billing.write (a qualified standing policy lets a service
+  // submit); appeal review and standing policies are human-only billing.correct.
+  'rcm.claims.prepare': { scope: 'billing.write', principals: ['human', 'service'] },
+  'rcm.claims.validate': { scope: 'billing.write', principals: ['human', 'service'] },
+  'rcm.claims.attach': { scope: 'billing.write', principals: ['human', 'service'] },
+  'rcm.claims.replace': { scope: 'billing.write', principals: ['human'] },
+  'rcm.claims.submit': { scope: 'billing.write', principals: ['human', 'service'] },
+  'rcm.claims.poll': { scope: 'billing.write', principals: ['human', 'service'] },
+  'rcm.claims.read': { scope: 'openClaims.read', principals: ['human', 'service'] },
+  'rcm.claims.worklist': { scope: 'openClaims.read', principals: ['human', 'service'] },
+  'rcm.appeals.draft': { scope: 'billing.write', principals: ['human'] },
+  'rcm.appeals.review': { scope: 'billing.correct', principals: ['human'] },
+  'rcm.submissionPolicies.create': { scope: 'billing.correct', principals: ['human'] },
+  'rcm.submissionPolicies.revoke': { scope: 'billing.correct', principals: ['human'] },
   // C5 encounters and clinical authorship (recommended-pending-clinical-approval). Clinical
   // mutations are human-only: a model or integration is never a clinical author. Every mutation
   // additionally needs a resolvable clinical author profile (clinical/authorship.ts). Reads are

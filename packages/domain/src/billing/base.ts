@@ -36,6 +36,8 @@ export interface BillingDeps {
   readonly providerTimeoutMs?: number;
   /** Margin added to the timeout for the in-flight lease of a pending attempt; default 30 s. */
   readonly providerLeaseMarginMs?: number;
+  /** Claims partner port (B6/B7). Defaults to the in-process fake clearinghouse (B-S2 open). */
+  readonly claims?: import('../rcm/clearinghouse').ClaimsPartnerPort;
 }
 
 export interface BillingBase {

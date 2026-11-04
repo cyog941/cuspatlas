@@ -3513,6 +3513,699 @@
           "$ref": "#/$defs/ReceivablesReport"
         }
       }
+    },
+    "ObjectRef": {
+      "type": "string",
+      "pattern": "^syn-(img|obj)-[a-z0-9-]{1,60}$"
+    },
+    "ClaimPrepare": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Prepare a claim (version 1) from C14 rendered procedures that have posted charges, for one coverage. Nothing typed by hand: lines are assembled from the procedure, its charge and the coverage allowance.",
+      "required": ["patientRef", "coverageRef", "procedureRefs"],
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "coverageRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "procedureRefs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 50,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/Uuid"
+          }
+        }
+      }
+    },
+    "ClaimVersioned": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "ClaimAttach": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "objectRef", "kind"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "objectRef": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "kind": {
+          "enum": ["radiograph", "photo", "narrative", "perio_chart"]
+        }
+      }
+    },
+    "ClaimReplace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "reasonCode"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "procedureRefs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 50,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/Uuid"
+          }
+        }
+      }
+    },
+    "ClaimSubmit": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Submit the validated head version through the fake clearinghouse, under the explicit approval of the human caller or a standing policy rechecked now. One submission per version: never a blind resubmission.",
+      "required": ["expectedVersion", "authorization"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "authorization": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["mode"],
+              "properties": {
+                "mode": {
+                  "const": "explicit"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["mode", "policyRef"],
+              "properties": {
+                "mode": {
+                  "const": "policy"
+                },
+                "policyRef": {
+                  "$ref": "#/$defs/Uuid"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "ClaimCommandData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claimRef", "versionRef", "versionNo", "outcome"],
+      "properties": {
+        "claimRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "versionRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "versionNo": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "outcome": {
+          "enum": [
+            "prepared",
+            "versioned",
+            "valid",
+            "invalid",
+            "transmitted",
+            "rejected",
+            "unknown",
+            "polled"
+          ]
+        },
+        "submissionRef": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Uuid"
+            }
+          ]
+        },
+        "issueCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "eventCount": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "ClaimIssue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "owner", "sourceRef"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,63}$"
+        },
+        "owner": {
+          "enum": ["billing", "front_office", "clinical"]
+        },
+        "sourceRef": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f-]{36}$"
+            }
+          ]
+        }
+      }
+    },
+    "ClaimLine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lineNo",
+        "procedureRef",
+        "chargeRef",
+        "codeRef",
+        "dateOfService",
+        "renderingProviderRef",
+        "billed",
+        "allowance"
+      ],
+      "properties": {
+        "lineNo": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "procedureRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "chargeRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "codeRef": {
+          "$ref": "#/$defs/SyntheticProcedureCode"
+        },
+        "dateOfService": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "renderingProviderRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "billed": {
+          "$ref": "#/$defs/Money"
+        },
+        "allowance": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Money"
+            }
+          ]
+        }
+      }
+    },
+    "ClaimView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claimRef",
+        "patientRef",
+        "coverageRef",
+        "payerRef",
+        "state",
+        "headVersionNo",
+        "versions",
+        "submissions",
+        "events",
+        "appeals",
+        "version"
+      ],
+      "properties": {
+        "claimRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "coverageRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "payerRef": {
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "prepared",
+            "validated",
+            "submission_pending",
+            "submission_unknown",
+            "transmitted",
+            "transport_rejected",
+            "payer_acknowledged",
+            "payer_rejected",
+            "paid",
+            "denied",
+            "replaced"
+          ]
+        },
+        "headVersionNo": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "versions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "versionRef",
+              "versionNo",
+              "reason",
+              "billedTotal",
+              "lines",
+              "attachments",
+              "validation"
+            ],
+            "properties": {
+              "versionRef": {
+                "$ref": "#/$defs/Uuid"
+              },
+              "versionNo": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "reason": {
+                "enum": ["prepared", "attachment", "replacement"]
+              },
+              "billedTotal": {
+                "$ref": "#/$defs/Money"
+              },
+              "lines": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/ClaimLine"
+                }
+              },
+              "attachments": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["objectRef", "kind"],
+                  "properties": {
+                    "objectRef": {
+                      "$ref": "#/$defs/ObjectRef"
+                    },
+                    "kind": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "validation": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["valid", "issues", "validatedAt", "current"],
+                    "properties": {
+                      "valid": {
+                        "type": "boolean"
+                      },
+                      "issues": {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/$defs/ClaimIssue"
+                        }
+                      },
+                      "validatedAt": {
+                        "$ref": "#/$defs/Instant"
+                      },
+                      "current": {
+                        "type": "boolean"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "submissions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["submissionRef", "versionNo", "mode", "outcome", "rejectionCode"],
+            "properties": {
+              "submissionRef": {
+                "$ref": "#/$defs/Uuid"
+              },
+              "versionNo": {
+                "type": "integer"
+              },
+              "mode": {
+                "enum": ["explicit", "policy"]
+              },
+              "outcome": {
+                "enum": ["pending", "transmitted", "rejected", "unknown"]
+              },
+              "rejectionCode": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "code", "codeSource", "codeVersion", "occurredAt"],
+            "properties": {
+              "kind": {
+                "type": "string"
+              },
+              "code": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "codeSource": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "codeVersion": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "occurredAt": {
+                "$ref": "#/$defs/Instant"
+              }
+            }
+          }
+        },
+        "appeals": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["appealRef", "basisCode", "state"],
+            "properties": {
+              "appealRef": {
+                "$ref": "#/$defs/Uuid"
+              },
+              "basisCode": {
+                "type": "string"
+              },
+              "state": {
+                "enum": ["draft", "sent", "send_unknown", "rejected"]
+              }
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "ClaimWorkItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "claimRef", "owner", "reasonCode", "dueAt", "overdue", "sourceRef"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,63}$"
+        },
+        "claimRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "owner": {
+          "enum": ["billing", "front_office", "clinical", "billing_manager"]
+        },
+        "reasonCode": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,63}$"
+        },
+        "dueAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "overdue": {
+          "type": "boolean"
+        },
+        "sourceRef": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    "ClaimWorklistQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "owner": {
+          "enum": ["billing", "front_office", "clinical", "billing_manager"]
+        }
+      }
+    },
+    "ClaimWorklist": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "totalCount", "checkedAt"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ClaimWorkItem"
+          }
+        },
+        "totalCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "checkedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "AppealDraft": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["basisCode", "denialEventRef"],
+      "properties": {
+        "basisCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "denialEventRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "attachmentRefs": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/ObjectRef"
+          }
+        }
+      }
+    },
+    "AppealReview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision"],
+      "properties": {
+        "decision": {
+          "enum": ["approve_and_send", "reject"]
+        }
+      }
+    },
+    "AppealCommandData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["appealRef", "state"],
+      "properties": {
+        "appealRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "state": {
+          "enum": ["draft", "sent", "send_unknown", "rejected"]
+        }
+      }
+    },
+    "SubmissionPolicyCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maxBilled"],
+      "properties": {
+        "maxBilled": {
+          "$ref": "#/$defs/PositiveMoney"
+        },
+        "payerRef": {
+          "type": "string",
+          "pattern": "^syn-payer-[a-z0-9-]{1,40}$"
+        }
+      }
+    },
+    "SubmissionPolicyRevoke": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasonCode"],
+      "properties": {
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "PolicyCommandData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policyRef", "state"],
+      "properties": {
+        "policyRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "state": {
+          "enum": ["active", "revoked"]
+        }
+      }
+    },
+    "ClaimCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/ClaimCommandData"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ClaimReadResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/ClaimView"
+        }
+      }
+    },
+    "ClaimWorklistResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/ClaimWorklist"
+        }
+      }
+    },
+    "AppealCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/AppealCommandData"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "PolicyCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/PolicyCommandData"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
     }
   }
 }

@@ -100,3 +100,88 @@ export const validateAdjustmentDecision = billingDef('AdjustmentDecision');
 export const validateReceivablesQuery = billingDef('ReceivablesQuery');
 export const validateFeeResolution = billingDef('FeeResolution');
 export const validateReceivablesReport = billingDef('ReceivablesReport');
+
+// ---- B6 claims (fake clearinghouse only).
+export interface ClaimPrepare {
+  readonly patientRef: string;
+  readonly coverageRef: string;
+  readonly procedureRefs: readonly string[];
+}
+export interface ClaimVersioned {
+  readonly expectedVersion: number;
+}
+export interface ClaimAttach extends ClaimVersioned {
+  readonly objectRef: string;
+  readonly kind: 'radiograph' | 'photo' | 'narrative' | 'perio_chart';
+}
+export interface ClaimReplace extends ClaimVersioned {
+  readonly reasonCode: string;
+  readonly procedureRefs?: readonly string[];
+}
+export interface ClaimSubmit extends ClaimVersioned {
+  readonly authorization:
+    | { readonly mode: 'explicit' }
+    | { readonly mode: 'policy'; readonly policyRef: string };
+}
+export interface ClaimIssue {
+  readonly code: string;
+  readonly owner: 'billing' | 'front_office' | 'clinical';
+  readonly sourceRef: string | null;
+}
+export interface ClaimCommandData {
+  readonly claimRef: string;
+  readonly versionRef: string;
+  readonly versionNo: number;
+  readonly outcome:
+    | 'prepared'
+    | 'versioned'
+    | 'valid'
+    | 'invalid'
+    | 'transmitted'
+    | 'rejected'
+    | 'unknown'
+    | 'polled';
+  readonly submissionRef?: string | null;
+  readonly issueCount?: number;
+  readonly eventCount?: number;
+}
+export interface ClaimWorkItem {
+  readonly kind: string;
+  readonly claimRef: string;
+  readonly owner: 'billing' | 'front_office' | 'clinical' | 'billing_manager';
+  readonly reasonCode: string;
+  readonly dueAt: string;
+  readonly overdue: boolean;
+  readonly sourceRef: string | null;
+}
+export interface AppealDraft {
+  readonly basisCode: string;
+  readonly denialEventRef: string;
+  readonly attachmentRefs?: readonly string[];
+}
+export interface AppealReview {
+  readonly decision: 'approve_and_send' | 'reject';
+}
+export interface AppealCommandData {
+  readonly appealRef: string;
+  readonly state: 'draft' | 'sent' | 'send_unknown' | 'rejected';
+}
+export interface SubmissionPolicyCreate {
+  readonly maxBilled: Money;
+  readonly payerRef?: string;
+}
+export interface PolicyCommandData {
+  readonly policyRef: string;
+  readonly state: 'active' | 'revoked';
+}
+export const validateClaimPrepare = billingDef('ClaimPrepare');
+export const validateClaimVersioned = billingDef('ClaimVersioned');
+export const validateClaimAttach = billingDef('ClaimAttach');
+export const validateClaimReplace = billingDef('ClaimReplace');
+export const validateClaimSubmit = billingDef('ClaimSubmit');
+export const validateClaimWorklistQuery = billingDef('ClaimWorklistQuery');
+export const validateAppealDraft = billingDef('AppealDraft');
+export const validateAppealReview = billingDef('AppealReview');
+export const validateSubmissionPolicyCreate = billingDef('SubmissionPolicyCreate');
+export const validateSubmissionPolicyRevoke = billingDef('SubmissionPolicyRevoke');
+export const validateClaimReadResult = billingDef('ClaimReadResult');

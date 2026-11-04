@@ -1,0 +1,1226 @@
+import {
+  type ActorContext,
+  type AppealCommandData,
+  type AppealDraft,
+  type AppealReview,
+  type ClaimAttach,
+  type ClaimCommandData,
+  type ClaimIssue,
+  type ClaimPrepare,
+  type ClaimReplace,
+  type ClaimSubmit,
+  type ClaimVersioned,
+  type ClaimWorkItem,
+  type CommandEnvelope,
+  type CommandResult,
+  moneyFromMinorText,
+  type PolicyCommandData,
+  RefusalError,
+  type SubmissionPolicyCreate,
+  type TenantTransaction,
+  validateAppealDraft,
+  validateAppealReview,
+  validateClaimAttach,
+  validateClaimPrepare,
+  validateClaimReplace,
+  validateClaimSubmit,
+  validateClaimVersioned,
+  validateClaimWorklistQuery,
+  validateSubmissionPolicyCreate,
+  validateSubmissionPolicyRevoke,
+} from '@cuspatlas/contracts';
+import {
+  assertRef,
+  type BillingBase,
+  checkEnvelope,
+  conflict,
+  failed,
+  inTenantCurrency,
+  isPgError,
+  loadPatient,
+  loadSettings,
+  mergeSet,
+  notFound,
+  validate,
+} from '../billing/base';
+import { resolveAllowance } from '../billing/fees';
+import { postEntry, SignViolation } from '../billing/journal';
+import { committedReplay, providerTiming, withTimeout } from '../billing/payments';
+import { loadRenderedProcedureEvent } from '../clinical/procedures';
+import { canonicalJson, sha256Hex } from '../commands/digest';
+import { recordCommand } from '../events/record-command';
+import { recordSensitiveRead } from '../events/record-sensitive-read';
+import { type ClaimsPartnerPort, createFakeClearinghouse, type TransportAnswer } from './clearinghouse';
+
+export const CLAIM_RESOURCE = 'rcmClaim';
+/** Days without adjudication after transmission before a follow-up is due (synthetic default). */
+export const CLAIM_FOLLOW_UP_DAYS = 30;
+const SYN_DENIALS = { source: 'syn-denial-codes', version: 'v1' } as const;
+const SYN_REJECTIONS = { source: 'syn-clearinghouse-rejections', version: 'v1' } as const;
+
+interface ClaimRow extends Record<string, unknown> {
+  id: string;
+  patient_id: string;
+  coverage_id: string;
+  payer_ref: string;
+  version: number;
+}
+interface LineRow extends Record<string, unknown> {
+  line_no: number;
+  procedure_id: string;
+  charge_id: string;
+  code_ref: string;
+  date_of_service: string;
+  tooth_ref: string | null;
+  rendering_provider_id: string;
+  billed: string;
+  allowance: string | null;
+}
+interface VersionRow extends Record<string, unknown> {
+  id: string;
+  version_no: number;
+  reason: 'prepared' | 'attachment' | 'replacement';
+  coverage_version: number;
+  billed: string;
+  currency: string;
+}
+
+const later = (reason: string) => new RefusalError({ code: 'conflict', retryable: true, detail: { reason } });
+
+async function loadClaim(tx: TenantTransaction, claimRef: string, lock = ''): Promise<ClaimRow> {
+  assertRef(claimRef);
+  const { rows } = await tx.query<ClaimRow>(
+    `SELECT id, patient_id, coverage_id, payer_ref, version FROM cuspatlas.rcm_claims WHERE id = $1 ${lock}`,
+    [claimRef],
+  );
+  if (!rows[0]) throw notFound();
+  return rows[0];
+}
+async function headOf(tx: TenantTransaction, claimId: string): Promise<VersionRow> {
+  const { rows } = await tx.query<VersionRow>(
+    `SELECT id, version_no, reason, coverage_version, billed_total_minor::text AS billed, currency
+     FROM cuspatlas.rcm_claim_versions WHERE claim_id = $1 ORDER BY version_no DESC LIMIT 1`,
+    [claimId],
+  );
+  return rows[0] as VersionRow;
+}
+async function linesOf(tx: TenantTransaction, versionId: string): Promise<LineRow[]> {
+  const { rows } = await tx.query<LineRow>(
+    `SELECT line_no, procedure_id, charge_id, code_ref, to_char(date_of_service, 'YYYY-MM-DD') AS date_of_service,
+       tooth_ref, rendering_provider_id, billed_minor::text AS billed, allowance_minor::text AS allowance
+     FROM cuspatlas.rcm_claim_lines WHERE version_id = $1 ORDER BY line_no`,
+    [versionId],
+  );
+  return rows;
+}
+async function attachmentsOf(tx: TenantTransaction, versionId: string) {
+  const { rows } = await tx.query<{ object_ref: string; kind: string }>(
+    'SELECT object_ref, kind FROM cuspatlas.rcm_claim_attachments WHERE version_id = $1 ORDER BY object_ref',
+    [versionId],
+  );
+  return rows;
+}
+async function coverageVersionOf(tx: TenantTransaction, coverageId: string): Promise<number> {
+  const { rows } = await tx.query<{ v: number }>(
+    'SELECT max(coverage_version)::int AS v FROM cuspatlas.rcm_coverage_versions WHERE coverage_id = $1',
+    [coverageId],
+  );
+  return rows[0]?.v ?? 1;
+}
+/** The posted, unreversed clinical charge of a procedure (the completion fact B relies on). */
+async function chargeOf(tx: TenantTransaction, procedureRef: string) {
+  const { rows } = await tx.query<{ id: string; amount: string; reversed: boolean }>(
+    `SELECT c.id, c.amount_minor::text AS amount,
+       EXISTS (SELECT 1 FROM cuspatlas.billing_journal_entries e JOIN cuspatlas.billing_journal_entries r
+                 ON r.reverses_entry_id = e.id WHERE e.charge_id = c.id AND e.kind = 'charge') AS reversed
+     FROM cuspatlas.billing_charges c WHERE c.procedure_ref = $1 AND c.source = 'clinical_procedure'`,
+    [procedureRef],
+  );
+  return rows[0] ?? null;
+}
+
+/** Assembles claim lines ONLY from C14 rendered procedures with posted charges (CL-02). */
+async function buildLines(
+  tx: TenantTransaction,
+  setIds: readonly string[],
+  coverageId: string,
+  procedureRefs: readonly string[],
+) {
+  const lines: Omit<LineRow, 'line_no'>[] = [];
+  for (const ref of procedureRefs) {
+    const ev = await loadRenderedProcedureEvent(tx, ref);
+    if (ev === null) throw notFound();
+    if (ev.eventType !== 'procedure.rendered.v1') throw failed('missing_completion_fact');
+    if (!setIds.includes(ev.patientRef)) throw failed('procedure_patient_mismatch');
+    const charge = await chargeOf(tx, ev.procedureRef);
+    if (!charge) throw later('missing_completion_fact');
+    if (charge.reversed) throw failed('procedure_reversed');
+    const allowance = await resolveAllowance(tx, ev.codeRef, ev.dateOfService, coverageId);
+    lines.push({
+      procedure_id: ev.procedureRef,
+      charge_id: charge.id,
+      code_ref: ev.codeRef,
+      date_of_service: ev.dateOfService,
+      tooth_ref: ev.toothSurface?.toothRef ?? null,
+      rendering_provider_id: ev.renderingProviderRef,
+      billed: charge.amount,
+      allowance: allowance === null ? null : String(allowance.fee.minor),
+    });
+  }
+  return lines;
+}
+
+async function insertVersion(
+  tx: TenantTransaction,
+  claimId: string,
+  o: {
+    versionNo: number;
+    reason: VersionRow['reason'];
+    reasonCode: string | null;
+    supersedes: string | null;
+    coverageVersion: number;
+    currency: string;
+    lines: readonly Omit<LineRow, 'line_no'>[];
+    attachments: readonly { object_ref: string; kind: string }[];
+  },
+): Promise<string> {
+  const billed = o.lines.reduce((s, l) => s + BigInt(l.billed as string), 0n);
+  const digest = sha256Hex(
+    canonicalJson({ lines: o.lines, attachments: o.attachments, cv: o.coverageVersion }),
+  );
+  const { rows } = await tx.query<{ id: string }>(
+    `INSERT INTO cuspatlas.rcm_claim_versions (tenant_id, claim_id, version_no, reason, reason_code, supersedes_id,
+       coverage_version, billed_total_minor, currency, line_count, content_digest, created_by)
+     VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, cuspatlas.current_actor_id())
+     RETURNING id`,
+    [
+      claimId,
+      o.versionNo,
+      o.reason,
+      o.reasonCode,
+      o.supersedes,
+      o.coverageVersion,
+      billed.toString(),
+      o.currency,
+      o.lines.length,
+      digest,
+    ],
+  );
+  const id = rows[0]?.id as string;
+  for (const [i, l] of o.lines.entries()) {
+    await tx.query(
+      `INSERT INTO cuspatlas.rcm_claim_lines (tenant_id, version_id, line_no, procedure_id, charge_id, code_ref,
+         date_of_service, tooth_ref, rendering_provider_id, billed_minor, allowance_minor)
+       VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6::date, $7, $8, $9, $10)`,
+      [
+        id,
+        i + 1,
+        l.procedure_id,
+        l.charge_id,
+        l.code_ref,
+        l.date_of_service,
+        l.tooth_ref,
+        l.rendering_provider_id,
+        l.billed,
+        l.allowance,
+      ],
+    );
+  }
+  for (const a of o.attachments) {
+    await tx.query(
+      `INSERT INTO cuspatlas.rcm_claim_attachments (tenant_id, version_id, object_ref, kind)
+       VALUES (cuspatlas.current_tenant_id(), $1, $2, $3)`,
+      [id, a.object_ref, a.kind],
+    );
+  }
+  return id;
+}
+
+/**
+ * Readiness validation (CL-03): deterministic rules naming the exact missing fact, its owner and the
+ * source reference. The input digest binds the result to the facts it read, so any change (a charge
+ * reversed, coverage changed, eligibility recorded) invalidates it.
+ */
+async function readiness(tx: TenantTransaction, claim: ClaimRow, head: VersionRow) {
+  const lines = await linesOf(tx, head.id);
+  const attachments = await attachmentsOf(tx, head.id);
+  const issues: ClaimIssue[] = [];
+  const cv = await coverageVersionOf(tx, claim.coverage_id);
+  if (cv !== head.coverage_version)
+    issues.push({ code: 'coverage_changed', owner: 'billing', sourceRef: claim.coverage_id });
+  const facts: unknown[] = [cv];
+  for (const l of lines) {
+    const charge = await chargeOf(tx, l.procedure_id);
+    if (!charge || charge.reversed)
+      issues.push({ code: 'charge_reversed', owner: 'billing', sourceRef: l.charge_id });
+    const { rows: eff } = await tx.query<{ ok: boolean }>(
+      `SELECT (v.effective_from <= $2::date AND (v.effective_until IS NULL OR v.effective_until >= $2::date)) AS ok
+       FROM cuspatlas.rcm_coverage_versions v WHERE v.coverage_id = $1 ORDER BY v.coverage_version DESC LIMIT 1`,
+      [claim.coverage_id, l.date_of_service],
+    );
+    if (eff[0]?.ok !== true)
+      issues.push({ code: 'coverage_not_effective', owner: 'front_office', sourceRef: claim.coverage_id });
+    const { rows: el } = await tx.query<{ id: string; state: string; inactive: boolean }>(
+      `SELECT e.id, e.state, coalesce(e.benefits #>> '{status,value}' = 'inactive', false) AS inactive
+       FROM cuspatlas.rcm_eligibility_records e
+       WHERE e.coverage_id = $1 AND e.coverage_version = $2 AND e.service_date = $3::date
+         AND e.state IN ('verified', 'unverified') AND now() <= e.retrieved_at + make_interval(hours => e.freshness_hours)
+       ORDER BY e.retrieved_at DESC, e.id LIMIT 1`,
+      [claim.coverage_id, cv, l.date_of_service],
+    );
+    const rec = el[0];
+    if (!rec)
+      issues.push({ code: 'eligibility_not_current', owner: 'front_office', sourceRef: claim.coverage_id });
+    else if (rec.state === 'verified' && rec.inactive)
+      issues.push({ code: 'coverage_inactive', owner: 'front_office', sourceRef: rec.id });
+    if (/^SYN-ATT-/.test(l.code_ref) && attachments.length === 0)
+      issues.push({ code: 'attachment_required', owner: 'clinical', sourceRef: l.procedure_id });
+    facts.push([l.charge_id, charge?.reversed ?? null, eff[0]?.ok ?? null, rec?.id ?? null]);
+  }
+  const unique = [...new Map(issues.map((i) => [`${i.code}:${i.sourceRef}`, i])).values()];
+  return { issues: unique, digest: sha256Hex(canonicalJson({ version: head.id, facts })) };
+}
+
+/**
+ * B6 claims (CL-02..CL-08) against the fake clearinghouse only (B-S2 open). A claim version is
+ * immutable; validation is bound to a version and its inputs; submission needs the explicit approval
+ * of the human caller or a standing policy rechecked at execution; transport outcomes, payer
+ * acknowledgements, rejections and adjudications (with synthetic denial codes and their source) are
+ * distinct facts; an unknown outcome is reconciled by lookup, never resubmitted; a rejection or denial
+ * is corrected by a linked replacement version; appeals are drafts another human reviews before send.
+ */
+export function createClaimOperations(
+  base: BillingBase,
+  partner: ClaimsPartnerPort = createFakeClearinghouse(),
+) {
+  const { deps, execute } = base;
+  const timing = providerTiming(deps);
+  const bump = async (tx: TenantTransaction, claimId: string) => {
+    const { rows } = await tx.query<{ version: number }>(
+      'UPDATE cuspatlas.rcm_claims SET version = version + 1, updated_at = now() WHERE id = $1 RETURNING version',
+      [claimId],
+    );
+    return rows[0]?.version as number;
+  };
+  const record = (tx: TenantTransaction, op: string, claimId: string, version: number, field: string) =>
+    recordCommand(
+      tx,
+      { operation: op, resourceType: CLAIM_RESOURCE, resourceRef: claimId, resourceVersion: version },
+      { changedFields: [field] },
+    );
+  const checkVersion = (claim: ClaimRow, expected: number) => {
+    if (claim.version !== expected) throw conflict('stale_version');
+  };
+  const latestSubmission = async (tx: TenantTransaction, claimId: string) => {
+    const { rows } = await tx.query<{
+      id: string;
+      version_id: string;
+      submission_key: string;
+      outcome: string;
+      transport_ref: string | null;
+    }>(
+      `SELECT id, version_id, submission_key, outcome, transport_ref FROM cuspatlas.rcm_claim_submissions
+       WHERE claim_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1`,
+      [claimId],
+    );
+    return rows[0] ?? null;
+  };
+  const transportEvent = async (
+    tx: TenantTransaction,
+    claimId: string,
+    submission: { id: string; submission_key: string },
+    a: TransportAnswer,
+  ) => {
+    if (a.outcome === 'unknown') return;
+    await tx.query(
+      `INSERT INTO cuspatlas.rcm_claim_events (tenant_id, claim_id, submission_id, kind, external_ref, code, code_source,
+         code_version, occurred_at)
+       VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6, $7, now()) ON CONFLICT DO NOTHING`,
+      [
+        claimId,
+        submission.id,
+        a.outcome === 'transmitted' ? 'transport_acknowledged' : 'transport_rejected',
+        `syn-evt-${sha256Hex(`transport:${submission.submission_key}`).slice(0, 32)}`,
+        a.outcome === 'rejected' ? a.rejectionCode : null,
+        a.outcome === 'rejected' ? SYN_REJECTIONS.source : null,
+        a.outcome === 'rejected' ? SYN_REJECTIONS.version : null,
+      ],
+    );
+  };
+  /** Transmitted: the billed amounts become insurer responsibility of the claim's coverage. */
+  const toInsurer = async (tx: TenantTransaction, claim: ClaimRow, versionId: string) => {
+    const settings = await loadSettings(tx);
+    for (const l of await linesOf(tx, versionId)) {
+      const { rows } = await tx.query<{ open: string; patient_id: string }>(
+        `SELECT coalesce(sum(amount_minor), 0)::text AS open, min(patient_id::text) AS patient_id
+         FROM cuspatlas.billing_journal_lines WHERE charge_id = $1 AND account = 'patient_receivable'`,
+        [l.charge_id],
+      );
+      const open = BigInt(rows[0]?.open ?? '0');
+      const amount = open < BigInt(l.billed) ? open : BigInt(l.billed);
+      if (amount <= 0n) continue;
+      const m = moneyFromMinorText(settings.currency, amount.toString());
+      const neg = moneyFromMinorText(settings.currency, (-amount).toString());
+      const patientId = rows[0]?.patient_id as string;
+      try {
+        await postEntry(tx, {
+          kind: 'responsibilityTransfer',
+          currency: settings.currency,
+          chargeId: l.charge_id,
+          reasonCode: 'claim_transmitted',
+          lines: [
+            {
+              account: 'insurer_receivable',
+              amount: m,
+              patientId,
+              chargeId: l.charge_id,
+              payerRef: claim.payer_ref,
+              coverageId: claim.coverage_id,
+            },
+            { account: 'patient_receivable', amount: neg, patientId, chargeId: l.charge_id },
+          ],
+        });
+      } catch (err) {
+        if (!(err instanceof SignViolation)) throw err;
+      }
+    }
+  };
+
+  return {
+    prepareClaim(
+      ctx: ActorContext,
+      envelope: CommandEnvelope<unknown>,
+    ): Promise<CommandResult<ClaimCommandData>> {
+      const op = 'rcm.claims.prepare';
+      return base.guarded(ctx, op, async () => {
+        await base.authorize(ctx, op);
+        checkEnvelope(envelope, op);
+        const p = envelope.payload;
+        validate<ClaimPrepare>(validateClaimPrepare, p);
+        return deps.withTenantTransaction(ctx, async (tx) => {
+          const patient = await loadPatient(tx, p.patientRef, 'FOR SHARE');
+          return execute<ClaimCommandData>(ctx, envelope, tx, async () => {
+            const set = await mergeSet(tx, patient.id);
+            const { rows: cov } = await tx.query<{ id: string; payer_ref: string }>(
+              'SELECT id, payer_ref FROM cuspatlas.rcm_coverages WHERE id = $1 AND patient_id = ANY ($2::uuid[])',
+              [p.coverageRef, set.ids],
+            );
+            if (!cov[0]) throw failed('coverage_not_of_patient');
+            const lines = await buildLines(tx, set.ids, cov[0].id, p.procedureRefs);
+            const { rows } = await tx.query<{ id: string }>(
+              `INSERT INTO cuspatlas.rcm_claims (tenant_id, patient_id, coverage_id, payer_ref, created_by)
+               VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, cuspatlas.current_actor_id()) RETURNING id`,
+              [set.root, cov[0].id, cov[0].payer_ref],
+            );
+            const claimId = rows[0]?.id as string;
+            const versionRef = await insertVersion(tx, claimId, {
+              versionNo: 1,
+              reason: 'prepared',
+              reasonCode: null,
+              supersedes: null,
+              coverageVersion: await coverageVersionOf(tx, cov[0].id),
+              currency: (await loadSettings(tx)).currency,
+              lines,
+              attachments: [],
+            });
+            await record(tx, op, claimId, 1, 'claim');
+            return { data: { claimRef: claimId, versionRef, versionNo: 1, outcome: 'prepared' }, version: 1 };
+          });
+        });
+      });
+    },
+
+    validateClaim(
+      ctx: ActorContext,
+      claimRef: string,
+      envelope: CommandEnvelope<unknown>,
+    ): Promise<CommandResult<ClaimCommandData>> {
+      const op = 'rcm.claims.validate';
+      return base.guarded(ctx, op, async () => {
+        await base.authorize(ctx, op);
+        checkEnvelope(envelope, op);
+        const p = envelope.payload;
+        validate<ClaimVersioned>(validateClaimVersioned, p);
+        return deps.withTenantTransaction(ctx, async (tx) => {
+          const claim = await loadClaim(tx, claimRef, 'FOR UPDATE');
+          return execute<ClaimCommandData>(
+            ctx,
+            { ...envelope, payload: { claimRef, ...p } },
+            tx,
+            async () => {
+              checkVersion(claim, p.expectedVersion);
+              const head = await headOf(tx, claim.id);
+              const r = await readiness(tx, claim, head);
+              await tx.query(
+                `INSERT INTO cuspatlas.rcm_claim_validations (tenant_id, version_id, valid, issues, input_digest, validated_by)
+               VALUES (cuspatlas.current_tenant_id(), $1, $2, $3::jsonb, $4, cuspatlas.current_actor_id())`,
+                [head.id, r.issues.length === 0, canonicalJson(r.issues), r.digest],
+              );
+              const version = await bump(tx, claim.id);
+              await record(tx, op, claim.id, version, 'validation');
+              return {
+                data: {
+                  claimRef: claim.id,
+                  versionRef: head.id,
+                  versionNo: head.version_no,
+                  outcome: r.issues.length === 0 ? 'valid' : 'invalid',
+                  issueCount: r.issues.length,
+                },
+                version,
+              };
+            },
+          );
+        });
+      });
+    },
+
+    attachToClaim(
+      ctx: ActorContext,
+      claimRef: string,
+      envelope: CommandEnvelope<unknown>,
+    ): Promise<CommandResult<ClaimCommandData>> {
+      return newVersion(ctx, claimRef, envelope, 'rcm.claims.attach');
+    },
+    replaceClaim(
+      ctx: ActorContext,
+      claimRef: string,
+      envelope: CommandEnvelope<unknown>,
+    ): Promise<CommandResult<ClaimCommandData>> {
+      return newVersion(ctx, claimRef, envelope, 'rcm.claims.replace');
+    },
+
+    submitClaim(
+      ctx: ActorContext,
+      claimRef: string,
+      envelope: CommandEnvelope<unknown>,
+    ): Promise<CommandResult<ClaimCommandData>> {
+      const op = 'rcm.claims.submit';
+      return base.guarded(ctx, op, async () => {
+        await base.authorize(ctx, op);
+        checkEnvelope(envelope, op);
+        const p = envelope.payload;
+        validate<ClaimSubmit>(validateClaimSubmit, p);
+        const replay = { ...envelope, payload: { claimRef, ...p } };
+        const pending = await deps.withTenantTransaction(ctx, async (tx) => {
+          const claim = await loadClaim(tx, claimRef, 'FOR UPDATE');
+          if (await committedReplay(tx, op, envelope.idempotencyKey)) return null;
+          checkVersion(claim, p.expectedVersion);
+          const head = await headOf(tx, claim.id);
+          const prior = await latestSubmission(tx, claim.id);
+          if (prior && prior.version_id === head.id)
+            throw conflict('already_submitted', [{ kind: 'claimSubmission', ref: prior.id }]);
+          const { rows: vr } = await tx.query<{ id: string; valid: boolean; input_digest: string }>(
+            `SELECT id, valid, input_digest FROM cuspatlas.rcm_claim_validations WHERE version_id = $1
+             ORDER BY validated_at DESC, id DESC LIMIT 1`,
+            [head.id],
+          );
+          const v = vr[0];
+          if (!v) throw conflict('validation_required');
+          if (!v.valid) throw conflict('claim_not_ready');
+          if ((await readiness(tx, claim, head)).digest !== v.input_digest)
+            throw conflict('validation_stale');
+          let policyId: string | null = null;
+          if (p.authorization.mode === 'explicit') {
+            if (ctx.principal !== 'human')
+              throw new RefusalError({ code: 'forbidden', reasonCode: 'principal_kind_denied' });
+          } else {
+            const { rows: pol } = await tx.query<{
+              id: string;
+              payer_ref: string | null;
+              max: string;
+              revoked: boolean;
+            }>(
+              `SELECT p.id, p.payer_ref, p.max_billed_minor::text AS max,
+                 EXISTS (SELECT 1 FROM cuspatlas.rcm_submission_policy_revocations r WHERE r.policy_id = p.id) AS revoked
+               FROM cuspatlas.rcm_submission_policies p WHERE p.id = $1`,
+              [p.authorization.policyRef],
+            );
+            const pol0 = pol[0];
+            if (!pol0) throw failed('policy_unknown');
+            if (pol0.revoked) throw conflict('policy_revoked');
+            if (pol0.payer_ref !== null && pol0.payer_ref !== claim.payer_ref)
+              throw conflict('policy_payer_mismatch');
+            if (BigInt(head.billed) > BigInt(pol0.max)) throw conflict('policy_limit_exceeded');
+            policyId = pol0.id;
+          }
+          const key = sha256Hex(`rcm-claim-submission:${ctx.tenantId}:${head.id}`);
+          const { rows } = await tx.query<{ id: string }>(
+            `INSERT INTO cuspatlas.rcm_claim_submissions (tenant_id, claim_id, version_id, submission_key, authorization_mode,
+               policy_id, validation_id, outcome, submitted_by)
+             VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6, 'pending', cuspatlas.current_actor_id())
+             RETURNING id`,
+            [claim.id, head.id, key, p.authorization.mode, policyId, v.id],
+          );
+          return {
+            claim,
+            head,
+            submission: { id: rows[0]?.id as string, submission_key: key },
+            lines: (await linesOf(tx, head.id)).map((l) => ({
+              lineNo: l.line_no,
+              codeRef: l.code_ref,
+              billedMinor: Number.parseInt(l.billed, 10),
+            })),
+          };
+        });
+        const unknown: TransportAnswer = { outcome: 'unknown' };
+        const answer =
+          pending === null
+            ? null
+            : await withTimeout(
+                () =>
+                  partner.submit({
+                    submissionKey: pending.submission.submission_key,
+                    payerRef: pending.claim.payer_ref,
+                    claimRef: pending.claim.id,
+                    versionNo: pending.head.version_no,
+                    lines: pending.lines,
+                  }),
+                timing.timeoutMs,
+                unknown,
+              );
+        return deps.withTenantTransaction(ctx, async (tx) => {
+          await loadClaim(tx, claimRef, 'FOR UPDATE');
+          return execute<ClaimCommandData>(ctx, replay, tx, async () => {
+            if (pending === null || answer === null)
+              throw new RefusalError({ code: 'conflict', retryable: true });
+            await finalizeSubmission(tx, pending.claim, pending.submission, answer, false);
+            const version = await bump(tx, pending.claim.id);
+            await record(tx, op, pending.claim.id, version, 'submission');
+            return {
+              data: {
+                claimRef: pending.claim.id,
+                versionRef: pending.head.id,
+                versionNo: pending.head.version_no,
+                outcome: answer.outcome,
+                submissionRef: pending.submission.id,
+              },
+              version,
+            };
+          });
+        });
+      });
+    },
+
+    /**
+     * Responses from the partner (CL-05/CL-06): an unknown submission is resolved by lookup with its
+     * key (never a new submission); a transmitted one records each new acknowledgement, rejection or
+     * adjudication exactly once (idempotent per partner event reference).
+     */
+    pollClaim(ctx: ActorContext, claimRef: string): Promise<{ data: ClaimCommandData }> {
+      const op = 'rcm.claims.poll';
+      return base.guarded(ctx, op, async () => {
+        await base.authorize(ctx, op);
+        const first = await deps.withTenantTransaction(ctx, async (tx) => {
+          const claim = await loadClaim(tx, claimRef);
+          return { claim, head: await headOf(tx, claim.id), sub: await latestSubmission(tx, claim.id) };
+        });
+        if (!first.sub || first.sub.outcome === 'pending' || first.sub.outcome === 'rejected')
+          throw conflict('nothing_to_poll');
+        const sub = first.sub;
+        const looked =
+          sub.outcome === 'unknown'
+            ? await withTimeout(() => partner.lookup(sub.submission_key), timing.timeoutMs, null)
+            : null;
+        const events =
+          sub.outcome === 'transmitted' || looked?.outcome === 'transmitted'
+            ? await withTimeout(() => partner.poll(sub.submission_key), timing.timeoutMs, [])
+            : [];
+        return deps.withTenantTransaction(ctx, async (tx) => {
+          const claim = await loadClaim(tx, claimRef, 'FOR UPDATE');
+          let changed = 0;
+          if (looked && (looked.outcome === 'transmitted' || looked.outcome === 'rejected')) {
+            const { rows } = await tx.query<{ outcome: string }>(
+              'SELECT outcome FROM cuspatlas.rcm_claim_submissions WHERE id = $1',
+              [sub.id],
+            );
+            if (rows[0]?.outcome === 'unknown') {
+              await finalizeSubmission(tx, claim, sub, looked, true);
+              changed += 1;
+            }
+          }
+          for (const e of events) {
+            const denial = e.kind === 'adjudicated_denied' || e.kind === 'payer_rejected';
+            const src = e.kind === 'payer_rejected' ? SYN_REJECTIONS : SYN_DENIALS;
+            const { rowCount } = await tx.query(
+              `INSERT INTO cuspatlas.rcm_claim_events (tenant_id, claim_id, submission_id, kind, external_ref, code,
+                 code_source, code_version, occurred_at)
+               VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6, $7, $8::timestamptz) ON CONFLICT DO NOTHING`,
+              [
+                claim.id,
+                sub.id,
+                e.kind,
+                e.eventRef,
+                denial ? (e.code ?? null) : null,
+                denial ? src.source : null,
+                denial ? src.version : null,
+                e.occurredAt,
+              ],
+            );
+            changed += rowCount;
+          }
+          let version = claim.version;
+          if (changed > 0) {
+            version = await bump(tx, claim.id);
+            await record(tx, op, claim.id, version, 'responses');
+          }
+          return {
+            data: {
+              claimRef: claim.id,
+              versionRef: first.head.id,
+              versionNo: first.head.version_no,
+              outcome: 'polled',
+              eventCount: changed,
+            },
+          };
+        });
+      });
+    },
+
+    getClaim(ctx: ActorContext, claimRef: string) {
+      const op = 'rcm.claims.read';
+      return base.guarded(ctx, op, async () => {
+        await base.authorize(ctx, op);
+        return deps.withTenantTransaction(ctx, async (tx) => {
+          const claim = await loadClaim(tx, claimRef);
+          const view = await claimView(tx, claim);
+          await recordSensitiveRead(tx, {
+            operation: op,
+            resourceType: CLAIM_RESOURCE,
+            resourceRefs: [claim.id],
+            queryFields: [],
+          });
+          return view;
+        });
+      });
+    },
+
+    /** CL-08: every open claim fact as an owned work item with a due time and the next action. */
+    listClaimWorklist(ctx: ActorContext, query: unknown) {
+      const op = 'rcm.claims.worklist';
+      return base.guarded(ctx, op, async () => {
+        await base.authorize(ctx, op);
+        validate<{ owner?: ClaimWorkItem['owner'] }>(validateClaimWorklistQuery, query);
+        return deps.withTenantTransaction(ctx, async (tx) => {
+          const { rows: claims } = await tx.query<ClaimRow>(
+            'SELECT id, patient_id, coverage_id, payer_ref, version FROM cuspatlas.rcm_claims ORDER BY created_at, id LIMIT 200',
+          );
+          const items: ClaimWorkItem[] = [];
+          const { rows: clock } = await tx.query<{ now: Date }>('SELECT now() AS now');
+          const now = (clock[0] as { now: Date }).now;
+          const item = (
+            claimRef: string,
+            kind: string,
+            owner: ClaimWorkItem['owner'],
+            reasonCode: string,
+            due: Date,
+            sourceRef: string | null,
+          ) =>
+            items.push({
+              kind,
+              claimRef,
+              owner,
+              reasonCode,
+              dueAt: due.toISOString(),
+              overdue: due < now,
+              sourceRef,
+            });
+          for (const c of claims) {
+            const v = await claimView(tx, c);
+            const head = v.versions[v.versions.length - 1];
+            const latest = v.submissions[v.submissions.length - 1];
+            const headSubmitted = latest && latest.versionNo === v.headVersionNo;
+            const day = (n: number) => new Date(now.getTime() + n * 86_400_000);
+            if (!headSubmitted) {
+              if (!head?.validation || !head.validation.current)
+                item(
+                  c.id,
+                  'validate_claim',
+                  'billing',
+                  'validation_required',
+                  day(1),
+                  head?.versionRef ?? null,
+                );
+              else if (!head.validation.valid)
+                for (const i of head.validation.issues)
+                  item(c.id, 'resolve_issue', i.owner, i.code, day(1), i.sourceRef);
+              else item(c.id, 'submit_claim', 'billing', 'ready_to_submit', day(1), head.versionRef);
+              continue;
+            }
+            if (v.state === 'submission_unknown')
+              item(
+                c.id,
+                'reconcile_submission',
+                'billing',
+                'transport_outcome_unknown',
+                day(0),
+                latest?.submissionRef ?? null,
+              );
+            if (v.state === 'transport_rejected' || v.state === 'payer_rejected')
+              item(c.id, 'correct_and_replace', 'billing', v.state, day(2), latest?.submissionRef ?? null);
+            if (v.state === 'denied' && v.appeals.length === 0)
+              item(c.id, 'review_denial', 'billing', 'denied', day(5), null);
+            for (const a of v.appeals)
+              if (a.state === 'draft')
+                item(c.id, 'review_appeal', 'billing_manager', 'appeal_draft', day(3), a.appealRef);
+            if (v.state === 'transmitted' || v.state === 'payer_acknowledged') {
+              const { rows } = await tx.query<{ at: Date }>(
+                'SELECT created_at AS at FROM cuspatlas.rcm_claim_submissions WHERE id = $1',
+                [latest?.submissionRef],
+              );
+              const at = rows[0]?.at ?? now;
+              item(
+                c.id,
+                'follow_up',
+                'billing',
+                'no_adjudication',
+                new Date(at.getTime() + CLAIM_FOLLOW_UP_DAYS * 86_400_000),
+                latest?.submissionRef ?? null,
+              );
+            }
+          }
+          const data = items.filter((i) => query.owner === undefined || i.owner === query.owner);
+          return { data, totalCount: data.length, checkedAt: now.toISOString() };
+        });
+      });
+    },
+
+    draftAppeal(
+      ctx: ActorContext,
+      claimRef: string,
+      envelope: CommandEnvelope<unknown>,
+    ): Promise<CommandResult<AppealCommandData>> {
+      const op = 'rcm.appeals.draft';
+      return base.guarded(ctx, op, async () => {
+        await base.authorize(ctx, op);
+        checkEnvelope(envelope, op);
+        const p = envelope.payload;
+        validate<AppealDraft>(validateAppealDraft, p);
+        return deps.withTenantTransaction(ctx, async (tx) => {
+          const claim = await loadClaim(tx, claimRef, 'FOR UPDATE');
+          return execute<AppealCommandData>(
+            ctx,
+            { ...envelope, payload: { claimRef, ...p } },
+            tx,
+            async () => {
+              if (ctx.principal !== 'human')
+                throw new RefusalError({ code: 'forbidden', reasonCode: 'principal_kind_denied' });
+              const { rows: ev } = await tx.query<{ id: string }>(
+                `SELECT id FROM cuspatlas.rcm_claim_events WHERE id = $1 AND claim_id = $2 AND kind = 'adjudicated_denied'`,
+                [p.denialEventRef, claim.id],
+              );
+              if (!ev[0]) throw failed('denial_not_found');
+              const head = await headOf(tx, claim.id);
+              const digest = sha256Hex(
+                canonicalJson({
+                  head: head.id,
+                  denial: ev[0].id,
+                  attachments: [...(p.attachmentRefs ?? [])].sort(),
+                }),
+              );
+              try {
+                const { rows } = await tx.query<{ id: string }>(
+                  `INSERT INTO cuspatlas.rcm_appeals (tenant_id, claim_id, denial_event_id, basis_code, package_digest, drafted_by)
+                 VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, cuspatlas.current_actor_id()) RETURNING id`,
+                  [claim.id, ev[0].id, p.basisCode, digest],
+                );
+                const version = await bump(tx, claim.id);
+                await record(tx, op, claim.id, version, 'appeal');
+                return { data: { appealRef: rows[0]?.id as string, state: 'draft' }, version };
+              } catch (err) {
+                if (isPgError(err, '23505')) throw conflict('duplicate_appeal');
+                throw err;
+              }
+            },
+          );
+        });
+      });
+    },
+
+    reviewAppeal(
+      ctx: ActorContext,
+      appealRef: string,
+      envelope: CommandEnvelope<unknown>,
+    ): Promise<CommandResult<AppealCommandData>> {
+      const op = 'rcm.appeals.review';
+      return base.guarded(ctx, op, async () => {
+        await base.authorize(ctx, op);
+        checkEnvelope(envelope, op);
+        const p = envelope.payload;
+        validate<AppealReview>(validateAppealReview, p);
+        assertRef(appealRef);
+        const pre = await deps.withTenantTransaction(ctx, async (tx) => {
+          const { rows } = await tx.query<{
+            id: string;
+            claim_id: string;
+            drafted_by: string;
+            reviewed: boolean;
+          }>(
+            `SELECT a.id, a.claim_id, a.drafted_by,
+               EXISTS (SELECT 1 FROM cuspatlas.rcm_appeal_reviews r WHERE r.appeal_id = a.id) AS reviewed
+             FROM cuspatlas.rcm_appeals a WHERE a.id = $1`,
+            [appealRef],
+          );
+          const a = rows[0];
+          if (!a) throw notFound();
+          if (a.drafted_by === ctx.actorId)
+            throw new RefusalError({ code: 'self_approval_denied', reasonCode: 'self_approval_denied' });
+          if (await committedReplay(tx, op, envelope.idempotencyKey)) return { a, transport: null };
+          if (a.reviewed) throw conflict('already_reviewed');
+          const sub = await latestSubmission(tx, a.claim_id);
+          return { a, transport: sub?.transport_ref ?? null };
+        });
+        const sent =
+          p.decision === 'approve_and_send' && pre.transport !== null
+            ? await withTimeout(
+                () =>
+                  partner.sendAppeal({
+                    appealKey: sha256Hex(`rcm-appeal:${ctx.tenantId}:${pre.a.id}`),
+                    transportRef: pre.transport as string,
+                  }),
+                timing.timeoutMs,
+                null,
+              )
+            : null;
+        return deps.withTenantTransaction(ctx, async (tx) => {
+          await loadClaim(tx, pre.a.claim_id, 'FOR UPDATE');
+          return execute<AppealCommandData>(
+            ctx,
+            { ...envelope, payload: { appealRef, ...p } },
+            tx,
+            async () => {
+              const approved = p.decision === 'approve_and_send';
+              try {
+                await tx.query(
+                  `INSERT INTO cuspatlas.rcm_appeal_reviews (tenant_id, appeal_id, decision, sent_ref, reviewed_by)
+                 VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, cuspatlas.current_actor_id())`,
+                  [pre.a.id, approved ? 'approved' : 'rejected', approved ? (sent?.sentRef ?? null) : null],
+                );
+              } catch (err) {
+                if (isPgError(err, '23505')) throw conflict('already_reviewed');
+                throw err;
+              }
+              const version = await bump(tx, pre.a.claim_id);
+              await record(tx, op, pre.a.claim_id, version, 'appealReview');
+              return {
+                data: { appealRef: pre.a.id, state: !approved ? 'rejected' : sent ? 'sent' : 'send_unknown' },
+                version,
+              };
+            },
+          );
+        });
+      });
+    },
+
+    createSubmissionPolicy(
+      ctx: ActorContext,
+      envelope: CommandEnvelope<unknown>,
+    ): Promise<CommandResult<PolicyCommandData>> {
+      const op = 'rcm.submissionPolicies.create';
+      return base.guarded(ctx, op, async () => {
+        await base.authorize(ctx, op);
+        checkEnvelope(envelope, op);
+        const p = envelope.payload;
+        validate<SubmissionPolicyCreate>(validateSubmissionPolicyCreate, p);
+        return deps.withTenantTransaction(ctx, async (tx) =>
+          execute<PolicyCommandData>(ctx, envelope, tx, async () => {
+            const max = inTenantCurrency(await loadSettings(tx), p.maxBilled);
+            const { rows } = await tx.query<{ id: string }>(
+              `INSERT INTO cuspatlas.rcm_submission_policies (tenant_id, payer_ref, max_billed_minor, currency, created_by)
+               VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, cuspatlas.current_actor_id()) RETURNING id`,
+              [p.payerRef ?? null, String(max.minor), max.currency],
+            );
+            const id = rows[0]?.id as string;
+            await recordCommand(
+              tx,
+              { operation: op, resourceType: 'rcmSubmissionPolicy', resourceRef: id, resourceVersion: 1 },
+              { changedFields: ['policy'] },
+            );
+            return { data: { policyRef: id, state: 'active' }, version: 1 };
+          }),
+        );
+      });
+    },
+
+    revokeSubmissionPolicy(
+      ctx: ActorContext,
+      policyRef: string,
+      envelope: CommandEnvelope<unknown>,
+    ): Promise<CommandResult<PolicyCommandData>> {
+      const op = 'rcm.submissionPolicies.revoke';
+      return base.guarded(ctx, op, async () => {
+        await base.authorize(ctx, op);
+        checkEnvelope(envelope, op);
+        const p = envelope.payload;
+        validate<{ reasonCode: string }>(validateSubmissionPolicyRevoke, p);
+        assertRef(policyRef);
+        return deps.withTenantTransaction(ctx, async (tx) =>
+          execute<PolicyCommandData>(ctx, { ...envelope, payload: { policyRef, ...p } }, tx, async () => {
+            const { rows } = await tx.query<{ id: string }>(
+              'SELECT id FROM cuspatlas.rcm_submission_policies WHERE id = $1',
+              [policyRef],
+            );
+            if (!rows[0]) throw notFound();
+            try {
+              await tx.query(
+                `INSERT INTO cuspatlas.rcm_submission_policy_revocations (tenant_id, policy_id, reason_code, revoked_by)
+                 VALUES (cuspatlas.current_tenant_id(), $1, $2, cuspatlas.current_actor_id())`,
+                [policyRef, p.reasonCode],
+              );
+            } catch (err) {
+              if (isPgError(err, '23505')) throw conflict('already_revoked');
+              throw err;
+            }
+            await recordCommand(
+              tx,
+              {
+                operation: op,
+                resourceType: 'rcmSubmissionPolicy',
+                resourceRef: policyRef,
+                resourceVersion: 2,
+              },
+              { changedFields: ['revocation'] },
+            );
+            return { data: { policyRef, state: 'revoked' }, version: 2 };
+          }),
+        );
+      });
+    },
+  };
+
+  async function finalizeSubmission(
+    tx: TenantTransaction,
+    claim: ClaimRow,
+    submission: { id: string; submission_key: string },
+    answer: TransportAnswer,
+    byLookup: boolean,
+  ) {
+    await tx.query(
+      `UPDATE cuspatlas.rcm_claim_submissions SET outcome = $2, transport_ref = $3, rejection_code = $4,
+         resolved_by_lookup = $5, version = version + 1, updated_at = now() WHERE id = $1`,
+      [
+        submission.id,
+        answer.outcome,
+        answer.outcome === 'transmitted' ? answer.transportRef : null,
+        answer.outcome === 'rejected' ? answer.rejectionCode : null,
+        byLookup,
+      ],
+    );
+    await transportEvent(tx, claim.id, submission, answer);
+    if (answer.outcome === 'transmitted') {
+      const { rows } = await tx.query<{ version_id: string }>(
+        'SELECT version_id FROM cuspatlas.rcm_claim_submissions WHERE id = $1',
+        [submission.id],
+      );
+      await toInsurer(tx, claim, rows[0]?.version_id as string);
+    }
+  }
+
+  function newVersion(
+    ctx: ActorContext,
+    claimRef: string,
+    envelope: CommandEnvelope<unknown>,
+    op: 'rcm.claims.attach' | 'rcm.claims.replace',
+  ) {
+    return base.guarded(ctx, op, async () => {
+      await base.authorize(ctx, op);
+      checkEnvelope(envelope, op);
+      const p = envelope.payload;
+      if (op === 'rcm.claims.attach') validate<ClaimAttach>(validateClaimAttach, p);
+      else validate<ClaimReplace>(validateClaimReplace, p);
+      return deps.withTenantTransaction(ctx, async (tx) => {
+        const claim = await loadClaim(tx, claimRef, 'FOR UPDATE');
+        return execute<ClaimCommandData>(
+          ctx,
+          { ...envelope, payload: { claimRef, ...(p as object) } },
+          tx,
+          async () => {
+            checkVersion(claim, (p as ClaimVersioned).expectedVersion);
+            const head = await headOf(tx, claim.id);
+            const sub = await latestSubmission(tx, claim.id);
+            const headSubmitted = sub !== null && sub.version_id === head.id;
+            let lines: Omit<LineRow, 'line_no'>[] = (await linesOf(tx, head.id)).map(
+              ({ line_no: _n, ...l }) => l,
+            );
+            let attachments = await attachmentsOf(tx, head.id);
+            let reasonCode: string | null = null;
+            if (op === 'rcm.claims.attach') {
+              if (headSubmitted) throw conflict('claim_version_submitted');
+              const a = p as ClaimAttach;
+              if (attachments.some((x) => x.object_ref === a.objectRef)) throw conflict('attachment_present');
+              attachments = [...attachments, { object_ref: a.objectRef, kind: a.kind }];
+            } else {
+              const r = p as ClaimReplace;
+              // A corrective replacement follows a rejection or denial of the submitted head (CL-06/CL-10).
+              const { rows: bad } = await tx.query<{ n: number }>(
+                `SELECT count(*)::int AS n FROM cuspatlas.rcm_claim_events WHERE claim_id = $1
+               AND kind IN ('transport_rejected', 'payer_rejected', 'adjudicated_denied')`,
+                [claim.id],
+              );
+              if (!headSubmitted || (bad[0]?.n ?? 0) === 0) throw conflict('replacement_not_needed');
+              reasonCode = r.reasonCode;
+              if (r.procedureRefs !== undefined) {
+                const set = await mergeSet(tx, claim.patient_id);
+                lines = await buildLines(tx, set.ids, claim.coverage_id, r.procedureRefs);
+              }
+            }
+            const versionNo = head.version_no + 1;
+            const versionRef = await insertVersion(tx, claim.id, {
+              versionNo,
+              reason: op === 'rcm.claims.attach' ? 'attachment' : 'replacement',
+              reasonCode,
+              supersedes: head.id,
+              coverageVersion: await coverageVersionOf(tx, claim.coverage_id),
+              currency: head.currency,
+              lines,
+              attachments,
+            });
+            const version = await bump(tx, claim.id);
+            await record(tx, op, claim.id, version, 'version');
+            return { data: { claimRef: claim.id, versionRef, versionNo, outcome: 'versioned' }, version };
+          },
+        );
+      });
+    });
+  }
+
+  async function claimView(tx: TenantTransaction, claim: ClaimRow) {
+    const { rows: versions } = await tx.query<VersionRow>(
+      `SELECT id, version_no, reason, coverage_version, billed_total_minor::text AS billed, currency
+       FROM cuspatlas.rcm_claim_versions WHERE claim_id = $1 ORDER BY version_no`,
+      [claim.id],
+    );
+    const head = versions[versions.length - 1] as VersionRow;
+    const out = [];
+    for (const v of versions) {
+      const { rows: val } = await tx.query<{
+        valid: boolean;
+        issues: ClaimIssue[];
+        validated_at: Date;
+        input_digest: string;
+      }>(
+        `SELECT valid, issues, validated_at, input_digest FROM cuspatlas.rcm_claim_validations WHERE version_id = $1
+         ORDER BY validated_at DESC, id DESC LIMIT 1`,
+        [v.id],
+      );
+      const val0 = val[0];
+      const current =
+        val0 !== undefined &&
+        v.id === head.id &&
+        (await readiness(tx, claim, v)).digest === val0.input_digest;
+      out.push({
+        versionRef: v.id,
+        versionNo: v.version_no,
+        reason: v.reason,
+        billedTotal: moneyFromMinorText(v.currency, v.billed),
+        lines: (await linesOf(tx, v.id)).map((l) => ({
+          lineNo: l.line_no,
+          procedureRef: l.procedure_id,
+          chargeRef: l.charge_id,
+          codeRef: l.code_ref,
+          dateOfService: l.date_of_service,
+          renderingProviderRef: l.rendering_provider_id,
+          billed: moneyFromMinorText(v.currency, l.billed),
+          allowance: l.allowance === null ? null : moneyFromMinorText(v.currency, l.allowance),
+        })),
+        attachments: (await attachmentsOf(tx, v.id)).map((a) => ({ objectRef: a.object_ref, kind: a.kind })),
+        validation: val0
+          ? { valid: val0.valid, issues: val0.issues, validatedAt: val0.validated_at.toISOString(), current }
+          : null,
+      });
+    }
+    const { rows: subs } = await tx.query<{
+      id: string;
+      version_no: number;
+      authorization_mode: 'explicit' | 'policy';
+      outcome: 'pending' | 'transmitted' | 'rejected' | 'unknown';
+      rejection_code: string | null;
+    }>(
+      `SELECT s.id, v.version_no, s.authorization_mode, s.outcome, s.rejection_code FROM cuspatlas.rcm_claim_submissions s
+       JOIN cuspatlas.rcm_claim_versions v ON v.id = s.version_id WHERE s.claim_id = $1 ORDER BY s.created_at, s.id`,
+      [claim.id],
+    );
+    const { rows: events } = await tx.query<{
+      kind: string;
+      code: string | null;
+      code_source: string | null;
+      code_version: string | null;
+      occurred_at: Date;
+      submission_id: string;
+    }>(
+      `SELECT kind, code, code_source, code_version, occurred_at, submission_id FROM cuspatlas.rcm_claim_events
+       WHERE claim_id = $1 ORDER BY recorded_at, occurred_at, id`,
+      [claim.id],
+    );
+    const { rows: appeals } = await tx.query<{
+      id: string;
+      basis_code: string;
+      decision: string | null;
+      sent_ref: string | null;
+    }>(
+      `SELECT a.id, a.basis_code, r.decision, r.sent_ref FROM cuspatlas.rcm_appeals a
+       LEFT JOIN cuspatlas.rcm_appeal_reviews r ON r.appeal_id = a.id WHERE a.claim_id = $1 ORDER BY a.created_at, a.id`,
+      [claim.id],
+    );
+    const latest = subs[subs.length - 1];
+    const mine = events.filter((e) => latest && e.submission_id === latest.id).map((e) => e.kind);
+    const headView = out[out.length - 1];
+    const state =
+      !latest || latest.version_no !== head.version_no
+        ? latest && head.reason === 'replacement' && !headView?.validation
+          ? 'replaced'
+          : headView?.validation?.valid && headView.validation.current
+            ? 'validated'
+            : 'prepared'
+        : latest.outcome === 'pending'
+          ? 'submission_pending'
+          : latest.outcome === 'unknown'
+            ? 'submission_unknown'
+            : latest.outcome === 'rejected'
+              ? 'transport_rejected'
+              : mine.includes('adjudicated_paid')
+                ? 'paid'
+                : mine.includes('adjudicated_denied')
+                  ? 'denied'
+                  : mine.includes('payer_rejected')
+                    ? 'payer_rejected'
+                    : mine.includes('payer_acknowledged')
+                      ? 'payer_acknowledged'
+                      : 'transmitted';
+    return {
+      claimRef: claim.id,
+      patientRef: claim.patient_id,
+      coverageRef: claim.coverage_id,
+      payerRef: claim.payer_ref,
+      state,
+      headVersionNo: head.version_no,
+      versions: out,
+      submissions: subs.map((s) => ({
+        submissionRef: s.id,
+        versionNo: s.version_no,
+        mode: s.authorization_mode,
+        outcome: s.outcome,
+        rejectionCode: s.rejection_code,
+      })),
+      events: events.map((e) => ({
+        kind: e.kind,
+        code: e.code,
+        codeSource: e.code_source,
+        codeVersion: e.code_version,
+        occurredAt: e.occurred_at.toISOString(),
+      })),
+      appeals: appeals.map((a) => ({
+        appealRef: a.id,
+        basisCode: a.basis_code,
+        state:
+          a.decision === null
+            ? 'draft'
+            : a.decision === 'rejected'
+              ? 'rejected'
+              : a.sent_ref
+                ? 'sent'
+                : 'send_unknown',
+      })),
+      version: claim.version,
+    };
+  }
+}

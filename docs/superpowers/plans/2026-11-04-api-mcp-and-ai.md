@@ -18,6 +18,10 @@
 
 Apply [AS-07 through AS-11](../../ASSURANCE-AND-CERTIFICATION.md) to AI onboarding, provider policy, evaluations and monitoring. Add acceptance cases for unregistered use-case enablement, expired risk approval, material provider/prompt change without reevaluation, insufficient subgroup evidence, reported harmful output, and emergency AI disable with manual workflows preserved. Bind protected provenance to versioned control evidence. These are organizational-assurance support requirements, not clinical validation or an ISO certificate.
 
+## Cross-practice automation execution requirements
+
+Apply the [practice time and automation contract](../../PRACTICE-TIME-AND-AUTOMATION.md). Extend the shared operation catalog with eligible automation mode, standing-policy prerequisites, limits, expiration/review and exception destination. Durable workflows retain source versions, step outcomes and authority receipts; connectors never bypass owning domain commands. Add parity tests for policy revocation mid-job, scope/limit breach, stale payload, duplicate/out-of-order events, human exception and owner departure. Initial AI stays read/draft; enabling rule-authorized execution is a reviewed per-operation capability, not blanket model autonomy. Measure resolved work and interventions, not just tool calls.
+
 ## Global Constraints
 
 - This is a reviewed proposal. Nothing here is implemented, tested, validated or authorized.

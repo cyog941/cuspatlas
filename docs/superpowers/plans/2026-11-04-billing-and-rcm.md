@@ -50,6 +50,14 @@ Confirm whether real-time eligibility is available, for which payers, with what 
 
 Determine whether a procedure code set can be distributed with the software or must be licensed per practice, and who owns fee schedule configuration. Blocks B9 and the coverage-to-estimate provenance surface in B5. Stop condition: a written licensing position reviewed before any dataset is committed, or synthetic placeholder codes remain permanently confined to fixtures.
 
+## Closed-loop claims execution requirements
+
+Apply [CL-01–12](../../PRACTICE-TIME-AND-AUTOMATION.md). B5 adds pre-visit coverage readiness; B6 must implement versioned assembly, readiness validation, manifest-bound attachments, authorized submission, distinct acknowledgements, aging/follow-up, rejection correction and reviewed appeals. B7 adds remittance-to-ledger and settlement reconciliation with ambiguous matches routed to owned exceptions. B8 advances qualified secondary claims before final patient responsibility. B2/B4 preserve explainable allocations and statements.
+
+Before coding affected tasks, specify a durable workflow reference, step/event contracts, policy version, input versions, external references, owned exception/due fields and idempotency/reconciliation behavior. Use the existing policy/domain/outbox boundary. Standing policies may remove repeated approval of validated unchanged claims; they cannot approve invented documentation or coding changes.
+
+B10 exit additionally requires the mandatory synthetic journeys in that contract: clean authorized automation through resolution, missing/mismatched attachments, rejection/correction, uncertain submission, denial/appeal, duplicate ERA, partial payment/secondary, settlement mismatch, outage and policy revocation. Record intervention counts and reasons; no test may treat clearinghouse receipt or ERA alone as collected cash.
+
 ## Implementation review focus
 
 - A reversal that does not exactly net its original leaves a residual balance that no screen explains; B1 must prove the pair cancels and both remain readable.

@@ -18,6 +18,10 @@
 
 Register the applicable [AS-01 through AS-12 requirements](../../ASSURANCE-AND-CERTIFICATION.md) in the release evidence registry. Test refusal of a certification claim with absent, expired, suspended or wrong-entity/scope evidence; prevent forks and self-hosted copies from automatically inheriting a hosted-service claim. Verify security/AI controls regardless of certificate status. Voluntary certification blocks release only if explicitly committed for that release scope; HIPAA, clinical and other required gates remain independent.
 
+## Usability and value release evidence
+
+Use [UX-01–03, CL-01–12, PT-01–06 and MG-01–05](../../PRACTICE-TIME-AND-AUTOMATION.md) in R3 staff validation and the release evidence register. Assess complete workflows, active staff handling time, duplicate entry, corrections, intervention reasons, migration effort and unresolved accounts. Agree baselines and task-specific targets before sessions. An automated error is not time saved; show failure/correction rates. Claims of reduced effort, improved collections or easy migration require measured evidence. UI design is deferred; these requirements specify later acceptance, not screens.
+
 ## Global Constraints
 
 - This is a reviewed proposal. Nothing here is implemented, tested, validated, certified, approved or authorized.

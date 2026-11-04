@@ -10,7 +10,8 @@ info:
     verified bearer token and a live membership; no path, query, header or body field selects a
     tenant. Refusals use the shared Refusal body and the transport mapping in docs/SHARED-CONTRACTS.md.
     Hidden cross-tenant and missing resources return the same 404 body. Proposal bodies are defined
-    by packages/contracts/src/action-proposal.schema.json.
+    by packages/contracts/src/action-proposal.schema.json. Patient bodies (S4-S6, synthetic data only) are
+    defined by packages/contracts/src/patient.schema.json.
   license:
     name: AGPL-3.0-or-later
     identifier: AGPL-3.0-or-later
@@ -286,6 +287,162 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/patients:
+    post:
+      operationId: patients.create
+      description: >-
+        Register a synthetic patient (S4). Absent field groups are stored as explicit unknowns. Never proposes a merge. Requires patients.write.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/patient.schema.json#/$defs/PatientCreate'
+      responses:
+        '201':
+          description: Patient created (version 1).
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/patient.schema.json#/$defs/PatientCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/patients/search:
+    post:
+      operationId: patients.search
+      description: >-
+        Bounded, cursor-paginated search returning PatientSummary only (no contact values). Filters travel in the body so identifying text never appears in a URL. Audited as a sensitive read. Another tenant's patients are never returned; the page is simply empty. Merged records are excluded. Requires patients.read.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/patient.schema.json#/$defs/PatientSearch'
+      responses:
+        '200':
+          description: One page of matching patients.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/patient.schema.json#/$defs/PatientSummaryPage'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/patients/{patientRef}:
+    get:
+      operationId: patients.read
+      description: >-
+        Read one patient, including contact values. Audited as a sensitive read. Hidden (other tenant) and
+        missing patients return the same 404 body. A merged patient is reachable only through merge
+        history (409 with detail.reason patient_merged). Requires patients.read.
+      parameters:
+        - $ref: '#/components/parameters/PatientRef'
+      responses:
+        '200':
+          description: The patient.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/patient.schema.json#/$defs/PatientRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/patients/{patientRef}/demographics:
+    post:
+      operationId: patients.updateDemographics
+      description: >-
+        Replace the provided field groups if expectedVersion matches (409 stale_version otherwise). At least one group (422 otherwise). Requires patients.write.
+      parameters:
+        - $ref: '#/components/parameters/PatientRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/patient.schema.json#/$defs/PatientDemographicsUpdate'
+      responses:
+        '200':
+          description: Demographics updated; version incremented.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/patient.schema.json#/$defs/PatientCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/patients/{patientRef}/status:
+    post:
+      operationId: patients.setStatus
+      description: >-
+        Effective-dated status change (active, inactive, deceased); appends a status fact and never deletes. Leaving deceased requires reasonCode entered_in_error. Requires patients.write.
+      parameters:
+        - $ref: '#/components/parameters/PatientRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/patient.schema.json#/$defs/PatientStatusChange'
+      responses:
+        '200':
+          description: Status recorded; version incremented.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/patient.schema.json#/$defs/PatientCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
 components:
   securitySchemes:
     bearer:
@@ -305,6 +462,12 @@ components:
       required: true
       schema:
         $ref: '../../packages/contracts/src/action-proposal.schema.json#/$defs/ProposalRef'
+    PatientRef:
+      name: patientRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/patient.schema.json#/$defs/PatientRef'
     IdempotencyKey:
       name: Idempotency-Key
       in: header

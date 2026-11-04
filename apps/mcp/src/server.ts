@@ -27,6 +27,7 @@ import {
   type CommandExecutor,
   type CursorCodec,
   createAuthorize,
+  createPatientService,
   createProposalService,
   createSyntheticTaskService,
   executeOnce,
@@ -40,6 +41,7 @@ import {
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
 import { assertDistinctAudience, assertIdentityAllowed, createMcpAuthenticator } from './auth';
+import { PATIENT_TOOLS } from './tools/patients';
 import { PROPOSAL_TOOLS } from './tools/proposals';
 import {
   compileInput,
@@ -107,10 +109,14 @@ interface Registered {
   readonly validate: ReturnType<typeof compileInput>;
 }
 
-export const TOOLS: readonly ToolDefinition[] = [...SYNTHETIC_TASK_TOOLS, ...PROPOSAL_TOOLS];
+export const TOOLS: readonly ToolDefinition[] = [
+  ...SYNTHETIC_TASK_TOOLS,
+  ...PROPOSAL_TOOLS,
+  ...PATIENT_TOOLS,
+];
 
 /** Path parameters of the REST twin. A malformed one is a 404 there, decided by the domain. */
-const REF_PARAMS = ['taskRef', 'proposalRef'] as const;
+const REF_PARAMS = ['taskRef', 'proposalRef', 'patientRef'] as const;
 const PLACEHOLDER_REF = '00000000-0000-4000-8000-000000000000';
 
 /**
@@ -152,8 +158,8 @@ async function readBody(req: IncomingMessage): Promise<unknown> {
 
 /**
  * Remote MCP endpoint for the synthetic-task domain over Streamable HTTP (stateless: every POST is
- * authenticated, served by a fresh protocol server and closed). Exposes exactly the eight tools in
- * TOOLS (synthetic-task and proposal tools); there is no SQL, shell, HTTP or file tool and no resources or prompts.
+ * authenticated, served by a fresh protocol server and closed). Exposes exactly the tools in
+ * TOOLS (synthetic-task, proposal and patient tools); there is no SQL, shell, HTTP or file tool and no resources or prompts.
  */
 export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
   if (!RUNTIME_ENVIRONMENTS.includes(deps.env)) throw new Error('Unsupported runtime environment');
@@ -193,7 +199,14 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     execute: deps.execute ?? executeOnce,
     ...(deps.proposalPolicyVersion ? { policyVersion: deps.proposalPolicyVersion } : {}),
   });
-  const toolDeps: ToolDeps = { service, proposals, authorize, recording };
+  const patients = createPatientService({
+    authorize,
+    withTenantTransaction: deps.tenantTransactions,
+    recording,
+    execute: deps.execute ?? executeOnce,
+    ...(deps.cursors ? { cursors: deps.cursors } : {}),
+  });
+  const toolDeps: ToolDeps = { service, proposals, patients, authorize, recording };
   const allowedOrigins = new Set(deps.allowedOrigins ?? []);
   if (deps.env !== 'synthetic-test' && !deps.resourceMetadataUrl) {
     throw new Error('Refusing to start: resourceMetadataUrl must be configured outside synthetic-test');

@@ -28,6 +28,12 @@ export const ACTION_POLICIES = {
   'syntheticTasks.proposals.prepare': { scope: 'syntheticTasks.read', principals: ['human', 'service'] },
   'syntheticTasks.proposals.read': { scope: 'syntheticTasks.read', principals: ['human', 'service'] },
   'syntheticTasks.proposals.approve': { scope: 'syntheticTasks.approve', principals: ['human'] },
+  // S4 patient identity (ADR 0003, recommended-pending-approval). Reads are sensitive-read audited.
+  'patients.create': { scope: 'patients.write', principals: ['human', 'service'] },
+  'patients.updateDemographics': { scope: 'patients.write', principals: ['human', 'service'] },
+  'patients.setStatus': { scope: 'patients.write', principals: ['human', 'service'] },
+  'patients.read': { scope: 'patients.read', principals: ['human', 'service'] },
+  'patients.search': { scope: 'patients.read', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

@@ -1,0 +1,373 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cuspatlas.invalid/schemas/patient/v1",
+  "title": "Patient identity contract v1 (S4-S6, synthetic data only)",
+  "$defs": {
+    "PatientRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "LocationRef": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+    "Version": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
+    "IdempotencyKey": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,128}$" },
+    "Cursor": {
+      "type": "string",
+      "description": "Opaque, tenant-bound, HMAC-protected. Never parse it.",
+      "pattern": "^[A-Za-z0-9_-]{1,200}\\.[A-Za-z0-9_-]{22}$"
+    },
+    "Instant": { "type": "string", "format": "date-time", "maxLength": 40 },
+    "Text": { "type": "string", "minLength": 1, "maxLength": 100, "pattern": "^[^\\u0000-\\u001f\\u007f]+$" },
+    "Unknown": {
+      "type": "object",
+      "description": "An explicitly unknown field group. Never an empty string.",
+      "additionalProperties": false,
+      "required": ["known", "reason"],
+      "properties": {
+        "known": { "const": false },
+        "reason": { "enum": ["not_provided", "declined", "not_applicable", "unavailable"] }
+      }
+    },
+    "LegalName": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["known", "given", "family"],
+          "properties": {
+            "known": { "const": true },
+            "given": { "$ref": "#/$defs/Text" },
+            "middle": { "$ref": "#/$defs/Text" },
+            "family": { "$ref": "#/$defs/Text" }
+          }
+        },
+        { "$ref": "#/$defs/Unknown" }
+      ]
+    },
+    "PreferredName": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["known", "value"],
+          "properties": { "known": { "const": true }, "value": { "$ref": "#/$defs/Text" } }
+        },
+        { "$ref": "#/$defs/Unknown" }
+      ]
+    },
+    "Pronouns": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["known", "value"],
+          "properties": {
+            "known": { "const": true },
+            "value": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+            }
+          }
+        },
+        { "$ref": "#/$defs/Unknown" }
+      ]
+    },
+    "BirthDate": {
+      "oneOf": [
+        {
+          "type": "object",
+          "description": "value is YYYY, YYYY-MM or YYYY-MM-DD and must match precision (checked by the domain, 422).",
+          "additionalProperties": false,
+          "required": ["known", "value", "precision"],
+          "properties": {
+            "known": { "const": true },
+            "value": { "type": "string", "pattern": "^[0-9]{4}(-[0-9]{2}(-[0-9]{2})?)?$" },
+            "precision": { "enum": ["day", "month", "year"] }
+          }
+        },
+        { "$ref": "#/$defs/Unknown" }
+      ]
+    },
+    "Language": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["known", "tag"],
+          "properties": {
+            "known": { "const": true },
+            "tag": { "type": "string", "pattern": "^[a-z]{2,3}(-[A-Za-z0-9]{2,8}){0,3}$" }
+          }
+        },
+        { "$ref": "#/$defs/Unknown" }
+      ]
+    },
+    "TimeZone": {
+      "type": "string",
+      "description": "IANA zone name; an unknown zone is refused by the domain (422).",
+      "pattern": "^[A-Za-z][A-Za-z0-9_+-]{0,30}(/[A-Za-z0-9_+-]{1,30}){0,2}$"
+    },
+    "ContactPoint": {
+      "type": "object",
+      "description": "Staff-recorded channel preference. Consent, opt-out and suppression belong to workstream E.",
+      "additionalProperties": false,
+      "required": ["channel", "use", "value", "preference"],
+      "properties": {
+        "channel": { "enum": ["phone", "email"] },
+        "use": { "enum": ["mobile", "home", "work", "other"] },
+        "value": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 254,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "preference": { "enum": ["preferred", "accepted", "avoid"] }
+      }
+    },
+    "Contact": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["known", "points"],
+          "properties": {
+            "known": { "const": true },
+            "points": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 8,
+              "items": { "$ref": "#/$defs/ContactPoint" }
+            }
+          }
+        },
+        { "$ref": "#/$defs/Unknown" }
+      ]
+    },
+    "Address": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["known", "lines", "city", "postalCode", "country"],
+          "properties": {
+            "known": { "const": true },
+            "lines": { "type": "array", "minItems": 1, "maxItems": 3, "items": { "$ref": "#/$defs/Text" } },
+            "city": { "$ref": "#/$defs/Text" },
+            "region": { "$ref": "#/$defs/Text" },
+            "postalCode": { "type": "string", "pattern": "^[A-Za-z0-9 -]{1,20}$" },
+            "country": { "type": "string", "pattern": "^[A-Z]{2}$" }
+          }
+        },
+        { "$ref": "#/$defs/Unknown" }
+      ]
+    },
+    "Identifier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "issuer", "value"],
+      "properties": {
+        "type": { "enum": ["chart_number", "prior_system", "external_record"] },
+        "issuer": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,64}$" },
+        "value": { "type": "string", "pattern": "^[A-Za-z0-9._:/-]{1,64}$" }
+      }
+    },
+    "Identifiers": { "type": "array", "maxItems": 10, "items": { "$ref": "#/$defs/Identifier" } },
+    "Provenance": { "enum": ["staff_entry", "patient_reported", "guardian_reported", "migration_import"] },
+    "ProvenanceMap": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "legalName": { "$ref": "#/$defs/Provenance" },
+        "preferredName": { "$ref": "#/$defs/Provenance" },
+        "pronouns": { "$ref": "#/$defs/Provenance" },
+        "birthDate": { "$ref": "#/$defs/Provenance" },
+        "language": { "$ref": "#/$defs/Provenance" },
+        "contact": { "$ref": "#/$defs/Provenance" },
+        "address": { "$ref": "#/$defs/Provenance" },
+        "identifiers": { "$ref": "#/$defs/Provenance" }
+      }
+    },
+    "PatientStatus": { "enum": ["active", "inactive", "deceased"] },
+    "StatusReasonCode": {
+      "enum": [
+        "moved_away",
+        "no_recent_visits",
+        "patient_request",
+        "deceased_reported",
+        "returned",
+        "entered_in_error",
+        "other"
+      ]
+    },
+    "PatientCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["legalName", "birthDate"],
+      "properties": {
+        "legalName": { "$ref": "#/$defs/LegalName" },
+        "preferredName": { "$ref": "#/$defs/PreferredName" },
+        "pronouns": { "$ref": "#/$defs/Pronouns" },
+        "birthDate": { "$ref": "#/$defs/BirthDate" },
+        "language": { "$ref": "#/$defs/Language" },
+        "timeZone": { "$ref": "#/$defs/TimeZone" },
+        "contact": { "$ref": "#/$defs/Contact" },
+        "address": { "$ref": "#/$defs/Address" },
+        "identifiers": { "$ref": "#/$defs/Identifiers" },
+        "homeLocationRef": { "$ref": "#/$defs/LocationRef" },
+        "provenance": { "$ref": "#/$defs/ProvenanceMap" }
+      }
+    },
+    "PatientDemographicsUpdate": {
+      "type": "object",
+      "description": "Replaces only the groups present. At least one group is required (422 otherwise).",
+      "additionalProperties": false,
+      "required": ["expectedVersion"],
+      "properties": {
+        "expectedVersion": { "$ref": "#/$defs/Version" },
+        "legalName": { "$ref": "#/$defs/LegalName" },
+        "preferredName": { "$ref": "#/$defs/PreferredName" },
+        "pronouns": { "$ref": "#/$defs/Pronouns" },
+        "birthDate": { "$ref": "#/$defs/BirthDate" },
+        "language": { "$ref": "#/$defs/Language" },
+        "timeZone": { "$ref": "#/$defs/TimeZone" },
+        "contact": { "$ref": "#/$defs/Contact" },
+        "address": { "$ref": "#/$defs/Address" },
+        "identifiers": { "$ref": "#/$defs/Identifiers" },
+        "homeLocationRef": { "$ref": "#/$defs/LocationRef" },
+        "provenance": { "$ref": "#/$defs/ProvenanceMap" }
+      }
+    },
+    "PatientStatusChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "status", "effectiveAt", "reasonCode"],
+      "properties": {
+        "expectedVersion": { "$ref": "#/$defs/Version" },
+        "status": { "$ref": "#/$defs/PatientStatus" },
+        "effectiveAt": { "$ref": "#/$defs/Instant" },
+        "reasonCode": { "$ref": "#/$defs/StatusReasonCode" }
+      }
+    },
+    "PatientReadQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "PatientSearch": {
+      "type": "object",
+      "description": "Bounded filters, sent in a body so identifying search terms never appear in a URL.",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 100,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "birthDate": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+        "phone": { "type": "string", "pattern": "^[0-9+() .-]{4,32}$" },
+        "status": { "$ref": "#/$defs/PatientStatus" },
+        "limit": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "cursor": { "$ref": "#/$defs/Cursor" }
+      }
+    },
+    "PatientSummary": {
+      "type": "object",
+      "description": "Minimum projection for search and lists. No contact values, no clinical or financial detail.",
+      "additionalProperties": false,
+      "required": [
+        "patientRef",
+        "legalName",
+        "preferredName",
+        "birthDate",
+        "status",
+        "statusEffectiveAt",
+        "homeLocationRef",
+        "contactable",
+        "mergedIntoRef",
+        "version"
+      ],
+      "properties": {
+        "patientRef": { "$ref": "#/$defs/PatientRef" },
+        "legalName": { "$ref": "#/$defs/LegalName" },
+        "preferredName": { "$ref": "#/$defs/PreferredName" },
+        "birthDate": { "$ref": "#/$defs/BirthDate" },
+        "status": { "$ref": "#/$defs/PatientStatus" },
+        "statusEffectiveAt": { "$ref": "#/$defs/Instant" },
+        "homeLocationRef": { "anyOf": [{ "$ref": "#/$defs/LocationRef" }, { "type": "null" }] },
+        "contactable": { "type": "boolean" },
+        "mergedIntoRef": { "anyOf": [{ "$ref": "#/$defs/PatientRef" }, { "type": "null" }] },
+        "version": { "$ref": "#/$defs/Version" }
+      }
+    },
+    "Patient": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "patientRef",
+        "legalName",
+        "preferredName",
+        "pronouns",
+        "birthDate",
+        "language",
+        "timeZone",
+        "contact",
+        "address",
+        "identifiers",
+        "provenance",
+        "status",
+        "statusEffectiveAt",
+        "homeLocationRef",
+        "contactable",
+        "mergedIntoRef",
+        "version"
+      ],
+      "properties": {
+        "patientRef": { "$ref": "#/$defs/PatientRef" },
+        "legalName": { "$ref": "#/$defs/LegalName" },
+        "preferredName": { "$ref": "#/$defs/PreferredName" },
+        "pronouns": { "$ref": "#/$defs/Pronouns" },
+        "birthDate": { "$ref": "#/$defs/BirthDate" },
+        "language": { "$ref": "#/$defs/Language" },
+        "timeZone": { "anyOf": [{ "$ref": "#/$defs/TimeZone" }, { "type": "null" }] },
+        "contact": { "$ref": "#/$defs/Contact" },
+        "address": { "$ref": "#/$defs/Address" },
+        "identifiers": { "$ref": "#/$defs/Identifiers" },
+        "provenance": { "$ref": "#/$defs/ProvenanceMap" },
+        "status": { "$ref": "#/$defs/PatientStatus" },
+        "statusEffectiveAt": { "$ref": "#/$defs/Instant" },
+        "homeLocationRef": { "anyOf": [{ "$ref": "#/$defs/LocationRef" }, { "type": "null" }] },
+        "contactable": { "type": "boolean" },
+        "mergedIntoRef": { "anyOf": [{ "$ref": "#/$defs/PatientRef" }, { "type": "null" }] },
+        "version": { "$ref": "#/$defs/Version" }
+      }
+    },
+    "PatientRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": { "data": { "$ref": "#/$defs/Patient" } }
+    },
+    "PatientSummaryPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "nextCursor"],
+      "properties": {
+        "data": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/PatientSummary" } },
+        "nextCursor": { "anyOf": [{ "$ref": "#/$defs/Cursor" }, { "type": "null" }] }
+      }
+    },
+    "PatientCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": { "$ref": "#/$defs/PatientSummary" },
+        "version": { "$ref": "#/$defs/Version" },
+        "correlationId": { "type": "string", "format": "uuid" },
+        "replayed": { "type": "boolean" }
+      }
+    }
+  }
+}

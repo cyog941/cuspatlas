@@ -9,8 +9,8 @@ export interface RouteContract {
   readonly operationId: string;
   readonly protected: boolean;
   /**
-   * `$defs` name in synthetic-task.schema.json, `proposal:<name>` for action-proposal.schema.json, or a
-   * local `#/components/schemas/<name>`.
+   * `$defs` name in synthetic-task.schema.json, `proposal:<name>` for action-proposal.schema.json,
+   * `patient:<name>` for patient.schema.json, or a local `#/components/schemas/<name>`.
    */
   readonly requestBody?: string;
   readonly success: { readonly status: '200' | '201'; readonly schema: string };
@@ -20,6 +20,7 @@ export interface RouteContract {
 
 export const SCHEMA_FILE = 'synthetic-task.schema.json';
 export const PROPOSAL_SCHEMA_FILE = 'action-proposal.schema.json';
+export const PATIENT_SCHEMA_FILE = 'patient.schema.json';
 
 export const ROUTES: readonly RouteContract[] = [
   {
@@ -107,6 +108,51 @@ export const ROUTES: readonly RouteContract[] = [
     requestBody: 'proposal:ProposalCommit',
     success: { status: '200', schema: 'SyntheticTaskCommandResult' },
     refusals: ['400', '401', '403', '404', '409', '503'],
+  },
+  // S4 patient identity.
+  {
+    method: 'post',
+    path: '/v1/patients',
+    operationId: 'patients.create',
+    protected: true,
+    requestBody: 'patient:PatientCreate',
+    success: { status: '201', schema: 'patient:PatientCommandResult' },
+    refusals: ['400', '401', '403', '409', '422', '503'],
+  },
+  {
+    method: 'post',
+    path: '/v1/patients/search',
+    operationId: 'patients.search',
+    protected: true,
+    requestBody: 'patient:PatientSearch',
+    success: { status: '200', schema: 'patient:PatientSummaryPage' },
+    refusals: ['400', '401', '403', '503'],
+  },
+  {
+    method: 'get',
+    path: '/v1/patients/{patientRef}',
+    operationId: 'patients.read',
+    protected: true,
+    success: { status: '200', schema: 'patient:PatientRead' },
+    refusals: ['400', '401', '403', '404', '409', '503'],
+  },
+  {
+    method: 'post',
+    path: '/v1/patients/{patientRef}/demographics',
+    operationId: 'patients.updateDemographics',
+    protected: true,
+    requestBody: 'patient:PatientDemographicsUpdate',
+    success: { status: '200', schema: 'patient:PatientCommandResult' },
+    refusals: ['400', '401', '403', '404', '409', '422', '503'],
+  },
+  {
+    method: 'post',
+    path: '/v1/patients/{patientRef}/status',
+    operationId: 'patients.setStatus',
+    protected: true,
+    requestBody: 'patient:PatientStatusChange',
+    success: { status: '200', schema: 'patient:PatientCommandResult' },
+    refusals: ['400', '401', '403', '404', '409', '422', '503'],
   },
 ];
 

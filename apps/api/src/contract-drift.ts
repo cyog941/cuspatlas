@@ -2,12 +2,13 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { REFUSAL_CODES } from '@cuspatlas/contracts';
 import { parse } from 'yaml';
-import { PROPOSAL_SCHEMA_FILE, ROUTES, SCHEMA_FILE } from './routes/manifest';
+import { PATIENT_SCHEMA_FILE, PROPOSAL_SCHEMA_FILE, ROUTES, SCHEMA_FILE } from './routes/manifest';
 
 export interface ContractSources {
   readonly openapiText: string;
   readonly schemaText: string;
   readonly proposalSchemaText: string;
+  readonly patientSchemaText: string;
 }
 
 export const OPENAPI_PATH = 'docs/api/openapi.yaml';
@@ -15,12 +16,15 @@ export const SCHEMA_PATH = `packages/contracts/src/${SCHEMA_FILE}`;
 const SCHEMA_REF_PREFIX = `../../${SCHEMA_PATH}#`;
 export const PROPOSAL_SCHEMA_PATH = `packages/contracts/src/${PROPOSAL_SCHEMA_FILE}`;
 const PROPOSAL_REF_PREFIX = `../../${PROPOSAL_SCHEMA_PATH}#`;
+export const PATIENT_SCHEMA_PATH = `packages/contracts/src/${PATIENT_SCHEMA_FILE}`;
+const PATIENT_REF_PREFIX = `../../${PATIENT_SCHEMA_PATH}#`;
 
 export function loadContractSources(root: string): ContractSources {
   return {
     openapiText: readFileSync(resolve(root, OPENAPI_PATH), 'utf8'),
     schemaText: readFileSync(resolve(root, SCHEMA_PATH), 'utf8'),
     proposalSchemaText: readFileSync(resolve(root, PROPOSAL_SCHEMA_PATH), 'utf8'),
+    patientSchemaText: readFileSync(resolve(root, PATIENT_SCHEMA_PATH), 'utf8'),
   };
 }
 
@@ -54,10 +58,22 @@ const schemaRef = (name: string) =>
     ? name
     : name.startsWith('proposal:')
       ? `${PROPOSAL_REF_PREFIX}/$defs/${name.slice('proposal:'.length)}`
-      : `${SCHEMA_REF_PREFIX}/$defs/${name}`;
+      : name.startsWith('patient:')
+        ? `${PATIENT_REF_PREFIX}/$defs/${name.slice('patient:'.length)}`
+        : `${SCHEMA_REF_PREFIX}/$defs/${name}`;
 
 /** Definitions the proposal contract copies from the task contract; they must stay byte-identical. */
 const SHARED_DEFS = ['TaskRef', 'LocationRef', 'Label', 'Version', 'IdempotencyKey'] as const;
+/** Definitions the patient contract copies from the task contract (S4); byte-identical too. */
+const PATIENT_SHARED_DEFS = ['LocationRef', 'Version', 'IdempotencyKey', 'Cursor'] as const;
+/** Patient request bodies and queries: each must refuse unknown properties. */
+export const PATIENT_BODIES = [
+  'PatientCreate',
+  'PatientDemographicsUpdate',
+  'PatientStatusChange',
+  'PatientReadQuery',
+  'PatientSearch',
+] as const;
 
 /**
  * Returns every disagreement between the OpenAPI document, the JSON Schema it references, the
@@ -68,10 +84,12 @@ export function checkContractDrift(src: ContractSources): string[] {
   let api: Json;
   let schema: Json;
   let proposal: Json;
+  let patient: Json;
   try {
     api = parse(src.openapiText) as Json;
     schema = JSON.parse(src.schemaText) as Json;
     proposal = JSON.parse(src.proposalSchemaText) as Json;
+    patient = JSON.parse(src.patientSchemaText) as Json;
   } catch {
     return ['OpenAPI or JSON Schema does not parse'];
   }
@@ -84,6 +102,10 @@ export function checkContractDrift(src: ContractSources): string[] {
     } else if (ref.startsWith(PROPOSAL_REF_PREFIX)) {
       if (pointer(proposal, ref.slice(PROPOSAL_REF_PREFIX.length)) === undefined) {
         problems.push(`OpenAPI $ref does not resolve in ${PROPOSAL_SCHEMA_FILE}: ${ref}`);
+      }
+    } else if (ref.startsWith(PATIENT_REF_PREFIX)) {
+      if (pointer(patient, ref.slice(PATIENT_REF_PREFIX.length)) === undefined) {
+        problems.push(`OpenAPI $ref does not resolve in ${PATIENT_SCHEMA_FILE}: ${ref}`);
       }
     } else if (ref.startsWith('#/')) {
       if (pointer(api, ref.slice(1)) === undefined)
@@ -176,6 +198,20 @@ export function checkContractDrift(src: ContractSources): string[] {
     JSON.stringify(pointer(def('SyntheticTaskCreate'), '/properties'))
   ) {
     problems.push('CreatePayload must match SyntheticTaskCreate');
+  }
+  const patdef = (name: string) => pointer(patient, `/$defs/${name}`);
+  for (const name of PATIENT_BODIES) {
+    if (pointer(patdef(name), '/additionalProperties') !== false) {
+      problems.push(`${name} must set additionalProperties: false`);
+    }
+  }
+  for (const name of PATIENT_SHARED_DEFS) {
+    if (JSON.stringify(patdef(name)) !== JSON.stringify(def(name))) {
+      problems.push(`${PATIENT_SCHEMA_FILE} ${name} differs from ${SCHEMA_FILE}`);
+    }
+  }
+  if (pointer(patdef('PatientSearch'), '/properties/limit/maximum') !== 100) {
+    problems.push('PatientSearch.limit must be bounded to 1..100');
   }
   const codes = pointer(def('Refusal'), '/properties/code/enum');
   if (!Array.isArray(codes) || codes.join(',') !== REFUSAL_CODES.join(',')) {

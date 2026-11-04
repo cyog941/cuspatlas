@@ -5,6 +5,7 @@ import {
   type CommandExecutor,
   type CursorCodec,
   createAuthorize,
+  createPatientService,
   createProposalService,
   createSyntheticTaskService,
   executeOnce,
@@ -17,6 +18,7 @@ import Fastify, {
 } from 'fastify';
 import { createAuthenticator, type IdentityVerifierConfig, isConfiguredIdentity, isTestIssuer } from './auth';
 import { mapErrorToRefusal, safeErrorKind } from './errors';
+import { registerPatientRoutes } from './routes/patients';
 import { registerProposalRoutes } from './routes/proposals';
 import { registerSessionRoutes } from './routes/session';
 import { registerSyntheticTaskRoutes } from './routes/synthetic-tasks';
@@ -147,6 +149,14 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         ...(deps.proposalPolicyVersion ? { policyVersion: deps.proposalPolicyVersion } : {}),
       });
       registerProposalRoutes(app, { authenticator, proposals });
+      const patients = createPatientService({
+        authorize,
+        withTenantTransaction: deps.tenantTransactions,
+        recording,
+        execute: deps.execute ?? executeOnce,
+        ...(deps.cursors ? { cursors: deps.cursors } : {}),
+      });
+      registerPatientRoutes(app, { authenticator, patients });
     }
   }
 

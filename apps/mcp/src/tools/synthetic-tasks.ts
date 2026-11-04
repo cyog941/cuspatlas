@@ -2,6 +2,7 @@ import {
   ACTION_PROPOSAL_PROPERTIES,
   type ActorContext,
   createAjv,
+  PATIENT_PROPERTIES,
   RefusalError,
   SYNTHETIC_TASK_PROPERTIES,
   safeViolations,
@@ -11,6 +12,7 @@ import {
   type ActionName,
   type AttemptRecordingDeps,
   type Authorize,
+  type PatientService,
   type ProposalService,
   type SyntheticTaskService,
   withAttemptRecording,
@@ -80,6 +82,7 @@ type Violations = { pointer: string; rule: string }[];
 export interface ToolDeps {
   readonly service: SyntheticTaskService;
   readonly proposals: ProposalService;
+  readonly patients: PatientService;
   readonly authorize: Authorize;
   readonly recording: AttemptRecordingDeps;
 }
@@ -113,8 +116,10 @@ export interface ToolDefinition {
 const KNOWN_PROPERTIES: ReadonlySet<string> = new Set([
   ...SYNTHETIC_TASK_PROPERTIES,
   ...ACTION_PROPOSAL_PROPERTIES,
+  ...PATIENT_PROPERTIES,
   'idempotencyKey',
   'proposalRef',
+  'patientRef',
 ]);
 
 const ajv = createAjv();

@@ -46,7 +46,13 @@ const TOOL_NAMES = [
   'synthetic_tasks_list',
   'synthetic_tasks_propose',
   'synthetic_tasks_relabel',
-];
+  // S4 patient tools (their parity is exercised in patient-identity and negative-harness tests).
+  'patients_create',
+  'patients_get',
+  'patients_search',
+  'patients_set_status',
+  'patients_update_demographics',
+].sort();
 
 let db: TestDatabase;
 let issuer: TestTokenIssuer;
@@ -728,7 +734,7 @@ describe('REST and MCP parity (table-driven)', () => {
 });
 
 describe('protocol surface', () => {
-  it('lists exactly the eight tools and advertises nothing else', async () => {
+  it('lists exactly the registered tools and advertises nothing else', async () => {
     await withClient(tokens.a1?.mcp, async (client) => {
       const { tools } = await client.listTools();
       expect(tools.map((t) => t.name).sort()).toStrictEqual(TOOL_NAMES);

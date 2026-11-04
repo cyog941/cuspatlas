@@ -141,6 +141,13 @@ export type SecurityReasonCode = (typeof SECURITY_REASON_CODES)[number];
 export interface RefusalDetail {
   readonly currentVersion?: number;
   readonly violations?: readonly { readonly pointer: string; readonly rule: string }[];
+  /**
+   * S workstream addition (2026-11-04): a server-authored reason enumeration (pattern
+   * ^[a-z_]{1,64}), for example patient_deceased. Never caller text.
+   */
+  readonly reason?: string;
+  /** S6 addition: references that block an operation, limited to the caller's own tenant. */
+  readonly blockingRefs?: readonly { readonly kind: string; readonly ref: string }[];
 }
 
 export interface DomainRefusal {

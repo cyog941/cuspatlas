@@ -195,6 +195,24 @@ export const MERGE_EXCLUDED_REFERENCES: readonly { table: string; column: string
     column: 'person_patient_id',
     why: 'portal access never follows a merge silently; the merged identity is denied and re-enrolled',
   },
+  // E6 (recommended-pending-approval): consent and opt-out facts, decisions and recall enrollments
+  // stay with the identity they were recorded for; after a merge the survivor's own facts decide
+  // (an absent consent suppresses: fail closed), and nothing is reassigned silently.
+  {
+    table: 'communication_consents',
+    column: 'patient_id',
+    why: 'consent facts stay with the identity that gave them; the survivor needs its own consent',
+  },
+  {
+    table: 'suppression_decisions',
+    column: 'subject_patient_id',
+    why: 'decisions are history of what was decided for that identity at that time',
+  },
+  {
+    table: 'recall_enrollments',
+    column: 'patient_id',
+    why: 'an enrollment records an S16 due item of that identity; recall is recomputed for the survivor',
+  },
 ];
 
 /**

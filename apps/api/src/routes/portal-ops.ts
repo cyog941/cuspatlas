@@ -56,6 +56,22 @@ export const PORTAL_OPS: readonly PortalOp[] = [
         payload: i.body,
       }),
   },
+  // E6 consent through the portal (self, or a relationship holding the consent scope).
+  {
+    method: 'post',
+    path: '/portal/v1/patients/{patientRef}/consents',
+    operationId: 'portal.consents.record',
+    protected: true,
+    requestBody: E('PortalConsentInput'),
+    success: { status: '201', schema: E('EngagementCommandResult') },
+    refusals: ['400', '401', '403', '404', '409', '422', '503'],
+    invoke: (svc, actor, i) =>
+      svc.recordPortalConsent(actor, i.params.patientRef ?? '', {
+        operation: 'portal.consents.record',
+        idempotencyKey: i.key,
+        payload: i.body,
+      }),
+  },
   {
     method: 'get',
     path: '/portal/v1/views/{view}',

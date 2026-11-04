@@ -297,6 +297,222 @@
           "description": "Whether the practice may contact the requester about this request (recorded on the request; outreach consent is E6's)."
         }
       }
+    },
+    "ConsentChannel": {
+      "enum": ["portal", "email", "sms", "voice"]
+    },
+    "ConsentPurpose": {
+      "enum": ["reminders", "recall", "messaging", "treatment"]
+    },
+    "ConsentVersion": {
+      "type": "string",
+      "pattern": "^[a-z0-9.-]{1,32}$"
+    },
+    "IntentPurpose": {
+      "enum": ["reminder", "cancellation", "waitlist_offer", "recall"]
+    },
+    "TemplateRef": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,64}$"
+    },
+    "LocalTime": {
+      "type": "string",
+      "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+    },
+    "SuppressionReason": {
+      "enum": [
+        "no_consent",
+        "opt_out",
+        "quiet_hours",
+        "missing_contact",
+        "policy_off",
+        "appointment_cancelled",
+        "appointment_missing",
+        "template_withdrawn",
+        "recall_not_due",
+        "grant_expired"
+      ],
+      "description": "The single suppression reason vocabulary (portal and communications plan, Shared interfaces). S14 and B4 cite it; no consumer defines its own."
+    },
+    "ConsentRecordInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["channel", "purpose", "state", "source", "consentVersion"],
+      "description": "E6 staff-recorded consent fact (append-only; the latest fact for a channel and purpose wins).",
+      "properties": {
+        "channel": {
+          "$ref": "#/$defs/ConsentChannel"
+        },
+        "purpose": {
+          "$ref": "#/$defs/ConsentPurpose"
+        },
+        "state": {
+          "enum": ["granted", "denied"]
+        },
+        "source": {
+          "enum": ["staff_recorded", "written_form", "patient_reported"]
+        },
+        "consentVersion": {
+          "$ref": "#/$defs/ConsentVersion"
+        }
+      }
+    },
+    "OptOutInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["channel", "source"],
+      "description": "E6 opt-out of every purpose on one channel; authoritative until a later recorded fact.",
+      "properties": {
+        "channel": {
+          "$ref": "#/$defs/ConsentChannel"
+        },
+        "source": {
+          "enum": ["staff_recorded", "patient_reported", "provider_stop_reply"]
+        }
+      }
+    },
+    "PortalConsentInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["channel", "purpose", "state", "consentVersion"],
+      "description": "E6 consent recorded through the portal by the patient (self) or a relationship holding the consent scope.",
+      "properties": {
+        "channel": {
+          "$ref": "#/$defs/ConsentChannel"
+        },
+        "purpose": {
+          "$ref": "#/$defs/ConsentPurpose"
+        },
+        "state": {
+          "enum": ["granted", "denied", "opted_out"]
+        },
+        "consentVersion": {
+          "$ref": "#/$defs/ConsentVersion"
+        }
+      }
+    },
+    "ChannelPolicyDefine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["purpose", "channel"],
+      "description": "E6 channel policy per intent purpose (versioned). channel none is the default; a live channel needs an approved template and explicit quiet hours (E-D7, no shipped default send window).",
+      "properties": {
+        "purpose": {
+          "$ref": "#/$defs/IntentPurpose"
+        },
+        "channel": {
+          "enum": ["none", "email", "sms"]
+        },
+        "templateRef": {
+          "$ref": "#/$defs/TemplateRef"
+        },
+        "quietHours": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["start", "end"],
+          "properties": {
+            "start": {
+              "$ref": "#/$defs/LocalTime"
+            },
+            "end": {
+              "$ref": "#/$defs/LocalTime"
+            }
+          }
+        },
+        "reminderLeadMinutes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10080
+        }
+      }
+    },
+    "TemplateDefine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["templateRef", "purpose", "channel", "body"],
+      "description": "E6 notice-only template (E-D8): no placeholders, so no clinical content can be merged in. Approved by practice administration.",
+      "properties": {
+        "templateRef": {
+          "$ref": "#/$defs/TemplateRef"
+        },
+        "purpose": {
+          "$ref": "#/$defs/IntentPurpose"
+        },
+        "channel": {
+          "enum": ["email", "sms"]
+        },
+        "body": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 320,
+          "pattern": "^[^{}<>\\u0000-\\u001f]+$"
+        }
+      }
+    },
+    "TemplateWithdraw": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "SuppressionPreviewQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["purpose"],
+      "description": "Side-effect-free decideSuppression for a patient (recorded false).",
+      "properties": {
+        "purpose": {
+          "$ref": "#/$defs/IntentPurpose"
+        },
+        "channel": {
+          "enum": ["email", "sms"]
+        },
+        "at": {
+          "$ref": "#/$defs/Instant"
+        },
+        "locationRef": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,64}$"
+        }
+      }
+    },
+    "RecallEnroll": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["category", "asOf", "patientRefs"],
+      "description": "E6 recall enrollment of S16 due items (the due list is computed by S16; nothing is re-derived and nothing is sent).",
+      "properties": {
+        "category": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,64}$"
+        },
+        "asOf": {
+          "$ref": "#/$defs/Instant"
+        },
+        "patientRefs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/PatientRef"
+          }
+        }
+      }
+    },
+    "RecallEnrollmentsQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["category"],
+      "properties": {
+        "category": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,64}$"
+        }
+      }
     }
   }
 }

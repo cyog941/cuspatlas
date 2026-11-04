@@ -9,6 +9,7 @@ import { buildMcpServer } from '@cuspatlas/mcp';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { seedLocation } from './support/appointment-fixtures';
 import { openTestDatabase, type TestDatabase } from './support/db';
 import {
   E_ALL,
@@ -61,6 +62,20 @@ interface PortalCall {
   readonly operation: string;
   rest(f: Fixture): RestCall;
 }
+
+const CONSENT = {
+  channel: 'email',
+  purpose: 'reminders',
+  state: 'granted',
+  source: 'staff_recorded',
+  consentVersion: 'synthetic-consent-1',
+};
+const TEMPLATE = {
+  templateRef: 'e-harness-other',
+  purpose: 'recall',
+  channel: 'email',
+  body: 'It is time to plan your next visit. Sign in to the patient portal.',
+};
 
 export const COMMANDS: HarnessCommand[] = [
   // E1 portal principals (staff side).
@@ -144,6 +159,156 @@ export const COMMANDS: HarnessCommand[] = [
     rest: (f) => ({ method: 'GET', url: `/v1/patients/${f.child}/portal-grants`, keyed: false, status: 200 }),
     mcpArgs: (f) => ({ patientRef: f.child }),
   },
+  // E6 consent, opt-out, channel policy, templates, decisions and recall enrollment.
+  {
+    operation: 'communications.consents.record',
+    tool: 'communications_consents_record',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/patients/${f.parent}/consents`,
+      body: CONSENT,
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({ patientRef: f.parent, ...CONSENT, idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'communications.consents.optOut',
+    tool: 'communications_consents_opt_out',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/patients/${f.parent}/opt-outs`,
+      body: { channel: 'sms', source: 'staff_recorded' },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      patientRef: f.parent,
+      channel: 'sms',
+      source: 'staff_recorded',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'communications.consents.list',
+    tool: 'communications_consents_list',
+    crossTenant: 'not_found',
+    downgradedTo: 'noScopes',
+    rest: (f) => ({ method: 'GET', url: `/v1/patients/${f.parent}/consents`, keyed: false, status: 200 }),
+    mcpArgs: (f) => ({ patientRef: f.parent }),
+  },
+  {
+    operation: 'communications.suppression.preview',
+    tool: 'communications_suppression_preview',
+    crossTenant: 'not_found',
+    downgradedTo: 'noScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/patients/${f.parent}/suppression-preview?purpose=reminder`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ patientRef: f.parent, purpose: 'reminder' }),
+  },
+  {
+    operation: 'communications.channelPolicies.define',
+    tool: 'communications_channel_policies_define',
+    crossTenant: 'own_tenant_only',
+    downgradedTo: 'readOnly',
+    rest: () => ({
+      method: 'POST',
+      url: '/v1/communications/channel-policies',
+      body: { purpose: 'cancellation', channel: 'none' },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: () => ({ purpose: 'cancellation', channel: 'none', idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'communications.channelPolicies.list',
+    tool: 'communications_channel_policies_list',
+    crossTenant: 'tenant_own_data',
+    downgradedTo: 'noScopes',
+    rest: () => ({ method: 'GET', url: '/v1/communications/channel-policies', keyed: false, status: 200 }),
+    mcpArgs: () => ({}),
+  },
+  {
+    operation: 'communications.templates.define',
+    tool: 'communications_templates_define',
+    crossTenant: 'own_tenant_only',
+    downgradedTo: 'readOnly',
+    rest: () => ({
+      method: 'POST',
+      url: '/v1/communications/templates',
+      body: TEMPLATE,
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: () => ({ ...TEMPLATE, idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'communications.templates.withdraw',
+    tool: 'communications_templates_withdraw',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: () => ({
+      method: 'POST',
+      url: '/v1/communications/templates/e-harness-alpha/withdraw',
+      body: { expectedVersion: 1 },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: () => ({ templateRef: 'e-harness-alpha', expectedVersion: 1, idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'communications.decisions.read',
+    tool: 'communications_decisions_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/communications/decisions/${f.decision}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ decisionRef: f.decision }),
+  },
+  {
+    operation: 'communications.recall.enroll',
+    tool: 'communications_recall_enroll',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: '/v1/communications/recall-enrollments',
+      body: { category: 'e-harness-recall', asOf: '2031-01-01T12:00:00Z', patientRefs: [f.parent] },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      category: 'e-harness-recall',
+      asOf: '2031-01-01T12:00:00Z',
+      patientRefs: [f.parent],
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'communications.recall.enrollments',
+    tool: 'communications_recall_enrollments',
+    crossTenant: 'not_found',
+    downgradedTo: 'noScopes',
+    rest: () => ({
+      method: 'GET',
+      url: '/v1/communications/recall-enrollments?category=e-harness-recall',
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: () => ({ category: 'e-harness-recall' }),
+  },
 ];
 
 /** Every portal-audience route (E1-E3, E6). */
@@ -167,6 +332,21 @@ export const PORTAL_CALLS: PortalCall[] = [
       method: 'POST',
       url: `/portal/v1/patients/${f.child}/appointment-requests`,
       body: { locationRef: 'loc-e-harness', flexibility: 'mornings', contactConsent: 'granted' },
+      keyed: true,
+      status: 201,
+    }),
+  },
+  {
+    operation: 'portal.consents.record',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/portal/v1/patients/${f.child}/consents`,
+      body: {
+        channel: 'email',
+        purpose: 'reminders',
+        state: 'granted',
+        consentVersion: 'synthetic-consent-1',
+      },
       keyed: true,
       status: 201,
     }),
@@ -247,7 +427,48 @@ beforeAll(async () => {
       reasonCode: 'patient_request',
     }),
   );
+  // E6 fixtures: an alpha location and booking (its intent carries an E6 decision), an approved
+  // alpha template and a recall policy with one attended visit.
+  const loc = await seedLocation(h, 'loc-e-harness');
+  const booked = h.ok<{ data: { appointmentRef: string } }>(
+    await h.call('a1', 'POST', '/v1/scheduling/appointments', {
+      patientRef: parent,
+      locationRef: loc.locationRef,
+      startsAt: '2030-02-04T14:00:00Z',
+      endsAt: '2030-02-04T15:00:00Z',
+      timeZone: 'America/New_York',
+      provider: { kind: 'provider', resourceRef: loc.provider },
+      operatory: { kind: 'operatory', resourceRef: loc.operatory },
+    }),
+    201,
+  ).data.appointmentRef;
+  h.ok(
+    await h.call('a1', 'POST', `/v1/scheduling/appointments/${booked}/attendance`, { kind: 'arrived' }),
+    201,
+  );
+  const decision = (
+    await db.admin.query(
+      `SELECT suppression_decision_ref AS d FROM cuspatlas.notification_intents WHERE subject_id = $1 AND purpose = 'reminder'`,
+      [booked],
+    )
+  ).rows[0].d as string;
+  h.ok(
+    await h.call('a1', 'POST', '/v1/communications/templates', {
+      ...TEMPLATE,
+      templateRef: 'e-harness-alpha',
+    }),
+    201,
+  );
+  h.ok(
+    await h.call('a1', 'POST', '/v1/scheduling/recall/policies', {
+      category: 'e-harness-recall',
+      intervalMonths: 6,
+      basis: 'attended_visit',
+    }),
+    201,
+  );
   fixture = {
+    decision,
     parent,
     child,
     activePerson,
@@ -392,6 +613,10 @@ describe('E negative harness: every E staff command, every dimension, REST and M
       }
     }
     if (want.code !== null) expect(await state()).toBe(before);
+    if (want.code === null && cmd.crossTenant === 'tenant_own_data') {
+      // Computed over the caller's own tenant: no alpha fixture reference crosses the boundary.
+      for (const o of [r, m]) for (const ref of Object.values(fixture)) expect(o.raw).not.toContain(ref);
+    }
   });
 
   it('no caller-supplied tenant is accepted by any E body or tool', async () => {

@@ -149,6 +149,19 @@ export const ACTION_POLICIES = {
   'portal.principals.revoke': { scope: 'portal.manage', principals: ['human', 'service'] },
   'portal.principals.read': { scope: 'patients.read', principals: ['human', 'service'] },
   'portal.grants.list': { scope: 'patients.read', principals: ['human', 'service'] },
+  // E6 consent, opt-out and the suppression decision (owned by E; S and B only consume it). Channel
+  // policy and template approval are practice administration by a person (E-D6 pending).
+  'communications.consents.record': { scope: 'communications.write', principals: ['human', 'service'] },
+  'communications.consents.optOut': { scope: 'communications.write', principals: ['human', 'service'] },
+  'communications.consents.list': { scope: 'communications.read', principals: ['human', 'service'] },
+  'communications.channelPolicies.define': { scope: 'admin.configure', principals: ['human'] },
+  'communications.channelPolicies.list': { scope: 'communications.read', principals: ['human', 'service'] },
+  'communications.templates.define': { scope: 'admin.configure', principals: ['human'] },
+  'communications.templates.withdraw': { scope: 'admin.configure', principals: ['human'] },
+  'communications.decisions.read': { scope: 'communications.read', principals: ['human', 'service'] },
+  'communications.suppression.preview': { scope: 'communications.read', principals: ['human', 'service'] },
+  'communications.recall.enroll': { scope: 'communications.write', principals: ['human', 'service'] },
+  'communications.recall.enrollments': { scope: 'communications.read', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

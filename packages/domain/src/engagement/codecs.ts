@@ -10,6 +10,13 @@ const E_OPERATIONS = [
   'portal.principals.enroll',
   'portal.principals.verify',
   'portal.principals.revoke',
+  'communications.consents.record',
+  'communications.consents.optOut',
+  'portal.consents.record',
+  'communications.channelPolicies.define',
+  'communications.templates.define',
+  'communications.templates.withdraw',
+  'communications.recall.enroll',
 ] as const;
 
 // biome-ignore lint/suspicious/noExplicitAny: codecs are heterogeneous per operation.

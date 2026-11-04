@@ -1,5 +1,8 @@
 export * from './codecs';
 export type { EngagementDeps } from './common';
+export * from './communications/consent';
+export * from './communications/recall-enrollment';
+export * from './communications/suppression';
 export * from './portal/access';
 export * from './portal/principals';
 export * from './portal/requests';

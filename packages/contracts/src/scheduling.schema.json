@@ -3411,17 +3411,20 @@
             "suppressionDecision": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["ref", "owner", "state", "statement"],
-              "description": "Typed placeholder: the decision is E6's; scheduling evaluates no consent and stores no reason of its own.",
+              "required": ["ref", "owner", "state", "reason", "statement"],
+              "description": "E6's decision recorded with the intent (engagement.schema.json SuppressionReason); scheduling evaluates no consent and stores only the reference. undecided only for intents recorded before E6.",
               "properties": {
                 "ref": {
-                  "type": "null"
+                  "anyOf": [{ "$ref": "#/$defs/EntityRef" }, { "type": "null" }]
                 },
                 "owner": {
                   "const": "E6"
                 },
                 "state": {
-                  "const": "undecided"
+                  "enum": ["undecided", "allowed", "suppressed"]
+                },
+                "reason": {
+                  "anyOf": [{ "type": "string", "pattern": "^[a-z_]{1,64}$" }, { "type": "null" }]
                 },
                 "statement": {
                   "type": "string"

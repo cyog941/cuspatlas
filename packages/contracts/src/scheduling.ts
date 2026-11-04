@@ -770,10 +770,12 @@ export interface NotificationIntentRecord {
   readonly supersedes: string | null;
   readonly supersededBy: string | null;
   readonly dueAt: string | null;
+  /** E6's decision (recorded with the intent); `undecided` only for an intent recorded before E6. */
   readonly suppressionDecision: {
-    readonly ref: null;
+    readonly ref: string | null;
     readonly owner: 'E6';
-    readonly state: 'undecided';
+    readonly state: 'undecided' | 'allowed' | 'suppressed';
+    readonly reason: string | null;
     readonly statement: string;
   };
   readonly delivery: { readonly owner: 'E7'; readonly state: 'not_sent_no_verified_channel' };

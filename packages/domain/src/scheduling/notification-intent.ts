@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
   type ActorContext,
   assertValid,
@@ -10,6 +11,7 @@ import {
   validateSchedulingEntityRef,
   type WorkItemListData,
 } from '@cuspatlas/contracts';
+import { decideForIntent, describeDecision } from '../engagement/communications/suppression';
 import { recordCommand } from '../events/record-command';
 import { assertLocation } from '../policy/authorize';
 import { AVAILABLE, workItem, workList } from '../work-items';
@@ -43,10 +45,20 @@ export async function recordNotificationIntent(
   operation: string,
   i: IntentInput,
 ): Promise<string> {
+  // E6 seam: the suppression decision is E6's, recorded in this transaction; scheduling evaluates no
+  // consent itself and only stores the decision reference E6 returns.
+  const intentId = randomUUID();
+  const decisionRef = await decideForIntent(tx, {
+    intentId,
+    subjectKind: i.subjectKind,
+    subjectId: i.subjectId,
+    purpose: i.purpose,
+  });
   const { rows } = await tx.query<{ id: string }>(
-    `INSERT INTO cuspatlas.notification_intents (tenant_id, subject_kind, subject_id, location_id, purpose, channel,
-       delivery_key, policy_ref, superseded_intent_id, due_at, source_operation, actor_id)
-     VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, 'none', $5, $6, $7, $8, $9, cuspatlas.current_actor_id())
+    `INSERT INTO cuspatlas.notification_intents (id, tenant_id, subject_kind, subject_id, location_id, purpose, channel,
+       delivery_key, policy_ref, superseded_intent_id, due_at, source_operation, actor_id, suppression_decision_ref)
+     VALUES ($10, cuspatlas.current_tenant_id(), $1, $2, $3, $4, 'none', $5, $6, $7, $8, $9, cuspatlas.current_actor_id(),
+       $11)
      RETURNING id`,
     [
       i.subjectKind,
@@ -58,6 +70,8 @@ export async function recordNotificationIntent(
       i.supersedes ?? null,
       i.dueAt,
       operation,
+      intentId,
+      decisionRef,
     ],
   );
   const id = rows[0]?.id;
@@ -95,6 +109,7 @@ interface IntentRow extends Record<string, unknown> {
   delivery_key: string;
   policy_ref: string;
   template_ref: string | null;
+  suppression_decision_ref: string | null;
   superseded_intent_id: string | null;
   superseded_by: string | null;
   due_at: Date | null;
@@ -102,7 +117,7 @@ interface IntentRow extends Record<string, unknown> {
 }
 
 const INTENT_SELECT = `SELECT i.id, i.subject_kind, i.subject_id, l.location_ref, i.purpose, i.channel, i.delivery_key,
-    i.policy_ref, i.template_ref, i.superseded_intent_id,
+    i.policy_ref, i.template_ref, i.suppression_decision_ref, i.superseded_intent_id,
     (SELECT n.id FROM cuspatlas.notification_intents n WHERE n.superseded_intent_id = i.id LIMIT 1) AS superseded_by,
     i.due_at, i.created_at
   FROM cuspatlas.notification_intents i
@@ -139,6 +154,7 @@ export function createNotificationOperations(base: AppointmentBase) {
           const r = rows[0];
           if (!r) throw notFound();
           assertVisibleLocation(decision, r.location_ref);
+          const decided = await describeDecision(tx, r.suppression_decision_ref);
           return {
             intentRef: r.id,
             subjectKind: r.subject_kind,
@@ -152,13 +168,26 @@ export function createNotificationOperations(base: AppointmentBase) {
             supersedes: r.superseded_intent_id,
             supersededBy: r.superseded_by,
             dueAt: r.due_at === null ? null : r.due_at.toISOString(),
-            suppressionDecision: {
-              ref: null,
-              owner: 'E6',
-              state: 'undecided',
-              statement:
-                'Consent, opt-out and suppression are decided by portal and communications (E6), which is not built; scheduling records no decision of its own.',
-            },
+            suppressionDecision:
+              decided === null
+                ? {
+                    ref: null,
+                    owner: 'E6',
+                    state: 'undecided',
+                    reason: null,
+                    statement:
+                      'No E6 decision is recorded for this intent; it is never sent until one allows it. Scheduling records no decision of its own.',
+                  }
+                : {
+                    ref: decided.ref,
+                    owner: 'E6',
+                    state: decided.state,
+                    reason: decided.reason,
+                    statement:
+                      decided.state === 'allowed'
+                        ? 'E6 allowed delivery when the intent was recorded; consent, opt-out and quiet hours are rechecked at send time.'
+                        : 'E6 suppressed delivery when the intent was recorded; the reason is from the single suppression vocabulary.',
+                  },
             delivery: { owner: 'E7', state: 'not_sent_no_verified_channel' },
             createdAt: r.created_at.toISOString(),
           };

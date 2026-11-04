@@ -229,6 +229,19 @@ async function computeDue(
   };
 }
 
+/**
+ * E6 seam (published for recall enrollment): S16's due computation for the current policy of a
+ * category, unchanged. E consumes the due list; it never re-derives recall policy.
+ */
+export async function recallDueFor(
+  tx: TenantTransaction,
+  locations: readonly string[] | null,
+  category: string,
+  asOf: number,
+): Promise<RecallDueData> {
+  return computeDue(tx, locations, await currentPolicy(tx, category), asOf);
+}
+
 const scopeOf = (decision: AuthorizationDecision, locationRef: string | undefined) =>
   locationRef !== undefined ? [locationRef] : decision.locationRefs;
 

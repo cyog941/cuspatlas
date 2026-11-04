@@ -1,4 +1,6 @@
 import { createEngagementBase, type EngagementDeps } from './common';
+import { createConsentOperations } from './communications/consent';
+import { createRecallEnrollmentOperations } from './communications/recall-enrollment';
 import { createPortalPrincipalOperations } from './portal/principals';
 import { createPortalRequestOperations } from './portal/requests';
 import { createPortalSessionOperations } from './portal/session';
@@ -17,6 +19,8 @@ export function createEngagementService(deps: EngagementDeps) {
     ...createPortalSessionOperations(base),
     ...createPortalViewOperations(base),
     ...createPortalRequestOperations(base),
+    ...createConsentOperations(base),
+    ...createRecallEnrollmentOperations(base),
   };
 }
 

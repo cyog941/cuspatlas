@@ -98,6 +98,153 @@ export const ENGAGEMENT_OPS: readonly EngagementOp[] = [
       'Portal grants of a patient: its S5 relationships projected with their current status (grantRef = relationshipRef), plus the portal principals of the people involved.',
     invoke: (svc, actor, i) => data(svc.listPortalGrants(actor, param(i, 'patientRef'), i.body)),
   },
+  // E6 consent, opt-out, channel policy, templates, decisions and recall enrollment.
+  {
+    method: 'post',
+    path: '/v1/patients/{patientRef}/consents',
+    operationId: 'communications.consents.record',
+    protected: true,
+    requestBody: E('ConsentRecordInput'),
+    success: { status: '201', schema: E('EngagementCommandResult') },
+    refusals: COMMAND,
+    tool: 'communications_consents_record',
+    description:
+      'Record a consent fact (granted or denied) for one channel and purpose with its source and consent version. Append-only; the latest fact wins.',
+    invoke: (svc, actor, i) =>
+      svc.recordConsent(actor, param(i, 'patientRef'), env('communications.consents.record', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/patients/{patientRef}/opt-outs',
+    operationId: 'communications.consents.optOut',
+    protected: true,
+    requestBody: E('OptOutInput'),
+    success: { status: '201', schema: E('EngagementCommandResult') },
+    refusals: COMMAND,
+    tool: 'communications_consents_opt_out',
+    description:
+      'Record an opt-out of every purpose on one channel. It applies before any message is sent, including messages queued earlier.',
+    invoke: (svc, actor, i) =>
+      svc.recordOptOut(actor, param(i, 'patientRef'), env('communications.consents.optOut', i)),
+  },
+  {
+    method: 'get',
+    path: '/v1/patients/{patientRef}/consents',
+    operationId: 'communications.consents.list',
+    protected: true,
+    query: 'EmptyQuery',
+    success: { status: '200', schema: E('EngagementRead') },
+    refusals: READ,
+    tool: 'communications_consents_list',
+    description:
+      'Consent and opt-out facts of a patient with provenance, and the effective state per channel and purpose.',
+    invoke: (svc, actor, i) => data(svc.listConsents(actor, param(i, 'patientRef'), i.body)),
+  },
+  {
+    method: 'get',
+    path: '/v1/patients/{patientRef}/suppression-preview',
+    operationId: 'communications.suppression.preview',
+    protected: true,
+    query: 'SuppressionPreviewQuery',
+    success: { status: '200', schema: E('EngagementRead') },
+    refusals: ['400', '401', '403', '404', '409', '422', '503'],
+    tool: 'communications_suppression_preview',
+    description:
+      'What E6 would decide (recorded false) for a patient, intent purpose and channel at an instant, including quiet hours. Consumers call this instead of evaluating consent.',
+    invoke: (svc, actor, i) => data(svc.previewSuppression(actor, param(i, 'patientRef'), i.body)),
+  },
+  {
+    method: 'post',
+    path: '/v1/communications/channel-policies',
+    operationId: 'communications.channelPolicies.define',
+    protected: true,
+    requestBody: E('ChannelPolicyDefine'),
+    success: { status: '201', schema: E('EngagementCommandResult') },
+    refusals: COMMAND,
+    tool: 'communications_channel_policies_define',
+    description:
+      'Define the next version of the channel policy for one intent purpose. Default none; a live channel needs an approved template and explicit quiet hours. Human administrators only.',
+    invoke: (svc, actor, i) =>
+      svc.defineChannelPolicy(actor, env('communications.channelPolicies.define', i)),
+  },
+  {
+    method: 'get',
+    path: '/v1/communications/channel-policies',
+    operationId: 'communications.channelPolicies.list',
+    protected: true,
+    query: 'EmptyQuery',
+    success: { status: '200', schema: E('EngagementRead') },
+    refusals: ['400', '401', '403', '503'],
+    tool: 'communications_channel_policies_list',
+    description:
+      'Current channel policy per intent purpose (none by default), with template and quiet hours.',
+    invoke: (svc, actor, i) => data(svc.listChannelPolicies(actor, i.body)),
+  },
+  {
+    method: 'post',
+    path: '/v1/communications/templates',
+    operationId: 'communications.templates.define',
+    protected: true,
+    requestBody: E('TemplateDefine'),
+    success: { status: '201', schema: E('EngagementCommandResult') },
+    refusals: COMMAND,
+    tool: 'communications_templates_define',
+    description:
+      'Approve the next version of a notice-only template (no placeholders, no clinical content). Human administrators only.',
+    invoke: (svc, actor, i) => svc.defineTemplate(actor, env('communications.templates.define', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/communications/templates/{templateRef}/withdraw',
+    operationId: 'communications.templates.withdraw',
+    protected: true,
+    requestBody: E('TemplateWithdraw'),
+    success: { status: '200', schema: E('EngagementCommandResult') },
+    refusals: COMMAND,
+    tool: 'communications_templates_withdraw',
+    description:
+      'Withdraw the current template version; queued messages using it are suppressed (template_withdrawn).',
+    invoke: (svc, actor, i) =>
+      svc.withdrawTemplate(actor, param(i, 'templateRef'), env('communications.templates.withdraw', i)),
+  },
+  {
+    method: 'get',
+    path: '/v1/communications/decisions/{decisionRef}',
+    operationId: 'communications.decisions.read',
+    protected: true,
+    success: { status: '200', schema: E('EngagementRead') },
+    refusals: ['401', '403', '404', '503'],
+    tool: 'communications_decisions_get',
+    description:
+      'One recorded suppression decision: stage, outcome, the single-vocabulary reason, consent and policy used.',
+    invoke: (svc, actor, i) => data(svc.readDecision(actor, param(i, 'decisionRef'))),
+  },
+  {
+    method: 'post',
+    path: '/v1/communications/recall-enrollments',
+    operationId: 'communications.recall.enroll',
+    protected: true,
+    requestBody: E('RecallEnroll'),
+    success: { status: '201', schema: E('EngagementCommandResult') },
+    refusals: COMMAND,
+    tool: 'communications_recall_enroll',
+    description:
+      'Enroll S16 due items of a recall category (never re-derived); S16 exclusions are reported with their reason. Sends nothing.',
+    invoke: (svc, actor, i) => svc.enrollRecallCohort(actor, env('communications.recall.enroll', i)),
+  },
+  {
+    method: 'get',
+    path: '/v1/communications/recall-enrollments',
+    operationId: 'communications.recall.enrollments',
+    protected: true,
+    query: 'RecallEnrollmentsQuery',
+    success: { status: '200', schema: E('EngagementRead') },
+    refusals: READ,
+    tool: 'communications_recall_enrollments',
+    description:
+      'Recall enrollments of a category with their S16 due item (policy version, due date, qualifying event).',
+    invoke: (svc, actor, i) => data(svc.listRecallEnrollments(actor, i.body)),
+  },
 ];
 
 export const ENGAGEMENT_OP_ROUTES: readonly RouteContract[] = ENGAGEMENT_OPS.map((o) => ({

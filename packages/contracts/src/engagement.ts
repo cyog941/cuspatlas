@@ -96,3 +96,13 @@ export const validatePortalRevoke = def('PortalRevoke');
 export const validateEmptyQuery = def('EmptyQuery');
 export const validatePortalRequestSubmit = def('PortalRequestSubmit');
 export const validateEngagementEntityRef = def('EntityRef');
+// E6 consent, channel policy, templates, preview and recall enrollment.
+export const validateConsentRecordInput = def('ConsentRecordInput');
+export const validateOptOutInput = def('OptOutInput');
+export const validatePortalConsentInput = def('PortalConsentInput');
+export const validateChannelPolicyDefine = def('ChannelPolicyDefine');
+export const validateTemplateDefine = def('TemplateDefine');
+export const validateTemplateWithdraw = def('TemplateWithdraw');
+export const validateSuppressionPreviewQuery = def('SuppressionPreviewQuery');
+export const validateRecallEnroll = def('RecallEnroll');
+export const validateRecallEnrollmentsQuery = def('RecallEnrollmentsQuery');

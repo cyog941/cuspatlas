@@ -4,6 +4,10 @@ Status: **acceptance criteria for work not yet built.** No scenario in this docu
 
 This document is the synthetic acceptance pack required by [the handoff](DEEPSEEK-HANDOFF.md) ("Synthetic acceptance scenario pack, including an ordinary practice day and exceptions") and the P3 exit condition in [the roadmap](ROADMAP.md) ("Every P1 capability has a measurable acceptance case and an owner"). It is written to serve as the definition of done for the first replacement release.
 
+## Cross-workflow additions
+
+The [practice time and automation contract](PRACTICE-TIME-AND-AUTOMATION.md) adds mandatory CL-01–12 claim-to-resolution journeys, PT-01–06 time-saving workflows and MG-01–05 migration cases. Each relevant scenario must report automatic steps, human interventions/reasons, unresolved external outcomes and safe recovery. UX-01–03 later measure role-based ease of use. A clean endpoint response is insufficient evidence of completed practice work.
+
 ## What this pack is
 
 1. **Part A** is one continuous synthetic clinic day, end to end, as numbered steps. It is the release smoke test: if a step cannot be demonstrated in a single run against one fixture set, the release is not replacement-ready.

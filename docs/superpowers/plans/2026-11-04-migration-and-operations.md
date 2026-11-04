@@ -45,6 +45,12 @@ If the export cannot deliver historical notes, images, claims or financial detai
 
 Agree the RPO and RTO the pilot will be held to, whether hosting is managed or self-hosted for this practice, and who the named operator is. Blocks M8 and M9. Stop condition: a signed operating agreement naming the operator, the hosting model and the tested objectives.
 
+## Migration usability and automation requirements
+
+Apply [MG-01–05 and UX-01–03](../../PRACTICE-TIME-AND-AUTOMATION.md). M2 adds versioned reusable source mappings with explicit uncertainty and operator review of ambiguous fields. M3 provides resumable dry runs and staged idempotent application. M4/M5 route identity/financial ambiguity to actionable exceptions. M6 presents completeness, not-imported items and reconciliation results for proportionate staff sign-off. M7/M8 preserve usable historical access and controlled cutover/rollback. M1/M10 verify complete exit without proprietary keys.
+
+Acceptance includes repeated import after interruption, source-schema drift, ambiguous patient, unmapped clinical semantics, incorrect opening balance, unavailable archive, and post-cutover rollback reconciliation. Measure practice/operator effort and downtime using synthetic rehearsals; no automatic mapping may fabricate clinical or financial meaning. Visual onboarding design is still deferred.
+
 ## Implementation review focus
 
 - Running an import twice must produce the same target state and no duplicates; M3 must prove it against every entity class, not just patients.

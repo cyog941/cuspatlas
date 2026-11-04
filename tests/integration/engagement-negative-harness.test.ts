@@ -5,7 +5,7 @@ import {
   createSecurityAttemptSink,
   createTenantTransactionRunner,
 } from '@cuspatlas/db';
-import { createAuthorize } from '@cuspatlas/domain';
+import { createAuthorize, SYNTHETIC_TEST_MATCH_KEY_PEPPER } from '@cuspatlas/domain';
 import { buildMcpServer } from '@cuspatlas/mcp';
 import { createOutboundSender } from '@cuspatlas/worker';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -1016,6 +1016,7 @@ beforeAll(async () => {
     memberships: createMembershipSource(db.app),
     attempts: createSecurityAttemptSink(db.sink),
     port,
+    matchKeyPepper: SYNTHETIC_TEST_MATCH_KEY_PEPPER,
     clock: () => new Date('2030-07-10T17:00:00Z'),
   }).runOnce(T_ALPHA);
   const sent = (

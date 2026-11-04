@@ -134,3 +134,27 @@ export async function requirePortalAccess(
     access,
   };
 }
+
+/**
+ * Lock-free pre-check used before a bounds lock is taken on a patient row: the acting principal is an
+ * active portal principal and is either the person record itself or holds a relationship row (not
+ * revoked) towards the patient. It decides nothing: `requirePortalAccess` rechecks after the lock. Its
+ * only job is that a principal with no connection to a patient never takes (or waits on) a row lock
+ * on that patient.
+ */
+export async function mayContendFor(tx: TenantTransaction, patientRef: string): Promise<boolean> {
+  if (tx.ctx.principal !== 'portal' || !validateEngagementEntityRef(patientRef)) return false;
+  const me = await tx.query<{ person_patient_id: string }>(
+    `SELECT person_patient_id FROM cuspatlas.portal_principals
+     WHERE principal_id = cuspatlas.current_actor_id() AND state = 'active'`,
+  );
+  const person = me.rows[0]?.person_patient_id;
+  if (!person) return false;
+  if (person === patientRef) return true;
+  const rel = await tx.query(
+    `SELECT 1 FROM cuspatlas.patient_relationships
+     WHERE subject_patient_id = $1 AND counterparty_patient_id = $2 AND revoked_at IS NULL LIMIT 1`,
+    [patientRef, person],
+  );
+  return rel.rowCount > 0;
+}

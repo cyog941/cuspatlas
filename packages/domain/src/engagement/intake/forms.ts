@@ -18,6 +18,7 @@ import { AVAILABLE, workItem, workList } from '../../work-items';
 import { assertRef, checkEnvelope, conflict, type EngagementBase, failedAt, notFound } from '../common';
 import { insertConsent } from '../communications/consent';
 import { loadPortalPrincipal, requirePortalAccess } from '../portal/access';
+import { boundFormSubmissions, lockForBounds, recordLimited } from '../portal/bounds';
 
 /**
  * E4 intake forms. Form versions are published configuration (synthetic content; clinical sign-off
@@ -326,18 +327,25 @@ export function createIntakeOperations(base: EngagementBase) {
               [p.formRef],
             );
             const version = (latest.rows[0]?.v ?? 0) + 1;
-            const { rows } = await tx.query<{ id: string }>(
-              `INSERT INTO cuspatlas.intake_form_versions (tenant_id, form_ref, version, title, definition, valid_until,
-                 published_by)
-               VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4::jsonb, $5, cuspatlas.current_actor_id()) RETURNING id`,
-              [
-                p.formRef,
-                version,
-                p.title,
-                JSON.stringify({ fields: p.fields, consents: p.consents ?? [] }),
-                p.validUntil ?? null,
-              ],
-            );
+            let rows: { id: string }[];
+            try {
+              ({ rows } = await tx.query<{ id: string }>(
+                `INSERT INTO cuspatlas.intake_form_versions (tenant_id, form_ref, version, title, definition, valid_until,
+                   published_by)
+                 VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4::jsonb, $5, cuspatlas.current_actor_id()) RETURNING id`,
+                [
+                  p.formRef,
+                  version,
+                  p.title,
+                  JSON.stringify({ fields: p.fields, consents: p.consents ?? [] }),
+                  p.validUntil ?? null,
+                ],
+              ));
+            } catch (err) {
+              // Two administrators publishing the same form at once: the loser gets a typed conflict.
+              if ((err as { code?: string }).code === '23505') throw conflict('form_version_conflict');
+              throw err;
+            }
             const id = rows[0]?.id as string;
             await recordCommand(
               tx,
@@ -460,32 +468,39 @@ export function createIntakeOperations(base: EngagementBase) {
         checkEnvelope(envelope, op);
         assertValid(validateFormSubmissionInput, envelope.payload, ENGAGEMENT_PROPERTIES);
         const p = envelope.payload as SubmissionPayload;
-        return deps.withTenantTransaction(ctx, async (tx) => {
-          const access = await requirePortalAccess(tx, patientRef, ['demographics', 'consent']);
-          const via =
-            access.via === 'self'
-              ? null
-              : (access.access?.relationships.find(
-                  (r) =>
-                    r.status === 'active' &&
-                    r.scopes.includes('demographics') &&
-                    r.scopes.includes('consent'),
-                )?.relationshipRef ?? null);
-          return execute(ctx, { ...envelope, payload: { patientRef, ...p } }, tx, async () => {
-            const form = await boundForm(tx, p);
-            checkAnswers(form.definition, p.answers, p.consents ?? {});
-            return insertSubmission(tx, op, {
-              patientRef: access.patientRef,
-              via: 'portal',
-              viaRelationship: via,
-              consentSource: access.via === 'self' ? 'patient_portal' : 'guardian_portal',
-              provenance: access.via === 'self' ? 'patient_reported' : 'guardian_reported',
-              form,
-              answers: p.answers,
-              consents: p.consents ?? {},
+        try {
+          return await deps.withTenantTransaction(ctx, async (tx) => {
+            await lockForBounds(tx, patientRef);
+            const access = await requirePortalAccess(tx, patientRef, ['demographics', 'consent']);
+            const via =
+              access.via === 'self'
+                ? null
+                : (access.access?.relationships.find(
+                    (r) =>
+                      r.status === 'active' &&
+                      r.scopes.includes('demographics') &&
+                      r.scopes.includes('consent'),
+                  )?.relationshipRef ?? null);
+            return execute(ctx, { ...envelope, payload: { patientRef, ...p } }, tx, async () => {
+              await boundFormSubmissions(tx);
+              const form = await boundForm(tx, p);
+              checkAnswers(form.definition, p.answers, p.consents ?? {});
+              return insertSubmission(tx, op, {
+                patientRef: access.patientRef,
+                via: 'portal',
+                viaRelationship: via,
+                consentSource: access.via === 'self' ? 'patient_portal' : 'guardian_portal',
+                provenance: access.via === 'self' ? 'patient_reported' : 'guardian_reported',
+                form,
+                answers: p.answers,
+                consents: p.consents ?? {},
+              });
             });
           });
-        });
+        } catch (err) {
+          await recordLimited(base, ctx, op, err);
+          throw err;
+        }
       });
     },
 
@@ -750,50 +765,20 @@ export function createIntakeOperations(base: EngagementBase) {
           patientVersion?: number;
           reasonCode?: string;
         };
-        const item = await deps.withTenantTransaction(ctx, async (tx) => {
-          const { rows } = await tx.query<{
-            kind: string;
-            patient_id: string;
-            proposed: { groups?: Record<string, unknown>; provenance?: string };
-            state: string;
-            version: number;
-          }>(
-            'SELECT kind, patient_id, proposed, state, version FROM cuspatlas.intake_review_items WHERE id = $1',
-            [reviewRef],
-          );
-          return rows[0] ?? null;
-        });
-        if (!item) throw notFound();
-        let appliedVersion: number | null = null;
-        if (p.decision === 'apply') {
-          if (item.kind !== 'demographics_update') throw conflict('c8_not_deployed');
-          if (p.patientVersion === undefined) throw failedAt('/patientVersion', 'required');
-          if (item.state === 'open' && item.version === p.expectedVersion) {
-            if (!deps.patients) {
-              throw new RefusalError({
-                code: 'service_unavailable',
-                retryable: true,
-                detail: { reason: 'patient_service_unavailable' },
-              });
-            }
-            const groups = item.proposed.groups ?? {};
-            const provenance = item.proposed.provenance ?? 'patient_reported';
-            const res = await deps.patients.updatePatientDemographics(ctx, item.patient_id, {
-              operation: 'patients.updateDemographics',
-              idempotencyKey: `intake-apply-${reviewRef}-v${p.patientVersion}`,
-              payload: {
-                expectedVersion: p.patientVersion,
-                ...groups,
-                provenance: Object.fromEntries(Object.keys(groups).map((g) => [g, provenance])),
-              },
-            });
-            appliedVersion = res.version;
-          }
-        }
+        // One transaction: S4's update (with the patient version the reviewer saw, so a changed record is
+        // stale and never overwritten) and the resolution of the item commit together or not at all. A
+        // failure of either step leaves the record and the item exactly as they were; a retry starts clean.
         return deps.withTenantTransaction(ctx, async (tx) =>
           execute(ctx, { ...envelope, payload: { reviewRef, ...p } }, tx, async () => {
-            const { rows } = await tx.query<{ state: string; version: number }>(
-              'SELECT state, version FROM cuspatlas.intake_review_items WHERE id = $1 FOR UPDATE',
+            const { rows } = await tx.query<{
+              kind: string;
+              patient_id: string;
+              proposed: { groups?: Record<string, unknown>; provenance?: string };
+              state: string;
+              version: number;
+            }>(
+              `SELECT kind, patient_id, proposed, state, version FROM cuspatlas.intake_review_items
+               WHERE id = $1 FOR UPDATE`,
               [reviewRef],
             );
             const r = rows[0];
@@ -801,6 +786,35 @@ export function createIntakeOperations(base: EngagementBase) {
             if (r.version !== p.expectedVersion)
               throw new RefusalError({ code: 'stale_version', detail: { currentVersion: r.version } });
             if (r.state !== 'open') throw conflict('review_already_resolved');
+            let appliedVersion: number | null = null;
+            if (p.decision === 'apply') {
+              if (r.kind !== 'demographics_update') throw conflict('c8_not_deployed');
+              if (p.patientVersion === undefined) throw failedAt('/patientVersion', 'required');
+              if (!deps.patients) {
+                throw new RefusalError({
+                  code: 'service_unavailable',
+                  retryable: true,
+                  detail: { reason: 'patient_service_unavailable' },
+                });
+              }
+              const groups = r.proposed.groups ?? {};
+              const provenance = r.proposed.provenance ?? 'patient_reported';
+              const res = await deps.patients.updatePatientDemographics(
+                ctx,
+                r.patient_id,
+                {
+                  operation: 'patients.updateDemographics',
+                  idempotencyKey: `intake-apply-${reviewRef}-v${p.patientVersion}`,
+                  payload: {
+                    expectedVersion: p.patientVersion,
+                    ...groups,
+                    provenance: Object.fromEntries(Object.keys(groups).map((g) => [g, provenance])),
+                  },
+                },
+                tx,
+              );
+              appliedVersion = res.version;
+            }
             const state = p.decision === 'apply' ? 'applied' : 'rejected';
             await tx.query(
               `UPDATE cuspatlas.intake_review_items SET state = $2, resolution_reason = $3, applied_patient_version = $4,

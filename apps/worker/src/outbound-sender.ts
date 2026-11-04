@@ -9,6 +9,7 @@ import {
 } from '@cuspatlas/contracts';
 import {
   type Authorize,
+  createContactDigester,
   enqueueAllowed,
   failClosed,
   finalizeReconciliation,
@@ -60,6 +61,8 @@ export interface OutboundSenderDeps {
   readonly memberships: MembershipSource;
   readonly attempts: SecurityAttemptSink;
   readonly port: MessagingPort;
+  /** S4 match-key pepper: send-time contact verification compares keyed digests, never plain hashes. */
+  readonly matchKeyPepper: Uint8Array;
   /** The instant E6 evaluates quiet hours for (default: now). */
   readonly clock?: () => Date;
   readonly log?: (line: SenderLogLine) => void;
@@ -186,7 +189,9 @@ export function createOutboundSender(deps: OutboundSenderDeps) {
         }
         let prepared: Awaited<ReturnType<typeof prepareSend>>;
         try {
-          prepared = await run((tx) => prepareSend(tx, m, clock(), sendTimeout));
+          prepared = await run((tx) =>
+            prepareSend(tx, m, clock(), sendTimeout, createContactDigester(deps.matchKeyPepper, m.tenantId)),
+          );
         } catch (err) {
           if (isRefusalError(err) && err.code === 'forbidden') throw err;
           // The decision could not be made: fail closed, never send by default.

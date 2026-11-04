@@ -187,7 +187,10 @@ export const ACTION_POLICIES = {
   // person's act; reads and the worklist are access-audited. Legal hold is administration.
   'messaging.threads.open': { scope: 'messaging.write', principals: ['human'] },
   'messaging.messages.post': { scope: 'messaging.write', principals: ['human'] },
-  'messaging.threads.read': { scope: 'messaging.read', principals: ['human', 'service'] },
+  // Thread bodies are the most sensitive free text E holds: human staff only. A service principal
+  // (an agent) is denied by default; a per-tenant policy that could enable it is a pending security
+  // decision and is NOT implemented (review hardening, item 3).
+  'messaging.threads.read': { scope: 'messaging.read', principals: ['human'] },
   'messaging.threads.worklist': { scope: 'messaging.read', principals: ['human', 'service'] },
   'messaging.threads.close': { scope: 'messaging.write', principals: ['human'] },
   'messaging.threads.assign': { scope: 'messaging.write', principals: ['human'] },

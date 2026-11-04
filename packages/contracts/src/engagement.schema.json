@@ -302,7 +302,7 @@
       "enum": ["portal", "email", "sms", "voice"]
     },
     "ConsentPurpose": {
-      "enum": ["reminders", "recall", "messaging", "treatment"]
+      "enum": ["reminders", "recall", "messaging"]
     },
     "ConsentVersion": {
       "type": "string",

@@ -1,13 +1,14 @@
 import { createHash } from 'node:crypto';
 import type { TenantTransaction } from '@cuspatlas/contracts';
 import { recordCommand } from '../../events/record-command';
+import type { ContactDigester } from '../digests';
 import {
   CONTACT_CHANNEL,
   decideSuppression,
   type IntentPurpose,
   type MessageChannel,
   type SubjectRef,
-  VERIFIED_POINTS_SQL,
+  verifiedPoints,
 } from './suppression';
 
 /**
@@ -241,6 +242,7 @@ export async function prepareSend(
   m: LeasedMessage,
   sendAt: Date,
   minRemainingSeconds: number,
+  digester: ContactDigester,
 ): Promise<PrepareResult> {
   const row = await owned(tx, m, minRemainingSeconds);
   if (!row) return { action: 'lease_lost' };
@@ -274,6 +276,7 @@ export async function prepareSend(
     sendAt,
     timeZone: it.time_zone,
     channelOverride: row.channel,
+    digester,
   });
   if (d.outcome === 'suppressed') {
     if (
@@ -296,15 +299,14 @@ export async function prepareSend(
     return { action: 'done' };
   }
   // Only a contact point whose current value carries a verification is ever addressed.
-  const recipient = await tx.query<{ value: string }>(
-    `SELECT v.value FROM (${VERIFIED_POINTS_SQL}) v ORDER BY v.preferred DESC LIMIT 1`,
-    [row.patient_id, CONTACT_CHANNEL[row.channel]],
+  const recipients = (await verifiedPoints(tx, digester, row.patient_id, CONTACT_CHANNEL[row.channel])).sort(
+    (a, b) => Number(b.preferred) - Number(a.preferred),
   );
   const template = await tx.query<{ template_ref: string; version: number; body: string; state: string }>(
     'SELECT template_ref, version, body, state FROM cuspatlas.message_templates WHERE id = $1',
     [d.templateId],
   );
-  const to = recipient.rows[0]?.value;
+  const to = recipients[0]?.value;
   const t = template.rows[0];
   if (!to || !t) throw new Error('decision allowed without recipient or template');
   return {

@@ -3,6 +3,7 @@ import type { LightMyRequestResponse } from 'fastify';
 import type pg from 'pg';
 import { type AppointmentHarness, openAppointmentHarness, type Who } from './appointment-fixtures';
 import type { TestDatabase } from './db';
+import { FakeAttachmentRefs } from './fake-attachments';
 import { SVC_A1, SVC_B1, T_ALPHA, T_BETA, USER_A1, USER_A2, USER_A3, USER_A4, USER_B1 } from './fixtures';
 import { patientBody } from './patient-fixtures';
 
@@ -77,6 +78,8 @@ export const synthPhone = (suffix: string, preference = 'preferred') => ({
 });
 
 export interface EngagementHarness extends AppointmentHarness {
+  /** Test double of I's attachment reference read (the AttachmentRefResolver port). */
+  readonly attachments: FakeAttachmentRefs;
   /** Calls a portal route with a portal-audience token for `principalRef` (or a raw token). */
   portal(
     principalOrToken: string,
@@ -97,7 +100,8 @@ export async function openEngagementHarness(
   db: TestDatabase,
   opts: { pool?: number; mcp?: boolean } = {},
 ): Promise<EngagementHarness> {
-  const h = await openAppointmentHarness(db, { ...opts, portal: true });
+  const attachments = new FakeAttachmentRefs();
+  const h = await openAppointmentHarness(db, { ...opts, portal: true, attachmentRefs: attachments });
   await seedEngagementScopes(db.admin);
   const portalTokens = new Map<string, string>();
   const portalToken = async (principalRef: string, tenantId = T_ALPHA) => {
@@ -151,5 +155,5 @@ export async function openEngagementHarness(
     }
     return r.data.principalRef;
   };
-  return { ...h, portal, portalToken, person, enroll };
+  return { ...h, attachments, portal, portalToken, person, enroll };
 }

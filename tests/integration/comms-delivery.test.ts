@@ -3,7 +3,7 @@ import {
   createSecurityAttemptSink,
   createTenantTransactionRunner,
 } from '@cuspatlas/db';
-import { createAuthorize } from '@cuspatlas/domain';
+import { createAuthorize, SYNTHETIC_TEST_MATCH_KEY_PEPPER } from '@cuspatlas/domain';
 import { createOutboundSender, type OutboundSender, type SenderLogLine } from '@cuspatlas/worker';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { count, seedLocation } from './support/appointment-fixtures';
@@ -82,6 +82,7 @@ function sender(
     memberships: createMembershipSource(db.app),
     attempts: createSecurityAttemptSink(db.sink),
     port,
+    matchKeyPepper: SYNTHETIC_TEST_MATCH_KEY_PEPPER,
     clock: opts.clock ?? DAYTIME,
     log: (l) => logs.push(l),
     backoffSeconds: () => 60,

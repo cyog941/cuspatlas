@@ -17,9 +17,19 @@ import { recordCommand } from '../../events/record-command';
 import { recordSensitiveRead } from '../../events/record-sensitive-read';
 import type { AuthorizationDecision } from '../../policy/authorize';
 import { AVAILABLE, workItem, workList } from '../../work-items';
-import { assertRef, checkEnvelope, conflict, type EngagementBase, failedAt, notFound } from '../common';
+import {
+  type AttachmentRefResolver,
+  assertAttachmentRefs,
+  assertRef,
+  checkEnvelope,
+  conflict,
+  type EngagementBase,
+  failedAt,
+  notFound,
+} from '../common';
 import { decideSuppression } from '../communications/suppression';
 import { requirePortalAccess } from '../portal/access';
+import { boundMessages, boundThreads, lockForBounds, recordLimited } from '../portal/bounds';
 
 /**
  * E5 secure messaging. Threads belong to one patient and one location and are worked by a staff
@@ -106,6 +116,7 @@ async function loadThread(
 async function insertMessage(
   tx: TenantTransaction,
   operation: string,
+  resolver: AttachmentRefResolver | undefined,
   m: {
     thread: { id: string; patient_id: string };
     authorKind: 'portal' | 'staff';
@@ -117,6 +128,8 @@ async function insertMessage(
   messageRef: string;
   notice: { decisionRef: string; outcome: string; reason: string | null } | null;
 }> {
+  // Attachment references must exist for this patient in this tenant (I's reference read, via the port).
+  await assertAttachmentRefs(resolver, tx, m.thread.patient_id, m.attachments);
   // E6 decides the notice of a staff reply in the same transaction (fail closed on any error).
   const decision =
     m.authorKind === 'staff'
@@ -278,7 +291,7 @@ export function createMessagingOperations(base: EngagementBase) {
       { operation: op, resourceType: 'messageThread', resourceRef: threadId, resourceVersion: 1 },
       { changedFields: ['patient', 'topic', 'queue'] },
     );
-    const m = await insertMessage(tx, op, {
+    const m = await insertMessage(tx, op, deps.attachmentRefs, {
       thread: { id: threadId, patient_id: o.patientRef },
       authorKind: o.via,
       via: o.viaRelationship,
@@ -352,7 +365,7 @@ export function createMessagingOperations(base: EngagementBase) {
           const t = await loadThread(tx, threadRef, decision, true);
           return execute(ctx, { ...envelope, payload: { threadRef, ...p } }, tx, async () => {
             // Closing stops participant messages, not staff replies.
-            const m = await insertMessage(tx, op, {
+            const m = await insertMessage(tx, op, deps.attachmentRefs, {
               thread: t,
               authorKind: 'staff',
               via: null,
@@ -574,21 +587,29 @@ export function createMessagingOperations(base: EngagementBase) {
           body: string;
           attachments?: Attachment[];
         };
-        return deps.withTenantTransaction(ctx, async (tx) => {
-          const access = await requirePortalAccess(tx, patientRef, ['consent']);
-          const loc = await locationId(tx, p.locationRef, null);
-          return execute(ctx, { ...envelope, payload: { patientRef, ...p } }, tx, () =>
-            openThreadIn(tx, op, {
-              patientRef: access.patientRef,
-              via: 'portal',
-              viaRelationship: portalVia(access),
-              locationId: loc,
-              topic: p.topic,
-              body: p.body,
-              attachments: p.attachments ?? [],
-            }),
-          );
-        });
+        try {
+          return await deps.withTenantTransaction(ctx, async (tx) => {
+            // Lock-free pre-check, bounds locks, then the full authority check with the locks held.
+            await lockForBounds(tx, patientRef);
+            const access = await requirePortalAccess(tx, patientRef, ['consent']);
+            const loc = await locationId(tx, p.locationRef, null);
+            return execute(ctx, { ...envelope, payload: { patientRef, ...p } }, tx, async () => {
+              await boundThreads(tx, access.patientRef);
+              return openThreadIn(tx, op, {
+                patientRef: access.patientRef,
+                via: 'portal',
+                viaRelationship: portalVia(access),
+                locationId: loc,
+                topic: p.topic,
+                body: p.body,
+                attachments: p.attachments ?? [],
+              });
+            });
+          });
+        } catch (err) {
+          await recordLimited(base, ctx, op, err);
+          throw err;
+        }
       });
     },
 
@@ -603,23 +624,30 @@ export function createMessagingOperations(base: EngagementBase) {
         checkEnvelope(envelope, op);
         assertValid(validateMessagePost, envelope.payload, ENGAGEMENT_PROPERTIES);
         const p = envelope.payload as { body: string; attachments?: Attachment[] };
-        return deps.withTenantTransaction(ctx, async (tx) => {
-          const access = await requirePortalAccess(tx, patientRef, ['consent']);
-          const t = await loadThread(tx, threadRef, null, true);
-          if (t.patient_id !== access.patientRef) throw notFound();
-          return execute(ctx, { ...envelope, payload: { patientRef, threadRef, ...p } }, tx, async () => {
-            if (t.state === 'closed') throw conflict('thread_closed');
-            const m = await insertMessage(tx, op, {
-              thread: t,
-              authorKind: 'portal',
-              via: portalVia(access),
-              body: p.body,
-              attachments: p.attachments ?? [],
+        try {
+          return await deps.withTenantTransaction(ctx, async (tx) => {
+            await lockForBounds(tx, patientRef);
+            const access = await requirePortalAccess(tx, patientRef, ['consent']);
+            const t = await loadThread(tx, threadRef, null, true);
+            if (t.patient_id !== access.patientRef) throw notFound();
+            return execute(ctx, { ...envelope, payload: { patientRef, threadRef, ...p } }, tx, async () => {
+              if (t.state === 'closed') throw conflict('thread_closed');
+              await boundMessages(tx);
+              const m = await insertMessage(tx, op, deps.attachmentRefs, {
+                thread: t,
+                authorKind: 'portal',
+                via: portalVia(access),
+                body: p.body,
+                attachments: p.attachments ?? [],
+              });
+              const version = await touchThread(tx, op, t, { awaiting: 'practice' });
+              return { data: { threadRef: t.id, messageRef: m.messageRef }, version };
             });
-            const version = await touchThread(tx, op, t, { awaiting: 'practice' });
-            return { data: { threadRef: t.id, messageRef: m.messageRef }, version };
           });
-        });
+        } catch (err) {
+          await recordLimited(base, ctx, op, err);
+          throw err;
+        }
       });
     },
 

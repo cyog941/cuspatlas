@@ -96,6 +96,7 @@ function sender(port: FakeMessaging, clock: () => Date = DAYTIME): OutboundSende
     memberships: createMembershipSource(db.app),
     attempts: createSecurityAttemptSink(db.sink),
     port,
+    matchKeyPepper: SYNTHETIC_TEST_MATCH_KEY_PEPPER,
     clock,
     backoffSeconds: () => 60,
   });

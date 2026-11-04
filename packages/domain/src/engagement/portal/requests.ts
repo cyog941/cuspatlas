@@ -12,7 +12,7 @@ import {
   validatePortalRequestSubmit,
 } from '@cuspatlas/contracts';
 import { checkEnvelope, type EngagementBase, who } from '../common';
-import { requirePortalAccess } from './access';
+import { mayContendFor, requirePortalAccess } from './access';
 
 /**
  * E3: portal appointment requests are S8 requests. This module validates the closed portal input,
@@ -39,12 +39,16 @@ const limited = (reason: string, name: string, value: number) =>
  * locked FOR NO KEY UPDATE before anything share-locks them, so two submissions with different keys
  * cannot both count below the cap. Taken in the authorize hook (before the portal check share-locks
  * the principal) to avoid a share-to-update upgrade between concurrent submissions.
+ *
+ * Order (review hardening): a lock-free relationship pre-check first, so a principal with no
+ * connection to the patient never takes (or waits on) a lock on that patient's row; then the locks;
+ * then the caller rechecks authority in full (`requirePortalAccess`) with the locks held.
  */
-async function lockForBounds(tx: TenantTransaction, patientRef: string): Promise<void> {
+export async function lockForBounds(tx: TenantTransaction, patientRef: string): Promise<void> {
   await tx.query(
     'SELECT 1 FROM cuspatlas.portal_principals WHERE principal_id = cuspatlas.current_actor_id() FOR NO KEY UPDATE',
   );
-  if (validateEngagementEntityRef(patientRef)) {
+  if (validateEngagementEntityRef(patientRef) && (await mayContendFor(tx, patientRef))) {
     await tx.query('SELECT 1 FROM cuspatlas.patients WHERE id = $1 FOR NO KEY UPDATE', [patientRef]);
   }
 }

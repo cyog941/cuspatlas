@@ -467,7 +467,7 @@ export const ENGAGEMENT_OPS: readonly EngagementOp[] = [
     refusals: ['401', '403', '404', '503'],
     tool: 'messaging_threads_get',
     description:
-      'One thread with its messages, attachment references and the notice state of each staff reply. Every read is access-audited.',
+      'One thread with its messages, attachment references and the notice state of each staff reply. Every read is access-audited. Human staff only (service principals are denied by default).',
     invoke: (svc, actor, i) => data(svc.readStaffThread(actor, param(i, 'threadRef'))),
   },
   {

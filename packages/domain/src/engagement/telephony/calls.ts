@@ -1,9 +1,9 @@
-import { createHash } from 'node:crypto';
 import {
   type ActorContext,
   assertValid,
   type CommandEnvelope,
   ENGAGEMENT_PROPERTIES,
+  RefusalError,
   type TenantTransaction,
   validateCallEventInput,
   validateCallLink,
@@ -13,9 +13,10 @@ import {
 } from '@cuspatlas/contracts';
 import { executeOnce } from '../../commands/execute-once';
 import { recordCommand } from '../../events/record-command';
+import { recordSensitiveRead } from '../../events/record-sensitive-read';
 import { formatLocal, minutesOf } from '../../scheduling/zoned-time';
 import { assertRef, checkEnvelope, conflict, type EngagementBase, failedAt, notFound } from '../common';
-import { CONTACT_DIGEST_SQL } from '../communications/suppression';
+import { createContactDigester, DIGEST_SCHEME } from '../digests';
 
 /**
  * E8 telephony (E-S2 blocked-on-discovery: no provider, no network). What is built is the practice's
@@ -70,7 +71,6 @@ interface ConfigRow extends Record<string, unknown> {
 }
 
 const digits = (n: string) => n.replace(/[^0-9]/g, '');
-const digestOf = (n: string) => createHash('sha256').update(digits(n)).digest('hex');
 
 function validZone(zone: string): boolean {
   try {
@@ -214,6 +214,8 @@ export function createTelephonyOperations(base: EngagementBase) {
         const p = envelope.payload as CallEventInput;
         const at = new Date(p.occurredAt);
         if (Number.isNaN(at.getTime())) throw failedAt('/occurredAt', 'format');
+        // Keyed digest and S4 match keys of the caller: never a plain hash of the number.
+        const digester = createContactDigester(deps.matchKeyPepper, ctx.tenantId);
         return deps.withTenantTransaction(ctx, async (tx) =>
           execute(ctx, envelope, tx, async () => {
             const dup = await tx.query<{ id: string }>(
@@ -224,23 +226,32 @@ export function createTelephonyOperations(base: EngagementBase) {
             const c = await configAt(tx, at);
             if (c === null) throw conflict('telephony_not_configured');
             if (!c.numbers.includes(p.dialedNumber)) throw failedAt('/dialedNumber', 'numberNotConfigured');
-            const { rows } = await tx.query<{ id: string }>(
-              `INSERT INTO cuspatlas.call_events (tenant_id, provider_call_ref, direction, caller_digest, caller_last4,
-                 dialed_number, occurred_at, outcome, config_id, handling, recorded_by)
-               VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6, $7, $8, $9, cuspatlas.current_actor_id())
-               RETURNING id`,
-              [
-                p.providerCallRef,
-                p.direction,
-                digestOf(p.callerNumber),
-                digits(p.callerNumber).slice(-4),
-                p.dialedNumber,
-                at,
-                p.outcome,
-                c.id,
-                handlingAt(c, at),
-              ],
-            );
+            let rows: { id: string }[];
+            try {
+              ({ rows } = await tx.query<{ id: string }>(
+                `INSERT INTO cuspatlas.call_events (tenant_id, provider_call_ref, direction, caller_digest, digest_scheme,
+                   caller_match_keys, caller_last4, dialed_number, occurred_at, outcome, config_id, handling, recorded_by)
+                 VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, ${DIGEST_SCHEME}, $4::text[], $5, $6, $7, $8, $9, $10,
+                   cuspatlas.current_actor_id())
+                 RETURNING id`,
+                [
+                  p.providerCallRef,
+                  p.direction,
+                  digester.caller(p.callerNumber),
+                  digester.phoneMatchKeys(p.callerNumber),
+                  digits(p.callerNumber).slice(-4),
+                  p.dialedNumber,
+                  at,
+                  p.outcome,
+                  c.id,
+                  handlingAt(c, at),
+                ],
+              ));
+            } catch (err) {
+              // A concurrent delivery of the same provider event: a typed conflict, never a bare 500.
+              if ((err as { code?: string }).code === '23505') throw conflict('call_event_conflict');
+              throw err;
+            }
             const id = rows[0]?.id as string;
             await recordCommand(
               tx,
@@ -257,12 +268,21 @@ export function createTelephonyOperations(base: EngagementBase) {
       const op = 'telephony.calls.read';
       return base.guarded(ctx, op, async () => {
         await base.authorize(ctx, op);
+        // Candidate patient references are patient data: only a caller who may read patients sees them,
+        // limited to the patients of their own locations when restricted.
+        let candidateScope: { locationRefs: readonly string[] | null } | null = null;
+        try {
+          const d = await deps.authorize(ctx, 'patients.read', { tenantId: ctx.tenantId, id: 'engagement' });
+          candidateScope = { locationRefs: d.locationRefs };
+        } catch (err) {
+          if (!(err instanceof RefusalError && err.code === 'forbidden')) throw err;
+        }
         return deps.withTenantTransaction(ctx, async (tx) => {
           assertRef(callRef);
           const { rows } = await tx.query<{
             id: string;
             direction: string;
-            caller_digest: string;
+            caller_match_keys: string[];
             caller_last4: string;
             dialed_number: string;
             occurred_at: Date;
@@ -271,7 +291,7 @@ export function createTelephonyOperations(base: EngagementBase) {
             version: number;
             routing: Routing;
           }>(
-            `SELECT e.id, e.direction, e.caller_digest, e.caller_last4, e.dialed_number, e.occurred_at, e.outcome, e.handling,
+            `SELECT e.id, e.direction, e.caller_match_keys, e.caller_last4, e.dialed_number, e.occurred_at, e.outcome, e.handling,
                c.version, c.routing
              FROM cuspatlas.call_events e JOIN cuspatlas.telephony_configs c ON c.id = e.config_id AND c.tenant_id = e.tenant_id
              WHERE e.id = $1`,
@@ -283,15 +303,26 @@ export function createTelephonyOperations(base: EngagementBase) {
             'SELECT patient_id, reason_code, created_at FROM cuspatlas.call_links WHERE call_id = $1 ORDER BY seq DESC LIMIT 1',
             [e.id],
           );
-          // Candidates: patients with a phone contact point whose digest matches. Never a link.
-          const candidates = await tx.query<{ id: string }>(
-            `SELECT DISTINCT p.id FROM cuspatlas.patients p, jsonb_array_elements(
-               CASE WHEN (p.contact ->> 'known')::boolean THEN p.contact -> 'points' ELSE '[]'::jsonb END) AS cp
-             WHERE p.merged_into IS NULL AND cp ->> 'channel' = 'phone'
-               AND ${CONTACT_DIGEST_SQL("cp ->> 'value'", "'phone'")} = $1
-             ORDER BY p.id LIMIT 10`,
-            [e.caller_digest],
-          );
+          // Candidates: patients whose stored phone match key (S4, keyed, GIN-indexed) equals one of the
+          // caller's keys. Never a link. Scheme 1 events (plain hashes) have no keys and no candidates.
+          const candidates =
+            candidateScope === null || e.caller_match_keys.length === 0
+              ? { rows: [] as { id: string }[] }
+              : await tx.query<{ id: string }>(
+                  `SELECT p.id FROM cuspatlas.patients p
+                   WHERE p.merged_into IS NULL AND p.match_keys && $1::text[]
+                     AND ($2::text[] IS NULL OR p.home_location_ref = ANY ($2::text[]))
+                   ORDER BY p.id LIMIT 10`,
+                  [e.caller_match_keys, candidateScope.locationRefs],
+                );
+          if (candidates.rows.length > 0) {
+            await recordSensitiveRead(tx, {
+              operation: op,
+              resourceType: 'patient',
+              resourceRefs: candidates.rows.map((r) => r.id),
+              queryFields: [],
+            });
+          }
           const current = link.rows[0];
           return {
             callRef: e.id,

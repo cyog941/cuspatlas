@@ -4,7 +4,7 @@ import {
   createSecurityAttemptSink,
   createTenantTransactionRunner,
 } from '@cuspatlas/db';
-import { createAuthorize } from '@cuspatlas/domain';
+import { createAuthorize, SYNTHETIC_TEST_MATCH_KEY_PEPPER } from '@cuspatlas/domain';
 import { createOutboundSender } from '@cuspatlas/worker';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { seedLocation } from './support/appointment-fixtures';
@@ -127,13 +127,14 @@ const sender = () =>
     memberships: createMembershipSource(db.app),
     attempts: createSecurityAttemptSink(db.sink),
     port,
+    matchKeyPepper: SYNTHETIC_TEST_MATCH_KEY_PEPPER,
     clock: () => new Date(),
   });
 const port = new FakeMessaging();
 
 describe('E5 acceptance', () => {
   it('a patient writes, the practice queue owns it, a staff reply is noticed notice-only through E7, the patient reads it', async () => {
-    const attachment = randomUUID();
+    const attachment = h.attachments.register(T_ALPHA, adult, 'imageRef', randomUUID());
     const res = h.ok<{ data: { threadRef: string } }>(
       await open(adultP, adult, `My synthetic question ${MARKER}`, {
         attachments: [{ kind: 'imageRef', ref: attachment }],

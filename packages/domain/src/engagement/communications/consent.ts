@@ -19,10 +19,10 @@ import {
 import { executeOnce } from '../../commands/execute-once';
 import { recordCommand } from '../../events/record-command';
 import { assertRef, checkEnvelope, conflict, type EngagementBase, failedAt, notFound } from '../common';
+import { createContactDigester, DIGEST_SCHEME } from '../digests';
 import { requirePortalAccess } from '../portal/access';
 import {
   CONSENT_PURPOSE,
-  CONTACT_DIGEST_SQL,
   currentChannelPolicy,
   evaluateSuppression,
   type IntentPurpose,
@@ -209,15 +209,23 @@ export function createConsentOperations(base: EngagementBase) {
         () => assertValid(validateContactVerify, envelope.payload, ENGAGEMENT_PROPERTIES),
         (tx) => requirePatient(tx, patientRef),
         async (tx) => {
+          // Keyed digests (HMAC under the S4 pepper) are computed here: the database never sees the pepper.
+          const digester = createContactDigester(deps.matchKeyPepper, tx.ctx.tenantId);
+          const digest = digester.contact(p.channel, p.value);
+          const points = await tx.query<{ value: string }>(
+            `SELECT cp ->> 'value' AS value FROM cuspatlas.patients p, jsonb_array_elements(
+               CASE WHEN (p.contact ->> 'known')::boolean THEN p.contact -> 'points' ELSE '[]'::jsonb END) AS cp
+             WHERE p.id = $1 AND cp ->> 'channel' = $2`,
+            [patientRef, p.channel],
+          );
+          if (!points.rows.some((r) => digester.contact(p.channel, r.value) === digest)) {
+            throw failedAt('/value', 'contactNotOnRecord');
+          }
           const { rows } = await tx.query<{ id: string }>(
-            `INSERT INTO cuspatlas.contact_verifications (tenant_id, patient_id, channel, contact_digest, method, verified_by)
-             SELECT cuspatlas.current_tenant_id(), p.id, $2, d.digest, $4, cuspatlas.current_actor_id()
-             FROM cuspatlas.patients p CROSS JOIN LATERAL (SELECT ${CONTACT_DIGEST_SQL('$3::text', '$2')} AS digest) d
-             WHERE p.id = $1 AND EXISTS (SELECT 1 FROM jsonb_array_elements(
-                 CASE WHEN (p.contact ->> 'known')::boolean THEN p.contact -> 'points' ELSE '[]'::jsonb END) AS cp
-               WHERE cp ->> 'channel' = $2 AND ${CONTACT_DIGEST_SQL("cp ->> 'value'", '$2')} = d.digest)
+            `INSERT INTO cuspatlas.contact_verifications (tenant_id, patient_id, channel, contact_digest, digest_scheme, method, verified_by)
+             VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, ${DIGEST_SCHEME}, $4, cuspatlas.current_actor_id())
              RETURNING id`,
-            [patientRef, p.channel, p.value, p.method],
+            [patientRef, p.channel, digest, p.method],
           );
           const id = rows[0]?.id;
           if (!id) throw failedAt('/value', 'contactNotOnRecord');
@@ -258,7 +266,7 @@ export function createConsentOperations(base: EngagementBase) {
           // Effective state per channel and purpose: the latest fact, an opt-out covering every purpose.
           const effective: { channel: string; purpose: string; state: string; consentRef: string }[] = [];
           for (const channel of ['portal', 'email', 'sms', 'voice']) {
-            for (const purpose of ['reminders', 'recall', 'messaging', 'treatment']) {
+            for (const purpose of ['reminders', 'recall', 'messaging']) {
               const last = [...rows]
                 .reverse()
                 .find((r) => r.channel === channel && (r.purpose === purpose || r.purpose === 'all'));
@@ -573,6 +581,7 @@ export function createConsentOperations(base: EngagementBase) {
             patientRef,
             sendAt: at,
             timeZone,
+            digester: createContactDigester(deps.matchKeyPepper, ctx.tenantId),
             ...(q.channel ? { channelOverride: q.channel } : {}),
           });
           return {

@@ -23,6 +23,7 @@ import {
   type WithTenantTransaction,
 } from '@cuspatlas/contracts';
 import {
+  type AttachmentRefResolver,
   type AttemptRecordingDeps,
   type CommandExecutor,
   type CursorCodec,
@@ -82,6 +83,8 @@ export interface McpServerDeps {
   readonly env: RuntimeEnvironment;
   /** Match-key pepper (CUSPATLAS_MATCH_KEY_PEPPER); optional only under synthetic-test. */
   readonly matchKeyPepper?: Uint8Array;
+  /** I's attachment reference read (another branch); without it message attachments are refused. */
+  readonly attachmentRefs?: AttachmentRefResolver;
   /** Verifier whose audience is the MCP resource identifier (distinct from the REST audience). */
   readonly identity: IdentityVerifierConfig;
   /** The REST audience; the server refuses to start if it equals the MCP audience. */
@@ -266,6 +269,7 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     patients,
     appointments,
     matchKeyPepper: resolveMatchKeyPepper(deps.env, deps.matchKeyPepper),
+    ...(deps.attachmentRefs ? { attachmentRefs: deps.attachmentRefs } : {}),
     authorize,
     withTenantTransaction: deps.tenantTransactions,
     recording,

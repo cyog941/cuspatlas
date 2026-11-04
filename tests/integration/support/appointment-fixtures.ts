@@ -7,6 +7,7 @@ import {
   createSecurityAttemptSink,
   createTenantTransactionRunner,
 } from '@cuspatlas/db';
+import type { AttachmentRefResolver } from '@cuspatlas/domain';
 import { buildMcpServer, type McpServerHandle } from '@cuspatlas/mcp';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -54,7 +55,7 @@ export interface AppointmentHarness {
 
 export async function openAppointmentHarness(
   db: TestDatabase,
-  opts: { pool?: number; mcp?: boolean; portal?: boolean } = {},
+  opts: { pool?: number; mcp?: boolean; portal?: boolean; attachmentRefs?: AttachmentRefResolver } = {},
 ): Promise<AppointmentHarness> {
   await seedTenancy(db.admin);
   await seedPatientScopes(db.admin);
@@ -72,6 +73,7 @@ export async function openAppointmentHarness(
     membership,
     attempts,
     tenantTransactions,
+    ...(opts.attachmentRefs ? { attachmentRefs: opts.attachmentRefs } : {}),
     // E1: the portal transport (its own audience) is registered only when asked for.
     ...(opts.portal
       ? {
@@ -90,6 +92,7 @@ export async function openAppointmentHarness(
       membership,
       attempts,
       tenantTransactions,
+      ...(opts.attachmentRefs ? { attachmentRefs: opts.attachmentRefs } : {}),
       logger: { stream: { write: (l: string) => logLines.push(l) } },
     });
     mcpUrl = (await server.listen({ host: '127.0.0.1', port: 0 })).url;

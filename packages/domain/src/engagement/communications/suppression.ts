@@ -1,6 +1,7 @@
 import type { TenantTransaction } from '@cuspatlas/contracts';
 import { evaluatePatientAccess } from '../../policy/patient-access';
 import { addDays, formatLocal, localToInstant, minutesOf } from '../../scheduling/zoned-time';
+import { type ContactDigester, DIGEST_SCHEME } from '../digests';
 
 /**
  * E6: the single suppression decision. S14 (intent time) and E7 (send time) call it; S and B never
@@ -38,7 +39,8 @@ export type SuppressionReason = (typeof SUPPRESSION_REASONS)[number];
 /** S14 intent purposes plus E5's notice of a staff reply in a secure-message thread. */
 export type IntentPurpose = 'reminder' | 'cancellation' | 'waitlist_offer' | 'recall' | 'message_notice';
 export type MessageChannel = 'email' | 'sms';
-export type ConsentPurpose = 'reminders' | 'recall' | 'messaging' | 'treatment';
+/** Treatment consent is C13's and is never an E consent fact (the table CHECK excludes it too). */
+export type ConsentPurpose = 'reminders' | 'recall' | 'messaging';
 
 /** Intent purpose to consent purpose (cancellation notices ride on reminder consent). */
 export const CONSENT_PURPOSE: Readonly<Record<IntentPurpose, ConsentPurpose>> = {
@@ -54,22 +56,33 @@ export const CONTACT_CHANNEL: Readonly<Record<MessageChannel, 'email' | 'phone'>
   sms: 'phone',
 };
 
-/** SQL normalization of a contact value before digesting (email lower-cased, phone digits only). */
-export const CONTACT_DIGEST_SQL = (value: string, channel: string) =>
-  `encode(sha256(convert_to(CASE WHEN ${channel} = 'phone' THEN regexp_replace(${value}, '[^0-9]', '', 'g')
-     ELSE lower(btrim(${value})) END, 'UTF8')), 'hex')`;
-
 /**
- * The patient's contact points of a channel ($2: 'email' | 'phone') that are not `avoid` and whose
- * current value carries a verification fact (E-owned, keyed to the value digest). Selects `value`.
+ * The patient's contact points of a channel that are not `avoid` and whose current value carries a
+ * verification fact (E-owned, keyed to the HMAC digest of the value, scheme 2). The digests are computed
+ * in the application with the tenant's keyed digester: the database never sees the pepper.
  */
-export const VERIFIED_POINTS_SQL = `SELECT cp ->> 'value' AS value, (cp ->> 'preference') = 'preferred' AS preferred
-  FROM cuspatlas.patients p, jsonb_array_elements(
-    CASE WHEN (p.contact ->> 'known')::boolean THEN p.contact -> 'points' ELSE '[]'::jsonb END) AS cp
-  WHERE p.id = $1 AND p.merged_into IS NULL AND cp ->> 'channel' = $2 AND cp ->> 'preference' <> 'avoid'
-    AND EXISTS (SELECT 1 FROM cuspatlas.contact_verifications v
-      WHERE v.patient_id = p.id AND v.tenant_id = p.tenant_id AND v.channel = $2
-        AND v.contact_digest = ${CONTACT_DIGEST_SQL("cp ->> 'value'", '$2')})`;
+export async function verifiedPoints(
+  tx: TenantTransaction,
+  digester: ContactDigester,
+  patientRef: string,
+  channel: 'email' | 'phone',
+): Promise<{ value: string; preferred: boolean }[]> {
+  const points = await tx.query<{ value: string; preferred: boolean }>(
+    `SELECT cp ->> 'value' AS value, (cp ->> 'preference') = 'preferred' AS preferred
+     FROM cuspatlas.patients p, jsonb_array_elements(
+       CASE WHEN (p.contact ->> 'known')::boolean THEN p.contact -> 'points' ELSE '[]'::jsonb END) AS cp
+     WHERE p.id = $1 AND p.merged_into IS NULL AND cp ->> 'channel' = $2 AND cp ->> 'preference' <> 'avoid'`,
+    [patientRef, channel],
+  );
+  if (points.rows.length === 0) return [];
+  const verified = await tx.query<{ contact_digest: string }>(
+    `SELECT contact_digest FROM cuspatlas.contact_verifications
+     WHERE patient_id = $1 AND channel = $2 AND digest_scheme = ${DIGEST_SCHEME}`,
+    [patientRef, channel],
+  );
+  const have = new Set(verified.rows.map((r) => r.contact_digest));
+  return points.rows.filter((p) => have.has(digester.contact(channel, p.value)));
+}
 
 export interface ChannelPolicyRow extends Record<string, unknown> {
   id: string;
@@ -115,6 +128,8 @@ export interface DecisionInput {
   readonly timeZone?: string | null;
   /** Previews may ask about a channel the policy does not name (never recorded). */
   readonly channelOverride?: MessageChannel;
+  /** Required at the send stage (keyed verification digests); a missing digester fails closed. */
+  readonly digester?: ContactDigester;
 }
 
 export interface Evaluation {
@@ -283,11 +298,9 @@ export async function evaluateSuppression(tx: TenantTransaction, input: Decision
   if (!contact.rows[0]?.ok) return out('missing_contact', { consentId: consent.id });
   if (input.stage === 'send') {
     // Send time: the contact point must carry a recorded verification of its current value.
-    const verified = await tx.query<{ ok: boolean }>(`SELECT EXISTS (${VERIFIED_POINTS_SQL}) AS ok`, [
-      patientRef,
-      CONTACT_CHANNEL[channel],
-    ]);
-    if (!verified.rows[0]?.ok) return out('no_verified_channel', { consentId: consent.id });
+    if (!input.digester) throw new Error('send-stage decision needs the keyed contact digester');
+    const verified = await verifiedPoints(tx, input.digester, patientRef, CONTACT_CHANNEL[channel]);
+    if (verified.length === 0) return out('no_verified_channel', { consentId: consent.id });
   }
   if (input.sendAt && input.timeZone && policy.quiet_start && policy.quiet_end) {
     const end = quietWindowEnd(input.sendAt, policy.quiet_start, policy.quiet_end, input.timeZone);

@@ -11,7 +11,7 @@ import {
   createTenantTransactionRunner,
   importExports,
 } from '@cuspatlas/db';
-import { createAuthorize } from '@cuspatlas/domain';
+import { createAuthorize, SYNTHETIC_TEST_MATCH_KEY_PEPPER } from '@cuspatlas/domain';
 import { createOutboundSender } from '@cuspatlas/worker';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { seedLocation, T_ALPHA } from './support/appointment-fixtures';
@@ -26,6 +26,7 @@ import {
   synthPhone,
 } from './support/engagement-fixtures';
 import { FakeMessaging } from './support/fake-messaging';
+import { T_BETA } from './support/fixtures';
 import { MARKER } from './support/marker';
 
 /**
@@ -167,6 +168,7 @@ beforeAll(async () => {
     memberships: createMembershipSource(source.app),
     attempts: createSecurityAttemptSink(source.sink),
     port,
+    matchKeyPepper: SYNTHETIC_TEST_MATCH_KEY_PEPPER,
     clock: () => new Date('2030-07-10T17:00:00Z'),
   });
   await sender.runOnce(T_ALPHA);
@@ -313,6 +315,75 @@ describe('E9 engagement export round trip', () => {
     await expect(
       importExports(target.admin, T_ALPHA, [s, { ...e, format: 'other/9' } as unknown as EngagementExport]),
     ).rejects.toThrow(/format/);
+  });
+
+  it('a portal principal id that belongs to another principal kind is never adopted; the import rolls back', async () => {
+    const s = (await exportOf(h, '/v1/scheduling/export')) as unknown as SchedulingExport;
+    const e = await exportOf(h, '/v1/communications/export');
+    await target.admin.query(
+      `INSERT INTO cuspatlas.principals (id, kind, handle) VALUES ($1, 'human', 'impostor-staff')`,
+      [refs.principal],
+    );
+    try {
+      await expect(
+        importExports(target.admin, T_ALPHA, [s, e as unknown as EngagementExport]),
+      ).rejects.toThrow(/portal principal/);
+      const kind = await target.admin.query('SELECT kind FROM cuspatlas.principals WHERE id = $1', [
+        refs.principal,
+      ]);
+      expect(kind.rows[0].kind).toBe('human');
+      const n = await target.admin.query('SELECT count(*)::int AS n FROM cuspatlas.portal_principals');
+      expect(n.rows[0].n).toBe(0);
+    } finally {
+      await target.admin.query('DELETE FROM cuspatlas.principals WHERE id = $1', [refs.principal]);
+    }
+  });
+
+  it('a single-column reference into another tenant is an orphan: the import rolls back', async () => {
+    const s = (await exportOf(h, '/v1/scheduling/export')) as unknown as SchedulingExport;
+    const e = await exportOf(h, '/v1/communications/export');
+    const policy = e.tables.channel_policies?.[0] as Record<string, unknown>;
+    const foreignPolicy = randomUUID();
+    // A channel policy of ANOTHER tenant (beta) exists in the target under that id.
+    const client = await target.admin.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query("SET LOCAL session_replication_role = 'replica'");
+      await client.query(
+        `INSERT INTO cuspatlas.channel_policies OVERRIDING SYSTEM VALUE
+         SELECT * FROM jsonb_populate_record(NULL::cuspatlas.channel_policies, $1::jsonb)`,
+        [JSON.stringify({ ...policy, id: foreignPolicy, tenant_id: T_BETA })],
+      );
+      await client.query('COMMIT');
+    } finally {
+      client.release();
+    }
+    const tampered: Doc = {
+      ...e,
+      tables: {
+        ...e.tables,
+        suppression_decisions: (e.tables.suppression_decisions ?? []).map((r, i) =>
+          i === 0 ? { ...r, channel_policy_id: foreignPolicy } : r,
+        ),
+      },
+    };
+    try {
+      await expect(
+        importExports(target.admin, T_ALPHA, [s, tampered as unknown as EngagementExport]),
+      ).rejects.toThrow(/suppression_decisions_channel_policy_id_fkey/);
+      const n = await target.admin.query('SELECT count(*)::int AS n FROM cuspatlas.suppression_decisions');
+      expect(n.rows[0].n).toBe(0);
+    } finally {
+      const cleanup = await target.admin.connect();
+      try {
+        await cleanup.query('BEGIN');
+        await cleanup.query("SET LOCAL session_replication_role = 'replica'");
+        await cleanup.query('DELETE FROM cuspatlas.channel_policies WHERE id = $1', [foreignPolicy]);
+        await cleanup.query('COMMIT');
+      } finally {
+        cleanup.release();
+      }
+    }
   });
 
   it('re-imports with the S17 export into a fresh synthetic database without identifier loss and exports identically', async () => {

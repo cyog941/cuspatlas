@@ -6,6 +6,7 @@ import type {
   WithTenantTransaction,
 } from '@cuspatlas/contracts';
 import {
+  type AttachmentRefResolver,
   type AttemptRecordingDeps,
   type CommandExecutor,
   type CursorCodec,
@@ -72,6 +73,8 @@ export interface AppDeps {
   readonly proposalPolicyVersion?: string;
   /** Match-key pepper (CUSPATLAS_MATCH_KEY_PEPPER); optional only under synthetic-test. */
   readonly matchKeyPepper?: Uint8Array;
+  /** I's attachment reference read (another branch); without it message attachments are refused. */
+  readonly attachmentRefs?: AttachmentRefResolver;
   /**
    * E1 portal transport: the same verifier key with the portal audience (distinct from the staff
    * audience). Portal routes are registered only when this and `portalPrincipals` are configured.
@@ -233,6 +236,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         patients,
         appointments,
         matchKeyPepper: resolveMatchKeyPepper(deps.env, deps.matchKeyPepper),
+        ...(deps.attachmentRefs ? { attachmentRefs: deps.attachmentRefs } : {}),
         authorize,
         withTenantTransaction: deps.tenantTransactions,
         recording,

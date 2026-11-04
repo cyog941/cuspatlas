@@ -176,10 +176,15 @@ export function createIdentityCommands(s: PatientServiceContext) {
       });
     },
 
+    /**
+     * `within` runs the update in the caller's open tenant transaction (E4 applies a reviewed intake
+     * answer and resolves its review item atomically); omitted, the update opens its own.
+     */
     updatePatientDemographics(
       ctx: ActorContext,
       patientRef: string,
       envelope: CommandEnvelope<unknown>,
+      within?: TenantTransaction,
     ): Promise<CommandResult<PatientSummary>> {
       return guarded(ctx, 'patients.updateDemographics', async () => {
         const decision = await deps.authorize(ctx, 'patients.updateDemographics', {
@@ -203,7 +208,9 @@ export function createIdentityCommands(s: PatientServiceContext) {
         ];
         if (groups.length === 0) throw invalid('no_field_group');
         checkIdentityInput(payload);
-        return deps.withTenantTransaction(ctx, async (tx) => {
+        const run = <T>(work: (tx: TenantTransaction) => Promise<T>): Promise<T> =>
+          within ? work(within) : deps.withTenantTransaction(ctx, work);
+        return run(async (tx) => {
           const current = await loadPatient(tx, patientRef, 'FOR UPDATE');
           // S5: acting for a related person is authorization, rechecked fresh before the executor so a
           // replay after revocation is denied too.

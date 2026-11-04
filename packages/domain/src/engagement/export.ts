@@ -30,6 +30,11 @@ export function createEngagementExportOperations(base: EngagementBase) {
       const op = 'communications.export';
       return base.guarded(ctx, op, async () => {
         const decision = await base.authorize(ctx, op);
+        // The export carries message bodies, patient references and consent facts: the caller must hold
+        // the read scope of each (admin.configure alone is configuration, not read access to content).
+        await base.authorize(ctx, 'messaging.threads.read');
+        await base.authorize(ctx, 'patients.read');
+        await base.authorize(ctx, 'communications.consents.list');
         assertValid(validateEmptyQuery, query, ENGAGEMENT_PROPERTIES);
         if (decision.locationRefs !== null) {
           throw new RefusalError({ code: 'forbidden', reasonCode: 'location_denied' });
@@ -44,12 +49,23 @@ export function createEngagementExportOperations(base: EngagementBase) {
             tables[table] = rows[0]?.rows ?? [];
           }
           const now = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
-          await recordSensitiveRead(tx, {
-            operation: op,
-            resourceType: 'engagementExport',
-            resourceRefs: [],
-            queryFields: [],
-          });
+          // One entry per table: the table name as the only query field, the true count, and the first
+          // 100 record references (identifiers only; never values).
+          const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+          for (const table of ENGAGEMENT_EXPORT_TABLES) {
+            const rows = tables[table] ?? [];
+            const refs = rows
+              .map((r) => r.id)
+              .filter((id): id is string => typeof id === 'string' && UUID.test(id))
+              .slice(0, 100);
+            await recordSensitiveRead(tx, {
+              operation: op,
+              resourceType: 'engagementExport',
+              resourceRefs: refs,
+              totalCount: rows.length,
+              queryFields: [table.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())],
+            });
+          }
           return { format: ENGAGEMENT_EXPORT_FORMAT, exportedAt: now.toISOString(), tables };
         });
       });

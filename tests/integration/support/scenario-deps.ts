@@ -7,5 +7,5 @@ export {
   createSecurityAttemptSink,
   createTenantTransactionRunner,
 } from '@cuspatlas/db';
-export { createAuthorize, SUPPRESSION_REASONS } from '@cuspatlas/domain';
+export { createAuthorize, SUPPRESSION_REASONS, SYNTHETIC_TEST_MATCH_KEY_PEPPER } from '@cuspatlas/domain';
 export { createOutboundSender } from '@cuspatlas/worker';

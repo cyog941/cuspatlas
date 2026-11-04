@@ -17,6 +17,7 @@ import {
   createSecurityAttemptSink,
   createTenantTransactionRunner,
   SUPPRESSION_REASONS,
+  SYNTHETIC_TEST_MATCH_KEY_PEPPER,
 } from '../integration/support/scenario-deps';
 
 /**
@@ -174,6 +175,7 @@ describe('E9 ordinary portal day (synthetic)', () => {
       memberships: createMembershipSource(db.app),
       attempts: createSecurityAttemptSink(db.sink),
       port,
+      matchKeyPepper: SYNTHETIC_TEST_MATCH_KEY_PEPPER,
       clock: () => new Date('2030-09-01T15:00:00Z'),
     });
     await sender.runOnce(T_ALPHA);

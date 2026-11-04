@@ -48,12 +48,21 @@ async function assertForeignKeys(
     parent: string;
     child_cols: string[];
     parent_cols: string[];
+    scoped: boolean;
   }>(
     `SELECT con.conname, cc.relname AS child, pc.relname AS parent,
        ARRAY(SELECT a.attname::text FROM unnest(con.conkey) WITH ORDINALITY k(attnum, ord)
          JOIN pg_attribute a ON a.attrelid = con.conrelid AND a.attnum = k.attnum ORDER BY k.ord) AS child_cols,
        ARRAY(SELECT a.attname::text FROM unnest(con.confkey) WITH ORDINALITY k(attnum, ord)
-         JOIN pg_attribute a ON a.attrelid = con.confrelid AND a.attnum = k.attnum ORDER BY k.ord) AS parent_cols
+         JOIN pg_attribute a ON a.attrelid = con.confrelid AND a.attnum = k.attnum ORDER BY k.ord) AS parent_cols,
+       -- Child and parent both carry tenant_id but the key does not: a single-column reference that
+       -- must still stay inside the tenant (the tenant is not part of the key itself).
+       (EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = con.conrelid AND a.attname = 'tenant_id'
+          AND NOT a.attisdropped)
+        AND EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = con.confrelid AND a.attname = 'tenant_id'
+          AND NOT a.attisdropped)
+        AND NOT ARRAY(SELECT a.attname::text FROM unnest(con.conkey) k(attnum)
+          JOIN pg_attribute a ON a.attrelid = con.conrelid AND a.attnum = k.attnum) @> ARRAY['tenant_id']) AS scoped
      FROM pg_constraint con
      JOIN pg_class cc ON cc.oid = con.conrelid
      JOIN pg_class pc ON pc.oid = con.confrelid
@@ -63,9 +72,10 @@ async function assertForeignKeys(
     [[...tables]],
   );
   for (const fk of rows) {
-    const on = fk.child_cols
-      .map((c, i) => `p.${quote(fk.parent_cols[i] ?? '')} = c.${quote(c)}`)
-      .join(' AND ');
+    const on = [
+      ...fk.child_cols.map((c, i) => `p.${quote(fk.parent_cols[i] ?? '')} = c.${quote(c)}`),
+      ...(fk.scoped ? ['p."tenant_id" = c."tenant_id"'] : []),
+    ].join(' AND ');
     const present = fk.child_cols.map((c) => `c.${quote(c)} IS NOT NULL`).join(' AND ');
     const orphan = await client.query(
       `SELECT 1 FROM cuspatlas.${quote(fk.child)} c
@@ -130,6 +140,14 @@ export async function importExports(
                ON CONFLICT (id) DO NOTHING`,
               [String(row.principal_id)],
             );
+            // A pre-existing principal of another kind (a staff member, a service) is never adopted.
+            const kind = await client.query<{ kind: string }>(
+              'SELECT kind FROM cuspatlas.principals WHERE id = $1::uuid',
+              [String(row.principal_id)],
+            );
+            if (kind.rows[0]?.kind !== 'portal') {
+              throw new Error('Import refused: a portal principal id belongs to a different principal kind');
+            }
           }
           // Identity columns (append-only fact order) keep their exported values.
           await client.query(

@@ -4,6 +4,7 @@ import {
   type CommandEnvelope,
   RefusalError,
   type SecurityReasonCode,
+  type TenantTransaction,
   validateEngagementEntityRef,
   type WithTenantTransaction,
 } from '@cuspatlas/contracts';
@@ -25,6 +26,44 @@ export interface EngagementDeps {
   readonly patients?: Pick<PatientService, 'updatePatientDemographics'>;
   /** S4 match-key pepper: enrollment compares contact digests, never plaintext values. */
   readonly matchKeyPepper: Uint8Array;
+  /** I's attachment reference read (another branch); without it any attachment is refused. */
+  readonly attachmentRefs?: AttachmentRefResolver;
+}
+
+/**
+ * The seam to I's attachment references (image or object). Workstream I owns the bytes and the
+ * reference read; it is on another branch, so E defines the port and a message attachment is accepted
+ * only when the resolver confirms that the reference exists in the caller's tenant (the transaction is
+ * tenant-bound, so a foreign tenant's reference is simply absent) and belongs to the message's patient.
+ * With no resolver wired any attachment is refused (fail closed): a spoofed reference can never be
+ * stored. Integration seam recorded in docs/execution/engagement-progress.md.
+ */
+export interface AttachmentRefResolver {
+  belongsToPatient(
+    tx: TenantTransaction,
+    patientRef: string,
+    attachment: { readonly kind: 'imageRef' | 'objectRef'; readonly ref: string },
+  ): Promise<boolean>;
+}
+
+export async function assertAttachmentRefs(
+  resolver: AttachmentRefResolver | undefined,
+  tx: TenantTransaction,
+  patientRef: string,
+  attachments: readonly { readonly kind: 'imageRef' | 'objectRef'; readonly ref: string }[],
+): Promise<void> {
+  if (attachments.length === 0) return;
+  if (!resolver) {
+    throw new RefusalError({
+      code: 'service_unavailable',
+      retryable: false,
+      detail: { reason: 'attachment_resolver_unavailable' },
+    });
+  }
+  for (const [i, a] of attachments.entries()) {
+    if (!(await resolver.belongsToPatient(tx, patientRef, a)))
+      throw failedAt(`/attachments/${i}`, 'attachmentRefInvalid');
+  }
 }
 
 export const notFound = () =>

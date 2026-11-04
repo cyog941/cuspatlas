@@ -99,3 +99,9 @@ Seams: C13 and C14 can reference `noteRef` or `noteVersionRef` with its `content
 Unresolved: C-S2-Q1, Q2, Q4, Q5 and the reason vocabularies have no clinical recommendation and block release; the co-signer cannot be tied to the supervising resource until staff records link scheduling resources to principals.
 
 Process incident (no repository effect): one shell chain in this session failed before its `cd`, so `corepack pnpm typecheck` and `npx biome check .` ran with the session's default directory (the OneDrive checkout). The first printed "command not found" after corepack fetched a pnpm binary into its cache; the second made npx fetch an unrelated `biome@0.3.3` package into the npx cache. `git status` in the OneDrive checkout is clean and no file there changed; every later command starts with `cd <worktree> || exit 1`.
+
+### Batch 2b gate
+
+- `corepack pnpm run ci` at `8bb92b6` → exit 0: typecheck, lint, contract drift, 39 files / 833 tests passed, privacy scan ok, SBOM, evidence generated and verified (integrity and freshness only; controls unreviewed, not certified).
+- Commits: `4b914c1` (C9), `8bb92b6` (C10), then this ledger-only commit.
+- Status language: C9 and C10 are tested on synthetic data on a Windows host. Nothing is approved, deployed, compliant or clinically validated; every clinical semantic above is recommended-pending-clinical-approval or blocking.

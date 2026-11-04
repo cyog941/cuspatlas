@@ -2047,6 +2047,187 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/clinical/perio/exams:
+    post:
+      operationId: clinical.perio.recordExam
+      description: >-
+        Record one complete periodontal exam (C7) for a patient: every listed tooth (Universal, FDI or canonical; not a supernumerary tooth) with every site of the provisional six-site scheme (probing depth 0..20 mm, recession -10..20 mm, bleeding) plus mobility and furcation grades from the tenant-configured vocabulary, each measured or explicitly not_measured (stored as such, never as zero). A partial exam (missing or duplicate site, duplicate tooth) is refused as a whole (422 siteMissing, duplicateSite, duplicateTooth); an unconfigured grade is 422 notConfigured; a tooth charted missing is 409 tooth_absent_on_chart naming the chart entry (the chart must record otherwise first; nothing is created implicitly). Raw values only; no derived value is computed here. With an encounterRef the encounter must be open. Synthetic engineering bounds and scheme pending clinical approval (C-S1-Q5). Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PerioExamRecord'
+      responses:
+        '201':
+          description: Exam recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PerioExamCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/perio/exams/{perioExamRef}/corrections:
+    post:
+      operationId: clinical.perio.correctExam
+      description: >-
+        Supersede named current measurements of an exam (C7) with a reason code; each correction is a new value in the same exam and the prior value stays readable with its successor. A measurement already superseded is 409 measurement_superseded naming the current successor; a value of the wrong shape for its measure is 422 valueNotForMeasure. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/PerioExamRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PerioExamCorrect'
+      responses:
+        '201':
+          description: Corrections recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PerioExamCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/perio/exams/{perioExamRef}/derivations:
+    post:
+      operationId: clinical.perio.derive
+      description: >-
+        Compute derived values of an exam (C7) under one formula version from the tenant registry (synthetic SYN- formulas; every formula is pending clinical approval, C-D3). Values are stored with the formula version and labelled derived_pending_clinical_approval, never rewritten; a later computation, under the same or a new version, is a new derivation. A site with an unmeasured input is not_computable (excluded from arithmetic). An unknown formula or version is 422 notConfigured; a withdrawn formula is 409 formula_withdrawn. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/PerioExamRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PerioDerive'
+      responses:
+        '201':
+          description: Derivation recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PerioDerivationCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/perio/exams/{perioExamRef}:
+    get:
+      operationId: clinical.perio.readExam
+      description: >-
+        One periodontal exam (C7) with its source patient, every measurement (current and superseded, with correction reasons and authors) and every derivation with its formula version, pending-approval status and withdrawn/historical flags. A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/PerioExamRef'
+      responses:
+        '200':
+          description: The exam.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PerioExamRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/patients/{patientRef}/perio-exams:
+    get:
+      operationId: clinical.perio.listExams
+      description: >-
+        Every periodontal exam of a patient (C7), oldest first, each with its stream and source patient so merged exams stay distinct. A merged-away patient is 409 patient_merged. A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/PatientRef'
+      responses:
+        '200':
+          description: The exams.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PerioExamList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/perio/comparisons:
+    get:
+      operationId: clinical.perio.compare
+      description: >-
+        Compare two exams of one patient (C7) per tooth and site for probing depth and recession: only measured pairs carry a delta (target minus base); not_measured and absent sites are listed with the reason and never treated as improvement. With formulaRef and formulaVersion, the latest derivation of that version in each exam is compared too and each exam's formula version is named (pending approval; 409 derivation_missing when an exam has none). Exams of different patients are 422 examPatientMismatch. A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/PerioBaseExam'
+        - $ref: '#/components/parameters/PerioTargetExam'
+        - $ref: '#/components/parameters/PerioFormulaRefQuery'
+        - $ref: '#/components/parameters/PerioFormulaVersionQuery'
+      responses:
+        '200':
+          description: The comparison.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PerioComparison'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
 components:
   securitySchemes:
     bearer:
@@ -2212,6 +2393,40 @@ components:
       description: Numbering projection of each canonical tooth (default universal).
       schema:
         $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ToothDisplaySystem'
+    PerioExamRef:
+      name: perioExamRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PerioExamRef'
+    PerioBaseExam:
+      name: baseExamRef
+      in: query
+      required: false
+      description: The earlier exam (required).
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PerioExamRef'
+    PerioTargetExam:
+      name: targetExamRef
+      in: query
+      required: false
+      description: The later exam (required).
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PerioExamRef'
+    PerioFormulaRefQuery:
+      name: formulaRef
+      in: query
+      required: false
+      description: Optional formula for a derived comparison (with formulaVersion).
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PerioFormulaRef'
+    PerioFormulaVersionQuery:
+      name: formulaVersion
+      in: query
+      required: false
+      description: Formula version (with formulaRef).
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PerioCompareQuery/properties/formulaVersion'
   responses:
     Refusal:
       description: Typed refusal (code, retryable, correlationId, optional safe detail).

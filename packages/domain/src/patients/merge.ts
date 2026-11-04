@@ -52,7 +52,8 @@ export interface MergeRecordClass {
     | 'clinical_encounters'
     | 'clinical_history_streams'
     // C6/C7/C11 clinical classes (workstream C batch 2a).
-    | 'clinical_charts';
+    | 'clinical_charts'
+    | 'clinical_perio_streams';
   readonly column: 'subject_patient_id' | 'counterparty_patient_id';
   /** Public name of the reference in the record's contract. */
   readonly referenceField: string;
@@ -182,6 +183,16 @@ export const MERGE_RECORD_CLASSES: readonly MergeRecordClass[] = [
     factKind: 'clinical',
     digestExclude: ['subject_patient_id', 'head_sequence', 'version', 'updated_at'],
   },
+  // C7 (workstream C): a perio stream follows its patient; exams, measurements and derivations
+  // reference the stream, never the patient; the stream keeps its source patient.
+  {
+    recordClass: 'clinicalPerioStream',
+    table: 'clinical_perio_streams',
+    column: 'subject_patient_id',
+    referenceField: 'patientRef',
+    factKind: 'clinical',
+    digestExclude: ['subject_patient_id', 'head_sequence', 'version', 'updated_at'],
+  },
 ];
 
 /** Foreign keys to patients that a merge deliberately does not move, with the reason. */
@@ -211,6 +222,11 @@ export const MERGE_EXCLUDED_REFERENCES: readonly { table: string; column: string
     table: 'clinical_charts',
     column: 'origin_patient_id',
     why: 'a chart keeps its source patient so merged charts stay distinguishable (C6)',
+  },
+  {
+    table: 'clinical_perio_streams',
+    column: 'origin_patient_id',
+    why: 'a perio stream keeps its source patient so merged exams stay distinct (C7)',
   },
 ];
 

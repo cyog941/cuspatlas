@@ -51,4 +51,23 @@ export function registerClinicalRecordRoutes(
   mount('clinical.chart.read', async (r) => ({
     data: await c.readChart(requireActor(r), param(r, 'patientRef'), query(r)),
   }));
+  // C7 periodontal exams.
+  mount('clinical.perio.recordExam', (r) =>
+    c.recordPerioExam(requireActor(r), env('clinical.perio.recordExam', r)),
+  );
+  mount('clinical.perio.correctExam', (r) =>
+    c.correctPerioExam(requireActor(r), param(r, 'perioExamRef'), env('clinical.perio.correctExam', r)),
+  );
+  mount('clinical.perio.derive', (r) =>
+    c.derivePerioValues(requireActor(r), param(r, 'perioExamRef'), env('clinical.perio.derive', r)),
+  );
+  mount('clinical.perio.readExam', async (r) => ({
+    data: await c.readPerioExam(requireActor(r), param(r, 'perioExamRef')),
+  }));
+  mount('clinical.perio.listExams', async (r) => ({
+    data: await c.listPerioExams(requireActor(r), param(r, 'patientRef')),
+  }));
+  mount('clinical.perio.compare', async (r) => ({
+    data: await c.comparePerioExams(requireActor(r), query(r)),
+  }));
 }

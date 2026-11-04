@@ -12,7 +12,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 // Workstream C (clinical record) rows are appended below with their own fixtures.
-import { seedClinicalScopes, seedDispositions } from './support/clinical-fixtures';
+import { seedClinicalScopes, seedDispositions, seedPerioConfiguration } from './support/clinical-fixtures';
 import { openTestDatabase, type TestDatabase } from './support/db';
 import { seedTenancy, T_ALPHA, T_BETA, USER_A1, USER_A2, USER_A4, USER_B1 } from './support/fixtures';
 import { MARKER } from './support/marker';
@@ -952,7 +952,118 @@ export const COMMANDS: HarnessCommand[] = [
     rest: (f) => ({ method: 'GET', url: `/v1/clinical/patients/${P(f)}/chart`, keyed: false, status: 200 }),
     mcpArgs: (f) => ({ patientRef: P(f) }),
   },
+  // C7 periodontal exams (workstream C batch 2a).
+  {
+    operation: 'clinical.perio.recordExam',
+    tool: 'clinical_perio_record_exam',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: '/v1/clinical/perio/exams',
+      body: perioBody(f),
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({ ...perioBody(f), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'clinical.perio.correctExam',
+    tool: 'clinical_perio_correct_exam',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/perio/exams/${f.alphaPerioExam}/corrections`,
+      body: perioCorrection(f),
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({ perioExamRef: f.alphaPerioExam, ...perioCorrection(f), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'clinical.perio.derive',
+    tool: 'clinical_perio_derive',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/perio/exams/${f.alphaPerioExam}/derivations`,
+      body: { formulaRef: 'SYN-PERIO-SUM', formulaVersion: 1 },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      perioExamRef: f.alphaPerioExam,
+      formulaRef: 'SYN-PERIO-SUM',
+      formulaVersion: 1,
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.perio.readExam',
+    tool: 'clinical_perio_get_exam',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/perio/exams/${f.alphaPerioExam}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ perioExamRef: f.alphaPerioExam }),
+  },
+  {
+    operation: 'clinical.perio.listExams',
+    tool: 'clinical_perio_list_exams',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/patients/${P(f)}/perio-exams`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ patientRef: P(f) }),
+  },
+  {
+    operation: 'clinical.perio.compare',
+    tool: 'clinical_perio_compare',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/perio/comparisons?baseExamRef=${f.alphaPerioExam}&targetExamRef=${f.alphaPerioExam}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ baseExamRef: f.alphaPerioExam, targetExamRef: f.alphaPerioExam }),
+  },
 ];
+
+function perioBody(f: HarnessFixture) {
+  return {
+    patientRef: f.alphaPatient,
+    siteScheme: 'six_site_provisional',
+    teeth: [perioTooth('14')],
+  };
+}
+function perioTooth(code: string) {
+  return {
+    tooth: { system: 'universal', code },
+    mobility: 'not_measured',
+    furcation: 'not_measured',
+    probingDepth: [3, 3, 3, 3, 3, 3],
+    recession: [1, 1, 1, 1, 1, 1],
+    bleeding: ['not_measured', false, false, false, false, false],
+  };
+}
+function perioCorrection(f: HarnessFixture) {
+  return {
+    reasonCode: 'transcription_error',
+    corrections: [{ measurementRef: f.alphaPerioMeasurement, value: { status: 'measured', mm: 4 } }],
+  };
+}
 
 function chartBody(f: HarnessFixture) {
   return {
@@ -1048,6 +1159,8 @@ beforeAll(async () => {
   await seedSchedulingScopes(db.admin);
   await seedClinicalScopes(db.admin);
   await seedDispositions(db.admin, T_ALPHA, ['completed_as_planned']);
+  await seedPerioConfiguration(db.admin, T_ALPHA);
+  await seedPerioConfiguration(db.admin, T_BETA);
   issuer = await createTestTokenIssuer();
   logLines = [];
   const stream = { write: (l: string) => logLines.push(l) };
@@ -1244,7 +1357,19 @@ beforeAll(async () => {
     findingRef: 'SYN-HARNESS-001',
   });
   expect(chartEntry.statusCode).toBe(201);
+  // C7: one alpha periodontal exam (tooth 14).
+  const perio = await owner('/v1/clinical/perio/exams', {
+    patientRef: alphaPatient,
+    siteScheme: 'six_site_provisional',
+    teeth: [perioTooth('14')],
+  });
+  expect(perio.statusCode).toBe(201);
+  const perioExam = perio.json().data;
   fixture = {
+    alphaPerioExam: perioExam.examRef,
+    alphaPerioMeasurement: perioExam.measurements.find(
+      (m: { measure: string; site: string | null }) => m.measure === 'probing_depth' && m.site === 'b',
+    ).measurementRef,
     alphaChartEntry: chartEntry.json().data.entry.entryRef,
     alphaHistoryVersion: recorded.header.historyVersionRef,
     alphaHistoryItem: recorded.changes[0].itemRef,
@@ -1384,6 +1509,11 @@ async function state(): Promise<string> {
     await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_history_reviews'),
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_charts'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_chart_entries'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_perio_streams'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_perio_exams'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_perio_measurements'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_perio_derivations'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_perio_derived_values'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.audit_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.outbox_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.command_idempotency'),

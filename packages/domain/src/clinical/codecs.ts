@@ -63,4 +63,8 @@ export const CLINICAL_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<Clinica
   // C6 chart (workstream C batch 2a).
   'clinical.chart.recordEntry': recordCodec,
   'clinical.chart.correctEntry': refCodec('entryRef'),
+  // C7 periodontal exams.
+  'clinical.perio.recordExam': refCodec('examRef'),
+  'clinical.perio.correctExam': refCodec('examRef'),
+  'clinical.perio.derive': refCodec('derivationRef'),
 };

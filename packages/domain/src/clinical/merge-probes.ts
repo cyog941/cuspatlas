@@ -46,4 +46,25 @@ export const CLINICAL_POST_MERGE_FACT_PROBES: readonly PostMergeFactProbe[] = [
       return Number(rows[0]?.n ?? 0);
     },
   },
+  // C7: exams, corrections and derivations on any of the survivor's perio streams after the merge.
+  {
+    factKind: 'clinical',
+    async count(tx: TenantTransaction, survivorRef: string, mergedAt: Date): Promise<number> {
+      const { rows } = await tx.query<{ n: number }>(
+        `SELECT (SELECT count(*) FROM cuspatlas.clinical_perio_exams x
+                  JOIN cuspatlas.clinical_perio_streams s ON s.id = x.stream_id AND s.tenant_id = x.tenant_id
+                  WHERE s.subject_patient_id = $1 AND x.recorded_at >= $2)
+              + (SELECT count(*) FROM cuspatlas.clinical_perio_measurements m
+                  JOIN cuspatlas.clinical_perio_exams x ON x.id = m.exam_id AND x.tenant_id = m.tenant_id
+                  JOIN cuspatlas.clinical_perio_streams s ON s.id = x.stream_id AND s.tenant_id = x.tenant_id
+                  WHERE s.subject_patient_id = $1 AND m.supersedes_measurement_id IS NOT NULL AND m.recorded_at >= $2)
+              + (SELECT count(*) FROM cuspatlas.clinical_perio_derivations d
+                  JOIN cuspatlas.clinical_perio_exams x ON x.id = d.exam_id AND x.tenant_id = d.tenant_id
+                  JOIN cuspatlas.clinical_perio_streams s ON s.id = x.stream_id AND s.tenant_id = x.tenant_id
+                  WHERE s.subject_patient_id = $1 AND d.computed_at >= $2) AS n`,
+        [survivorRef, mergedAt],
+      );
+      return Number(rows[0]?.n ?? 0);
+    },
+  },
 ];

@@ -68,3 +68,30 @@ export async function seedDispositions(
     );
   }
 }
+
+/**
+ * C7 tenant configuration (synthetic, test-only): grade vocabularies for mobility and furcation and
+ * the formula registry. Every formula is a synthetic SYN- placeholder with no clinical meaning and
+ * approval_status pending (the only storable value); C-D3 and C-S1-Q5 stay blocking.
+ */
+export async function seedPerioConfiguration(admin: pg.Pool, tenantId: string): Promise<void> {
+  for (const measure of ['mobility', 'furcation']) {
+    for (const grade of ['syn_0', 'syn_1', 'syn_2', 'syn_3']) {
+      await admin.query(
+        'INSERT INTO cuspatlas.clinical_perio_grade_vocabulary (tenant_id, measure, grade_code) VALUES ($1, $2, $3)',
+        [tenantId, measure, grade],
+      );
+    }
+  }
+  for (const [ref, version, inputs] of [
+    ['SYN-PERIO-SUM', 1, ['probing_depth', 'recession']],
+    ['SYN-PERIO-SUM', 2, ['probing_depth']],
+    ['SYN-PERIO-OLD', 1, ['probing_depth', 'recession']],
+  ] as const) {
+    await admin.query(
+      `INSERT INTO cuspatlas.clinical_perio_formulas (tenant_id, formula_ref, version, operation, inputs)
+       VALUES ($1, $2, $3, 'sum', $4)`,
+      [tenantId, ref, version, inputs],
+    );
+  }
+}

@@ -116,6 +116,13 @@ const TOOL_NAMES = [
   'clinical_chart_correct_entry',
   'clinical_chart_read',
   'clinical_chart_record_entry',
+  // C7 periodontal tools (parity in clinical-perio and negative-harness tests).
+  'clinical_perio_compare',
+  'clinical_perio_correct_exam',
+  'clinical_perio_derive',
+  'clinical_perio_get_exam',
+  'clinical_perio_list_exams',
+  'clinical_perio_record_exam',
 ].sort();
 
 let db: TestDatabase;

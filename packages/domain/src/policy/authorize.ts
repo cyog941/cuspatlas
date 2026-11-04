@@ -113,6 +113,14 @@ export const ACTION_POLICIES = {
   'clinical.chart.recordEntry': { scope: 'clinical.write', principals: ['human'] },
   'clinical.chart.correctEntry': { scope: 'clinical.write', principals: ['human'] },
   'clinical.chart.read': { scope: 'clinical.read', principals: ['human', 'service'] },
+  // C7 periodontal exams (recommended-pending-clinical-approval). Recording, correcting and deriving
+  // are human clinical authors only; reads and comparison are sensitive reads.
+  'clinical.perio.recordExam': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.perio.correctExam': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.perio.derive': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.perio.readExam': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.perio.listExams': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.perio.compare': { scope: 'clinical.read', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

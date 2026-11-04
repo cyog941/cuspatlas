@@ -134,3 +134,161 @@ export const validateChartReadQuery = def('ChartReadQuery');
 export const validateChartEntryCommandResult = def('ChartEntryCommandResult');
 export const validateChartCorrectionResult = def('ChartCorrectionResult');
 export const validateChartRead = def('ChartRead');
+
+/** C7 periodontal exams: raw measurements; derived values only from the pending formula registry. */
+export type PerioSite = 'db' | 'b' | 'mb' | 'dl' | 'l' | 'ml';
+export type PerioMeasure = 'probing_depth' | 'recession' | 'bleeding' | 'mobility' | 'furcation';
+export type PerioInputMeasure = 'probing_depth' | 'recession';
+export type PerioValueInput =
+  | { readonly status: 'measured'; readonly mm?: number; readonly present?: boolean; readonly grade?: string }
+  | { readonly status: 'not_measured' };
+
+/** A tooth of an exam: one value per site in the scheme order (db, b, mb, dl, l, ml). */
+export type NotMeasured = 'not_measured';
+export interface PerioToothInput {
+  readonly tooth: ToothInput;
+  readonly mobility: { readonly grade: string } | NotMeasured;
+  readonly furcation: { readonly grade: string } | NotMeasured;
+  readonly probingDepth: readonly (number | NotMeasured)[];
+  readonly recession: readonly (number | NotMeasured)[];
+  readonly bleeding: readonly (boolean | NotMeasured)[];
+}
+
+export interface PerioExamRecord {
+  readonly patientRef: string;
+  readonly encounterRef?: string;
+  readonly examDate?: string;
+  readonly siteScheme: 'six_site_provisional';
+  readonly teeth: readonly PerioToothInput[];
+}
+
+export interface PerioExamCorrect {
+  readonly reasonCode: string;
+  readonly encounterRef?: string;
+  readonly corrections: readonly { readonly measurementRef: string; readonly value: PerioValueInput }[];
+}
+
+export interface PerioDerive {
+  readonly formulaRef: string;
+  readonly formulaVersion: number;
+}
+
+export interface PerioCompareQuery {
+  readonly baseExamRef: string;
+  readonly targetExamRef: string;
+  readonly formulaRef?: string;
+  readonly formulaVersion?: string;
+}
+
+export interface PerioMeasurement {
+  readonly measurementRef: string;
+  readonly tooth: ToothRef;
+  readonly site: PerioSite | null;
+  readonly measure: PerioMeasure;
+  readonly status: 'measured' | 'not_measured';
+  readonly mm: number | null;
+  readonly present: boolean | null;
+  readonly grade: string | null;
+  readonly current: boolean;
+  readonly supersedesRef: string | null;
+  readonly supersededByRef: string | null;
+  readonly reasonCode: string | null;
+  readonly recordedBy: ClinicalAuthor;
+  readonly recordedAt: string;
+}
+
+export interface PerioFormula {
+  readonly formulaRef: string;
+  readonly version: number;
+  readonly operation: 'sum';
+  readonly inputs: readonly PerioInputMeasure[];
+  readonly approvalStatus: 'pending';
+  readonly withdrawn: boolean;
+  readonly historical: boolean;
+}
+
+export interface PerioDerivedValue {
+  readonly tooth: ToothRef;
+  readonly site: PerioSite;
+  readonly status: 'derived' | 'not_computable';
+  readonly value: number | null;
+  readonly missingInputs: readonly PerioInputMeasure[];
+}
+
+export interface PerioDerivation {
+  readonly derivationRef: string;
+  readonly examRef: string;
+  readonly formula: PerioFormula;
+  readonly label: 'derived_pending_clinical_approval';
+  readonly computedBy: ClinicalAuthor;
+  readonly computedAt: string;
+  readonly values: readonly PerioDerivedValue[];
+}
+
+export interface PerioExamHeader {
+  readonly examRef: string;
+  readonly streamRef: string;
+  readonly patientRef: string;
+  readonly sourcePatientRef: string;
+  readonly sequence: number;
+  readonly siteScheme: 'six_site_provisional';
+  readonly examDate: string | null;
+  readonly encounterRef: string | null;
+  readonly toothCount: number;
+  readonly recordedBy: ClinicalAuthor;
+  readonly recordedAt: string;
+}
+
+export interface PerioExam extends PerioExamHeader {
+  readonly measurements: readonly PerioMeasurement[];
+  readonly derivations: readonly PerioDerivation[];
+}
+
+export type PerioCompareStatus =
+  | 'compared'
+  | 'not_measured_in_base'
+  | 'not_measured_in_target'
+  | 'not_measured_in_both'
+  | 'not_computable_in_base'
+  | 'not_computable_in_target'
+  | 'not_computable_in_both'
+  | 'absent_in_base'
+  | 'absent_in_target';
+
+export interface PerioComparedSite {
+  readonly tooth: ToothRef;
+  readonly site: PerioSite;
+  readonly measure: PerioInputMeasure | 'derived';
+  readonly base: number | null;
+  readonly target: number | null;
+  readonly delta: number | null;
+  readonly status: PerioCompareStatus;
+}
+
+export interface PerioComparisonData {
+  readonly patientRef: string;
+  readonly baseExamRef: string;
+  readonly targetExamRef: string;
+  readonly sites: readonly PerioComparedSite[];
+  readonly derived: {
+    readonly formulaRef: string;
+    readonly approvalStatus: 'pending';
+    readonly label: 'derived_pending_clinical_approval';
+    readonly sites: readonly PerioComparedSite[];
+  } | null;
+  readonly formulaVersions: readonly {
+    readonly examRef: string;
+    readonly formulaRef: string;
+    readonly version: number;
+  }[];
+}
+
+export const validatePerioExamRecord = def('PerioExamRecord');
+export const validatePerioExamCorrect = def('PerioExamCorrect');
+export const validatePerioDerive = def('PerioDerive');
+export const validatePerioCompareQuery = def('PerioCompareQuery');
+export const validatePerioExamCommandResult = def('PerioExamCommandResult');
+export const validatePerioDerivationCommandResult = def('PerioDerivationCommandResult');
+export const validatePerioExamRead = def('PerioExamRead');
+export const validatePerioExamList = def('PerioExamList');
+export const validatePerioComparison = def('PerioComparison');

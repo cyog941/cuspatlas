@@ -1,6 +1,13 @@
 export { AUTHOR_PROFILE_RESOURCE, resolveClinicalAuthor } from './authorship';
 export type { ClinicalDeps } from './base';
-export { CHART_ENTRY_RESOURCE, loadChartEntry, resolveTooth, toothOnChart } from './chart';
+export {
+  CHART_ENTRY_RESOURCE,
+  chartToothStates,
+  loadChartEntry,
+  resolveTooth,
+  type ToothChartState,
+  toothOnChart,
+} from './chart';
 export { CLINICAL_REPLAY_CODECS } from './codecs';
 export {
   ENCOUNTER_RESOURCE,
@@ -16,6 +23,7 @@ export {
   resolveHistoryReference,
 } from './history';
 export { CLINICAL_POST_MERGE_FACT_PROBES } from './merge-probes';
+export { PERIO_DERIVATION_RESOURCE, PERIO_EXAM_RESOURCE, PROVISIONAL_SITES } from './perio';
 export { type ClinicalService, createClinicalService } from './service';
 export {
   checkSurfaces,

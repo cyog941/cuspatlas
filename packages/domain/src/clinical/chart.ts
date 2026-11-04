@@ -172,19 +172,42 @@ export async function toothOnChart(
   tx: TenantTransaction,
   patientId: string,
   canonicalRef: string,
-): Promise<{
-  status: 'present' | 'missing' | 'implant' | 'not_charted';
-  activeEntryRefs: readonly string[];
-}> {
+): Promise<ToothChartState> {
+  return (await chartToothStates(tx, patientId)).get(canonicalRef) ?? NOT_CHARTED;
+}
+
+export interface ToothChartState {
+  readonly status: 'present' | 'missing' | 'implant' | 'not_charted';
+  readonly activeEntryRefs: readonly string[];
+  /** Active entries of kind missing (the blocking references when the tooth is absent). */
+  readonly missingEntryRefs: readonly string[];
+}
+const NOT_CHARTED: ToothChartState = { status: 'not_charted', activeEntryRefs: [], missingEntryRefs: [] };
+
+/** Seam for C7 and C11: the current state of every charted tooth of a patient, in one read. */
+export async function chartToothStates(
+  tx: TenantTransaction,
+  patientId: string,
+): Promise<{ get(canonicalRef: string): ToothChartState | undefined }> {
   const rows = await patientEntries(tx, patientId, null);
   const states = statesOf(rows);
   const entries = rows.map((r) =>
     toEntry(r, states.get(r.id) as { state: ChartEntryState; successor: null }, 'universal'),
   );
-  const t = teethOf(entries).find((x) => x.tooth.canonicalRef === canonicalRef);
-  return t
-    ? { status: t.status, activeEntryRefs: t.activeEntryRefs }
-    : { status: 'not_charted', activeEntryRefs: [] };
+  const out = new Map<string, ToothChartState>();
+  for (const t of teethOf(entries)) {
+    out.set(t.tooth.canonicalRef, {
+      status: t.status,
+      activeEntryRefs: t.activeEntryRefs,
+      missingEntryRefs: entries
+        .filter(
+          (e) =>
+            e.state === 'active' && e.kind === 'missing' && e.tooth?.canonicalRef === t.tooth.canonicalRef,
+        )
+        .map((e) => e.entryRef),
+    });
+  }
+  return out;
 }
 
 /** Seam for C11/C14: one entry with its current state (null when hidden or missing). */

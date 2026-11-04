@@ -138,6 +138,13 @@ export const CLINICAL_BODIES = [
   'ChartEntryCorrect',
   'ChartReadQuery',
   'ToothInput',
+  'PerioExamRecord',
+  'PerioToothInput',
+  'PerioExamCorrect',
+  'PerioCorrectionInput',
+  'PerioCorrectionValue',
+  'PerioDerive',
+  'PerioCompareQuery',
 ] as const;
 
 /** Definitions the proposal contract copies from the task contract; they must stay byte-identical. */

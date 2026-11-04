@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { REFUSAL_CODES } from '@cuspatlas/contracts';
 import { parse } from 'yaml';
+import { extractBillingOpsBlock, renderBillingOpsBlock } from './billing-openapi';
 import { BILLING_OPS } from './routes/billing-ops';
 import {
   BILLING_SCHEMA_FILE,
@@ -433,6 +434,18 @@ export function checkContractDrift(src: ContractSources): string[] {
     }
   }
   const bdef = (name: string) => pointer(billing, `/$defs/${name}`);
+  // The generated BILLING_OPS block is exactly what scripts/openapi-billing.ts renders today.
+  try {
+    const committed = extractBillingOpsBlock(src.openapiText);
+    const rendered = renderBillingOpsBlock(BILLING_OPS, (billing as { $defs: never }).$defs);
+    if (committed !== rendered) {
+      problems.push(
+        'generated BILLING_OPS block differs from scripts/openapi-billing.ts (run openapi:billing)',
+      );
+    }
+  } catch (err) {
+    problems.push(`generated BILLING_OPS block cannot be rendered: ${String(err)}`);
+  }
   // B6/B7/B9: every request body and GET query of the billing operation table is closed too.
   const billingOpBodies = BILLING_OPS.flatMap((o) => [
     ...(o.requestBody ? [o.requestBody.replace('billing:', '')] : []),

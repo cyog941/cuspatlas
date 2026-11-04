@@ -346,6 +346,12 @@ SHOULD:
 - The 22 operation-table rows join the negative matrix in B10.
 - Contract: `ClaimView.events[].eventRef`, `ClaimWorklist.truncated`, `AdjustmentPost.claimRef`, `RemittanceAdvice` (all in billing.schema.json).
 
+### OpenAPI generator for the billing operation table (batch 4)
+
+- The generator that produced the `BILLING_OPS` block of `docs/api/openapi.yaml` lived in an ignored cache directory. It is now `apps/api/src/billing-openapi.ts` (pure render, extract and splice) plus the CLI `scripts/openapi-billing.ts` (`corepack pnpm run openapi:billing`). The block header names the script.
+- The contract drift check renders the block from `BILLING_OPS` and `billing.schema.json` and fails (`generated BILLING_OPS block differs ...`) when the committed block differs: a hand edit, a changed operation or a changed query definition without regeneration.
+- Red: `corepack pnpm test -- contract-drift` with the new case before the change → exit 1, 1 failed, 8 passed. Green: exit 0, 9 passed; regeneration changed only the header line (the committed block was already exactly the generator's output).
+
 ## Seams for later tasks
 
 - C14: drive `billing.charges.post` as a service principal with the rendered-procedure reference in place of `syn-proc-...` (a new `source` value) and the procedure code once B-S4 settles; one original charge per procedure is already enforced.

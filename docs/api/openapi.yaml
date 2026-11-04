@@ -5325,7 +5325,7 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
-  # BEGIN generated: BILLING_OPS (node_modules/.cache/bb3/openapi-gen.ts)
+  # BEGIN generated: BILLING_OPS (scripts/openapi-billing.ts)
   /v1/billing/fee-schedules/versions:
     post:
       operationId: billing.feeSchedules.publish

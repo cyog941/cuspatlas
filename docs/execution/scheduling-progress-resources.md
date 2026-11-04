@@ -68,3 +68,14 @@ Negative rows: `scheduling.availability.search` added to `tests/integration/reso
 Shared files touched by S9: `apps/api/src/routes/manifest.ts`, `apps/api/src/contract-drift.ts` (closed-body list), `docs/api/openapi.yaml`, `tests/integration/mcp-parity.test.ts` (tool name), `docs/execution/foundation-contract-decisions.md` (S9 record).
 
 Deviations: plan case 3 says "the audit records a read"; not implemented (no read-audit path; the orchestrator's no-side-effect assertion wins). Appointment types, credentials, equipment eligibility, patient availability and payer rules are stated as not considered rather than modelled.
+
+## Commits and final verification
+
+- `34e3d6b` S-S3 policy record (ADR 0009).
+- `74bc1d8` S7 resources, operatories and time blocks.
+- `21c86ce` S9 availability search.
+- This ledger commit follows `21c86ce`; it changes only this file.
+
+Final `corepack pnpm run ci` at `21c86ce`: exit 0 (typecheck, lint, contract:check, 24 files / 423 tests, test summary, privacy scan, SBOM, evidence manifest generated and verified: controls unreviewed, not certified). Counts: 342 baseline + 81 new (S7: 17 resources + 32 negative + 1 contract-drift case + 11 scheduling tool-drift; S9: 12 availability + 3 negative rows + 4 zoned-time + 1 tool-drift).
+
+Pending decisions (ADR 0009, all recommended-pending-approval, no decision-maker available): S-D1, S-D6, S-D7, R1 month-end, R2 DST, R3 search bounds. Unresolved: read-access audit for searches; zone migration path; scheduling outbox events have no consumer; btree_gist and the DST tests not yet run on Linux CI for this branch; reviewer sign-off.

@@ -25,8 +25,8 @@ Limitations: Windows-only spike; CI must prove the Linux path. The embedded bina
 | Batch | Status | Head SHA | Notes |
 |---|---|---|---|
 | E0 environment and baseline | verified | (this commit) | see above |
-| E1 reproducible service (Task 1) | verified | see E1 log | pnpm workspace, contracts, safe error boundary, ADR 0001 |
-| E2 identity and contracts (Tasks 2–3) | not started | | |
+| E1 reproducible service (Task 1) | verified | bb25a6b | pnpm workspace, contracts, safe error boundary, ADR 0001 |
+| E2 identity and contracts (Tasks 2–3) | in progress (Task 2 verified, Task 3 in progress) | see E2 log | |
 | E3 trustworthy mutations (Tasks 4–5) | not started | | |
 | E4 durable integrations (Task 6) | not started | | |
 | E5 programmatic control (Tasks 7–7a) | not started | | |
@@ -54,3 +54,17 @@ Acceptance cases: `/healthz` returns exactly `{status:'ok'}`; unknown route/meth
 - `corepack pnpm licenses list --json` → exit 0, summarized in docs/adr/0001-runtime.md; `corepack pnpm audit` → no known vulnerabilities
 
 Unresolved: Linux CI not yet run (Task 8). The contracts unit test was written alongside the schemas rather than strictly red-first.
+
+### E2 / Task 2 (tenant identity and isolation)
+
+Acceptance cases (tests/integration/tenant-isolation.test.ts, 20 tests, all under the runtime role `cuspatlas_app` except fixture seeding and read-back): pg_roles proves the runtime role is NOSUPERUSER/NOBYPASSRLS/NOINHERIT/NOCREATEDB/NOCREATEROLE; RLS enabled and forced on all five tables; no context sees zero rows; no DELETE, no membership writes, no attempt reads; A cannot read B, update B, insert into B, or re-home a row; forged resource tenant denied and recorded with authenticated identity; forged context (A1 claiming B) denied by `authorize` and by the in-transaction membership recheck before work runs; revoked membership denied, including revocation after the context was built; service principal denied a human-only policy even with the scope or a forged `principal: 'human'`; live scopes win over inflated context scopes; pooled connection reuse clean sequentially (including a session-level `set_config` smuggle and a failed transaction) and across 40 concurrent interleaved A/B transactions on a 3-connection pool; HTTP `/v1/session` derives context server-side and ignores tenant headers; expired, not-yet-valid, wrong audience, wrong issuer, bad signature, `alg: none`, malformed and missing tokens are 401 with a null-identity attempt row; revoked membership with a valid token is 403; test issuer cannot be created, and the server refuses to boot with it, outside `synthetic-test`. tests/integration/migrate.test.ts (3 tests): idempotent re-run, changed applied file refused, non-synthetic target refused.
+
+- Red: `corepack pnpm test:integration -- tenant-isolation` before `@cuspatlas/db`/domain/policies existed → exit 1 (`Failed to resolve entry for package "@cuspatlas/db"`)
+- First green attempt hung: `log_min_messages=fatal` suppressed the readiness line embedded-postgres waits for; replaced with `log_error_verbosity=terse` + `log_min_error_statement=panic`; a stray postgres.exe from the killed run was terminated by PID.
+- Green: `corepack pnpm test:integration -- tenant-isolation` → exit 0, 20 tests
+- Mutation check (reverted): replacing `DISCARD ALL` with a no-op and dropping the `active` check in `authorize` → 2 tests failed as expected (session smuggle; revoked-after-build)
+- `corepack pnpm test` → exit 0, 4 files, 34 tests; `corepack pnpm typecheck` → exit 0; `corepack pnpm lint` → exit 0
+- `corepack pnpm migrate` without `CUSPATLAS_MIGRATION_DATABASE_URL` → exit 2 (refuses; URL never printed)
+- `git check-ignore` confirms `supabase/migrations/<ts>_*.sql` is tracked while other `*.sql` files stay ignored
+
+Deviations recorded in foundation-contract-decisions.md (same commit): schema `cuspatlas`; identity-lookup setting `cuspatlas.auth_principal_id`; token claims `tid`/`sid`; attempt identity rules. Unresolved: migrate.test.ts was written after the migrator (not red-first). Supabase security advisors were not run (no cloud connection by instruction); the local equivalent is the pg_roles/RLS assertions above.

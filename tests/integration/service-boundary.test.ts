@@ -2,7 +2,7 @@ import { buildApp, mapErrorToRefusal } from '@cuspatlas/api';
 import { RefusalError } from '@cuspatlas/contracts';
 import type { FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { MARKER } from '../support/marker';
+import { MARKER } from './support/marker';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 

@@ -12,7 +12,8 @@ export default defineConfig({
       {
         test: {
           name: 'integration',
-          include: ['tests/integration/**/*.test.ts'],
+          include: ['tests/integration/*.test.ts'],
+          globalSetup: ['tests/integration/support/global-setup.ts'],
           env: { CUSPATLAS_ENV: 'synthetic-test' },
           testTimeout: 30_000,
           hookTimeout: 120_000,

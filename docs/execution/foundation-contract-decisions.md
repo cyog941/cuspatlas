@@ -14,11 +14,13 @@ Status: decided 2026-11-03 for the synthetic foundation; changing any row requir
 - Runtime role `cuspatlas_app`: LOGIN, NOSUPERUSER, NOBYPASSRLS, NOINHERIT, NOCREATEDB. Receives only explicit table-level grants (SELECT/INSERT, UPDATE where the domain allows, never UPDATE/DELETE on audit tables). RLS enabled and FORCED on every application table; default deny.
 - Tenant context is transaction-local: `select set_config('cuspatlas.tenant_id', $1, true)` and `cuspatlas.actor_id`, set only by `withTenantTransaction` after `authorize` succeeded. Policies compare against `current_setting('cuspatlas.tenant_id', true)`; a missing or empty setting denies. Pooled connections run `DISCARD ALL` on release and the test suite proves no leakage across sequential and concurrent transactions.
 - Every integration test that asserts a denial runs under `cuspatlas_app`, never the owner.
+- Addition (F Task 2, 2026-11-03): application tables live in schema `cuspatlas` (not `public`, so a later PostgREST exposure of `public` cannot reach them). One further transaction-local setting, `cuspatlas.auth_principal_id`, is set only by the identity lookup after token signature verification, in its own read-only transaction with no tenant context; RLS lets it read only that principal's own membership rows. Tenant context is still established only by `withTenantTransaction`, which additionally rechecks the live, unrevoked membership and principal kind inside the transaction before running work. Why: membership must be loaded live before any tenant context exists, and a SECURITY DEFINER bypass would be subject to FORCE RLS for a non-superuser owner.
 
 ## Identity
 
 - Tokens are JWTs signed with an asymmetric test-only key (EdDSA/Ed25519 via `jose`). The API verifies issuer, audience, expiry, not-before, signature and `sub`, then loads membership from the database on every request (no cached authority). A revoked or missing membership denies even with a valid unexpired token.
 - The test issuer lives under `tests/` and is enabled only when `CUSPATLAS_ENV=synthetic-test`; the server refuses to start with the test issuer configured in any other environment. No test headers, no unsigned tokens, no tenant from the client.
+- Addition (F Task 2): the token carries signed claims `sub` (principal UUID), `tid` (selected tenant UUID) and `sid` (session id); all are required with `exp` and `iat`, algorithm EdDSA only. `tid` is issuer-signed context, not caller input, and grants nothing without a live membership row. A missing or revoked membership returns 403 `forbidden`; signature/claim/expiry failures return 401 `unauthenticated`.
 - `ActorContext` is built server-side: `{ tenantId, actorId, principal: 'human' | 'service', sessionId, scopes, correlationId }`. Service principals carry their own membership rows and scopes; a service principal can never satisfy a `human`-only policy.
 
 ## Refusals and results
@@ -29,7 +31,7 @@ Status: decided 2026-11-03 for the synthetic foundation; changing any row requir
 ## Two audit paths
 
 - Committed-change audit (`audit_events`) and outbox (`outbox_events`) are inserted in the same transaction as the domain change by `recordCommand(tx, audit, event)`. Rollback removes all three. The runtime role has INSERT and SELECT only.
-- Security attempt events (`security_attempt_events`) are written after rollback through an independent connection in its own transaction. Fields: `attemptRef` (UUID, unique), `correlationId`, `tenantId?`, `actorId?`, `operation`, `reasonCode`, `occurredAt`. Unauthenticated attempts leave tenant/actor null; identity is never fabricated. If the attempt sink fails, the operation stays denied, a safe alert line is logged, and the caller receives a safe 5xx.
+- Security attempt events (`security_attempt_events`) are written after rollback through an independent connection in its own transaction. Fields: `attemptRef` (UUID, unique), `correlationId`, `tenantId?`, `actorId?`, `operation`, `reasonCode`, `occurredAt`. Unauthenticated attempts leave tenant/actor null; identity is never fabricated. Addition (F Task 2): the denial codes that produce an attempt are `unauthenticated`, `forbidden` and `not_found`; for a verified token without an active membership the actor is the verified `sub` and the tenant is recorded only when a (revoked) membership row for it exists. Internal `reasonCode` values are never sent to the caller. If the attempt sink fails, the operation stays denied, a safe alert line is logged, and the caller receives a safe 5xx.
 
 ## Idempotency and concurrency
 

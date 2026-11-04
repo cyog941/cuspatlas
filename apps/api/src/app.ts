@@ -1,11 +1,15 @@
 import { randomUUID } from 'node:crypto';
+import type { MembershipSource, SecurityAttemptSink } from '@cuspatlas/contracts';
+import { type AttemptRecordingDeps, createAuthorize } from '@cuspatlas/domain';
 import Fastify, {
   type FastifyInstance,
   type FastifyReply,
   type FastifyRequest,
   LogController,
 } from 'fastify';
+import { createAuthenticator, type IdentityVerifierConfig, isTestIssuer } from './auth';
 import { mapErrorToRefusal, safeErrorKind } from './errors';
+import { registerSessionRoutes } from './routes/session';
 
 export const RUNTIME_ENVIRONMENTS = ['synthetic-test', 'development', 'production'] as const;
 export type RuntimeEnvironment = (typeof RUNTIME_ENVIRONMENTS)[number];
@@ -17,6 +21,12 @@ export interface LogDestination {
 export interface AppDeps {
   readonly env: RuntimeEnvironment;
   readonly logger?: { readonly level?: string; readonly stream?: LogDestination };
+  /** Token verification. Protected routes are registered only when identity is configured. */
+  readonly identity?: IdentityVerifierConfig;
+  /** Live membership lookups on the runtime-role pool. */
+  readonly membership?: MembershipSource;
+  /** Security-attempt sink on an independent runtime-role pool. */
+  readonly attempts?: SecurityAttemptSink;
 }
 
 function sendRefusal(request: FastifyRequest, reply: FastifyReply, err: unknown): FastifyReply {
@@ -42,6 +52,12 @@ const safeSerializers = {
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   if (!RUNTIME_ENVIRONMENTS.includes(deps.env)) {
     throw new Error('Unsupported runtime environment');
+  }
+  if (deps.identity && isTestIssuer(deps.identity) && deps.env !== 'synthetic-test') {
+    throw new Error('Refusing to start: the test issuer is only permitted when CUSPATLAS_ENV=synthetic-test');
+  }
+  if (deps.identity && (!deps.membership || !deps.attempts)) {
+    throw new Error('Refusing to start: identity requires a membership source and a security-attempt sink');
   }
 
   const app = Fastify({
@@ -70,6 +86,16 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   app.setNotFoundHandler((request, reply) => sendRefusal(request, reply, { statusCode: 404 }));
 
   app.get('/healthz', async () => ({ status: 'ok' }));
+
+  if (deps.identity && deps.membership && deps.attempts) {
+    const recording: AttemptRecordingDeps = {
+      sink: deps.attempts,
+      alert: (code) => app.log.error({ alert: code }, 'security alert'),
+    };
+    const authenticator = createAuthenticator(deps.identity, deps.membership, recording);
+    const authorize = createAuthorize(deps.membership);
+    registerSessionRoutes(app, { authenticator, authorize, recording });
+  }
 
   await app.ready();
   return app;

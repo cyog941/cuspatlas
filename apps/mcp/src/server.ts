@@ -247,6 +247,7 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
   const appointments = createAppointmentService({
     authorize,
     withTenantTransaction: deps.tenantTransactions,
+    memberships: deps.membership,
     recording,
     execute: deps.execute ?? executeOnce,
   });

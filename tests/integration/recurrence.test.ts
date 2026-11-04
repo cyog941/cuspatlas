@@ -63,6 +63,7 @@ type SeriesData = {
   requested: number;
   created: number;
   skipped: number;
+  partial: boolean;
   appointmentRefs: string[];
   skippedOccurrences: { index: number; localDate: string; reason: string }[];
 };
@@ -96,6 +97,7 @@ describe('S13 acceptance', () => {
     const loc = await newLocation();
     const patient = await createPatient(h, 'Synthetic Series');
     const ok = h.ok<{ data: SeriesData }>(await create(loc, patient, { count: 26 }), 201);
+    expect(ok.data.partial).toBe(false);
     expect([ok.data.requested, ok.data.created, ok.data.skipped]).toStrictEqual([26, 26, 0]);
     expect(new Set(ok.data.appointmentRefs).size).toBe(26);
     const series = await read(ok.data.seriesRef);
@@ -248,6 +250,8 @@ describe('S13 acceptance', () => {
     );
     expect([partial.data.requested, partial.data.created, partial.data.skipped]).toStrictEqual([4, 3, 1]);
     expect(partial.data.created + partial.data.skipped).toBe(partial.data.requested);
+    // The 201 stays, but the result says explicitly that it is partial; a complete series is not.
+    expect(partial.data.partial).toBe(true);
     expect(partial.data.skippedOccurrences).toStrictEqual([
       { index: 3, localDate: '2031-01-20', reason: 'resource_overlap' },
     ]);

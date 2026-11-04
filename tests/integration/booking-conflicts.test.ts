@@ -703,3 +703,28 @@ describe('S10 concurrency: repeated contention on one slot, REST and MCP mixed',
     expect(summary.every((s) => s.booked === 1 && s.conflicts === 9 && s.audits === 1)).toBe(true);
   }, 120_000);
 });
+
+describe('S7 time-block conflicts are not replayed (review hardening)', () => {
+  it('a block refused for an overlapping booking succeeds on the same key once the booking is cancelled', async () => {
+    const patient = await createPatient(h, 'Synthetic Blocker');
+    const booked = h.ok<Result>(await book(booking(patient, at(27, 14), at(27, 15))), 201);
+    const body = {
+      locationRef: loc.locationRef,
+      startsAt: at(27, 14),
+      endsAt: at(27, 15),
+      reasonCode: 'meeting',
+      resources: [{ kind: 'operatory', resourceRef: loc.operatory }],
+    };
+    const key = randomUUID();
+    const refused = await h.call('a1', 'POST', '/v1/scheduling/time-blocks', body, key);
+    expect([refused.statusCode, refused.json().code]).toStrictEqual([409, 'conflict']);
+    const cancel = await h.call('a1', 'POST', `${BOOK}/${booked.data.appointmentRef}/cancel`, {
+      expectedVersion: 1,
+      reasonCode: 'patient_request',
+    });
+    expect(cancel.statusCode, cancel.body).toBe(200);
+    const retry = await h.call('a1', 'POST', '/v1/scheduling/time-blocks', body, key);
+    expect(retry.statusCode, retry.body).toBe(201);
+    expect(retry.json().data.timeBlockRef).toBeDefined();
+  });
+});

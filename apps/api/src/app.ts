@@ -180,6 +180,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       const appointments = createAppointmentService({
         authorize,
         withTenantTransaction: deps.tenantTransactions,
+        memberships: deps.membership,
         recording,
         execute: deps.execute ?? executeOnce,
       });

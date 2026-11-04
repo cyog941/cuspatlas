@@ -2758,6 +2758,7 @@
             "requested",
             "created",
             "skipped",
+            "partial",
             "appointmentRefs",
             "skippedOccurrences",
             "openOccurrenceRefs"
@@ -2780,6 +2781,9 @@
             "skipped": {
               "type": "integer",
               "minimum": 0
+            },
+            "partial": {
+              "type": "boolean"
             },
             "appointmentRefs": {
               "type": "array",

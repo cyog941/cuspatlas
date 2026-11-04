@@ -330,3 +330,56 @@ describe('S15 failure and recovery', () => {
     expect(removed.state).toBe('removed');
   });
 });
+
+describe('S15 lazy offer expiry (review hardening)', () => {
+  it('an expired offer is never shown or treated as live, without waiting for the reconcile job', async () => {
+    const one = await entry();
+    const res = h.ok<{ data: OfferData }>(await offer(one.ref, slot()), 201).data;
+    await expire(res.holdRef);
+    // Read: expired, derived from the hold's expiry.
+    const o = h.ok<{ data: { outcome: string; outcomeReason: string } }>(
+      await h.call('a1', 'GET', `${OFFERS}/${res.offerRef}`),
+    ).data;
+    expect([o.outcome, o.outcomeReason]).toStrictEqual(['expired', 'hold_expired']);
+    // A new offer for the same entry is not refused as offer_pending; the stale offer is reaped first.
+    const again = await offer(one.ref, slot());
+    expect(again.statusCode).toBe(201);
+    const stored = await db.admin.query('SELECT outcome FROM cuspatlas.waitlist_offers WHERE id = $1', [
+      res.offerRef,
+    ]);
+    expect(stored.rows[0].outcome).toBe('expired');
+    // Removing an entry whose offer expired is allowed.
+    const two = await entry();
+    const second = h.ok<{ data: OfferData }>(await offer(two.ref, slot()), 201).data;
+    await expire(second.holdRef);
+    const removed = await h.call('a1', 'POST', `${WAIT}/${two.ref}/remove`, {
+      expectedVersion: 3,
+      reasonCode: 'patient_request',
+    });
+    expect(removed.statusCode).toBe(200);
+  });
+  it('a response racing the expiry job takes locks in one order: no deadlock victim, one consistent outcome', async () => {
+    const outcomes: string[] = [];
+    for (let i = 0; i < 12; i += 1) {
+      const one = await entry();
+      const res = h.ok<{ data: OfferData }>(await offer(one.ref, slot()), 201).data;
+      await expire(res.holdRef);
+      const [a, b] = await Promise.all([
+        respond(res.offerRef, { outcome: 'declined', reasonCode: 'patient_declined' }),
+        h.call('svcA1', 'POST', `${WAIT}/offers/reconcile`, {}),
+      ]);
+      // A deadlock victim would surface as a bare retryable conflict; with one lock order there is none.
+      for (const r of [a, b]) expect(r.json().retryable).not.toBe(true);
+      expect([200, 409]).toContain(a.statusCode);
+      expect(b.statusCode).toBe(200);
+      const o = await db.admin.query(
+        `SELECT o.outcome, e.state FROM cuspatlas.waitlist_offers o JOIN cuspatlas.waitlist_entries e ON e.id = o.entry_id WHERE o.id = $1`,
+        [res.offerRef],
+      );
+      expect(['declined', 'expired']).toContain(o.rows[0].outcome);
+      expect(o.rows[0].state).toBe('active');
+      outcomes.push(o.rows[0].outcome);
+    }
+    expect(outcomes).toHaveLength(12);
+  });
+});

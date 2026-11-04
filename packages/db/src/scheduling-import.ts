@@ -15,9 +15,56 @@ export { SCHEDULING_EXPORT_FORMAT };
  * and the principals the rows reference (seeded tenancy). Rows are inserted table by table in the
  * foreign-key order of the export inside one transaction with `session_replication_role = replica`, so
  * a self-reference inside one table (a merged patient pointing at its survivor) does not depend on
- * row order; check and exclusion constraints stay active. This is the S round-trip check, not the M1
+ * row order; check and exclusion constraints stay active. Foreign keys are not enforced in that mode,
+ * so every foreign key of every imported table, composite (id, tenant_id) keys included, is validated
+ * before the commit and any orphan or cross-tenant reference rolls the whole import back. This is the S round-trip check, not the M1
  * migration import (no mapping, staging, dry run or reconciliation).
  */
+const IDENT = /^[a-z_][a-z0-9_]*$/;
+const quote = (name: string): string => {
+  if (!IDENT.test(name)) throw new Error('Unexpected identifier in constraint catalog');
+  return `"${name}"`;
+};
+
+/** Anti-join validation of every foreign key of the imported tables (MATCH SIMPLE semantics). */
+async function assertForeignKeys(client: pg.PoolClient, tenantId: string): Promise<void> {
+  const { rows } = await client.query<{
+    conname: string;
+    child: string;
+    parent: string;
+    child_cols: string[];
+    parent_cols: string[];
+  }>(
+    `SELECT con.conname, cc.relname AS child, pc.relname AS parent,
+       ARRAY(SELECT a.attname::text FROM unnest(con.conkey) WITH ORDINALITY k(attnum, ord)
+         JOIN pg_attribute a ON a.attrelid = con.conrelid AND a.attnum = k.attnum ORDER BY k.ord) AS child_cols,
+       ARRAY(SELECT a.attname::text FROM unnest(con.confkey) WITH ORDINALITY k(attnum, ord)
+         JOIN pg_attribute a ON a.attrelid = con.confrelid AND a.attnum = k.attnum ORDER BY k.ord) AS parent_cols
+     FROM pg_constraint con
+     JOIN pg_class cc ON cc.oid = con.conrelid
+     JOIN pg_class pc ON pc.oid = con.confrelid
+     JOIN pg_namespace n ON n.oid = cc.relnamespace AND n.nspname = 'cuspatlas'
+     WHERE con.contype = 'f' AND cc.relname = ANY ($1::text[])
+     ORDER BY cc.relname, con.conname`,
+    [[...SCHEDULING_EXPORT_TABLES]],
+  );
+  for (const fk of rows) {
+    const on = fk.child_cols
+      .map((c, i) => `p.${quote(fk.parent_cols[i] ?? '')} = c.${quote(c)}`)
+      .join(' AND ');
+    const present = fk.child_cols.map((c) => `c.${quote(c)} IS NOT NULL`).join(' AND ');
+    const orphan = await client.query(
+      `SELECT 1 FROM cuspatlas.${quote(fk.child)} c
+       WHERE ${present} AND c.tenant_id = $1
+         AND NOT EXISTS (SELECT 1 FROM cuspatlas.${quote(fk.parent)} p WHERE ${on}) LIMIT 1`,
+      [tenantId],
+    );
+    if (orphan.rows.length > 0) {
+      throw new Error(`Import violates foreign key ${fk.conname} of ${fk.child}`);
+    }
+  }
+}
+
 export async function importSchedulingExport(
   pool: pg.Pool,
   tenantId: string,
@@ -46,6 +93,7 @@ export async function importSchedulingExport(
       }
       counts[table] = list.length;
     }
+    await assertForeignKeys(client, tenantId);
     await client.query('COMMIT');
     return counts;
   } catch (err) {

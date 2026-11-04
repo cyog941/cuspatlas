@@ -150,13 +150,14 @@ export function checkWindow(startsAt: string, endsAt: string): Window {
  * see; a visible resource at another location of the booking is a 422. Rows are locked FOR NO KEY UPDATE in id order:
  * contenders for one resource queue on its row (deadlock-free), see each other's committed occupancy in
  * their pre-check, and a concurrent deactivation (FOR UPDATE) serializes with the booking; foreign-key
- * inserts (KEY SHARE) from other commands are not blocked.
+ * inserts (KEY SHARE) from other commands are not blocked. Read-only planning passes `lock = false`.
  */
 export async function resolveBookingResources(
   tx: TenantTransaction,
   decision: AuthorizationDecision,
   location: LocationRow,
   refs: readonly ResourceRef[],
+  lock = true,
 ): Promise<ResourceRow[]> {
   const ids = refs.map((r) => r.resourceRef);
   if (new Set(ids).size !== ids.length) throw failedAt('/resources', 'duplicate');
@@ -165,7 +166,7 @@ export async function resolveBookingResources(
     `SELECT r.id, r.kind, r.location_id, l.location_ref, r.display_label, r.display_order, r.status, r.version
      FROM cuspatlas.scheduling_resources r
      JOIN cuspatlas.scheduling_locations l ON l.id = r.location_id AND l.tenant_id = r.tenant_id
-     WHERE r.id = ANY ($1::uuid[]) ORDER BY r.id FOR NO KEY UPDATE OF r`,
+     WHERE r.id = ANY ($1::uuid[]) ORDER BY r.id ${lock ? 'FOR NO KEY UPDATE OF r' : ''}`,
     [ids],
   );
   const byId = new Map(rows.map((r) => [r.id, r]));
@@ -400,10 +401,11 @@ export async function prepareWindow(
   decision: AuthorizationDecision,
   location: LocationRow,
   p: BookingWindowInput,
+  lock = true,
 ): Promise<Prepared> {
   if (!isKnownTimeZone(p.timeZone)) throw failedAt('/timeZone', 'unknownTimeZone');
   const refs: ResourceRef[] = [p.provider, ...(p.operatory ? [p.operatory] : []), ...(p.resources ?? [])];
-  const rows = await resolveBookingResources(tx, decision, location, refs);
+  const rows = await resolveBookingResources(tx, decision, location, refs, lock);
   if (p.operatory === null && p.noOperatoryReason === undefined)
     throw failedAt('/noOperatoryReason', 'required');
   if (p.operatory !== null && p.noOperatoryReason !== undefined) {

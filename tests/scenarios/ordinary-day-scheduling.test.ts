@@ -269,7 +269,9 @@ describe('S17 ordinary scheduling day (synthetic)', () => {
     const notices = h.ok<{ data: { items: { workItemRef: string; reasonCode: string }[] } }>(
       await h.call('a1', 'GET', `/v1/scheduling/notifications/worklist?locationRef=${loc.locationRef}`),
     ).data;
-    expect(notices.items.map((i) => i.workItemRef)).toContain(offer.intentRef);
+    // The offer was accepted, so its intent is history and no longer work; open reminders remain.
+    expect(notices.items.map((i) => i.workItemRef)).not.toContain(offer.intentRef);
+    expect(notices.items.length).toBeGreaterThan(0);
     expect(new Set(notices.items.map((i) => i.reasonCode))).toStrictEqual(new Set(['no_verified_channel']));
     const receipts = await db.admin.query('SELECT count(*)::int AS n FROM cuspatlas.delivery_receipts');
     expect(receipts.rows[0].n).toBe(0);

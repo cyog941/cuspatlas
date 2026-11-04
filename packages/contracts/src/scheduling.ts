@@ -655,6 +655,8 @@ export interface SeriesCommandData {
   readonly requested: number;
   readonly created: number;
   readonly skipped: number;
+  /** True when `skipConflicts` left occurrences unbooked: 201 with fewer bookings than requested. */
+  readonly partial: boolean;
   readonly appointmentRefs: string[];
   readonly skippedOccurrences: {
     readonly index: number;

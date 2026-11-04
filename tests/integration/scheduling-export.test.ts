@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { SchedulingExport } from '@cuspatlas/contracts';
 import { importSchedulingExport, SCHEDULING_EXPORT_FORMAT } from '@cuspatlas/db';
+import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   type AppointmentHarness,
@@ -10,6 +11,7 @@ import {
   T_ALPHA,
 } from './support/appointment-fixtures';
 import { openTestDatabase, type TestDatabase } from './support/db';
+import { seedTenancy, T_BETA } from './support/fixtures';
 
 /**
  * S17 export round trip (minimal, S scope; the full export contract, manifest and completeness
@@ -198,7 +200,7 @@ describe('S17 scheduling export round trip', () => {
     expect(b).toStrictEqual(a);
   });
 
-  it('the import refuses an unknown format version and a non-synthetic database', async () => {
+  it('the import refuses an unknown format version', async () => {
     const doc = await exportOf(h);
     await expect(
       importSchedulingExport(target.admin, T_ALPHA, {
@@ -206,6 +208,84 @@ describe('S17 scheduling export round trip', () => {
         format: 'other/9',
       } as unknown as SchedulingExport),
     ).rejects.toThrow(/format/);
-    expect(randomUUID()).toMatch(/-/);
+  });
+
+  it('the import refuses a non-synthetic target database name and a non-superuser role', async () => {
+    const doc = (await exportOf(h)) as unknown as SchedulingExport;
+    // Same server and credentials, but the default database, whose name carries no synthetic marker.
+    const plain = new pg.Pool({
+      host: '127.0.0.1',
+      port: Number(process.env.CUSPATLAS_TEST_PG_PORT),
+      user: 'postgres',
+      password: process.env.CUSPATLAS_TEST_PG_ADMIN_PASSWORD,
+      database: 'postgres',
+      max: 1,
+    });
+    try {
+      await expect(importSchedulingExport(plain, T_ALPHA, doc)).rejects.toThrow(/cuspatlas_synthetic/);
+    } finally {
+      await plain.end();
+    }
+    // The runtime role is not privileged: nothing is written.
+    await expect(importSchedulingExport(target.app, T_ALPHA, doc)).rejects.toThrow(/privileged/);
+  });
+
+  describe('integrity of the privileged import', () => {
+    let fresh: TestDatabase;
+    beforeAll(async () => {
+      fresh = await openTestDatabase('export_integrity');
+      await seedTenancy(fresh.admin);
+    });
+    afterAll(async () => {
+      await fresh?.close();
+    });
+    const alphaRows = async () =>
+      (
+        await fresh.admin.query(
+          `SELECT (SELECT count(*) FROM cuspatlas.patients WHERE tenant_id = $1)::int AS patients,
+                  (SELECT count(*) FROM cuspatlas.scheduling_locations WHERE tenant_id = $1)::int AS locations`,
+          [T_ALPHA],
+        )
+      ).rows[0];
+    const betaPatient = async (id: string, doc: ExportDoc) => {
+      const row = { ...doc.tables.patients?.[0], id, tenant_id: T_BETA, merged_into: null };
+      const c = await fresh.admin.connect();
+      try {
+        await c.query('BEGIN');
+        await c.query("SET LOCAL session_replication_role = 'replica'");
+        await c.query(
+          'INSERT INTO cuspatlas.patients SELECT * FROM jsonb_populate_record(NULL::cuspatlas.patients, $1::jsonb)',
+          [JSON.stringify(row)],
+        );
+        await c.query('COMMIT');
+      } finally {
+        c.release();
+      }
+    };
+
+    it('an identifier collision with another tenant rolls the whole import back', async () => {
+      const doc = await exportOf(h);
+      const taken = doc.tables.patients?.[0]?.id as string;
+      await betaPatient(taken, doc);
+      await expect(
+        importSchedulingExport(fresh.admin, T_ALPHA, doc as unknown as SchedulingExport),
+      ).rejects.toThrow();
+      expect(await alphaRows()).toStrictEqual({ patients: 0, locations: 0 });
+      await fresh.admin.query('DELETE FROM cuspatlas.patients WHERE id = $1', [taken]);
+    });
+
+    it('a document referencing another tenant’s patient fails the composite foreign-key validation and rolls back', async () => {
+      const doc = await exportOf(h);
+      const foreign = randomUUID();
+      await betaPatient(foreign, doc);
+      const crafted = structuredClone(doc);
+      const appt = crafted.tables.appointments?.[0];
+      if (!appt) throw new Error('fixture has no appointment');
+      appt.subject_patient_id = foreign;
+      await expect(
+        importSchedulingExport(fresh.admin, T_ALPHA, crafted as unknown as SchedulingExport),
+      ).rejects.toThrow(/foreign key/);
+      expect(await alphaRows()).toStrictEqual({ patients: 0, locations: 0 });
+    });
   });
 });

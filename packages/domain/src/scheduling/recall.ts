@@ -126,13 +126,16 @@ async function currentPolicy(tx: TenantTransaction, category: string): Promise<P
 /**
  * The due computation. Visibility: a tenant-wide caller sees every patient of the tenant; a
  * location-restricted caller (or a query naming a location) sees only patients with a booking at
- * those locations, and only events and bookings there, so no other location is enumerated.
+ * those locations, and only events and bookings there, so no other location is enumerated. Patient
+ * status (deceased, inactive) and the patients with no baseline are patient-record facts: the lists
+ * naming them need `patients.read`; other callers get the counts only.
  */
 async function computeDue(
   tx: TenantTransaction,
   locations: readonly string[] | null,
   policy: PolicyRow,
   asOf: number,
+  canReadPatients: boolean,
 ): Promise<RecallDueData> {
   const types = policy.appointment_type_codes.length > 0 ? policy.appointment_type_codes : null;
   const past = await tx.query<{
@@ -184,17 +187,23 @@ async function computeDue(
   const due: RecallDueData['due'][number][] = [];
   const excluded: RecallDueData['excluded'][number][] = [];
   const noBaseline: RecallDueData['noBaseline'][number][] = [];
+  let statusExcluded = 0;
+  let noBaselineCount = 0;
   for (const p of population.rows) {
     if (p.status === 'deceased' || p.status === 'inactive') {
-      excluded.push({
-        patientRef: p.id,
-        reason: p.status === 'deceased' ? 'patient_deceased' : 'patient_inactive',
-      });
+      statusExcluded += 1;
+      if (canReadPatients) {
+        excluded.push({
+          patientRef: p.id,
+          reason: p.status === 'deceased' ? 'patient_deceased' : 'patient_inactive',
+        });
+      }
       continue;
     }
     const ev = lastEvent.get(p.id);
     if (!ev) {
-      noBaseline.push({ patientRef: p.id });
+      noBaselineCount += 1;
+      if (canReadPatients) noBaseline.push({ patientRef: p.id });
       continue;
     }
     // Interval in the visit's own zone; month-end clamps as in S-S3-R1.
@@ -225,7 +234,11 @@ async function computeDue(
     due: due.slice(0, LIMIT),
     excluded: excluded.slice(0, LIMIT),
     noBaseline: noBaseline.slice(0, LIMIT),
-    counts: { due: due.length, excluded: excluded.length, noBaseline: noBaseline.length },
+    counts: {
+      due: due.length,
+      excluded: excluded.length + (canReadPatients ? 0 : statusExcluded),
+      noBaseline: noBaselineCount,
+    },
   };
 }
 
@@ -237,6 +250,9 @@ const NOT_COVERED = [
   { area: 'lab_returns', owner: 'C16', reason: 'producer_not_deployed' },
   { area: 'referral_responses', owner: 'C17', reason: 'producer_not_deployed' },
 ];
+
+const isUniqueViolation = (err: unknown) =>
+  typeof err === 'object' && err !== null && (err as { code?: unknown }).code === '23505';
 
 export function createRecallOperations(base: AppointmentBase) {
   const { deps, execute } = base;
@@ -265,20 +281,34 @@ export function createRecallOperations(base: AppointmentBase) {
               [p.category],
             );
             const version = (latest.rows[0]?.version ?? 0) + 1;
-            const { rows } = await tx.query<{ id: string }>(
-              `INSERT INTO cuspatlas.recall_policies (tenant_id, category, version, interval_months, basis,
-                 appointment_type_codes, exclude_booked, created_by)
-               VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5::text[], $6, cuspatlas.current_actor_id())
-               RETURNING id`,
-              [
-                p.category,
-                version,
-                p.intervalMonths,
-                p.basis,
-                [...(p.appointmentTypeCodes ?? [])].sort(),
-                p.excludeBooked ?? true,
-              ],
-            );
+            let inserted: { rows: { id: string }[] };
+            try {
+              inserted = await tx.savepoint(() =>
+                tx.query<{ id: string }>(
+                  `INSERT INTO cuspatlas.recall_policies (tenant_id, category, version, interval_months, basis,
+                     appointment_type_codes, exclude_booked, created_by)
+                   VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5::text[], $6, cuspatlas.current_actor_id())
+                   RETURNING id`,
+                  [
+                    p.category,
+                    version,
+                    p.intervalMonths,
+                    p.basis,
+                    [...(p.appointmentTypeCodes ?? [])].sort(),
+                    p.excludeBooked ?? true,
+                  ],
+                ),
+              );
+            } catch (err) {
+              // A concurrent definition took this version: a typed, retryable conflict, never a 500.
+              if (!isUniqueViolation(err)) throw err;
+              throw new RefusalError({
+                code: 'conflict',
+                retryable: true,
+                detail: { reason: 'policy_version_taken' },
+              });
+            }
+            const { rows } = inserted;
             const id = rows[0]?.id;
             if (!id) throw new Error('insert returned no row');
             await recordCommand(
@@ -312,10 +342,11 @@ export function createRecallOperations(base: AppointmentBase) {
         const q = query as RecallDueQuery;
         assertValid<RecallDueQuery>(validateRecallDueQuery, q, SCHEDULING_PROPERTIES);
         if (q.locationRef !== undefined) assertLocation(decision.locationRefs, q.locationRef);
+        const canReadPatients = await base.can(ctx, 'patients.read');
         return deps.withTenantTransaction(ctx, async (tx) => {
           const policy = await currentPolicy(tx, q.category);
           const asOf = q.asOf === undefined ? Date.now() : Date.parse(q.asOf);
-          return computeDue(tx, scopeOf(decision, q.locationRef), policy, asOf);
+          return computeDue(tx, scopeOf(decision, q.locationRef), policy, asOf, canReadPatients);
         });
       });
     },
@@ -358,7 +389,7 @@ export function createRecallOperations(base: AppointmentBase) {
               };
             }
             const asOf = p.asOf === undefined ? Date.now() : Date.parse(p.asOf);
-            const list = await computeDue(tx, decision.locationRefs, policy, asOf);
+            const list = await computeDue(tx, decision.locationRefs, policy, asOf, false);
             const item = list.due.find((d) => d.patientRef === p.patientRef);
             if (!item) {
               throw new RefusalError({
@@ -367,21 +398,54 @@ export function createRecallOperations(base: AppointmentBase) {
                 detail: { reason: 'not_due' },
               });
             }
-            const { rows } = await tx.query<{ id: string }>(
-              `INSERT INTO cuspatlas.recall_tasks (tenant_id, subject_patient_id, location_id, policy_id, category,
-                 policy_version, due_date, last_event_appointment_id, created_by)
-               VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6::date, $7, cuspatlas.current_actor_id())
-               RETURNING id`,
-              [
-                p.patientRef,
-                location.id,
-                policy.id,
-                policy.category,
-                policy.version,
-                item.dueDate,
-                item.lastEventRef,
-              ],
-            );
+            let inserted: { rows: { id: string }[] };
+            try {
+              inserted = await tx.savepoint(() =>
+                tx.query<{ id: string }>(
+                  `INSERT INTO cuspatlas.recall_tasks (tenant_id, subject_patient_id, location_id, policy_id, category,
+                     policy_version, due_date, last_event_appointment_id, created_by)
+                   VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6::date, $7, cuspatlas.current_actor_id())
+                   RETURNING id`,
+                  [
+                    p.patientRef,
+                    location.id,
+                    policy.id,
+                    policy.category,
+                    policy.version,
+                    item.dueDate,
+                    item.lastEventRef,
+                  ],
+                ),
+              );
+            } catch (err) {
+              if (!isUniqueViolation(err)) throw err;
+              // A concurrent creation won (one open task per patient and policy version): answer with it.
+              const won = await tx.query<{ id: string; due_date: string; version: number }>(
+                `SELECT id, to_char(due_date, 'YYYY-MM-DD') AS due_date, version FROM cuspatlas.recall_tasks
+                 WHERE subject_patient_id = $1 AND policy_id = $2 AND state = 'open'`,
+                [p.patientRef, policy.id],
+              );
+              const recorded = won.rows[0];
+              if (!recorded) {
+                throw new RefusalError({
+                  code: 'conflict',
+                  retryable: true,
+                  detail: { reason: 'recall_task_contended' },
+                });
+              }
+              return {
+                data: {
+                  recallTaskRef: recorded.id,
+                  state: 'open',
+                  created: false,
+                  policyVersion: policy.version,
+                  dueDate: recorded.due_date,
+                  intentRef: await currentIntentOf(tx, recorded.id, 'recall'),
+                },
+                version: recorded.version,
+              };
+            }
+            const { rows } = inserted;
             const id = rows[0]?.id;
             if (!id) throw new Error('insert returned no row');
             await recordCommand(

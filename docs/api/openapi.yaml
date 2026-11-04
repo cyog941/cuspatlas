@@ -1824,8 +1824,9 @@ paths:
       operationId: scheduling.series.create
       description: >-
         Create a series: every occurrence is a real booking. Atomic by default (any conflict refuses all,
-        with per-occurrence conflicts); skipConflicts creates only the free ones and enumerates the rest.
-        Over the limit is 422 series_limit_exceeded naming the limit.
+        with per-occurrence conflicts); skipConflicts creates only the free ones and enumerates the rest;
+        the result is still 201 but carries partial true (created less than requested, skipped listing the
+        rest), so a client never mistakes it for a complete series. Over the limit is 422 series_limit_exceeded naming the limit.
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:

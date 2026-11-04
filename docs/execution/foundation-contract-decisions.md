@@ -480,3 +480,11 @@ Additions only; no frozen row changed. Synthetic data only; provisional SYN- cod
 - Every occupancy-writing path (S7 time blocks included) releases expired holds on its resources before checking; a 23P01 conflict list is never empty.
 - Patient conflicts name merged, deceased or inactive state only to callers holding `patients.read`; others get `patient_unavailable` with a generic explanation.
 - Hold ownership decision: any member with `scheduling.write` at a visible location may convert or release a hold; a waitlist offer hold only through `scheduling.waitlist.respond`.
+
+## Task record: hardening of B3-B5 after independent review (workstream B, branch codex/b-billing-1)
+
+Additions only; no frozen row changed. Migration `20261120060000_billing_review_hardening_b3_b5.sql`.
+
+- New refusal reasons (409 `conflict`): `attempt_in_flight` (reconcile of a pending provider attempt inside its in-flight lease). `already_resolved` now also answers a lookup that does not change a premature `not_captured` resolution.
+- New statement stale reason `pre_cutoff_changed`. New coverage status value `inactive` on the billing resolution (`CoverageSummary.coverageStatus`); the C12 estimate status is unchanged.
+- Payment attempts gain `call_deadline`, `superseded_resolution`, `corrected_at`, `corrected_by` (one correction `not_captured` to `captured`). Runtime-role attempt inserts are `pending` only; a card payment must match its captured attempt. Insurer lines: reversal of a payer-only (pre-B5) line is allowed; other lines carry their coverage's payer. Plan authorization references are unique per tenant.

@@ -282,7 +282,12 @@ export function createStatementOperations(base: BillingBase) {
           if (!row) throw notFound();
           const m = (v: string | bigint) => moneyFromMinorText(row.currency, String(v));
           const ids = [...row.covered_patient_ids].sort();
-          const { rows: after } = await tx.query<{ n: number; current: string; last: Date | null }>(
+          const { rows: after } = await tx.query<{
+            n: number;
+            current: string;
+            pre: string;
+            last: Date | null;
+          }>(
             `WITH effects AS (
                SELECT e.id, e.posted_at, sum(l.amount_minor) AS s,
                  date_trunc('milliseconds', e.posted_at) > $3::timestamptz AS late
@@ -291,13 +296,17 @@ export function createStatementOperations(base: BillingBase) {
                WHERE l.patient_id = ANY ($1::uuid[]) AND l.account = ANY ($2::text[]) AND l.currency = $4
                GROUP BY e.id, e.posted_at, l.patient_id)
              SELECT count(DISTINCT id) FILTER (WHERE late AND s <> 0)::int AS n,
-               coalesce(sum(s), 0)::text AS current, max(posted_at) AS last FROM effects`,
+               coalesce(sum(s), 0)::text AS current, coalesce(sum(s) FILTER (WHERE NOT late), 0)::text AS pre,
+               max(posted_at) AS last FROM effects`,
             [ids, PATIENT_FACING, row.cutoff_at.toISOString(), row.currency],
           );
           const accountsNow = await coveredAccounts(tx, row.guarantor_id);
           const reasons: StatementStaleReason[] = [];
           const lateCount = after[0]?.n ?? 0;
           if (lateCount > 0) reasons.push('posted_after_cutoff');
+          // Review S1: an entry posted before the cutoff but committed after the snapshot (a late
+          // commit) changes the pre-cutoff total without being "posted after" it.
+          if (BigInt(after[0]?.pre ?? '0') !== BigInt(row.total)) reasons.push('pre_cutoff_changed');
           if (allIds(accountsNow).join(',') !== ids.join(',')) reasons.push('account_membership_changed');
           if (row.superseded_by !== null) reasons.push('superseded');
           const total = BigInt(row.total);

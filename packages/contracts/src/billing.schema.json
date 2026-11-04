@@ -2205,7 +2205,7 @@
           "type": "array",
           "maxItems": 3,
           "items": {
-            "enum": ["posted_after_cutoff", "account_membership_changed", "superseded"]
+            "enum": ["posted_after_cutoff", "pre_cutoff_changed", "account_membership_changed", "superseded"]
           }
         },
         "currentTotal": {
@@ -3003,7 +3003,7 @@
     "CoverageSummary": {
       "type": "object",
       "additionalProperties": false,
-      "description": "The coverage state C12 estimates read (EstimateView.coverageStatus): entered when a usable eligibility record is current for the service date, stale outside its window, unknown otherwise.",
+      "description": "The coverage state C12 estimates read (EstimateView.coverageStatus): entered when a usable eligibility record of the current coverage version, checked for this service date, is inside its freshness window; inactive when that record verifies an inactive member; stale when the latest usable record is for another date, an earlier coverage version or outside its window; unknown otherwise. C12 maps inactive (its own status has no inactive value; seam recorded in billing-progress.md).",
       "required": [
         "coverageRef",
         "coverageVersion",
@@ -3062,7 +3062,7 @@
           ]
         },
         "coverageStatus": {
-          "enum": ["entered", "unknown", "stale"]
+          "enum": ["entered", "inactive", "unknown", "stale"]
         },
         "eligibility": {
           "anyOf": [

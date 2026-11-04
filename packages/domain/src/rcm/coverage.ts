@@ -42,6 +42,7 @@ import {
   type PatientRow,
   validate,
 } from '../billing/base';
+import { committedReplay, providerTiming, withTimeout } from '../billing/payments';
 import { canonicalJson, idempotencyKeyDigest, sha256Hex } from '../commands/digest';
 import { recordCommand } from '../events/record-command';
 import { recordSensitiveRead } from '../events/record-sensitive-read';
@@ -262,6 +263,7 @@ export function createCoverageOperations(
   port: EligibilityPort = createFakeEligibilityAdapter(),
 ) {
   const { deps, execute } = base;
+  const timing = providerTiming(deps);
 
   /** Serializes coverage writes of one patient (overlap checks cannot race). */
   const lockPatient = (tx: TenantTransaction, patientId: string) =>
@@ -340,10 +342,14 @@ export function createCoverageOperations(
     coverageIds: readonly string[],
     serviceDate: string | null,
   ) {
+    // Review S3: a record is current for a service date only when it was checked for that date, on
+    // the coverage's latest version, and it is still inside its freshness window now.
     const { rows } = await tx.query<EligibilityRow>(
       `SELECT ${ELIGIBILITY_COLUMNS},
-         ($2::date BETWEEN (e.retrieved_at - make_interval(hours => e.freshness_hours))::date
-           AND (e.retrieved_at + make_interval(hours => e.freshness_hours))::date) AS current
+         (e.service_date = $2::date
+           AND e.coverage_version = (SELECT max(v.coverage_version) FROM cuspatlas.rcm_coverage_versions v
+                                     WHERE v.coverage_id = e.coverage_id)
+           AND now() <= e.retrieved_at + make_interval(hours => e.freshness_hours)) AS current
        FROM cuspatlas.rcm_eligibility_records e WHERE e.coverage_id = ANY ($1::uuid[])
        ORDER BY e.retrieved_at, e.created_at, e.id LIMIT 1000`,
       [[...coverageIds], serviceDate],
@@ -526,7 +532,14 @@ export function createCoverageOperations(
               feeScheduleRef: v.feeScheduleRef,
               effectiveFrom: v.effectiveFrom,
               effectiveUntil: v.effectiveUntil,
-              coverageStatus: !best ? 'unknown' : best.current === true ? 'entered' : 'stale',
+              coverageStatus: !best
+                ? 'unknown'
+                : best.current !== true
+                  ? 'stale'
+                  : best.state === 'verified' &&
+                      (best.benefits as { status?: { value?: string } }).status?.value === 'inactive'
+                    ? 'inactive'
+                    : 'entered',
               eligibility: best
                 ? { ...toEligibility(best), freshness: best.current === true ? 'current' : 'stale' }
                 : null,
@@ -566,6 +579,40 @@ export function createCoverageOperations(
         const p = envelope.payload;
         validate<EligibilityInput>(validateEligibilityRecord, p);
         assertRef(coverageRef);
+        // Review M2: the fake adapter is called outside any transaction (no coverage lock is held
+        // while it answers) and with a timeout; a throw or a timeout is an unknown result. The call is
+        // a side-effect-free status check, so a lost result only means a new check (no request row).
+        let checked: { coverageVersion: number; answer: EligibilityAnswer } | null = null;
+        if (p.source === 'fake_adapter') {
+          if (p.benefits !== undefined || p.retrievedAt !== undefined) throw failed('benefits_not_allowed');
+          const pre = await deps.withTenantTransaction(ctx, async (tx) => {
+            const cov = await loadCoverage(tx, coverageRef);
+            if (await committedReplay(tx, op, envelope.idempotencyKey)) return null;
+            const { rows: vr } = await tx.query<VersionRow>(
+              `SELECT ${VERSION_COLUMNS} FROM cuspatlas.rcm_coverage_versions v WHERE v.coverage_id = $1
+               ORDER BY v.coverage_version DESC LIMIT 1`,
+              [cov.id],
+            );
+            return { cov, version: vr[0] as VersionRow };
+          });
+          if (pre !== null) {
+            const unknown: EligibilityAnswer = { outcome: 'unknown' };
+            const answer = await withTimeout(
+              () =>
+                port.check({
+                  requestKey: sha256Hex(
+                    `rcm-eligibility:${ctx.tenantId}:${pre.cov.id}:${idempotencyKeyDigest(envelope.idempotencyKey)}`,
+                  ),
+                  payerRef: pre.cov.payer_ref,
+                  memberRef: pre.version.member_ref,
+                  serviceDate: p.serviceDate,
+                }),
+              timing.timeoutMs,
+              unknown,
+            );
+            checked = { coverageVersion: pre.version.coverage_version, answer };
+          }
+        }
         return deps.withTenantTransaction(ctx, async (tx) => {
           const cov = await loadCoverage(tx, coverageRef, 'FOR SHARE');
           return execute<EligibilityCommandData>(
@@ -578,7 +625,10 @@ export function createCoverageOperations(
                  ORDER BY v.coverage_version DESC LIMIT 1`,
                 [cov.id],
               );
-              const version = vr[0] as VersionRow;
+              // The record names the coverage version the adapter was asked about.
+              const version = checked
+                ? ({ ...(vr[0] as VersionRow), coverage_version: checked.coverageVersion } as VersionRow)
+                : (vr[0] as VersionRow);
               const { rows: clock } = await tx.query<{ now: Date; future: boolean }>(
                 `SELECT now() AS now, coalesce($1::timestamptz > now() + interval '5 minutes', false) AS future`,
                 [p.retrievedAt ?? null],
@@ -617,16 +667,9 @@ export function createCoverageOperations(
                 // Staff-entered eligibility is labeled unverified until a qualified source exists (B-S3).
                 state = 'unverified';
               } else {
-                if (p.benefits !== undefined || p.retrievedAt !== undefined)
-                  throw failed('benefits_not_allowed');
-                const answer = await port.check({
-                  requestKey: sha256Hex(
-                    `rcm-eligibility:${ctx.tenantId}:${cov.id}:${idempotencyKeyDigest(envelope.idempotencyKey)}`,
-                  ),
-                  payerRef: cov.payer_ref,
-                  memberRef: version.member_ref,
-                  serviceDate: p.serviceDate,
-                });
+                // Only a stored result can be replayed; without a check there is nothing to record.
+                if (checked === null) throw new RefusalError({ code: 'conflict', retryable: true });
+                const answer = checked.answer;
                 receipt =
                   typeof answer.receiptId === 'string' && /^syn-elig-[a-z0-9]{1,64}$/.test(answer.receiptId)
                     ? answer.receiptId

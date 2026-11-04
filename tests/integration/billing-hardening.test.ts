@@ -83,6 +83,22 @@ describe('capture is recorded before the provider and never erased', () => {
     expect(attempts).toHaveLength(1);
     expect(await paymentsOf(patient)).toStrictEqual([]);
     const attemptRef = attempts[0]?.id as string;
+    // B3-B5 review M1: inside its in-flight lease the attempt is neither a work item nor
+    // reconcilable; once the lease has passed (simulated) it is both.
+    expect((await unknownItems()).map((i) => i.subjectRef)).not.toContain(attemptRef);
+    const early = await h.call('a1', 'POST', `/v1/billing/payment-attempts/${attemptRef}/reconcile`, {});
+    expect([early.statusCode, early.json().detail?.reason]).toStrictEqual([409, 'attempt_in_flight']);
+    const c = await db.admin.connect();
+    try {
+      await c.query('SET session_replication_role = replica');
+      await c.query(
+        `UPDATE cuspatlas.billing_payment_attempts SET call_deadline = now() - interval '1 second' WHERE id = $1`,
+        [attemptRef],
+      );
+    } finally {
+      await c.query('SET session_replication_role = origin');
+      c.release();
+    }
     expect((await unknownItems()).map((i) => i.subjectRef)).toContain(attemptRef);
     const rec = h.ok<{ data: { outcome: string } }>(
       await h.call('a1', 'POST', `/v1/billing/payment-attempts/${attemptRef}/reconcile`, {}),

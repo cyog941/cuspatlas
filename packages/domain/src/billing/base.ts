@@ -32,6 +32,10 @@ export interface BillingDeps {
   readonly payments?: PaymentProviderPort;
   /** Eligibility source port (B5). Defaults to the in-process fake adapter (B-S3 open). */
   readonly eligibility?: EligibilityPort;
+  /** Timeout of one external call (provider capture or lookup, eligibility check); default 30 s. */
+  readonly providerTimeoutMs?: number;
+  /** Margin added to the timeout for the in-flight lease of a pending attempt; default 30 s. */
+  readonly providerLeaseMarginMs?: number;
 }
 
 export interface BillingBase {

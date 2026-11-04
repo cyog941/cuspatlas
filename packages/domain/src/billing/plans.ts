@@ -48,6 +48,7 @@ import {
   isPgError,
   loadPatient,
   loadSettings,
+  mergeSet,
   notFound,
   validate,
 } from './base';
@@ -59,6 +60,7 @@ import {
   finalizeAttempt,
   insertPayment,
   insertPendingAttempt,
+  providerTiming,
 } from './payments';
 
 export const PLAN_RESOURCE = 'billingPaymentPlan';
@@ -437,6 +439,7 @@ export function createPlanOperations(
   provider: PaymentProviderPort = createSyntheticPaymentProvider(),
 ) {
   const { deps, execute } = base;
+  const timing = providerTiming(deps);
 
   async function bump(tx: TenantTransaction, planId: string): Promise<number> {
     const { rows } = await tx.query<{ version: number }>(
@@ -461,8 +464,9 @@ export function createPlanOperations(
   ): Promise<string> {
     if (e.authorizationRef !== undefined) {
       const { rows } = await tx.query<{ id: string }>(
-        'SELECT id FROM cuspatlas.billing_payment_plan_events WHERE plan_id = $1 AND authorization_ref = $2',
-        [planId, e.authorizationRef],
+        // Review S6: an authorization reference is single-use across the tenant, not per plan.
+        'SELECT id FROM cuspatlas.billing_payment_plan_events WHERE authorization_ref = $1',
+        [e.authorizationRef],
       );
       const used = rows[0]?.id;
       if (used) throw conflict('authorization_reused', [{ kind: 'planEvent', ref: used }]);
@@ -753,7 +757,10 @@ export function createPlanOperations(
           const settings = await loadSettings(tx);
           const amount = p.amount === undefined ? remaining : inTenantCurrency(settings, p.amount);
           if (amount.minor > remaining.minor) throw failed('amount_exceeds_installment');
-          const patient = await loadPatient(tx, row.patient_id, 'FOR SHARE');
+          // Review S2: a plan of a merged-away patient stays collectable; the money and the attempt
+          // belong to the merge root's account (the survivor), never to the merged identity.
+          const root = (await mergeSet(tx, row.patient_id)).root;
+          const patient = await loadPatient(tx, root, 'FOR SHARE');
           assertNotMerged(patient);
           const attemptNo = prior.length + 1;
           const blocked = v.cardExpiryState === 'expired';
@@ -765,11 +772,12 @@ export function createPlanOperations(
           const paymentAttemptId = blocked
             ? null
             : await insertPendingAttempt(tx, {
-                patientId: row.patient_id,
+                patientId: patient.id,
                 guarantorId: row.guarantor_id,
                 instrumentRef: v.instrumentRef,
                 providerKey,
                 amount,
+                leaseMs: timing.leaseMs,
               });
           const { rows } = await tx.query<{ id: string }>(
             `INSERT INTO cuspatlas.billing_payment_plan_attempts (tenant_id, plan_id, terms_version, period_no,
@@ -794,18 +802,22 @@ export function createPlanOperations(
             providerKey,
             instrumentRef: v.instrumentRef,
             amount,
-            patientId: row.patient_id,
+            patientId: patient.id,
             guarantorId: row.guarantor_id,
           };
         });
         const answer =
           reserved === null || reserved.paymentAttemptId === null
             ? null
-            : await callProvider(provider, {
-                providerKey: reserved.providerKey,
-                amount: reserved.amount,
-                instrumentRef: reserved.instrumentRef,
-              });
+            : await callProvider(
+                provider,
+                {
+                  providerKey: reserved.providerKey,
+                  amount: reserved.amount,
+                  instrumentRef: reserved.instrumentRef,
+                },
+                timing.timeoutMs,
+              );
         return deps.withTenantTransaction(ctx, async (tx) => {
           await loadPlan(tx, planRef, 'FOR UPDATE');
           return execute<PlanCollectData>(ctx, replayEnvelope, tx, async () => {
@@ -820,10 +832,12 @@ export function createPlanOperations(
             let result = data('blocked', null);
             if (reserved.paymentAttemptId !== null && answer !== null) {
               const final = await finalizeAttempt(tx, reserved.paymentAttemptId, answer);
-              let paymentRef: string | null = null;
-              if (final.outcome === 'confirmed') {
+              let paymentRef: string | null = final.alreadyPosted?.paymentId ?? null;
+              if (final.outcome === 'confirmed' && final.alreadyPosted === null) {
+                // Money follows the merge set at posting time too (a merge during the provider call).
+                const root = (await mergeSet(tx, reserved.patientId)).root;
                 const posted = await insertPayment(tx, {
-                  patientId: reserved.patientId,
+                  patientId: root,
                   guarantorId: reserved.guarantorId,
                   method: 'card_synthetic',
                   amount: reserved.amount,

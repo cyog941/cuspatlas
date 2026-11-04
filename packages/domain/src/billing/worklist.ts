@@ -43,6 +43,7 @@ export function createWorklistOperations(base: BillingBase) {
         const limit = query.limit === undefined ? DEFAULT_LIMIT : Number.parseInt(query.limit, 10);
         return deps.withTenantTransaction(ctx, async (tx) => {
           const settings = await loadSettings(tx);
+          // Review M1: a pending attempt inside its in-flight lease is not yet a work item.
           const items = `
             SELECT 'unapplied_funds'::text AS kind, l.payment_id AS subject_id, l.patient_id,
               (-sum(l.amount_minor))::text AS amount, p.currency, p.received_at AS age_basis,
@@ -57,6 +58,7 @@ export function createWorklistOperations(base: BillingBase) {
               a.created_at + make_interval(hours => $3)
             FROM cuspatlas.billing_payment_attempts a
             WHERE a.outcome IN ('unknown', 'pending') AND a.resolution IS NULL
+              AND NOT (a.outcome = 'pending' AND coalesce(a.call_deadline > now(), false))
               AND ($1::text IS NULL OR $1::text = 'unknown_payment_outcome')`;
           const params = [query.kind ?? null, settings.escalationDays, UNKNOWN_OUTCOME_DUE_HOURS];
           const { rows } = await tx.query<ItemRow>(

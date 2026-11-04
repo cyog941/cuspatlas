@@ -270,6 +270,24 @@ Findings addressed (tests/integration/billing-hardening.test.ts, 9 tests; `no-fl
 - Migration `20261120050000_billing_hardening.sql` (attempt `pending` outcome, guard and update policy, plan attempt `submitted`, one-receipt index, `clock_timestamp()` posting default, replaced `billing_check_signs` and `billing_check_entry`). B1 case 15's structural allowlist names `command_idempotency` (the replay check before a capture).
 - Deviation: a pending attempt left by a crash between steps (a) and (c) has no audit row until it is reconciled (the audit is written with the outcome); it is visible in the worklist from the moment it is committed.
 
+### Integration merges (batch 3 start)
+
+- `4b65466` merges `codex/scheduling-patients` (0c8cfdf): additive conflicts kept both sides; the billing journal-entry path parameter is `JournalEntryRef` in OpenAPI (S15 owns `EntryRef`); harness fixture `alphaJournalEntry`. 1176 tests green.
+- `88082c6` merges `codex/c-chart` at 4fbde64 (1365bff plus the S12-S17 merge C already did), so C's migration renumbering and its S13/S15 merge-registry mirror are reused. Billing migrations moved to the `20261120xxxxxx` range (their `20261109` versions collided with C in `schema_migrations`). `clinical-care.ts` re-exports the shared `Money`. Probes: clinical plus billing. Harness: B3 plan fixture `alphaPaymentPlan`. Billing tables are `MERGE_EXCLUDED_REFERENCES` only, never record classes, so the SQL class mirror needs no billing rows. 1627 tests green.
+
+### Hardening of B3-B5 after independent review (review of 74f3232)
+
+Tests: `tests/integration/billing-review-hardening-b3b5.test.ts` (15). Red first: exit 1, 14 failed and 1 passed (the payer-mismatch backstop was already refused by an existing check). Green: exit 0, 15 passed; `billing-hardening.test.ts` case 2 updated for the lease (asserted 409 `attempt_in_flight` inside the lease, then the item and the reconciliation after it). Migration `20261120060000_billing_review_hardening_b3_b5.sql`.
+
+- M1 in-flight lease: a pending attempt stores `call_deadline` (provider timeout plus margin; defaults 30 s + 30 s, injectable as `providerTimeoutMs` / `providerLeaseMarginMs`). Provider capture and lookup calls are bounded by the timeout (`withTimeout`: throw or no answer is `unknown`). Reconcile refuses a pending attempt before its deadline with 409 `attempt_in_flight`; the worklist hides it until then. A premature `not_captured` resolution can be corrected exactly once to `captured` (by the original request's late confirmed answer in finalize, or by one more lookup), keeping `superseded_resolution`, `corrected_at`, `corrected_by`; the guard trigger allows only that transition. Finalize after a reconciliation that already posted the capture answers with that payment (never a second one). Same path for plan installments (tested with a gated provider).
+- M2 eligibility: the fake adapter is called outside any transaction (no coverage `FOR SHARE` is held while it answers), with the same timeout; a throw or timeout is an `unknown` record. A committed replay is checked before calling. No request row: the check is side-effect free, so a lost result only means another check (recorded decision; payments keep the request-first pattern because money can move).
+- S1 statement staleness: `pre_cutoff_changed` when the sum of entries posted up to the cutoff differs from the snapshot total (a late-committed pre-cutoff entry; tested with a gated raw runtime-role entry, since every service path takes the guarantor lock the generation takes).
+- S2 plan collection after a merge posts to the merge root; the attempt and payment name the survivor (a merge during the provider call is re-resolved at posting).
+- S3 coverage status: a record is current only for its own service date, on the latest coverage version and inside its freshness window now; a verified inactive member is `inactive` (new value of the billing `CoverageResolutionStatus`; C's own estimate `CoverageStatus` stays three-valued: C12 must map `inactive`, seam below).
+- S4: the runtime role inserts attempts only as `pending` with a lease (RLS); a card payment must match a captured attempt's amount, currency and receipt (trigger, 23514).
+- S5: the insurer-coverage CHECK became an insert trigger: a reversal line may carry a NULL coverage only when the line it negates did (same payer and charge), so pre-B5 entries reverse exactly; any other insurer line names a coverage and carries that coverage's payer.
+- S6: authorization references are unique per tenant (index plus pre-check, 409 `authorization_reused`).
+
 ## Seams for later tasks
 
 - C14: drive `billing.charges.post` as a service principal with the rendered-procedure reference in place of `syn-proc-...` (a new `source` value) and the procedure code once B-S4 settles; one original charge per procedure is already enforced.
@@ -284,6 +302,8 @@ Findings addressed (tests/integration/billing-hardening.test.ts, 9 tests; `no-fl
 - E (portal/messaging) and S read plan state through `billing.plans.read` / the plan worklist only; a reminder for a `missing_signature` or `expired_card` item cites the item, it does not evaluate it.
 - Scheduler (worker): call `billing.plans.collect` as a service principal for each due period with key `plan:<planRef>:t<terms>:p<period>`; a rerun replays, and the provider key is period-bound regardless of the caller key.
 - CL-12 closure: a charge closes only when patient and insurer responsibility are zero by payment, approved adjustment or transfer; the journal already distinguishes allocation, transfer and (later) adjustment kinds, and unapplied credit is a first-class worklist item.
+
+- C12 (coverage status): the billing resolution may now be `inactive` (verified inactive member); C12 estimates should treat it as no expected insurer payment. C code not edited.
 
 ## Unresolved
 

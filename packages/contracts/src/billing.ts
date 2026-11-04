@@ -460,7 +460,11 @@ export interface StatementAccount {
   readonly total: Money;
   readonly lines: readonly StatementLine[];
 }
-export type StatementStaleReason = 'posted_after_cutoff' | 'account_membership_changed' | 'superseded';
+export type StatementStaleReason =
+  | 'posted_after_cutoff'
+  | 'pre_cutoff_changed'
+  | 'account_membership_changed'
+  | 'superseded';
 export interface StatementFreshness {
   readonly state: 'fresh' | 'stale';
   readonly reasons: readonly StatementStaleReason[];
@@ -499,7 +503,8 @@ export type BenefitRank = 'primary' | 'secondary' | 'tertiary';
 export type SubscriberRelationship = 'self' | 'spouse' | 'child' | 'other';
 export type EligibilitySource = 'entered' | 'fake_adapter';
 export type EligibilityState = 'verified' | 'unverified' | 'unknown' | 'unparsed';
-export type CoverageStatus = 'entered' | 'unknown' | 'stale';
+/** B5 coverage status (review S3: a verified inactive member is inactive, never entered). */
+export type CoverageResolutionStatus = 'entered' | 'inactive' | 'unknown' | 'stale';
 export interface CoverageRecordInput {
   readonly patientRef: string;
   readonly payerRef: string;
@@ -613,7 +618,7 @@ export interface CoverageSummary {
   readonly feeScheduleRef: string | null;
   readonly effectiveFrom: string;
   readonly effectiveUntil: string | null;
-  readonly coverageStatus: CoverageStatus;
+  readonly coverageStatus: CoverageResolutionStatus;
   readonly eligibility: (EligibilityView & { readonly freshness: 'current' | 'stale' }) | null;
   readonly latestAttempt: {
     readonly eligibilityRef: string;

@@ -198,16 +198,26 @@ export async function insertPendingAttempt(
     instrumentRef: string;
     providerKey: string;
     amount: Money;
+    /** In-flight lease (review M1): provider timeout plus margin, in milliseconds. */
+    leaseMs: number;
   },
 ): Promise<string> {
   const { rows } = await tx.query<{ id: string }>(
     `INSERT INTO cuspatlas.billing_payment_attempts (tenant_id, patient_id, guarantor_id, method, instrument_ref,
-       provider_key, amount_minor, currency, outcome, created_by)
+       provider_key, amount_minor, currency, outcome, call_deadline, created_by)
      VALUES (cuspatlas.current_tenant_id(), $1, $2, 'card_synthetic', $3, $4, $5, $6, 'pending',
-       cuspatlas.current_actor_id())
+       now() + make_interval(secs => $7::int / 1000.0), cuspatlas.current_actor_id())
      ON CONFLICT (tenant_id, provider_key) DO NOTHING
      RETURNING id`,
-    [o.patientId, o.guarantorId, o.instrumentRef, o.providerKey, String(o.amount.minor), o.amount.currency],
+    [
+      o.patientId,
+      o.guarantorId,
+      o.instrumentRef,
+      o.providerKey,
+      String(o.amount.minor),
+      o.amount.currency,
+      o.leaseMs,
+    ],
   );
   const id = rows[0]?.id;
   if (id) return id;
@@ -218,24 +228,60 @@ export async function insertPendingAttempt(
   throw conflict('duplicate_attempt', existing[0] ? [{ kind: 'paymentAttempt', ref: existing[0].id }] : []);
 }
 
+/** Default provider call timeout and lease margin (synthetic defaults, pending approval). */
+export const PROVIDER_TIMEOUT_MS = 30_000;
+export const PROVIDER_LEASE_MARGIN_MS = 30_000;
+
+/**
+ * Bounds an external call: a throw, or no answer within `timeoutMs`, is `fallback`. The far end may
+ * still complete later; callers record that possibility as unknown, never as failed.
+ */
+export async function withTimeout<T>(call: () => Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      call().catch(() => fallback),
+      new Promise<T>((resolve) => {
+        timer = setTimeout(() => resolve(fallback), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/** The provider timing of a billing service (injectable for tests). */
+export function providerTiming(deps: { providerTimeoutMs?: number; providerLeaseMarginMs?: number }) {
+  const timeoutMs = deps.providerTimeoutMs ?? PROVIDER_TIMEOUT_MS;
+  return { timeoutMs, leaseMs: timeoutMs + (deps.providerLeaseMarginMs ?? PROVIDER_LEASE_MARGIN_MS) };
+}
+
 /** Phase 2: the provider call, outside any transaction. A throw or a timeout is `unknown`. */
 export async function callProvider(
   provider: PaymentProviderPort,
   request: CaptureRequest,
+  timeoutMs: number = PROVIDER_TIMEOUT_MS,
 ): Promise<ProviderAnswer> {
-  try {
-    return await provider.capture(request);
-  } catch {
-    return { outcome: 'unknown' };
-  }
+  const unknown: ProviderAnswer = { outcome: 'unknown' };
+  return withTimeout(() => provider.capture(request), timeoutMs, unknown);
 }
 
-/** Phase 3: records the provider's answer exactly once on the pending attempt. */
+/**
+ * Phase 3: records the provider's answer exactly once on the pending attempt. When a reconciliation
+ * resolved the attempt first (its lease expired: a stalled request), the late answer is reconciled
+ * with that resolution instead of being lost (review M1): a capture after a premature `not_captured`
+ * corrects it once to `captured` and is posted by the caller; a capture a reconciliation already
+ * posted is returned with its payment (`alreadyPosted`); anything else reports the resolution.
+ */
 export async function finalizeAttempt(
   tx: TenantTransaction,
   attemptId: string,
   answer: ProviderAnswer,
-): Promise<{ outcome: 'confirmed' | 'declined' | 'unknown'; receiptId: string | null }> {
+): Promise<{
+  outcome: 'confirmed' | 'declined' | 'unknown';
+  receiptId: string | null;
+  alreadyPosted: { paymentId: string; entryId: string } | null;
+}> {
   const confirmed = answer.outcome === 'confirmed' && answer.receiptId !== undefined;
   const outcome = confirmed ? 'confirmed' : answer.outcome === 'declined' ? 'declined' : 'unknown';
   const receiptId = confirmed ? (answer.receiptId as string) : null;
@@ -245,8 +291,56 @@ export async function finalizeAttempt(
      WHERE id = $1 AND outcome = 'pending' RETURNING id`,
     [attemptId, outcome, receiptId],
   );
-  if (rows.length === 0) throw conflict('duplicate_attempt', [{ kind: 'paymentAttempt', ref: attemptId }]);
-  return { outcome, receiptId };
+  if (rows.length > 0) return { outcome, receiptId, alreadyPosted: null };
+  const { rows: cur } = await tx.query<{
+    resolution: string | null;
+    superseded: string | null;
+    payment_id: string | null;
+    entry_id: string | null;
+  }>(
+    `SELECT a.resolution, a.superseded_resolution AS superseded, p.id AS payment_id, p.entry_id
+     FROM cuspatlas.billing_payment_attempts a
+     LEFT JOIN LATERAL (SELECT p.id, e.id AS entry_id FROM cuspatlas.billing_payments p
+                        JOIN cuspatlas.billing_journal_entries e ON e.payment_id = p.id AND e.tenant_id = p.tenant_id
+                          AND e.kind = 'patientPayment' AND e.reverses_entry_id IS NULL
+                        WHERE p.attempt_id = a.id) p ON true
+     WHERE a.id = $1 FOR UPDATE OF a`,
+    [attemptId],
+  );
+  const a = cur[0];
+  if (!a || a.resolution === null) {
+    throw conflict('duplicate_attempt', [{ kind: 'paymentAttempt', ref: attemptId }]);
+  }
+  if (a.resolution === 'captured' && a.payment_id !== null && a.entry_id !== null) {
+    return {
+      outcome: 'confirmed',
+      receiptId: null,
+      alreadyPosted: { paymentId: a.payment_id, entryId: a.entry_id },
+    };
+  }
+  if (confirmed && a.resolution === 'not_captured' && a.superseded === null) {
+    await correctToCaptured(tx, attemptId, receiptId as string);
+    return { outcome: 'confirmed', receiptId, alreadyPosted: null };
+  }
+  return { outcome: 'declined', receiptId: null, alreadyPosted: null };
+}
+
+/** The one correction of a premature `not_captured` resolution to `captured` (review M1). */
+export async function correctToCaptured(
+  tx: TenantTransaction,
+  attemptId: string,
+  receiptId: string,
+): Promise<number> {
+  const { rows } = await tx.query<{ version: number }>(
+    `UPDATE cuspatlas.billing_payment_attempts SET resolution = 'captured', superseded_resolution = 'not_captured',
+       provider_receipt = $2, corrected_at = now(), corrected_by = cuspatlas.current_actor_id(),
+       version = version + 1, updated_at = now()
+     WHERE id = $1 AND resolution = 'not_captured' AND superseded_resolution IS NULL RETURNING version`,
+    [attemptId, receiptId],
+  );
+  const version = rows[0]?.version;
+  if (version === undefined) throw conflict('already_resolved');
+  return version;
 }
 
 /** True when this caller key already has a stored result (the executor will replay it). */
@@ -274,6 +368,7 @@ export function createPaymentOperations(
   provider: PaymentProviderPort = createSyntheticPaymentProvider(),
 ) {
   const { deps, execute } = base;
+  const timing = providerTiming(deps);
 
   /** Common shape of a command on one payment: authorize, validate, lock the payment, run once. */
   function onPayment<P, T>(
@@ -429,23 +524,36 @@ export function createPaymentOperations(
             instrumentRef: p.instrumentRef as string,
             providerKey,
             amount,
+            leaseMs: timing.leaseMs,
           });
           return { attemptId, amount, patientId: patient.id, guarantorId: guarantor?.id ?? null };
         });
         const answer =
           pending === null
             ? null
-            : await callProvider(provider, {
-                providerKey,
-                amount: pending.amount,
-                instrumentRef: p.instrumentRef as string,
-              });
+            : await callProvider(
+                provider,
+                { providerKey, amount: pending.amount, instrumentRef: p.instrumentRef as string },
+                timing.timeoutMs,
+              );
         return deps.withTenantTransaction(ctx, async (tx) =>
           execute<PaymentCommandData>(ctx, envelope, tx, async () => {
             // Only a stored result can be replayed; without one there is nothing safe to answer.
             if (pending === null || answer === null)
               throw new RefusalError({ code: 'conflict', retryable: true });
             const final = await finalizeAttempt(tx, pending.attemptId, answer);
+            if (final.alreadyPosted !== null) {
+              // A reconciliation already posted this capture: answer with that payment, post nothing.
+              return {
+                data: {
+                  outcome: 'confirmed' as const,
+                  paymentRef: final.alreadyPosted.paymentId,
+                  attemptRef: pending.attemptId,
+                  entryRef: final.alreadyPosted.entryId,
+                },
+                version: 1,
+              };
+            }
             if (final.outcome !== 'confirmed') {
               // Declined: a recorded fact, nothing collected. Unknown: an open reconciliation item,
               // never posted as collected and never retried automatically.
@@ -730,10 +838,13 @@ export function createPaymentOperations(
             currency: string;
             outcome: string;
             resolution: string | null;
+            superseded: string | null;
+            in_flight: boolean;
             created_at: Date;
           }>(
             `SELECT id, patient_id, guarantor_id, instrument_ref, provider_key, amount_minor::text AS amount, currency,
-               outcome, resolution, created_at
+               outcome, resolution, superseded_resolution AS superseded,
+               (outcome = 'pending' AND coalesce(call_deadline > now(), false)) AS in_flight, created_at
              FROM cuspatlas.billing_payment_attempts WHERE id = $1 FOR UPDATE`,
             [attemptRef],
           );
@@ -745,12 +856,20 @@ export function createPaymentOperations(
             tx,
             async () => {
               if (a.outcome !== 'unknown' && a.outcome !== 'pending') throw conflict('not_reconcilable');
-              if (a.resolution !== null) throw conflict('already_resolved');
-              const answer = await provider.lookup({
-                providerKey: a.provider_key,
-                instrumentRef: a.instrument_ref,
-              });
+              // Review M1: the request that created a pending attempt may still be waiting for the
+              // provider inside its lease; resolving under it could lose a capture.
+              if (a.in_flight) throw conflict('attempt_in_flight');
+              // A premature not_captured may be corrected once by a later lookup; nothing else reopens.
+              const correcting = a.resolution === 'not_captured' && a.superseded === null;
+              if (a.resolution !== null && !correcting) throw conflict('already_resolved');
+              const unknown: ProviderAnswer = { outcome: 'unknown' };
+              const answer = await withTimeout(
+                () => provider.lookup({ providerKey: a.provider_key, instrumentRef: a.instrument_ref }),
+                timing.timeoutMs,
+                unknown,
+              );
               const captured = answer.outcome === 'confirmed' && answer.receiptId !== undefined;
+              if (correcting && !captured) throw conflict('already_resolved');
               if (!captured && answer.outcome !== 'declined') {
                 throw new RefusalError({
                   code: 'conflict',
@@ -758,13 +877,15 @@ export function createPaymentOperations(
                   detail: { reason: 'outcome_still_unknown' },
                 });
               }
-              const { rows: upd } = await tx.query<{ version: number }>(
-                `UPDATE cuspatlas.billing_payment_attempts SET outcome = 'unknown', resolution = $1, resolved_at = now(),
-                   resolved_by = cuspatlas.current_actor_id(), provider_receipt = $2, version = version + 1,
-                   updated_at = now()
-                 WHERE id = $3 AND resolution IS NULL AND outcome IN ('unknown', 'pending') RETURNING version`,
-                [captured ? 'captured' : 'not_captured', captured ? answer.receiptId : null, a.id],
-              );
+              const { rows: upd } = correcting
+                ? { rows: [{ version: await correctToCaptured(tx, a.id, answer.receiptId as string) }] }
+                : await tx.query<{ version: number }>(
+                    `UPDATE cuspatlas.billing_payment_attempts SET outcome = 'unknown', resolution = $1,
+                       resolved_at = now(), resolved_by = cuspatlas.current_actor_id(), provider_receipt = $2,
+                       version = version + 1, updated_at = now()
+                     WHERE id = $3 AND resolution IS NULL AND outcome IN ('unknown', 'pending') RETURNING version`,
+                    [captured ? 'captured' : 'not_captured', captured ? answer.receiptId : null, a.id],
+                  );
               const version = upd[0]?.version;
               if (version === undefined) throw conflict('already_resolved');
               let paymentRef: string | null = null;

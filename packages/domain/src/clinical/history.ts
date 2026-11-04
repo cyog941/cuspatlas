@@ -238,7 +238,7 @@ async function versionDetail(tx: TenantTransaction, versionId: string): Promise<
     `SELECT ${CHANGE_COLUMNS}, i.kind, i.entry_type FROM cuspatlas.clinical_history_changes c
      JOIN cuspatlas.clinical_history_versions v ON v.id = c.version_id AND v.tenant_id = c.tenant_id
      JOIN cuspatlas.clinical_history_items i ON i.id = c.item_id AND i.tenant_id = c.tenant_id
-     WHERE c.version_id = $1 ORDER BY c.id`,
+     WHERE c.version_id = $1 ORDER BY c.ordinal NULLS LAST, c.id`,
     [versionId],
   );
   const first = rows[0];
@@ -268,6 +268,21 @@ async function ownStream(tx: TenantTransaction, patientId: string): Promise<{ id
   );
   const s = rows[0];
   if (!s) throw new Error('history stream is missing');
+  return { id: s.id, head: s.head_sequence };
+}
+
+/** Locks a stream of the patient FOR UPDATE (a stream that left the patient is a 404). */
+async function lockStream(
+  tx: TenantTransaction,
+  streamId: string,
+  patientId: string,
+): Promise<{ id: string; head: number }> {
+  const { rows } = await tx.query<{ id: string; head_sequence: number }>(
+    'SELECT id, head_sequence FROM cuspatlas.clinical_history_streams WHERE id = $1 AND subject_patient_id = $2 FOR UPDATE',
+    [streamId, patientId],
+  );
+  const s = rows[0];
+  if (!s) throw notFound();
   return { id: s.id, head: s.head_sequence };
 }
 
@@ -316,7 +331,7 @@ function plan(
     if (entryType === 'none_known') {
       if (!ALERT_KINDS.includes(kind as AlertKind)) throw failedAt(at('entryType'), 'noneKnownNotForKind');
       if (c.state !== 'active') throw failedAt(at('state'), 'noneKnownMustBeActive');
-      if (c.displayText !== undefined || c.codeRef !== undefined) {
+      if (c.displayText !== undefined || (c.codeRef !== undefined && c.codeRef !== null)) {
         throw failedAt(at('displayText'), 'notForNoneKnown');
       }
     } else if (c.displayText === undefined) {
@@ -332,7 +347,10 @@ function plan(
     }
     kind = prior.item.kind;
     entryType = prior.item.entry_type;
-    if (entryType === 'none_known' && (c.displayText !== undefined || c.codeRef !== undefined)) {
+    if (
+      entryType === 'none_known' &&
+      (c.displayText !== undefined || (c.codeRef !== undefined && c.codeRef !== null))
+    ) {
       throw failedAt(at('displayText'), 'notForNoneKnown');
     }
   }
@@ -341,8 +359,11 @@ function plan(
     throw failedAt(at('reasonCode'), 'onlyForStateChange');
   if (c.state !== 'active' && c.reasonCode === undefined) throw failedAt(at('reasonCode'), 'required');
   const last = prior?.last;
-  const from = c.effectiveFrom ?? last?.effectiveFrom ?? null;
-  const until = c.effectiveUntil ?? last?.effectiveUntil ?? null;
+  // Omitted carries forward; an explicit null clears (hardening nit).
+  const carry = <T>(given: T | null | undefined, prev: T | null | undefined): T | null =>
+    given === undefined ? (prev ?? null) : given;
+  const from = carry(c.effectiveFrom, last?.effectiveFrom);
+  const until = carry(c.effectiveUntil, last?.effectiveUntil);
   if (from !== null && until !== null && from > until) throw failedAt(at('effectiveUntil'), 'effectiveRange');
   return {
     itemId: prior?.item.id ?? null,
@@ -351,8 +372,8 @@ function plan(
     sequence: (last?.itemSequence ?? 0) + 1,
     state: c.state,
     displayText: c.displayText ?? last?.displayText ?? null,
-    codeRef: c.codeRef ?? last?.codeRef ?? null,
-    detailText: c.detailText ?? last?.detailText ?? null,
+    codeRef: carry(c.codeRef, last?.codeRef),
+    detailText: carry(c.detailText, last?.detailText),
     effectiveFrom: from,
     effectiveUntil: until,
     reasonCode: c.reasonCode ?? null,
@@ -447,7 +468,8 @@ async function alertsFor(tx: TenantTransaction, patientId: string): Promise<Reco
             ),
             reviewedAt: review.reviewed_at.toISOString(),
             stale: ofKind.some((i) =>
-              i.changes.some((c) => Date.parse(c.recorded.recordedAt) > review.reviewed_at.getTime()),
+              // Same-millisecond changes count as after the review (conservative: stale, never falsely current).
+              i.changes.some((c) => Date.parse(c.recorded.recordedAt) >= review.reviewed_at.getTime()),
             ),
           };
     let status: AlertStatus = 'unknown';
@@ -551,8 +573,24 @@ export function createHistoryOperations(base: ClinicalBase) {
             }
             const refs = p.changes.flatMap((c) => (c.itemRef === undefined ? [] : [c.itemRef]));
             if (new Set(refs).size !== refs.length) throw failedAt('/changes', 'duplicateItem');
-            // Serializes every writer of this patient (and the merge, which locks the patient first).
-            const stream = await ownStream(tx, patient.id);
+            // A change is recorded in the stream that owns its item (after a merge the survivor may change
+            // an item of the merged patient's stream); new items go to the patient's own stream. A change
+            // set spanning streams is refused rather than split (hardening finding 3).
+            const owners = new Map((await patientItems(tx, patient.id)).map((i) => [i.id, i]));
+            const targets = new Set(
+              refs.flatMap((r) => (owners.has(r) ? [(owners.get(r) as ItemRow).stream_id] : [])),
+            );
+            const hasNew = p.changes.some((c) => c.itemRef === undefined);
+            const foreign = [...targets].filter(
+              (s) => [...owners.values()].find((i) => i.stream_id === s)?.origin_patient_id !== patient.id,
+            );
+            if (targets.size > 1 || (hasNew && foreign.length > 0))
+              throw failedAt('/changes', 'mixedHistoryStreams');
+            // Serializes every writer of this stream (and the merge, which locks the patient first).
+            const stream =
+              foreign.length === 1
+                ? await lockStream(tx, foreign[0] as string, patient.id)
+                : await ownStream(tx, patient.id);
             if (p.expectedVersion !== undefined && p.expectedVersion !== stream.head) {
               throw new RefusalError({
                 code: 'stale_version',
@@ -599,7 +637,7 @@ export function createHistoryOperations(base: ClinicalBase) {
             );
             const versionId = rows[0]?.id;
             if (!versionId) throw new Error('insert returned no row');
-            for (const x of planned) {
+            for (const [ordinal, x] of planned.entries()) {
               let itemId = x.itemId;
               if (itemId === null) {
                 const created = await tx.query<{ id: string }>(
@@ -612,8 +650,8 @@ export function createHistoryOperations(base: ClinicalBase) {
               }
               await tx.query(
                 `INSERT INTO cuspatlas.clinical_history_changes (tenant_id, version_id, item_id, item_sequence, state,
-                   display_text, code_ref, detail_text, effective_from, effective_until, reason_code)
-                 VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6, $7, $8::date, $9::date, $10)`,
+                   display_text, code_ref, detail_text, effective_from, effective_until, reason_code, ordinal)
+                 VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6, $7, $8::date, $9::date, $10, $11)`,
                 [
                   versionId,
                   itemId,
@@ -625,6 +663,7 @@ export function createHistoryOperations(base: ClinicalBase) {
                   x.effectiveFrom,
                   x.effectiveUntil,
                   x.reasonCode,
+                  ordinal + 1,
                 ],
               );
             }
@@ -682,6 +721,12 @@ export function createHistoryOperations(base: ClinicalBase) {
                 alternative: 'clinical.encounters.open',
               });
             }
+            // Serializes verifiers of this item (hardening finding 7): the second sees the first.
+            const { rows: own } = await tx.query<{ stream_id: string }>(
+              'SELECT stream_id FROM cuspatlas.clinical_history_items WHERE id = $1',
+              [itemRef],
+            );
+            if (own[0]) await lockStream(tx, own[0].stream_id, patient.id);
             const item = (await itemsAsOf(tx, patient.id, null)).find((i) => i.itemRef === itemRef);
             if (!item) throw notFound();
             if (item.current.changeRef !== p.expectedChangeRef) {
@@ -695,12 +740,17 @@ export function createHistoryOperations(base: ClinicalBase) {
               });
             }
             if (item.verification !== null) throw conflict('already_verified');
-            const { rows } = await tx.query<{ id: string }>(
-              `INSERT INTO cuspatlas.clinical_history_verifications (tenant_id, change_id, encounter_id, verified_by,
+            const { rows } = await tx
+              .query<{ id: string }>(
+                `INSERT INTO cuspatlas.clinical_history_verifications (tenant_id, change_id, encounter_id, verified_by,
                  verified_by_role, verified_by_credential_ref)
                VALUES (cuspatlas.current_tenant_id(), $1, $2, cuspatlas.current_actor_id(), $3, $4) RETURNING id`,
-              [item.current.changeRef, p.encounterRef ?? null, author.role, author.credentialRef],
-            );
+                [item.current.changeRef, p.encounterRef ?? null, author.role, author.credentialRef],
+              )
+              .catch((err: { code?: unknown }) => {
+                if (err.code === '23505') throw conflict('already_verified');
+                throw err;
+              });
             const id = rows[0]?.id;
             if (!id) throw new Error('insert returned no row');
             await recordCommand(

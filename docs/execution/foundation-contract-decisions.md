@@ -310,3 +310,13 @@ Additions only; no frozen row changed. Semantics recommended-pending-clinical-ap
 - Storage (`20261108020000_clinical_treatment_plans.sql`): `clinical_treatment_plans` (merge-registered; UPDATE only `subject_patient_id, head_version, version, updated_at`), `clinical_plan_versions` (UPDATE only `state, revision, acceptance_ref, accepted_at, updated_at`; guard trigger), append-only `clinical_plan_details`, `clinical_plan_items` (same-version composite key to the detail; no amount column), `clinical_plan_detail_events` (one terminal state per detail) and `clinical_plan_item_events` (transition guard). Transition set recorded in docs/execution/clinical-progress.md (C11).
 - Merge: `clinicalTreatmentPlan` class; `clinical_treatment_plans.origin_patient_id` excluded; post-merge probe counts versions, details, item and detail events at or after the merge instant.
 - Lock order: patient FOR SHARE, author profile FOR SHARE, reservation, plan FOR UPDATE (supersede only), version FOR UPDATE.
+
+## Task record: C5/C8 hardening after independent review (workstream C batch 2a)
+
+Additions only; no frozen row changed.
+
+- Shared refusal contract: new security reason code `clinical_author_self_definition` (403 `forbidden`, `detail.reason` the same) for `clinical.authors.define` naming the caller; no refusal code added.
+- `HistoryChangeInput` (`clinical.schema.json`): `codeRef`, `detailText`, `effectiveFrom`, `effectiveUntil` accept null on an existing item to clear the value; omitted still carries forward. New 422 rule `mixedHistoryStreams`: a change set must target one stream (the stream that owns its items; new items the patient's own).
+- Migration `20261108030000_clinical_hardening_c5_c8.sql`: `clock_timestamp()` defaults for encounter `opened_at` and assignment `assigned_at` (close writes `closed_at` the same way; probes use `>=`); open-encounter guard on assignments, history versions, verifications and reviews; author-snapshot guard on encounter open and close, assignments, history versions, verifications and reviews; deferred constraint trigger `clinical_subject_relink_guard` on every clinical merge class (relink only to the survivor of a recorded unreversed merge that moved the record, or back on its recorded reversal); history change must belong to a version of its item's stream; `clinical_history_changes.ordinal`; profile self-definition refused by trigger.
+- Concurrency: verification locks the item's stream FOR UPDATE and maps 23505 to 409 `already_verified`; concurrent first profile definition maps 23505 to 409 `author_profile_exists`.
+- Not changed (platform-wide, orchestrator): unsalted payload digests in `command_idempotency` (`execute-once`, `digest.ts`).

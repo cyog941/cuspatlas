@@ -1229,7 +1229,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["state"],
-      "description": "A new item (kind, no itemRef) or a change of an existing item (itemRef, no kind). Unspecified text and dates carry forward.",
+      "description": "A new item (kind, no itemRef) or a change of an existing item (itemRef, no kind). Unspecified text and dates carry forward. On an existing item an omitted field carries forward and null clears it (hardening).",
       "properties": {
         "itemRef": {
           "$ref": "#/$defs/HistoryItemRef"
@@ -1247,16 +1247,44 @@
           "$ref": "#/$defs/HistoryText"
         },
         "codeRef": {
-          "$ref": "#/$defs/SyntheticCodeRef"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SyntheticCodeRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "detailText": {
-          "$ref": "#/$defs/HistoryDetailText"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HistoryDetailText"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "effectiveFrom": {
-          "$ref": "#/$defs/LocalDate"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalDate"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "effectiveUntil": {
-          "$ref": "#/$defs/LocalDate"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalDate"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "reasonCode": {
           "$ref": "#/$defs/ReasonCode"

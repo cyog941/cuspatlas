@@ -90,6 +90,14 @@ export function createAuthorshipOperations(base: ClinicalBase) {
         checkEnvelope(envelope, op);
         const p = envelope.payload;
         assertValid<ClinicalAuthorDefine>(validateClinicalAuthorDefine, p, CLINICAL_PROPERTIES);
+        // Two-person rule (recommended-pending-approval, C5-P6): an admin never sets their own role.
+        if (p.actorRef === ctx.actorId) {
+          throw new RefusalError({
+            code: 'forbidden',
+            reasonCode: 'clinical_author_self_definition',
+            detail: { reason: 'clinical_author_self_definition' },
+          });
+        }
         return deps.withTenantTransaction(ctx, async (tx) => {
           const r = await execute<{ ref: string }>(ctx, envelope, tx, async () => {
             const existing = await loadProfile(tx, p.actorRef, 'FOR UPDATE');
@@ -106,6 +114,8 @@ export function createAuthorshipOperations(base: ClinicalBase) {
               } catch (err) {
                 // Not a member of this tenant (or of any): indistinguishable from a missing record.
                 if (isPgError(err, '23503')) throw notFound();
+                // A concurrent first definition won the primary key: the same typed answer as a duplicate.
+                if (isPgError(err, '23505')) throw conflict('author_profile_exists');
                 throw err;
               }
               await recordCommand(

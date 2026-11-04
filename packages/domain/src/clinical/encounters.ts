@@ -511,7 +511,7 @@ export function createEncounterOperations(base: ClinicalBase) {
               const { rows } = await tx.query<{ version: number }>(
                 `UPDATE cuspatlas.clinical_encounters SET state = 'closed', disposition_code = $2,
                  closed_by = cuspatlas.current_actor_id(), closed_by_role = $3, closed_by_credential_ref = $4,
-                 closed_at = now(), version = version + 1, updated_at = now()
+                 closed_at = date_trunc('milliseconds', clock_timestamp()), version = version + 1, updated_at = now()
                WHERE id = $1 RETURNING version`,
                 [row.id, p.dispositionCode, author.role, author.credentialRef],
               );

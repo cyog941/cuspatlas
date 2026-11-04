@@ -167,10 +167,11 @@ export interface HistoryChangeInput {
   readonly entryType?: HistoryEntryType;
   readonly state: HistoryState;
   readonly displayText?: string;
-  readonly codeRef?: string;
-  readonly detailText?: string;
-  readonly effectiveFrom?: string;
-  readonly effectiveUntil?: string;
+  /** On an existing item: omitted carries forward, null clears. */
+  readonly codeRef?: string | null;
+  readonly detailText?: string | null;
+  readonly effectiveFrom?: string | null;
+  readonly effectiveUntil?: string | null;
   readonly reasonCode?: string;
 }
 

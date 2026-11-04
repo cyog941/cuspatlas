@@ -13,21 +13,21 @@ export const CLINICAL_POST_MERGE_FACT_PROBES: readonly PostMergeFactProbe[] = [
     async count(tx: TenantTransaction, survivorRef: string, mergedAt: Date): Promise<number> {
       const { rows } = await tx.query<{ n: number }>(
         `SELECT (SELECT count(*) FROM cuspatlas.clinical_encounters e
-                  WHERE e.subject_patient_id = $1 AND (e.opened_at > $2 OR e.closed_at > $2))
+                  WHERE e.subject_patient_id = $1 AND (e.opened_at >= $2 OR e.closed_at >= $2))
               + (SELECT count(*) FROM cuspatlas.clinical_encounter_assignments a
                   JOIN cuspatlas.clinical_encounters e ON e.id = a.encounter_id AND e.tenant_id = a.tenant_id
-                  WHERE e.subject_patient_id = $1 AND a.assigned_at > $2)
+                  WHERE e.subject_patient_id = $1 AND a.assigned_at >= $2)
               + (SELECT count(*) FROM cuspatlas.clinical_history_versions v
                   JOIN cuspatlas.clinical_history_streams s ON s.id = v.stream_id AND s.tenant_id = v.tenant_id
-                  WHERE s.subject_patient_id = $1 AND v.recorded_at > $2)
+                  WHERE s.subject_patient_id = $1 AND v.recorded_at >= $2)
               + (SELECT count(*) FROM cuspatlas.clinical_history_verifications f
                   JOIN cuspatlas.clinical_history_changes c ON c.id = f.change_id AND c.tenant_id = f.tenant_id
                   JOIN cuspatlas.clinical_history_items i ON i.id = c.item_id AND i.tenant_id = c.tenant_id
                   JOIN cuspatlas.clinical_history_streams s ON s.id = i.stream_id AND s.tenant_id = i.tenant_id
-                  WHERE s.subject_patient_id = $1 AND f.verified_at > $2)
+                  WHERE s.subject_patient_id = $1 AND f.verified_at >= $2)
               + (SELECT count(*) FROM cuspatlas.clinical_history_reviews r
                   JOIN cuspatlas.clinical_encounters e ON e.id = r.encounter_id AND e.tenant_id = r.tenant_id
-                  WHERE e.subject_patient_id = $1 AND r.reviewed_at > $2) AS n`,
+                  WHERE e.subject_patient_id = $1 AND r.reviewed_at >= $2) AS n`,
         [survivorRef, mergedAt],
       );
       return Number(rows[0]?.n ?? 0);

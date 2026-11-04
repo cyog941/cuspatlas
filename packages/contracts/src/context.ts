@@ -148,6 +148,8 @@ export const SECURITY_REASON_CODES = [
   'booking_refused',
   // C5: a clinical mutation whose actor has no resolvable clinical author profile.
   'clinical_author_unresolved',
+  // C5 hardening: two-person rule, nobody defines or changes their own clinical author profile.
+  'clinical_author_self_definition',
 ] as const;
 export type SecurityReasonCode = (typeof SECURITY_REASON_CODES)[number];
 

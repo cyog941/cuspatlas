@@ -41,16 +41,17 @@ export async function seedClinicalScopes(admin: pg.Pool): Promise<void> {
     `INSERT INTO cuspatlas.memberships (tenant_id, principal_id, scopes) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
     [T_ALPHA, USER_A7, CLINICAL_RW],
   );
-  for (const [tenant, actor, role, credential] of [
-    [T_ALPHA, USER_A1, 'dentist', 'SYN-CRED-A1'],
-    [T_ALPHA, USER_A2, 'dentist', null],
-    [T_ALPHA, USER_A3, 'hygienist', null],
-    [T_BETA, USER_B1, 'dentist', null],
+  // Each profile is defined by another principal (two-person rule, enforced by trigger).
+  for (const [tenant, actor, role, credential, definer] of [
+    [T_ALPHA, USER_A1, 'dentist', 'SYN-CRED-A1', USER_A4],
+    [T_ALPHA, USER_A2, 'dentist', null, USER_A1],
+    [T_ALPHA, USER_A3, 'hygienist', null, USER_A1],
+    [T_BETA, USER_B1, 'dentist', null, SVC_B1],
   ] as const) {
     await admin.query(
       `INSERT INTO cuspatlas.clinical_author_profiles (tenant_id, actor_id, role, credential_ref, defined_by, updated_by)
-       VALUES ($1, $2, $3, $4, $2, $2)`,
-      [tenant, actor, role, credential],
+       VALUES ($1, $2, $3, $4, $5, $5)`,
+      [tenant, actor, role, credential, definer],
     );
   }
 }

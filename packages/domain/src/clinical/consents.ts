@@ -204,19 +204,37 @@ function checkEvidence(method: string, evidence: ConsentEvidence | undefined): v
 }
 
 // C12 reads the consent binding of an accepted plan version from here (C13 owns consent state).
+/**
+ * The version is bound by a standing treatment-plan consent, or when every open item of the version
+ * has its own standing procedure consent. One item's consent never binds the whole version.
+ */
 registerConsentBindingReader(async (tx, planVersionId) => {
-  const { rows } = await tx.query<{ id: string; withdrawn: boolean }>(
-    `SELECT c.id, EXISTS (SELECT 1 FROM cuspatlas.clinical_consent_withdrawals w WHERE w.consent_id = c.id
-                          AND w.tenant_id = c.tenant_id) AS withdrawn
+  const { rows } = await tx.query<{
+    id: string;
+    scope: 'treatment_plan' | 'procedure';
+    plan_item_id: string | null;
+    withdrawn: boolean;
+  }>(
+    `SELECT c.id, c.scope, c.plan_item_id, EXISTS (SELECT 1 FROM cuspatlas.clinical_consent_withdrawals w
+       WHERE w.consent_id = c.id AND w.tenant_id = c.tenant_id) AS withdrawn
      FROM cuspatlas.clinical_consents c WHERE c.plan_version_id = $1 AND c.scope IN ('treatment_plan', 'procedure')
      ORDER BY c.effective_at, c.id LIMIT 50`,
     [planVersionId],
   );
   if (rows.length === 0) return { status: 'outstanding', consentRefs: [] };
-  return {
-    status: rows.some((r) => !r.withdrawn) ? 'bound' : 'withdrawn',
-    consentRefs: rows.map((r) => r.id),
-  };
+  const consentRefs = rows.map((r) => r.id);
+  const standing = rows.filter((r) => !r.withdrawn);
+  if (standing.length === 0) return { status: 'withdrawn', consentRefs };
+  if (standing.some((r) => r.scope === 'treatment_plan')) return { status: 'bound', consentRefs };
+  const { rows: open } = await tx.query<{ id: string }>(
+    `SELECT i.id FROM cuspatlas.clinical_plan_items i WHERE i.plan_version_id = $1
+       AND (SELECT e.to_state FROM cuspatlas.clinical_plan_item_events e WHERE e.item_id = i.id
+            AND e.tenant_id = i.tenant_id ORDER BY e.sequence DESC LIMIT 1) IN ('proposed', 'accepted', 'scheduled')`,
+    [planVersionId],
+  );
+  const covered = new Set(standing.map((r) => r.plan_item_id));
+  const all = open.length > 0 && open.every((i) => covered.has(i.id));
+  return { status: all ? 'bound' : 'outstanding', consentRefs };
 });
 
 /** S-D2: consents captured, or withdrawals recorded, on the survivor after the merge instant. */
@@ -311,8 +329,16 @@ export function createConsentOperations(base: ClinicalBase) {
               'SELECT witness_required FROM cuspatlas.clinical_consent_method_policies WHERE method = $1',
               [p.method],
             );
-            if (policy[0]?.witness_required && p.witnessRef === undefined) {
+            // A method without a configured policy requires a witness (fail closed).
+            if ((policy[0]?.witness_required ?? true) && p.witnessRef === undefined) {
               throw conflict('witness_required');
+            }
+            if (p.witnessRef !== undefined) {
+              const { rows: w } = await tx.query<{ ok: boolean }>(
+                'SELECT cuspatlas.is_human_member($1) AS ok',
+                [UUID.test(p.witnessRef) ? p.witnessRef : null],
+              );
+              if (w[0]?.ok !== true) throw failedAt('/witnessRef', 'witnessNotHumanMember');
             }
             const authority = await signerAuthority(tx, patient.id, p.signer);
             const { rows: n } = await tx.query<{ n: number }>(

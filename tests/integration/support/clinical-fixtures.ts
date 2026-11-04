@@ -54,6 +54,15 @@ export async function seedClinicalScopes(admin: pg.Pool): Promise<void> {
       [tenant, actor, role, credential, definer],
     );
   }
+  // Consent witness policy is configured per method; a method without a row requires a witness (fail
+  // closed), so the in-person method most tests use is configured without one.
+  for (const tenant of [T_ALPHA, T_BETA]) {
+    await admin.query(
+      `INSERT INTO cuspatlas.clinical_consent_method_policies (tenant_id, method, witness_required)
+       VALUES ($1, 'in_person', false) ON CONFLICT (tenant_id, method) DO NOTHING`,
+      [tenant],
+    );
+  }
 }
 
 /** Configured disposition codes (synthetic tenant configuration; no practice decision). */

@@ -168,6 +168,10 @@ async function project(tx: TenantTransaction, e: EstimateRow): Promise<Estimate>
       : { currency: e.currency, minor: Number(e.gross_minor) };
   const presentation = pres[0];
   const acceptance = acc[0];
+  const coverageNow = coverageStatusAt(
+    assumptions.map((a) => ({ kind: a.kind, sourceAsOf: a.source_as_of })),
+    Date.now(),
+  );
   return {
     estimateRef: e.id,
     planRef: e.plan_id,
@@ -190,9 +194,10 @@ async function project(tx: TenantTransaction, e: EstimateRow): Promise<Estimate>
       sourceRef: a.source_ref,
       sourceAsOf: a.source_as_of.toISOString(),
     })),
-    coverageStatus: e.coverage_status,
+    // Coverage freshness is re-evaluated at every read: an entered source that has aged out reads stale.
+    coverageStatus: coverageNow,
     grossAmount: gross,
-    patientResponsibility: responsibility(e.complete, e.coverage_status, gross),
+    patientResponsibility: responsibility(e.complete, coverageNow, gross),
     notAGuarantee: true,
     presentation: presentation
       ? {
@@ -319,8 +324,14 @@ export function createEstimateOperations(base: ClinicalBase) {
                 planVersionRef,
               ]);
               await versionSuperseded(tx, planVersionRef);
-              const { rows: items } = await tx.query<{ id: string; fee_schedule_ref: string | null }>(
-                'SELECT id, fee_schedule_ref FROM cuspatlas.clinical_plan_items WHERE plan_version_id = $1',
+              const { rows: items } = await tx.query<{
+                id: string;
+                fee_schedule_ref: string | null;
+                state: string;
+              }>(
+                `SELECT i.id, i.fee_schedule_ref, (SELECT e.to_state FROM cuspatlas.clinical_plan_item_events e
+                   WHERE e.item_id = i.id AND e.tenant_id = i.tenant_id ORDER BY e.sequence DESC LIMIT 1) AS state
+                 FROM cuspatlas.clinical_plan_items i WHERE i.plan_version_id = $1`,
                 [planVersionRef],
               );
               const byId = new Map(items.map((i) => [i.id, i]));
@@ -331,6 +342,8 @@ export function createEstimateOperations(base: ClinicalBase) {
                 const item = byId.get(line.planItemRef);
                 if (!item) throw failedAt(`/lines/${n}/planItemRef`, 'itemNotInVersion');
                 if (seen.has(item.id)) throw failedAt(`/lines/${n}/planItemRef`, 'duplicateLine');
+                // A declined or discontinued item is not priced.
+                if (!OPEN.has(item.state)) throw failedAt(`/lines/${n}/planItemRef`, 'itemNotOpen');
                 seen.add(item.id);
                 if (item.fee_schedule_ref === null)
                   throw failedAt(`/lines/${n}/planItemRef`, 'itemWithoutFeeScheduleRef');
@@ -505,10 +518,60 @@ export function createEstimateOperations(base: ClinicalBase) {
                 blockingRefs: [{ kind: 'planVersion', ref: e.plan_version_id }],
               });
             }
+            const { rows: rev } = await tx.query<{ revision: number }>(
+              'SELECT revision FROM cuspatlas.clinical_plan_versions WHERE id = $1',
+              [e.plan_version_id],
+            );
+            if (rev[0]?.revision !== p.expectedRevision) {
+              throw new RefusalError({
+                code: 'stale_version',
+                detail: { currentVersion: rev[0]?.revision ?? 0 },
+              });
+            }
+            // Only what the patient was shown can be accepted, and only while it still holds: the estimate
+            // was presented, still prices every open item of the version, and its coverage source did not age
+            // out since the presentation.
+            const { rows: shown } = await tx.query<{ coverage_status: CoverageStatus }>(
+              'SELECT coverage_status FROM cuspatlas.clinical_estimate_presentations WHERE estimate_id = $1',
+              [e.id],
+            );
+            const presentation = shown[0];
+            if (!presentation) {
+              throw conflict('estimate_not_presented', { blockingRefs: [{ kind: 'estimate', ref: e.id }] });
+            }
+            const { rows: priced } = await tx.query<{ item_id: string }>(
+              'SELECT item_id FROM cuspatlas.clinical_estimate_lines WHERE estimate_id = $1',
+              [e.id],
+            );
+            const unpriced = await itemsWithoutFee(
+              tx,
+              e.plan_version_id,
+              priced.map((l) => l.item_id),
+            );
+            if (!e.complete || unpriced.length > 0) {
+              throw conflict('estimate_incomplete', {
+                blockingRefs: [
+                  { kind: 'estimate', ref: e.id },
+                  ...unpriced.slice(0, 19).map((ref) => ({ kind: 'planItem', ref })),
+                ],
+              });
+            }
+            const { rows: assumptions } = await tx.query<{ kind: string; source_as_of: Date }>(
+              'SELECT kind, source_as_of FROM cuspatlas.clinical_estimate_assumptions WHERE estimate_id = $1',
+              [e.id],
+            );
+            const coverageNow = coverageStatusAt(
+              assumptions.map((a) => ({ kind: a.kind, sourceAsOf: a.source_as_of })),
+              Date.now(),
+            );
+            if (coverageNow === 'stale' && presentation.coverage_status !== 'stale') {
+              throw conflict('estimate_coverage_stale', { blockingRefs: [{ kind: 'estimate', ref: e.id }] });
+            }
             const { rows } = await tx.query<{ id: string }>(
-              `INSERT INTO cuspatlas.clinical_plan_acceptances (tenant_id, plan_version_id, estimate_id, scope, accepted_by)
-               VALUES (cuspatlas.current_tenant_id(), $1, $2, 'full', cuspatlas.current_actor_id()) RETURNING id`,
-              [e.plan_version_id, e.id],
+              `INSERT INTO cuspatlas.clinical_plan_acceptances (tenant_id, plan_version_id, estimate_id, scope, accepted_by,
+                 accepted_revision)
+               VALUES (cuspatlas.current_tenant_id(), $1, $2, 'full', cuspatlas.current_actor_id(), $3) RETURNING id`,
+              [e.plan_version_id, e.id, p.expectedRevision],
             );
             const acceptanceRef = rows[0]?.id;
             if (!acceptanceRef) throw new Error('insert returned no row');

@@ -163,6 +163,7 @@ describe('runtime database role', () => {
       'patient_merge_reversals',
       'patient_merges',
       'patient_policy_settings',
+      'patient_reference_observations',
       'patient_relationships',
       'patient_status_history',
       'patients',

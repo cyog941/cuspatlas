@@ -555,6 +555,18 @@ export function createProcedureOperations(base: ClinicalBase) {
                   blockingRefs: [{ kind: 'renderedProcedure', ref: o.reversed_by }],
                 });
               }
+              // A replacement's sequence is judged against the procedures still active once the original is reversed.
+              if (p.replacement !== undefined) {
+                const seq = p.replacement.sequence ?? o.sequence;
+                const others = (await active(tx, o.encounter_id)).filter(
+                  (x) => x.id !== o.id && x.sequence === seq,
+                );
+                if (others.length > 0) {
+                  throw conflict('sequence_in_use', {
+                    blockingRefs: others.map((x) => ({ kind: 'renderedProcedure', ref: x.id })),
+                  });
+                }
+              }
               const reversal = await insert(
                 tx,
                 {
@@ -578,30 +590,39 @@ export function createProcedureOperations(base: ClinicalBase) {
                 },
                 who,
               );
-              // A completion this procedure made returns its item to accepted, explicitly.
+              // A completion this procedure made returns its item to accepted, explicitly. The item is the one
+              // whose current completion names this procedure: the procedure's own item, or the carried-forward
+              // item of the current plan version (an item of a superseded version is frozen history). An item
+              // still covered by another active procedure (an additional visit) stays completed.
               let reverted = false;
+              let targetItem: string | null = null;
               if (o.plan_item_id !== null) {
-                const { rows: last } = await tx.query<{
-                  cause: string;
-                  rendered_procedure_id: string | null;
-                }>(
-                  `SELECT cause, rendered_procedure_id FROM cuspatlas.clinical_plan_item_events WHERE item_id = $1
-                 ORDER BY sequence DESC LIMIT 1`,
-                  [o.plan_item_id],
+                const { rows: named } = await tx.query<{ item_id: string }>(
+                  `SELECT e.item_id FROM cuspatlas.clinical_plan_item_events e
+                   WHERE e.rendered_procedure_id = $1 AND e.to_state = 'completed'
+                     AND e.sequence = (SELECT max(x.sequence) FROM cuspatlas.clinical_plan_item_events x
+                                       WHERE x.item_id = e.item_id AND x.tenant_id = e.tenant_id)
+                     AND NOT EXISTS (SELECT 1 FROM cuspatlas.clinical_plan_items i
+                                     JOIN cuspatlas.clinical_plan_versions s ON s.supersedes_version_id = i.plan_version_id
+                                       AND s.tenant_id = i.tenant_id
+                                     WHERE i.id = e.item_id AND i.tenant_id = e.tenant_id)
+                   LIMIT 1`,
+                  [o.id],
                 );
-                const { rows: frozen } = await tx.query(
-                  `SELECT 1 FROM cuspatlas.clinical_plan_items i JOIN cuspatlas.clinical_plan_versions s
-                   ON s.supersedes_version_id = i.plan_version_id AND s.tenant_id = i.tenant_id WHERE i.id = $1`,
-                  [o.plan_item_id],
-                );
-                // An item of a superseded version is frozen: its completion stays as history.
-                if (
-                  frozen.length === 0 &&
-                  last[0]?.cause === 'rendered' &&
-                  last[0].rendered_procedure_id === o.id
-                ) {
-                  await itemEvent(tx, o.plan_item_id, 'accepted', reversal, who);
-                  reverted = true;
+                targetItem = named[0]?.item_id ?? null;
+                if (targetItem !== null) {
+                  const { rows: covering } = await tx.query(
+                    `SELECT 1 FROM cuspatlas.clinical_rendered_procedures p
+                     WHERE p.kind = 'rendered' AND p.id <> $1 AND p.plan_item_id = ANY ($2::uuid[])
+                       AND NOT EXISTS (SELECT 1 FROM cuspatlas.clinical_rendered_procedures r
+                                       WHERE r.reverses_procedure_id = p.id AND r.tenant_id = p.tenant_id)
+                     LIMIT 1`,
+                    [o.id, [o.plan_item_id, targetItem]],
+                  );
+                  if (covering.length === 0) {
+                    await itemEvent(tx, targetItem, 'accepted', reversal, who);
+                    reverted = true;
+                  }
                 }
               }
               await recordCommand(
@@ -645,14 +666,28 @@ export function createProcedureOperations(base: ClinicalBase) {
                 const dateOfService = x.dateOfService ?? o.date_of_service;
                 if (x.dateOfService !== undefined)
                   await checkDate(tx, encounter.location_id, dateOfService, '/replacement/dateOfService');
-                // The replacement keeps the plan item only when it is still that item's procedure.
+                // The replacement keeps the plan item only when it is still that item's procedure: the same
+                // code, tooth and surfaces (checked again by the database).
                 let planItemId: string | null = null;
-                if (o.plan_item_id !== null) {
-                  const { rows: it } = await tx.query<{ procedure_code_ref: string }>(
-                    'SELECT procedure_code_ref FROM cuspatlas.clinical_plan_items WHERE id = $1',
-                    [o.plan_item_id],
+                const linked = targetItem ?? o.plan_item_id;
+                if (linked !== null) {
+                  const { rows: it } = await tx.query<{
+                    procedure_code_ref: string;
+                    tooth_canonical_ref: string | null;
+                    surfaces: string[] | null;
+                  }>(
+                    'SELECT procedure_code_ref, tooth_canonical_ref, surfaces FROM cuspatlas.clinical_plan_items WHERE id = $1',
+                    [linked],
                   );
-                  if (it[0]?.procedure_code_ref === codeRef) planItemId = o.plan_item_id;
+                  const item = it[0];
+                  const norm = (v: readonly string[] | null) => (v === null ? null : [...v].sort().join());
+                  if (
+                    item &&
+                    item.procedure_code_ref === codeRef &&
+                    item.tooth_canonical_ref === tooth &&
+                    norm(item.surfaces) === norm(surfaces)
+                  )
+                    planItemId = linked;
                 }
                 const replacement = await insert(
                   tx,

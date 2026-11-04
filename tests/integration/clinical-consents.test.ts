@@ -41,7 +41,8 @@ beforeAll(async () => {
   await seedClinicalScopes(db.admin);
   await db.admin.query(
     `INSERT INTO cuspatlas.clinical_consent_method_policies (tenant_id, method, witness_required)
-     VALUES ($1, 'verbal_attested', true), ($1, 'in_person', false)`,
+     VALUES ($1, 'verbal_attested', true), ($1, 'in_person', false), ($1, 'paper', false), ($1, 'portal', false)
+     ON CONFLICT (tenant_id, method) DO UPDATE SET witness_required = EXCLUDED.witness_required`,
     [T_ALPHA],
   );
 });
@@ -153,6 +154,7 @@ async function acceptedPlan(patientRef: string, accept = true) {
     201,
   ).data.estimateRef;
   if (accept) {
+    h.ok(await h.call('a1', 'POST', `/v1/clinical/estimates/${estimate}/presentation`, {}));
     h.ok(
       await h.call('a1', 'POST', `/v1/clinical/estimates/${estimate}/acceptance`, {
         expectedRevision: 3,

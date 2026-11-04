@@ -461,13 +461,16 @@ async function appendItemEvent(
     reasonCode: string | null;
     parentDetailId: string | null;
     appointmentId: string | null;
+    /** A carried-forward completion names the non-reversed procedure behind it (C14). */
+    renderedProcedureId?: string | null;
   },
   who: ClinicalAuthor,
 ): Promise<void> {
   await tx.query(
     `INSERT INTO cuspatlas.clinical_plan_item_events (tenant_id, item_id, sequence, from_state, to_state, cause,
-       reason_code, parent_detail_id, appointment_id, recorded_by, recorded_by_role, recorded_by_credential_ref)
-     VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6, $7, $8, cuspatlas.current_actor_id(), $9, $10)`,
+       reason_code, parent_detail_id, appointment_id, recorded_by, recorded_by_role, recorded_by_credential_ref,
+       rendered_procedure_id)
+     VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6, $7, $8, cuspatlas.current_actor_id(), $9, $10, $11)`,
     [
       e.itemId,
       e.sequence,
@@ -479,25 +482,61 @@ async function appendItemEvent(
       e.appointmentId,
       who.role,
       who.credentialRef,
+      e.renderedProcedureId ?? null,
     ],
   );
+}
+
+/**
+ * The non-reversed rendered procedure behind an item's completion: the one its completion names, or
+ * another active procedure of that item (an additional visit). Null when none stands.
+ */
+async function completionProcedure(
+  tx: TenantTransaction,
+  itemId: string,
+  named: string | null,
+): Promise<string | null> {
+  const { rows } = await tx.query<{ id: string }>(
+    `SELECT p.id FROM cuspatlas.clinical_rendered_procedures p
+     WHERE p.kind = 'rendered' AND (p.id = $2 OR p.plan_item_id = $1)
+       AND NOT EXISTS (SELECT 1 FROM cuspatlas.clinical_rendered_procedures r
+                       WHERE r.reverses_procedure_id = p.id AND r.tenant_id = p.tenant_id)
+     ORDER BY (p.id = $2) DESC, p.recorded_at DESC, p.id LIMIT 1`,
+    [itemId, named],
+  );
+  return rows[0]?.id ?? null;
 }
 
 async function itemStates(
   tx: TenantTransaction,
   itemIds: readonly string[],
 ): Promise<
-  Map<string, { state: PlanItemState; sequence: number; reason: string | null; appointment: string | null }>
+  Map<
+    string,
+    {
+      state: PlanItemState;
+      sequence: number;
+      reason: string | null;
+      appointment: string | null;
+      procedure: string | null;
+    }
+  >
 > {
-  const { rows } = await tx.query<ItemEventRow>(
-    `SELECT DISTINCT ON (item_id) item_id, sequence, to_state, reason_code, appointment_id
+  const { rows } = await tx.query<ItemEventRow & { rendered_procedure_id: string | null }>(
+    `SELECT DISTINCT ON (item_id) item_id, sequence, to_state, reason_code, appointment_id, rendered_procedure_id
      FROM cuspatlas.clinical_plan_item_events WHERE item_id = ANY ($1::uuid[]) ORDER BY item_id, sequence DESC`,
     [itemIds],
   );
   return new Map(
     rows.map((r) => [
       r.item_id,
-      { state: r.to_state, sequence: r.sequence, reason: r.reason_code, appointment: r.appointment_id },
+      {
+        state: r.to_state,
+        sequence: r.sequence,
+        reason: r.reason_code,
+        appointment: r.appointment_id,
+        procedure: r.rendered_procedure_id,
+      },
     ]),
   );
 }
@@ -1082,6 +1121,15 @@ export function createTreatmentPlanOperations(base: ClinicalBase) {
                   if (!itemId) throw new Error('insert returned no row');
                   const s = states.get(i.id);
                   if (!s) throw new Error('item has no state');
+                  let renderedProcedureId: string | null = null;
+                  if (s.state === 'completed') {
+                    renderedProcedureId = await completionProcedure(tx, i.id, s.procedure);
+                    if (renderedProcedureId === null) {
+                      throw conflict('plan_item_completion_unbacked', {
+                        blockingRefs: [{ kind: 'planItem', ref: i.id }],
+                      });
+                    }
+                  }
                   await appendItemEvent(
                     tx,
                     {
@@ -1093,6 +1141,7 @@ export function createTreatmentPlanOperations(base: ClinicalBase) {
                       reasonCode: s.reason,
                       parentDetailId: null,
                       appointmentId: s.state === 'scheduled' ? s.appointment : null,
+                      renderedProcedureId,
                     },
                     who,
                   );

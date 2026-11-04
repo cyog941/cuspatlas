@@ -128,7 +128,7 @@ async function read(planRef: string, who = 'a1') {
 const head = (p: Plan) => p.versions.find((v) => v.planVersionRef === p.headVersionRef) as Version;
 
 /** A plan with one tooth detail (two items) and one whole-mouth detail (one item). */
-async function threeLevelPlan(name: string) {
+async function threeLevelPlan(name: string, withFees = false) {
   const patientRef = await createPatient(h, name);
   const entry = await charted(patientRef, '3');
   let r = ok(await create(patientRef, { displayText: 'Synthetic plan' }));
@@ -162,10 +162,18 @@ async function threeLevelPlan(name: string) {
       procedureCodeRef: 'SYN-PROC-002',
       sequence: 2,
       tooth: tooth('3'),
+      ...(withFees ? { feeScheduleRef: 'synthetic-fee-schedule-2' } : {}),
     }),
   );
   const itemB = r.data.targetRef;
-  r = ok(await addItem(mouthDetail, { expectedRevision: 5, procedureCodeRef: 'SYN-PROC-003', sequence: 1 }));
+  r = ok(
+    await addItem(mouthDetail, {
+      expectedRevision: 5,
+      procedureCodeRef: 'SYN-PROC-003',
+      sequence: 1,
+      ...(withFees ? { feeScheduleRef: 'synthetic-fee-schedule-3' } : {}),
+    }),
+  );
   const itemC = r.data.targetRef;
   return {
     patientRef,
@@ -203,12 +211,26 @@ async function booking(patientRef: string): Promise<string> {
 
 /**
  * Acceptance is C12's command (it calls the C11 seam `recordPlanVersionAcceptance` with a real
- * acceptance record): an estimate version is generated, then accepted at the plan revision. A refusal
- * is thrown as its typed body so the C11 cases assert on code and detail.
+ * acceptance record): a complete estimate version pricing every item is generated and presented, then
+ * accepted at the plan revision. A refusal is thrown as its typed body so the C11 cases assert on code
+ * and detail.
  */
 async function accept(versionRef: string, expectedRevision: number) {
-  const estimate = await h.call('a1', 'POST', `${PLANS}/versions/${versionRef}/estimates`, { lines: [] });
+  const items = await db.admin.query(
+    'SELECT id FROM cuspatlas.clinical_plan_items WHERE plan_version_id = $1',
+    [versionRef],
+  );
+  const estimate = await h.call('a1', 'POST', `${PLANS}/versions/${versionRef}/estimates`, {
+    lines: items.rows.map((r) => ({ planItemRef: r.id, fee: { currency: 'USD', minor: 1000 } })),
+  });
   if (estimate.statusCode !== 201) throw estimate.json();
+  const shown = await h.call(
+    'a1',
+    'POST',
+    `/v1/clinical/estimates/${estimate.json().data.estimateRef}/presentation`,
+    {},
+  );
+  if (shown.statusCode !== 200) throw shown.json();
   const res = await h.call(
     'a1',
     'POST',
@@ -289,7 +311,7 @@ describe('C11 acceptance cases', () => {
   });
 
   it('3. superseding an accepted version creates a new one; the accepted version stays retrievable and unchanged', async () => {
-    const f = await threeLevelPlan('Synthetic Plan Three');
+    const f = await threeLevelPlan('Synthetic Plan Three', true);
     await accept(f.versionRef, f.revision);
     const accepted = head(await read(f.planRef));
     expect([accepted.state, accepted.acceptance !== null]).toStrictEqual(['accepted', true]);
@@ -586,12 +608,13 @@ describe('C11 transitions, failure and recovery cases', () => {
   });
 
   it('3. acceptance recorded while an item is being edited conflicts and leaves the plan unaccepted', async () => {
-    const f = await threeLevelPlan('Synthetic Plan Accept Race');
+    const f = await threeLevelPlan('Synthetic Plan Accept Race', true);
     ok(
       await addItem(f.mouthDetail, {
         expectedRevision: f.revision,
         procedureCodeRef: 'SYN-PROC-012',
         sequence: 2,
+        feeScheduleRef: 'synthetic-fee-schedule-12',
       }),
     );
     await expect(accept(f.versionRef, f.revision)).rejects.toMatchObject({
@@ -604,6 +627,7 @@ describe('C11 transitions, failure and recovery cases', () => {
         expectedRevision: f.revision + 1,
         procedureCodeRef: 'SYN-PROC-013',
         sequence: 3,
+        feeScheduleRef: 'synthetic-fee-schedule-13',
       }),
       accept(f.versionRef, f.revision + 1),
     ]);

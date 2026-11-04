@@ -11,6 +11,8 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+// Workstream C (clinical record) rows are appended below with their own fixtures.
+import { seedClinicalScopes, seedDispositions } from './support/clinical-fixtures';
 import { openTestDatabase, type TestDatabase } from './support/db';
 import { seedTenancy, T_ALPHA, T_BETA, USER_A1, USER_A2, USER_A4, USER_B1 } from './support/fixtures';
 import { MARKER } from './support/marker';
@@ -716,6 +718,117 @@ export const COMMANDS: HarnessCommand[] = [
     }),
     mcpArgs: (f) => ({ locationRef: f.alphaLocation, date: '2030-01-07' }),
   },
+  // C5 encounters and clinical authorship (workstream C).
+  {
+    operation: 'clinical.authors.define',
+    tool: 'clinical_authors_define',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: () => ({
+      method: 'POST',
+      url: '/v1/clinical/authors',
+      body: { actorRef: USER_A4, role: 'assistant', credentialRef: MARKER },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: () => ({
+      actorRef: USER_A4,
+      role: 'assistant',
+      credentialRef: MARKER,
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.authors.context',
+    tool: 'clinical_author_context',
+    crossTenant: 'tenant_own_data',
+    downgradedTo: 'noPatientScopes',
+    rest: () => ({ method: 'GET', url: '/v1/clinical/author-context', keyed: false, status: 200 }),
+    mcpArgs: () => ({}),
+  },
+  {
+    operation: 'clinical.encounters.open',
+    tool: 'clinical_encounters_open',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: '/v1/clinical/encounters',
+      body: { patientRef: P(f), locationRef: f.alphaLocation },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({ patientRef: P(f), locationRef: f.alphaLocation, idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'clinical.encounters.read',
+    tool: 'clinical_encounters_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/encounters/${f.alphaEncounter}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ encounterRef: f.alphaEncounter }),
+  },
+  {
+    operation: 'clinical.encounters.assign',
+    tool: 'clinical_encounters_assign',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/encounters/${f.alphaEncounter}/assignments`,
+      body: {
+        expectedVersion: 1,
+        role: 'treating_provider',
+        assignee: { kind: 'provider', resourceRef: f.alphaProvider },
+      },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      encounterRef: f.alphaEncounter,
+      expectedVersion: 1,
+      role: 'treating_provider',
+      assignee: { kind: 'provider', resourceRef: f.alphaProvider },
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.encounters.close',
+    tool: 'clinical_encounters_close',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/encounters/${f.alphaEncounter}/close`,
+      body: { expectedVersion: 1, dispositionCode: 'completed_as_planned' },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({
+      encounterRef: f.alphaEncounter,
+      expectedVersion: 1,
+      dispositionCode: 'completed_as_planned',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.encounters.list',
+    tool: 'clinical_encounters_list',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/patients/${P(f)}/encounters`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ patientRef: P(f) }),
+  },
 ];
 
 const APPT = '/v1/scheduling/appointments';
@@ -789,6 +902,8 @@ beforeAll(async () => {
   await seedTenancy(db.admin);
   await seedPatientScopes(db.admin);
   await seedSchedulingScopes(db.admin);
+  await seedClinicalScopes(db.admin);
+  await seedDispositions(db.admin, T_ALPHA, ['completed_as_planned']);
   issuer = await createTestTokenIssuer();
   logLines = [];
   const stream = { write: (l: string) => logLines.push(l) };
@@ -961,7 +1076,14 @@ beforeAll(async () => {
     ttlMinutes: 1440,
   });
   expect(hold.statusCode).toBe(201);
+  // C5: an open alpha encounter for the alpha appointment (version 1).
+  const encounter = await owner('/v1/clinical/encounters', {
+    patientRef: alphaPatient,
+    appointmentRef: appointment.json().data.appointmentRef,
+  });
+  expect(encounter.statusCode).toBe(201);
   fixture = {
+    alphaEncounter: encounter.json().data.encounter.encounterRef,
     alphaProvider,
     alphaAppointment: appointment.json().data.appointmentRef,
     alphaHold: hold.json().data.holdRef,
@@ -1085,6 +1207,9 @@ async function state(): Promise<string> {
     await q('SELECT count(*)::int AS n FROM cuspatlas.appointment_overrides'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.appointment_lifecycle_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.appointment_attendance_transitions'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_author_profiles'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_encounters'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_encounter_assignments'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.audit_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.outbox_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.command_idempotency'),

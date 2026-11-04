@@ -109,6 +109,10 @@ describe('runtime database role', () => {
       'appointment_requests',
       'appointments',
       'audit_events',
+      'clinical_author_profiles',
+      'clinical_encounter_assignments',
+      'clinical_encounter_dispositions',
+      'clinical_encounters',
       'command_idempotency',
       'delivery_receipts',
       'memberships',
@@ -173,6 +177,10 @@ describe('runtime database role', () => {
       'appointment_lifecycle_events',
       'appointment_attendance_transitions',
       'scheduling_attendance_reasons',
+      'clinical_author_profiles',
+      'clinical_encounter_dispositions',
+      'clinical_encounters',
+      'clinical_encounter_assignments',
     ]) {
       const { rows } = await db.app.query(`SELECT count(*)::int AS n FROM cuspatlas.${t}`);
       expect([t, rows[0].n]).toStrictEqual([t, 0]);

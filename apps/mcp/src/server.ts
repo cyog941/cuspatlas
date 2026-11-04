@@ -24,10 +24,12 @@ import {
 } from '@cuspatlas/contracts';
 import {
   type AttemptRecordingDeps,
+  CLINICAL_POST_MERGE_FACT_PROBES,
   type CommandExecutor,
   type CursorCodec,
   createAppointmentService,
   createAuthorize,
+  createClinicalService,
   createPatientService,
   createProposalService,
   createSchedulingResourceService,
@@ -45,6 +47,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { assertDistinctAudience, assertIdentityAllowed, createMcpAuthenticator } from './auth';
 import { APPOINTMENT_TOOLS } from './tools/appointments';
+import { CLINICAL_TOOLS } from './tools/clinical';
 import { PATIENT_TOOLS } from './tools/patients';
 import { PROPOSAL_TOOLS } from './tools/proposals';
 import { SCHEDULING_TOOLS } from './tools/scheduling';
@@ -122,6 +125,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   ...PATIENT_TOOLS,
   ...SCHEDULING_TOOLS,
   ...APPOINTMENT_TOOLS,
+  ...CLINICAL_TOOLS,
 ];
 
 /** Path parameters of the REST twin. A malformed one is a 404 there, decided by the domain. */
@@ -136,6 +140,7 @@ const REF_PARAMS = [
   'requestRef',
   'appointmentRef',
   'holdRef',
+  'encounterRef',
 ] as const;
 const PLACEHOLDER_REF = '00000000-0000-4000-8000-000000000000';
 
@@ -221,6 +226,8 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
   });
   const patients = createPatientService({
     matchKeyPepper: resolveMatchKeyPepper(deps.env, deps.matchKeyPepper),
+    // C5: clinical facts after a merge make an unmerge need the reconciliation review (S-D2).
+    postMergeFactProbes: CLINICAL_POST_MERGE_FACT_PROBES,
     authorize,
     withTenantTransaction: deps.tenantTransactions,
     recording,
@@ -239,7 +246,23 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     recording,
     execute: deps.execute ?? executeOnce,
   });
-  const toolDeps: ToolDeps = { service, proposals, patients, scheduling, appointments, authorize, recording };
+  const clinical = createClinicalService({
+    authorize,
+    withTenantTransaction: deps.tenantTransactions,
+    recording,
+    execute: deps.execute ?? executeOnce,
+    ...(deps.cursors ? { cursors: deps.cursors } : {}),
+  });
+  const toolDeps: ToolDeps = {
+    service,
+    proposals,
+    patients,
+    scheduling,
+    appointments,
+    clinical,
+    authorize,
+    recording,
+  };
   const allowedOrigins = new Set(deps.allowedOrigins ?? []);
   if (deps.env !== 'synthetic-test' && !deps.resourceMetadataUrl) {
     throw new Error('Refusing to start: resourceMetadataUrl must be configured outside synthetic-test');

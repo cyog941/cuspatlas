@@ -1,0 +1,557 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cuspatlas.invalid/schemas/clinical/v1",
+  "title": "Clinical record contract v1 (C5 encounters and authorship; synthetic data only; recommended-pending-clinical-approval)",
+  "$defs": {
+    "ActorRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque principal reference of a tenant member."
+    },
+    "AppointmentRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque appointment (booking) reference (S10)."
+    },
+    "AppointmentStatus": {
+      "enum": ["booked", "cancelled", "rescheduled"]
+    },
+    "Assignee": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "resourceRef"],
+      "description": "A scheduling resource of kind provider (provider roles) or staff (the staff role) at the encounter location.",
+      "properties": {
+        "kind": {
+          "enum": ["provider", "staff"]
+        },
+        "resourceRef": {
+          "$ref": "#/$defs/ResourceRefId"
+        }
+      }
+    },
+    "AssignmentInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "assignee"],
+      "properties": {
+        "role": {
+          "$ref": "#/$defs/AssignmentRole"
+        },
+        "assignee": {
+          "$ref": "#/$defs/Assignee"
+        }
+      }
+    },
+    "AssignmentRole": {
+      "enum": [
+        "treating_provider",
+        "secondary_provider",
+        "supervising_provider",
+        "staff",
+        "completing_provider"
+      ],
+      "description": "Encounter role assignments, each independent of the others and of the author."
+    },
+    "AuthorContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["resolvable", "author", "reason"],
+          "properties": {
+            "resolvable": {
+              "type": "boolean"
+            },
+            "author": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ClinicalAuthor"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reason": {
+              "anyOf": [
+                {
+                  "enum": ["service_principal", "no_profile", "profile_inactive"]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "ClinicalAuthor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actorRef", "role", "credentialRef"],
+      "description": "Who authored a clinical mutation: the authenticated human and the clinical role configured for them at that instant.",
+      "properties": {
+        "actorRef": {
+          "$ref": "#/$defs/ActorRef"
+        },
+        "role": {
+          "$ref": "#/$defs/ClinicalRole"
+        },
+        "credentialRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CredentialRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "ClinicalAuthorCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/ClinicalAuthorProfile"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ClinicalAuthorDefine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actorRef", "role"],
+      "description": "Define (no expectedVersion) or change (with expectedVersion) the clinical author profile of a tenant member. Requires admin.configure.",
+      "properties": {
+        "actorRef": {
+          "$ref": "#/$defs/ActorRef"
+        },
+        "role": {
+          "$ref": "#/$defs/ClinicalRole"
+        },
+        "credentialRef": {
+          "$ref": "#/$defs/CredentialRef"
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "ClinicalAuthorProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actorRef", "role", "credentialRef", "active", "version"],
+      "properties": {
+        "actorRef": {
+          "$ref": "#/$defs/ActorRef"
+        },
+        "role": {
+          "$ref": "#/$defs/ClinicalRole"
+        },
+        "credentialRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CredentialRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "ClinicalRole": {
+      "enum": ["dentist", "hygienist", "assistant", "other_clinical"],
+      "description": "Configured clinical role of an author (recommended-pending-clinical-approval)."
+    },
+    "CredentialRef": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+      "description": "Reference to a credential held by the staff module; the credential detail is not stored here."
+    },
+    "Cursor": {
+      "type": "string",
+      "description": "Opaque, tenant-bound, HMAC-protected. Never parse it.",
+      "pattern": "^[A-Za-z0-9_-]{1,200}\\.[A-Za-z0-9_-]{22}$"
+    },
+    "DispositionCode": {
+      "type": "string",
+      "pattern": "^[a-z_]{1,64}$",
+      "description": "Tenant-configured encounter disposition code."
+    },
+    "Encounter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "encounterRef",
+        "patientRef",
+        "locationRef",
+        "appointment",
+        "flags",
+        "state",
+        "assignments",
+        "assignmentHistory",
+        "openedBy",
+        "openedAt",
+        "closure",
+        "version"
+      ],
+      "description": "Encounter (C5). Attendance (S11), procedure completion (C14) and billing (B1) are separate facts and never set here.",
+      "properties": {
+        "encounterRef": {
+          "$ref": "#/$defs/EncounterRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "appointment": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["appointmentRef", "statusAtOpen", "currentStatus", "rescheduledToRef"],
+              "properties": {
+                "appointmentRef": {
+                  "$ref": "#/$defs/AppointmentRef"
+                },
+                "statusAtOpen": {
+                  "$ref": "#/$defs/AppointmentStatus"
+                },
+                "currentStatus": {
+                  "$ref": "#/$defs/AppointmentStatus"
+                },
+                "rescheduledToRef": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/AppointmentRef"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "flags": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "$ref": "#/$defs/EncounterFlag"
+          }
+        },
+        "state": {
+          "enum": ["open", "closed"]
+        },
+        "assignments": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "$ref": "#/$defs/EncounterAssignment"
+          }
+        },
+        "assignmentHistory": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "#/$defs/EncounterAssignment"
+          }
+        },
+        "openedBy": {
+          "$ref": "#/$defs/ClinicalAuthor"
+        },
+        "openedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "closure": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["dispositionCode", "closedBy", "closedAt"],
+              "properties": {
+                "dispositionCode": {
+                  "$ref": "#/$defs/DispositionCode"
+                },
+                "closedBy": {
+                  "$ref": "#/$defs/ClinicalAuthor"
+                },
+                "closedAt": {
+                  "$ref": "#/$defs/Instant"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "EncounterAssign": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "role", "assignee"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "role": {
+          "$ref": "#/$defs/AssignmentRole"
+        },
+        "assignee": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Assignee"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "EncounterAssignment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sequence", "role", "assignee", "assignedBy", "assignedAt"],
+      "properties": {
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "role": {
+          "$ref": "#/$defs/AssignmentRole"
+        },
+        "assignee": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Assignee"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "assignedBy": {
+          "$ref": "#/$defs/ClinicalAuthor"
+        },
+        "assignedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "EncounterClose": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "dispositionCode"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "dispositionCode": {
+          "$ref": "#/$defs/DispositionCode"
+        }
+      }
+    },
+    "EncounterCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/Encounter"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "EncounterFlag": {
+      "enum": [
+        "appointment_cancelled_at_open",
+        "appointment_rescheduled_at_open",
+        "appointment_changed_since_open"
+      ]
+    },
+    "EncounterList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "nextCursor"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/Encounter"
+          }
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Cursor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "EncounterListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "limit": {
+          "type": "string",
+          "pattern": "^([1-9]|[1-9][0-9]|100)$"
+        },
+        "cursor": {
+          "$ref": "#/$defs/Cursor"
+        }
+      }
+    },
+    "EncounterOpen": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["patientRef"],
+      "description": "Open an encounter. With an appointment the location is the appointment location; without one, locationRef is required.",
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "appointmentRef": {
+          "$ref": "#/$defs/AppointmentRef"
+        },
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "assignments": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "$ref": "#/$defs/AssignmentInput"
+          }
+        }
+      }
+    },
+    "EncounterOpenResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["outcome", "encounter"],
+          "properties": {
+            "outcome": {
+              "enum": ["opened", "existing"]
+            },
+            "encounter": {
+              "$ref": "#/$defs/Encounter"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "EncounterRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/Encounter"
+        }
+      }
+    },
+    "EncounterRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque encounter reference (C5)."
+    },
+    "IdempotencyKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$"
+    },
+    "Instant": {
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 40,
+      "description": "RFC 3339 instant, returned in UTC."
+    },
+    "LocationRef": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,64}$"
+    },
+    "PatientRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque patient reference (S4)."
+    },
+    "ResourceRefId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque scheduling resource reference (S7)."
+    },
+    "Version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    }
+  }
+}

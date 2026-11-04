@@ -97,6 +97,14 @@ const TOOL_NAMES = [
   'scheduling_attendance_record',
   'scheduling_attendance_visit_status',
   'scheduling_worklist_daily',
+  // C5 encounter and authorship tools (parity in clinical-encounters and negative-harness tests).
+  'clinical_author_context',
+  'clinical_authors_define',
+  'clinical_encounters_assign',
+  'clinical_encounters_close',
+  'clinical_encounters_get',
+  'clinical_encounters_list',
+  'clinical_encounters_open',
 ].sort();
 
 let db: TestDatabase;

@@ -10,6 +10,7 @@ import {
   RefusalError,
   type TenantTransaction,
 } from '@cuspatlas/contracts';
+import { CLINICAL_REPLAY_CODECS } from '../clinical/codecs';
 import { PATIENT_REPLAY_CODECS } from '../patients/replay-codecs';
 import { APPOINTMENT_REPLAY_CODECS, SCHEDULING_REPLAY_CODECS } from '../scheduling/codecs';
 import { idempotencyKeyDigest, payloadDigest } from './digest';
@@ -210,5 +211,6 @@ export const executeOnce: CommandExecutor = createExecuteOnce({
     ...PATIENT_REPLAY_CODECS,
     ...SCHEDULING_REPLAY_CODECS,
     ...APPOINTMENT_REPLAY_CODECS,
+    ...CLINICAL_REPLAY_CODECS,
   },
 });

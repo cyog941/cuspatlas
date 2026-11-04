@@ -44,7 +44,12 @@ export const MERGE_POLICY_VERSION = 'patient-merge.pending-approval.1';
  */
 export interface MergeRecordClass {
   readonly recordClass: string;
-  readonly table: 'patient_relationships' | 'appointment_requests' | 'appointments';
+  readonly table:
+    | 'patient_relationships'
+    | 'appointment_requests'
+    | 'appointments'
+    // C5/C8 clinical classes (appended by workstream C).
+    | 'clinical_encounters';
   readonly column: 'subject_patient_id' | 'counterparty_patient_id';
   /** Public name of the reference in the record's contract. */
   readonly referenceField: string;
@@ -126,6 +131,28 @@ export const MERGE_RECORD_CLASSES: readonly MergeRecordClass[] = [
       'cancelled_at',
       'rescheduled_to_id',
       'request_id',
+      'version',
+      'updated_at',
+    ],
+  },
+  // C5 (workstream C): an encounter follows its patient. The digest covers identity, the visit, the
+  // location and the opening authorship; the closure columns are write-once lifecycle facts (the
+  // encounter guard trigger refuses any rewrite) and are left out so a later close never blocks an
+  // unmerge. Role assignments carry no patient reference and are never touched by a merge.
+  {
+    recordClass: 'clinicalEncounter',
+    table: 'clinical_encounters',
+    column: 'subject_patient_id',
+    referenceField: 'patientRef',
+    factKind: 'clinical',
+    digestExclude: [
+      'subject_patient_id',
+      'state',
+      'disposition_code',
+      'closed_by',
+      'closed_by_role',
+      'closed_by_credential_ref',
+      'closed_at',
       'version',
       'updated_at',
     ],

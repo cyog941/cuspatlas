@@ -89,6 +89,17 @@ export const ACTION_POLICIES = {
   'scheduling.attendance.list': { scope: 'scheduling.read', principals: ['human', 'service'] },
   'scheduling.attendance.visitStatus': { scope: 'scheduling.read', principals: ['human', 'service'] },
   'scheduling.worklist.daily': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  // C5 encounters and clinical authorship (recommended-pending-clinical-approval). Clinical
+  // mutations are human-only: a model or integration is never a clinical author. Every mutation
+  // additionally needs a resolvable clinical author profile (clinical/authorship.ts). Reads are
+  // sensitive-read audited and open to service principals holding clinical.read.
+  'clinical.authors.define': { scope: 'admin.configure', principals: ['human'] },
+  'clinical.authors.context': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.encounters.open': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.encounters.assign': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.encounters.close': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.encounters.read': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.encounters.list': { scope: 'clinical.read', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

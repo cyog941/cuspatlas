@@ -2,10 +2,12 @@ import { randomUUID } from 'node:crypto';
 import type { MembershipSource, SecurityAttemptSink, WithTenantTransaction } from '@cuspatlas/contracts';
 import {
   type AttemptRecordingDeps,
+  CLINICAL_POST_MERGE_FACT_PROBES,
   type CommandExecutor,
   type CursorCodec,
   createAppointmentService,
   createAuthorize,
+  createClinicalService,
   createPatientService,
   createProposalService,
   createSchedulingResourceService,
@@ -26,6 +28,7 @@ import {
   registerAttendanceRoutes,
   registerBookingRoutes,
 } from './routes/appointments';
+import { registerClinicalRoutes } from './routes/clinical';
 import { registerPatientRoutes } from './routes/patients';
 import { registerProposalRoutes } from './routes/proposals';
 import { registerSchedulingRoutes } from './routes/scheduling';
@@ -162,6 +165,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       registerProposalRoutes(app, { authenticator, proposals });
       const patients = createPatientService({
         matchKeyPepper: resolveMatchKeyPepper(deps.env, deps.matchKeyPepper),
+        // C5: clinical facts after a merge make an unmerge need the reconciliation review (S-D2).
+        postMergeFactProbes: CLINICAL_POST_MERGE_FACT_PROBES,
         authorize,
         withTenantTransaction: deps.tenantTransactions,
         recording,
@@ -185,6 +190,14 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       registerAppointmentRoutes(app, { authenticator, appointments });
       registerBookingRoutes(app, { authenticator, appointments });
       registerAttendanceRoutes(app, { authenticator, appointments });
+      const clinical = createClinicalService({
+        authorize,
+        withTenantTransaction: deps.tenantTransactions,
+        recording,
+        execute: deps.execute ?? executeOnce,
+        ...(deps.cursors ? { cursors: deps.cursors } : {}),
+      });
+      registerClinicalRoutes(app, { authenticator, clinical });
     }
   }
 

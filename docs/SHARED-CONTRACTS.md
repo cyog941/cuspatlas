@@ -74,6 +74,8 @@ Registered by workstream S (2026-11-04, synthetic implementation; decisions pend
 
 Registered by workstream S scheduling (2026-11-05, synthetic implementation; decisions pending approval in ADR 0009): `scheduling.read` (every scheduling read, availability search, and seeing which booking or hold blocks a slot) and `scheduling.override` (human only: an audited override of overrideable booking conflicts; resource overlap is never overrideable). `scheduling.write` covers requests, holds, booking, rescheduling and cancellation.
 
+Registered by workstream C clinical record (batch 1, synthetic implementation; clinical semantics recommended-pending-clinical-approval in ADR 0005 and 0006): `clinical.read` (every clinical read: encounters, medical history, alerts, the caller's author context; each is a sensitive read) and `clinical.write` (clinical mutations; human principals only, and only with a resolvable clinical author profile). `clinical.sign` stays reserved for C10; the clinical-oversight scope of C-D5 is not registered until C10. Clinical author profiles are practice configuration under `admin.configure`.
+
 Camel-case scope names (`receivables.read` written as `receivablesRead`) are a defect. A scope used in any plan must appear in the registry; a plan that needs a new scope adds it there first.
 
 ### Relationship scopes

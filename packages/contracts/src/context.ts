@@ -146,6 +146,8 @@ export const SECURITY_REASON_CODES = [
   // S10: every booking, hold, reschedule and cancel refusal leaves an attempt row with its reason.
   'booking_conflict',
   'booking_refused',
+  // C5: a clinical mutation whose actor has no resolvable clinical author profile.
+  'clinical_author_unresolved',
 ] as const;
 export type SecurityReasonCode = (typeof SECURITY_REASON_CODES)[number];
 
@@ -188,6 +190,11 @@ export interface RefusalDetail {
   readonly blockingRefs?: readonly { readonly kind: string; readonly ref: string }[];
   /** S7 addition: the conflicts behind a `conflict` refusal (at most 50). */
   readonly conflicts?: readonly Conflict[];
+  /**
+   * C5 addition: operation id of the supported alternative path when a command is refused because
+   * its target no longer accepts it (for example a closed encounter). Server-authored only.
+   */
+  readonly alternative?: string;
 }
 
 export interface DomainRefusal {

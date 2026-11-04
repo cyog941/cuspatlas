@@ -1,4 +1,5 @@
 export * from './action-proposal';
+export * from './clinical';
 export * from './context';
 export * from './patient';
 export * from './ports';

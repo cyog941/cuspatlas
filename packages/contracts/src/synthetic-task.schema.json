@@ -117,6 +117,11 @@
           "properties": {
             "currentVersion": { "$ref": "#/$defs/Version" },
             "reason": { "type": "string", "pattern": "^[a-z_]{1,64}$" },
+            "alternative": {
+              "type": "string",
+              "description": "C5 addition: operation id of the supported alternative path (server-authored).",
+              "pattern": "^[a-z][A-Za-z]{0,40}(\\.[a-z][A-Za-z]{0,40}){0,3}$"
+            },
             "blockingRefs": {
               "type": "array",
               "maxItems": 20,

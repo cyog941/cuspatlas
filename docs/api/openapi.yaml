@@ -1563,6 +1563,210 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/clinical/authors:
+    post:
+      operationId: clinical.authors.define
+      description: >-
+        Define (no expectedVersion) or change (with expectedVersion) the clinical author profile of a tenant member: the clinical role and an optional credential reference held by the staff module, recorded on every clinical mutation that member makes. An actor that is not a member of this tenant is 404. An existing profile without expectedVersion is 409 author_profile_exists. Human principals only; requires admin.configure. Roles are recommended-pending-clinical-approval.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ClinicalAuthorDefine'
+      responses:
+        '201':
+          description: Profile defined or changed.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ClinicalAuthorCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/author-context:
+    get:
+      operationId: clinical.authors.context
+      description: >-
+        The caller's own clinical author context. Not resolvable is an explicit answer with a reason (service_principal, no_profile, profile_inactive), never an empty success. Requires clinical.read.
+      responses:
+        '200':
+          description: Author context.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/AuthorContext'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/encounters:
+    post:
+      operationId: clinical.encounters.open
+      description: >-
+        Open an encounter (C5) for a patient, optionally for an appointment (S10). One encounter per appointment: a second open returns the first with outcome existing and applies nothing from the request. An appointment that is cancelled or rescheduled is permitted and flagged. Attendance (S11) is not clinical completion and is never set here. Role assignments (treating, secondary, supervising, staff, completing) are independent of each other and of the author; nothing is inferred from a procedure or the appointment. A merged-away patient is 409 patient_merged. Human principals with a resolvable clinical author profile only (403 otherwise); requires clinical.write.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EncounterOpen'
+      responses:
+        '201':
+          description: Encounter opened, or the existing encounter of the appointment.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EncounterOpenResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/encounters/{encounterRef}:
+    get:
+      operationId: clinical.encounters.read
+      description: >-
+        One encounter with its appointment state at open and now, current and historical role assignments and authorship. Hidden, missing and other-location encounters are the same 404. A sensitive read (logged with references only). Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/EncounterRef'
+      responses:
+        '200':
+          description: The encounter.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EncounterRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/encounters/{encounterRef}/assignments:
+    post:
+      operationId: clinical.encounters.assign
+      description: >-
+        Append one role assignment (or an explicit unassignment with assignee null) if expectedVersion matches. The assignee is a provider resource (provider roles) or staff resource (staff role), active, at the encounter location. Other roles are unchanged. A closed encounter is 409 encounter_closed. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/EncounterRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EncounterAssign'
+      responses:
+        '201':
+          description: Assignment appended.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EncounterCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/encounters/{encounterRef}/close:
+    post:
+      operationId: clinical.encounters.close
+      description: >-
+        Close an open encounter with a tenant-configured disposition (422 notConfigured otherwise), recording the closing author and instant. Closing is one-way; a closed encounter refuses new clinical entries (409 encounter_closed with the alternative operation where one exists). Closing changes no plan item, attendance or billing fact. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/EncounterRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EncounterClose'
+      responses:
+        '200':
+          description: Encounter closed.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EncounterCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/patients/{patientRef}/encounters:
+    get:
+      operationId: clinical.encounters.list
+      description: >-
+        A patient's encounters at the caller's visible locations, one keyset page at a time (limit 1-100, default 25; larger values refused). An unknown or hidden patient is 404; a patient with no encounters is an empty page. A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/PatientRef'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/ClinicalCursor'
+      responses:
+        '200':
+          description: One page of encounters.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EncounterList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
 components:
   securitySchemes:
     bearer:
@@ -1670,6 +1874,18 @@ components:
       required: false
       schema:
         $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/Cursor'
+    EncounterRef:
+      name: encounterRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EncounterRef'
+    ClinicalCursor:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/Cursor'
   responses:
     Refusal:
       description: Typed refusal (code, retryable, correlationId, optional safe detail).

@@ -13,6 +13,9 @@ const raw = JSON.parse(readFileSync(input, 'utf8'));
 const summary = {
   schemaVersion: 1,
   success: raw.success === true,
+  // When the run started (Vitest JSON `startTime`, ms since epoch); the evidence manifest compares it
+  // with the commit time so evidence from before the commit is rejected as stale.
+  testRunAt: Number.isFinite(raw.startTime) ? new Date(raw.startTime).toISOString() : null,
   numTotalTestSuites: raw.numTotalTestSuites,
   numTotalTests: raw.numTotalTests,
   numPassedTests: raw.numPassedTests,

@@ -46,6 +46,9 @@ jobs:
         run: node scripts/test-summary.mjs "${{ runner.temp }}/vitest-raw.json" artifacts/test-summary.json
       - run: pnpm scan:privacy
       - run: pnpm sbom
+      - name: evidence manifest (AS-01..AS-04, per-run Ed25519 signature; unreviewed, not certified)
+        run: pnpm evidence
+      - run: pnpm evidence-verify
       - name: scan generated artifacts for the synthetic marker
         # The scanner checks arguments with no allowlist, so the marker (defined only in allowlisted
         # sources) fails the job if it appears anywhere in the artifact set.
@@ -56,6 +59,8 @@ jobs:
           path: |
             artifacts/sbom.cdx.json
             artifacts/evidence-manifest.json
+            artifacts/evidence-manifest.sig
+            artifacts/evidence-signing.pub
             artifacts/test-summary.json
           if-no-files-found: error
           retention-days: 14

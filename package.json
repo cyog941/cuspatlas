@@ -20,7 +20,9 @@
     "start": "tsx apps/api/src/main.ts",
     "sbom": "node scripts/sbom.mjs",
     "scan:privacy": "node scripts/privacy-scan.mjs",
-    "ci": "tsc -p tsconfig.json && biome check . && tsx apps/api/src/contract-drift-cli.ts && node scripts/run-vitest.mjs && node scripts/privacy-scan.mjs && node scripts/sbom.mjs"
+    "evidence": "node scripts/evidence.mjs",
+    "evidence-verify": "node scripts/evidence-verify.mjs",
+    "ci": "tsc -p tsconfig.json && biome check . && tsx apps/api/src/contract-drift-cli.ts && node scripts/run-vitest.mjs --reporter=default --reporter=json --outputFile.json=node_modules/.cache/cuspatlas/vitest-raw.json && node scripts/test-summary.mjs node_modules/.cache/cuspatlas/vitest-raw.json artifacts/test-summary.json && node scripts/privacy-scan.mjs && node scripts/sbom.mjs && node scripts/evidence.mjs && node scripts/evidence-verify.mjs && node scripts/privacy-scan.mjs artifacts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.4",

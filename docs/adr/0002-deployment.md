@@ -1,6 +1,6 @@
 # ADR 0002: Synthetic deployment, database roles and backup model
 
-Status: accepted for the synthetic foundation, 2026-11-04 (F Task 8). Evidence category: configured and tested on one Windows host; the Linux CI run is pending the first push. This ADR describes how the synthetic foundation is run and tested. Nothing here is a PHI-ready, staging or production deployment, and nothing here authorizes one.
+Status: proposed by the F Task 8 implementation, 2026-11-04; not yet accepted by a human maintainer. Evidence category: configured and tested on one Windows host; the Linux CI run is pending the first push. This ADR describes how the synthetic foundation is run and tested. Nothing here is a PHI-ready, staging or production deployment, and nothing here authorizes one.
 
 ## Context
 

@@ -46,7 +46,7 @@ jobs:
         run: node scripts/test-summary.mjs "${{ runner.temp }}/vitest-raw.json" artifacts/test-summary.json
       - run: pnpm scan:privacy
       - run: pnpm sbom
-      - name: evidence manifest (AS-01..AS-04, per-run Ed25519 signature; unreviewed, not certified)
+      - name: evidence manifest (AS-01..AS-04; per-run integrity signature proves tamper-evidence only, not origin; unreviewed, not certified)
         run: pnpm evidence
       - run: pnpm evidence-verify
       - name: scan generated artifacts for the synthetic marker

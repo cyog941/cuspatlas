@@ -829,7 +829,96 @@ export const COMMANDS: HarnessCommand[] = [
     }),
     mcpArgs: (f) => ({ patientRef: P(f) }),
   },
+  // C8 medical history, allergies and medications (workstream C).
+  {
+    operation: 'clinical.history.recordChange',
+    tool: 'clinical_history_record_change',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: '/v1/clinical/history/changes',
+      body: historyBody(f),
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({ ...historyBody(f), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'clinical.history.read',
+    tool: 'clinical_history_read',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({ method: 'GET', url: `/v1/clinical/patients/${P(f)}/history`, keyed: false, status: 200 }),
+    mcpArgs: (f) => ({ patientRef: P(f) }),
+  },
+  {
+    operation: 'clinical.history.readVersion',
+    tool: 'clinical_history_get_version',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/history/versions/${f.alphaHistoryVersion}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ historyVersionRef: f.alphaHistoryVersion }),
+  },
+  {
+    operation: 'clinical.history.alerts',
+    tool: 'clinical_history_alerts',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({ method: 'GET', url: `/v1/clinical/patients/${P(f)}/alerts`, keyed: false, status: 200 }),
+    mcpArgs: (f) => ({ patientRef: P(f) }),
+  },
+  {
+    operation: 'clinical.history.verifyItem',
+    tool: 'clinical_history_verify_item',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/history/items/${f.alphaHistoryItem}/verifications`,
+      body: { expectedChangeRef: f.alphaHistoryChange },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      itemRef: f.alphaHistoryItem,
+      expectedChangeRef: f.alphaHistoryChange,
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.history.attestReview',
+    tool: 'clinical_history_attest_review',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/encounters/${f.alphaEncounter}/history-reviews`,
+      body: { medication: 'confirmed' },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      encounterRef: f.alphaEncounter,
+      medication: 'confirmed',
+      idempotencyKey: randomUUID(),
+    }),
+  },
 ];
+
+function historyBody(f: HarnessFixture) {
+  return {
+    patientRef: f.alphaPatient,
+    provenance: 'patient_reported',
+    reportedBy: 'patient',
+    changes: [{ kind: 'allergy', state: 'active', displayText: `Synthetic ${MARKER}` }],
+  };
+}
 
 const APPT = '/v1/scheduling/appointments';
 const HOLDS = '/v1/scheduling/holds';
@@ -1082,7 +1171,19 @@ beforeAll(async () => {
     appointmentRef: appointment.json().data.appointmentRef,
   });
   expect(encounter.statusCode).toBe(201);
+  // C8: one recorded history version for the alpha patient (one allergy item).
+  const history = await owner('/v1/clinical/history/changes', {
+    patientRef: alphaPatient,
+    provenance: 'staff',
+    reportedBy: 'clinician',
+    changes: [{ kind: 'allergy', state: 'active', displayText: 'Synthetic harness allergen' }],
+  });
+  expect(history.statusCode).toBe(201);
+  const recorded = history.json().data;
   fixture = {
+    alphaHistoryVersion: recorded.header.historyVersionRef,
+    alphaHistoryItem: recorded.changes[0].itemRef,
+    alphaHistoryChange: recorded.changes[0].change.changeRef,
     alphaEncounter: encounter.json().data.encounter.encounterRef,
     alphaProvider,
     alphaAppointment: appointment.json().data.appointmentRef,
@@ -1210,6 +1311,12 @@ async function state(): Promise<string> {
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_author_profiles'),
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_encounters'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_encounter_assignments'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_history_streams'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_history_versions'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_history_items'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_history_changes'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_history_verifications'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_history_reviews'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.audit_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.outbox_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.command_idempotency'),

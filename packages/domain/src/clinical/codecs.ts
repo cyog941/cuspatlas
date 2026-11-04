@@ -42,4 +42,7 @@ export const CLINICAL_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<Clinica
   'clinical.encounters.open': openCodec,
   'clinical.encounters.assign': refCodec('encounterRef'),
   'clinical.encounters.close': refCodec('encounterRef'),
+  'clinical.history.recordChange': refCodec('historyVersionRef'),
+  'clinical.history.verifyItem': refCodec('itemRef'),
+  'clinical.history.attestReview': refCodec('reviewRef'),
 };

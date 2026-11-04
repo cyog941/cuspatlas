@@ -49,7 +49,8 @@ export interface MergeRecordClass {
     | 'appointment_requests'
     | 'appointments'
     // C5/C8 clinical classes (appended by workstream C).
-    | 'clinical_encounters';
+    | 'clinical_encounters'
+    | 'clinical_history_streams';
   readonly column: 'subject_patient_id' | 'counterparty_patient_id';
   /** Public name of the reference in the record's contract. */
   readonly referenceField: string;
@@ -157,6 +158,18 @@ export const MERGE_RECORD_CLASSES: readonly MergeRecordClass[] = [
       'updated_at',
     ],
   },
+  // C8 (workstream C): a history stream follows its patient. Versions, items, changes and
+  // verifications reference the stream, never the patient, so a merge cannot touch them; the stream
+  // keeps its source patient (origin_patient_id, excluded below). The digest covers the source and
+  // creation; only the reference, the version head and bookkeeping are excluded.
+  {
+    recordClass: 'clinicalHistoryStream',
+    table: 'clinical_history_streams',
+    column: 'subject_patient_id',
+    referenceField: 'patientRef',
+    factKind: 'clinical',
+    digestExclude: ['subject_patient_id', 'head_sequence', 'version', 'updated_at'],
+  },
 ];
 
 /** Foreign keys to patients that a merge deliberately does not move, with the reason. */
@@ -176,6 +189,11 @@ export const MERGE_EXCLUDED_REFERENCES: readonly { table: string; column: string
     table: 'patient_merges',
     column: 'merged_patient_id',
     why: 'merge history keeps both source identifiers',
+  },
+  {
+    table: 'clinical_history_streams',
+    column: 'origin_patient_id',
+    why: 'a history stream keeps its source patient so merged histories stay distinguishable (C8)',
   },
 ];
 

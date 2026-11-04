@@ -7,5 +7,12 @@ export {
   loadEncounter,
   requireOpenEncounter,
 } from './encounters';
+export {
+  HISTORY_NOT_PROVIDED,
+  HISTORY_REVIEW_RESOURCE,
+  HISTORY_VERIFICATION_RESOURCE,
+  HISTORY_VERSION_RESOURCE,
+  resolveHistoryReference,
+} from './history';
 export { CLINICAL_POST_MERGE_FACT_PROBES } from './merge-probes';
 export { type ClinicalService, createClinicalService } from './service';

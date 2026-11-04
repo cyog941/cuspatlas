@@ -1767,6 +1767,185 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/clinical/history/changes:
+    post:
+      operationId: clinical.history.recordChange
+      description: >-
+        Record one append-only history version (C8) for a patient: new items (condition, allergy, medication, vital, social; or an explicit none_known statement for allergy, condition or medication) and changes of existing items. Each change records state (active, resolved, discontinued for medications, entered_in_error), effective dates and a reason for any non-active state; unspecified text and dates carry forward; nothing is deleted. Provenance (staff, patient_reported, imported), the reporter and, for imports, the source are required; the recorder is the authenticated clinical author. Verification cannot be set here. An active none_known statement and an active item of the same kind cannot coexist (409 none_known_active or active_items_present). With an encounterRef, the encounter must be open (409 encounter_closed naming clinical.encounters.open). Free text and provisional SYN- codes only; no drug database, no interaction checking, no decision support. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/HistoryChangeRecord'
+      responses:
+        '201':
+          description: Version recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/HistoryVersionCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/patients/{patientRef}/history:
+    get:
+      operationId: clinical.history.read
+      description: >-
+        The patient history as of an instant (query asOf; default now; a future instant is 422): every item with its current change, the verification of that exact change, and every earlier change and verification, plus the streams (one per source patient, so merged histories stay distinguishable). recorded=false means nothing was recorded by then (unknown), not an empty history. A merged-away patient is 409 patient_merged naming the survivor. A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/PatientRef'
+        - $ref: '#/components/parameters/HistoryAsOf'
+      responses:
+        '200':
+          description: The history as of the instant.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/HistoryRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/history/versions/{historyVersionRef}:
+    get:
+      operationId: clinical.history.readVersion
+      description: >-
+        One recorded history version with its provenance, reporter, source, author and change set. A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/HistoryVersionRef'
+      responses:
+        '200':
+          description: The version.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/HistoryVersionRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/patients/{patientRef}/alerts:
+    get:
+      operationId: clinical.history.alerts
+      description: >-
+        Allergies, conditions and medications as recorded. Per kind the status is unknown (nothing recorded or reviewed; never reported as none), none_reported (an explicit none-known statement), reviewed_none (a clinician attested none at an encounter and nothing of the kind was recorded since) or present (active items, each with provenance and whether its current change is verified). Interaction checking and decision support are explicitly not provided. A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/PatientRef'
+      responses:
+        '200':
+          description: The alert projection.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ActiveAlerts'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/history/items/{itemRef}/verifications:
+    post:
+      operationId: clinical.history.verifyItem
+      description: >-
+        Record that the authenticated clinical author verified the exact current change of an item (expectedChangeRef; 409 item_changed otherwise). The reported value is never overwritten; a later change needs a new verification and earlier verifications are kept. An entered_in_error item cannot be verified. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/HistoryItemRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/HistoryVerify'
+      responses:
+        '201':
+          description: Verification recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/HistoryItemCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/encounters/{encounterRef}/history-reviews:
+    post:
+      operationId: clinical.history.attestReview
+      description: >-
+        Attest at an open encounter that allergies, conditions or medications were reviewed: none (reviewed, none present; refused with 409 active_items_present while an active item of the kind exists) or confirmed (the recorded list was reviewed). Append-only. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/EncounterRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/HistoryReviewAttest'
+      responses:
+        '201':
+          description: Review attested.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/HistoryReviewCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
 components:
   securitySchemes:
     bearer:
@@ -1886,6 +2065,25 @@ components:
       required: false
       schema:
         $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/Cursor'
+    HistoryVersionRef:
+      name: historyVersionRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/HistoryVersionRef'
+    HistoryItemRef:
+      name: itemRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/HistoryItemRef'
+    HistoryAsOf:
+      name: asOf
+      in: query
+      required: false
+      description: RFC 3339 instant; the history as recorded at that instant (default now).
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/Instant'
   responses:
     Refusal:
       description: Typed refusal (code, retryable, correlationId, optional safe detail).

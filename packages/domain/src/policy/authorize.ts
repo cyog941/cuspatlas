@@ -100,6 +100,14 @@ export const ACTION_POLICIES = {
   'clinical.encounters.close': { scope: 'clinical.write', principals: ['human'] },
   'clinical.encounters.read': { scope: 'clinical.read', principals: ['human', 'service'] },
   'clinical.encounters.list': { scope: 'clinical.read', principals: ['human', 'service'] },
+  // C8 medical history, allergies and medications (recommended-pending-clinical-approval). Writes
+  // are human clinical authors only; reads (history, a version, alerts) are sensitive reads.
+  'clinical.history.recordChange': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.history.verifyItem': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.history.attestReview': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.history.read': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.history.readVersion': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.history.alerts': { scope: 'clinical.read', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

@@ -113,6 +113,12 @@ describe('runtime database role', () => {
       'clinical_encounter_assignments',
       'clinical_encounter_dispositions',
       'clinical_encounters',
+      'clinical_history_changes',
+      'clinical_history_items',
+      'clinical_history_reviews',
+      'clinical_history_streams',
+      'clinical_history_verifications',
+      'clinical_history_versions',
       'command_idempotency',
       'delivery_receipts',
       'memberships',
@@ -181,6 +187,12 @@ describe('runtime database role', () => {
       'clinical_encounter_dispositions',
       'clinical_encounters',
       'clinical_encounter_assignments',
+      'clinical_history_streams',
+      'clinical_history_versions',
+      'clinical_history_items',
+      'clinical_history_changes',
+      'clinical_history_verifications',
+      'clinical_history_reviews',
     ]) {
       const { rows } = await db.app.query(`SELECT count(*)::int AS n FROM cuspatlas.${t}`);
       expect([t, rows[0].n]).toStrictEqual([t, 0]);

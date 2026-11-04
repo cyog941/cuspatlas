@@ -12,6 +12,8 @@ const TRANSPORT: Record<string, string> = {
   idempotencyKey: 'IdempotencyKey',
   encounterRef: 'EncounterRef',
   patientRef: 'PatientRef',
+  itemRef: 'HistoryItemRef',
+  historyVersionRef: 'HistoryVersionRef',
 };
 
 /**
@@ -127,6 +129,84 @@ const SPECS: readonly Spec[] = [
     readOnly: true,
     run: (d, actor, args) =>
       d.clinical.listEncounters(actor, args.patientRef as string, without(args, 'patientRef')),
+  },
+  // C8 medical history, allergies and medications.
+  {
+    name: 'clinical_history_record_change',
+    operationId: 'clinical.history.recordChange',
+    description: `Record one append-only history version (conditions, allergies, medications, vitals, social) with who reported it and its source. Removal is a state change with a reason. Free text and provisional SYN- codes only; no drug database and no interaction checking. ${SAFETY}`,
+    body: 'HistoryChangeRecord',
+    transport: ['idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.recordHistoryChange(actor, envelope('clinical.history.recordChange', args)),
+  },
+  {
+    name: 'clinical_history_read',
+    operationId: 'clinical.history.read',
+    description:
+      'Read a patient history as of an instant (default now) with every change, provenance and verification. recorded=false means unknown, not empty.',
+    body: 'HistoryReadQuery',
+    transport: ['patientRef'],
+    readOnly: true,
+    async run(d, actor, args) {
+      return {
+        data: await d.clinical.readHistory(actor, args.patientRef as string, without(args, 'patientRef')),
+      };
+    },
+  },
+  {
+    name: 'clinical_history_get_version',
+    operationId: 'clinical.history.readVersion',
+    description: 'Read one recorded history version and its change set.',
+    body: null,
+    transport: ['historyVersionRef'],
+    readOnly: true,
+    async run(d, actor, args) {
+      return { data: await d.clinical.getHistoryVersion(actor, args.historyVersionRef as string) };
+    },
+  },
+  {
+    name: 'clinical_history_alerts',
+    operationId: 'clinical.history.alerts',
+    description:
+      'Allergies, conditions and medications as recorded: unknown (nothing recorded, never "none"), none_reported, reviewed_none or present. Interaction checking and decision support are not provided.',
+    body: null,
+    transport: ['patientRef'],
+    readOnly: true,
+    async run(d, actor, args) {
+      return { data: await d.clinical.getActiveAlerts(actor, args.patientRef as string) };
+    },
+  },
+  {
+    name: 'clinical_history_verify_item',
+    operationId: 'clinical.history.verifyItem',
+    description:
+      'Record a clinician verification of the exact current change of an item; never alters the reported value. A later change needs a new verification.',
+    body: 'HistoryVerify',
+    transport: ['itemRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.verifyHistoryItem(
+        actor,
+        args.itemRef as string,
+        envelope('clinical.history.verifyItem', args, 'itemRef'),
+      ),
+  },
+  {
+    name: 'clinical_history_attest_review',
+    operationId: 'clinical.history.attestReview',
+    description:
+      'Attest at an open encounter that allergies, conditions or medications were reviewed: none present, or the recorded list confirmed.',
+    body: 'HistoryReviewAttest',
+    transport: ['encounterRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.attestHistoryReview(
+        actor,
+        args.encounterRef as string,
+        envelope('clinical.history.attestReview', args, 'encounterRef'),
+      ),
   },
 ];
 

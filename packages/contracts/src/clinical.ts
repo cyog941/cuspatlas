@@ -151,3 +151,175 @@ export const validateEncounterListQuery = def('EncounterListQuery');
 export const validateEncounterRead = def('EncounterRead');
 export const validateEncounterOpenResult = def('EncounterOpenResult');
 export const validateEncounterList = def('EncounterList');
+
+/** C8 medical history, allergies and medications (append-only versions; no drug database). */
+export type HistoryKind = 'condition' | 'allergy' | 'medication' | 'vital' | 'social';
+export type HistoryState = 'active' | 'resolved' | 'discontinued' | 'entered_in_error';
+export type HistoryEntryType = 'fact' | 'none_known';
+export type HistoryProvenance = 'staff' | 'patient_reported' | 'imported';
+export type ReportedBy = 'patient' | 'guardian' | 'caregiver' | 'clinician' | 'external_record';
+export type ReviewOutcome = 'none' | 'confirmed';
+export type AlertStatus = 'unknown' | 'none_reported' | 'reviewed_none' | 'present';
+
+export interface HistoryChangeInput {
+  readonly itemRef?: string;
+  readonly kind?: HistoryKind;
+  readonly entryType?: HistoryEntryType;
+  readonly state: HistoryState;
+  readonly displayText?: string;
+  readonly codeRef?: string;
+  readonly detailText?: string;
+  readonly effectiveFrom?: string;
+  readonly effectiveUntil?: string;
+  readonly reasonCode?: string;
+}
+
+export interface HistoryChangeRecord {
+  readonly patientRef: string;
+  readonly encounterRef?: string;
+  readonly provenance: HistoryProvenance;
+  readonly reportedBy: ReportedBy;
+  readonly sourceRef?: string;
+  readonly expectedVersion?: number;
+  readonly changes: readonly HistoryChangeInput[];
+}
+
+export interface HistoryVersionHeader {
+  readonly historyVersionRef: string;
+  readonly streamRef: string;
+  readonly version: number;
+  readonly provenance: HistoryProvenance;
+  readonly reportedBy: ReportedBy;
+  readonly sourceRef: string | null;
+  readonly encounterRef: string | null;
+  readonly recordedBy: ClinicalAuthor;
+  readonly recordedAt: string;
+}
+
+export interface HistoryChange {
+  readonly changeRef: string;
+  readonly itemSequence: number;
+  readonly state: HistoryState;
+  readonly displayText: string | null;
+  readonly codeRef: string | null;
+  readonly detailText: string | null;
+  readonly effectiveFrom: string | null;
+  readonly effectiveUntil: string | null;
+  readonly reasonCode: string | null;
+  readonly recorded: HistoryVersionHeader;
+}
+
+export interface HistoryVerification {
+  readonly changeRef: string;
+  readonly verifiedBy: ClinicalAuthor;
+  readonly verifiedAt: string;
+  readonly encounterRef: string | null;
+}
+
+export interface HistoryItem {
+  readonly itemRef: string;
+  readonly kind: HistoryKind;
+  readonly entryType: HistoryEntryType;
+  readonly streamRef: string;
+  readonly sourcePatientRef: string;
+  readonly current: HistoryChange;
+  /** Verification of exactly the current change, or null (a later change needs a new verification). */
+  readonly verification: HistoryVerification | null;
+  readonly changes: readonly HistoryChange[];
+  readonly verifications: readonly HistoryVerification[];
+}
+
+export interface HistoryStream {
+  readonly streamRef: string;
+  readonly sourcePatientRef: string;
+  readonly version: number;
+}
+
+export interface HistoryReadData {
+  readonly patientRef: string;
+  readonly asOf: string;
+  readonly recorded: boolean;
+  readonly streams: readonly HistoryStream[];
+  readonly items: readonly HistoryItem[];
+}
+
+export interface HistoryVersionDetail {
+  readonly header: HistoryVersionHeader;
+  readonly changes: readonly {
+    readonly itemRef: string;
+    readonly kind: HistoryKind;
+    readonly entryType: HistoryEntryType;
+    readonly change: HistoryChange;
+  }[];
+}
+
+export interface HistoryVerify {
+  readonly expectedChangeRef: string;
+  readonly encounterRef?: string;
+}
+
+export interface HistoryReviewAttest {
+  readonly allergy?: ReviewOutcome;
+  readonly condition?: ReviewOutcome;
+  readonly medication?: ReviewOutcome;
+}
+
+export interface HistoryReview {
+  readonly reviewRef: string;
+  readonly encounterRef: string;
+  readonly patientRef: string;
+  readonly allergy: ReviewOutcome | null;
+  readonly condition: ReviewOutcome | null;
+  readonly medication: ReviewOutcome | null;
+  readonly reviewedBy: ClinicalAuthor;
+  readonly reviewedAt: string;
+}
+
+export interface AlertSection {
+  readonly status: AlertStatus;
+  readonly items: readonly {
+    readonly itemRef: string;
+    readonly displayText: string | null;
+    readonly codeRef: string | null;
+    readonly detailText: string | null;
+    readonly provenance: HistoryProvenance;
+    readonly verified: boolean;
+    readonly recordedAt: string;
+  }[];
+  readonly noneKnown: {
+    readonly itemRef: string;
+    readonly provenance: HistoryProvenance;
+    readonly recordedAt: string;
+  } | null;
+  readonly lastReview: {
+    readonly reviewRef: string;
+    readonly encounterRef: string;
+    readonly outcome: ReviewOutcome;
+    readonly reviewedBy: ClinicalAuthor;
+    readonly reviewedAt: string;
+    readonly stale: boolean;
+  } | null;
+}
+
+export interface NotProvided {
+  readonly provided: false;
+  readonly statement: string;
+}
+
+export interface ActiveAlertsData {
+  readonly patientRef: string;
+  readonly computedAt: string;
+  readonly allergy: AlertSection;
+  readonly condition: AlertSection;
+  readonly medication: AlertSection;
+  readonly interactionChecking: NotProvided;
+  readonly decisionSupport: NotProvided;
+}
+
+export const validateHistoryChangeRecord = def('HistoryChangeRecord');
+export const validateHistoryReadQuery = def('HistoryReadQuery');
+export const validateHistoryVerify = def('HistoryVerify');
+export const validateHistoryReviewAttest = def('HistoryReviewAttest');
+export const validateHistoryRead = def('HistoryRead');
+export const validateHistoryVersionRead = def('HistoryVersionRead');
+export const validateActiveAlerts = def('ActiveAlerts');

@@ -105,6 +105,13 @@ const TOOL_NAMES = [
   'clinical_encounters_get',
   'clinical_encounters_list',
   'clinical_encounters_open',
+  // C8 history tools (parity in clinical-history and negative-harness tests).
+  'clinical_history_alerts',
+  'clinical_history_attest_review',
+  'clinical_history_get_version',
+  'clinical_history_read',
+  'clinical_history_record_change',
+  'clinical_history_verify_item',
 ].sort();
 
 let db: TestDatabase;

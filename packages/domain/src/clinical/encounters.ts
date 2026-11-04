@@ -117,10 +117,14 @@ interface PatientRow extends Record<string, unknown> {
  * patients FOR UPDATE, serializes with it). Hidden and missing are one 404. Patient identity is
  * tenant-wide (S-D8), so there is no location filter here.
  */
-export async function loadClinicalPatient(tx: TenantTransaction, patientRef: string): Promise<PatientRow> {
+export async function loadClinicalPatient(
+  tx: TenantTransaction,
+  patientRef: string,
+  lock: 'FOR SHARE' | '' = 'FOR SHARE',
+): Promise<PatientRow> {
   if (!UUID.test(patientRef)) throw notFound();
   const { rows } = await tx.query<PatientRow>(
-    'SELECT id, merged_into FROM cuspatlas.patients WHERE id = $1 FOR SHARE',
+    `SELECT id, merged_into FROM cuspatlas.patients WHERE id = $1 ${lock}`,
     [patientRef],
   );
   const row = rows[0];
@@ -558,7 +562,7 @@ export function createEncounterOperations(base: ClinicalBase) {
         const after = query.cursor === undefined ? null : base.cursors.decode(ctx.tenantId, query.cursor);
         const limit = limitOf(query.limit);
         return deps.withTenantTransaction(ctx, async (tx) => {
-          const patient = await loadClinicalPatient(tx, patientRef);
+          const patient = await loadClinicalPatient(tx, patientRef, '');
           const { rows } = await tx.query<EncounterRow>(
             `SELECT ${ENCOUNTER_COLUMNS} FROM cuspatlas.clinical_encounters e
              JOIN cuspatlas.scheduling_locations l ON l.id = e.location_id AND l.tenant_id = e.tenant_id

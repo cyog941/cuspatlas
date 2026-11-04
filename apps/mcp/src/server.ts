@@ -141,6 +141,8 @@ const REF_PARAMS = [
   'appointmentRef',
   'holdRef',
   'encounterRef',
+  'itemRef',
+  'historyVersionRef',
 ] as const;
 const PLACEHOLDER_REF = '00000000-0000-4000-8000-000000000000';
 

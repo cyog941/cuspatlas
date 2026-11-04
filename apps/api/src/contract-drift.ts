@@ -128,6 +128,11 @@ export const CLINICAL_BODIES = [
   'EncounterListQuery',
   'AssignmentInput',
   'Assignee',
+  'HistoryChangeRecord',
+  'HistoryChangeInput',
+  'HistoryReadQuery',
+  'HistoryVerify',
+  'HistoryReviewAttest',
 ] as const;
 
 /** Definitions the proposal contract copies from the task contract; they must stay byte-identical. */

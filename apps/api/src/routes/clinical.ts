@@ -58,4 +58,22 @@ export function registerClinicalRoutes(
   mount('clinical.encounters.list', (r) =>
     c.listEncounters(requireActor(r), param(r, 'patientRef'), { ...(r.query as object) }),
   );
+  mount('clinical.history.recordChange', (r) =>
+    c.recordHistoryChange(requireActor(r), env('clinical.history.recordChange', r)),
+  );
+  mount('clinical.history.read', async (r) => ({
+    data: await c.readHistory(requireActor(r), param(r, 'patientRef'), { ...(r.query as object) }),
+  }));
+  mount('clinical.history.readVersion', async (r) => ({
+    data: await c.getHistoryVersion(requireActor(r), param(r, 'historyVersionRef')),
+  }));
+  mount('clinical.history.alerts', async (r) => ({
+    data: await c.getActiveAlerts(requireActor(r), param(r, 'patientRef')),
+  }));
+  mount('clinical.history.verifyItem', (r) =>
+    c.verifyHistoryItem(requireActor(r), param(r, 'itemRef'), env('clinical.history.verifyItem', r)),
+  );
+  mount('clinical.history.attestReview', (r) =>
+    c.attestHistoryReview(requireActor(r), param(r, 'encounterRef'), env('clinical.history.attestReview', r)),
+  );
 }

@@ -1,12 +1,186 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cuspatlas.invalid/schemas/clinical/v1",
-  "title": "Clinical record contract v1 (C5 encounters and authorship; synthetic data only; recommended-pending-clinical-approval)",
+  "title": "Clinical record contract v1 (C5 encounters and authorship, C8 medical history; synthetic data only; recommended-pending-clinical-approval)",
   "$defs": {
+    "ActiveAlerts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "patientRef",
+            "computedAt",
+            "allergy",
+            "condition",
+            "medication",
+            "interactionChecking",
+            "decisionSupport"
+          ],
+          "properties": {
+            "patientRef": {
+              "$ref": "#/$defs/PatientRef"
+            },
+            "computedAt": {
+              "$ref": "#/$defs/Instant"
+            },
+            "allergy": {
+              "$ref": "#/$defs/AlertSection"
+            },
+            "condition": {
+              "$ref": "#/$defs/AlertSection"
+            },
+            "medication": {
+              "$ref": "#/$defs/AlertSection"
+            },
+            "interactionChecking": {
+              "$ref": "#/$defs/NotProvided"
+            },
+            "decisionSupport": {
+              "$ref": "#/$defs/NotProvided"
+            }
+          }
+        }
+      }
+    },
     "ActorRef": {
       "type": "string",
       "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
       "description": "Opaque principal reference of a tenant member."
+    },
+    "AlertSection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "items", "noneKnown", "lastReview"],
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/AlertStatus"
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "itemRef",
+              "displayText",
+              "codeRef",
+              "detailText",
+              "provenance",
+              "verified",
+              "recordedAt"
+            ],
+            "properties": {
+              "itemRef": {
+                "$ref": "#/$defs/HistoryItemRef"
+              },
+              "displayText": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/HistoryText"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "codeRef": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/SyntheticCodeRef"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "detailText": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/HistoryDetailText"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "provenance": {
+                "$ref": "#/$defs/HistoryProvenance"
+              },
+              "verified": {
+                "type": "boolean"
+              },
+              "recordedAt": {
+                "$ref": "#/$defs/Instant"
+              }
+            }
+          }
+        },
+        "noneKnown": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["itemRef", "provenance", "recordedAt"],
+              "properties": {
+                "itemRef": {
+                  "$ref": "#/$defs/HistoryItemRef"
+                },
+                "provenance": {
+                  "$ref": "#/$defs/HistoryProvenance"
+                },
+                "recordedAt": {
+                  "$ref": "#/$defs/Instant"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lastReview": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["reviewRef", "encounterRef", "outcome", "reviewedBy", "reviewedAt", "stale"],
+              "properties": {
+                "reviewRef": {
+                  "$ref": "#/$defs/HistoryReviewRef"
+                },
+                "encounterRef": {
+                  "$ref": "#/$defs/EncounterRef"
+                },
+                "outcome": {
+                  "$ref": "#/$defs/ReviewOutcome"
+                },
+                "reviewedBy": {
+                  "$ref": "#/$defs/ClinicalAuthor"
+                },
+                "reviewedAt": {
+                  "$ref": "#/$defs/Instant"
+                },
+                "stale": {
+                  "type": "boolean",
+                  "description": "True when an item of this kind was recorded after the review."
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "AlertStatus": {
+      "enum": ["unknown", "none_reported", "reviewed_none", "present"],
+      "description": "unknown: nothing recorded or reviewed (never \"no allergies\"); none_reported: a none-known statement is recorded; reviewed_none: a clinician attested none at an encounter and nothing of the kind was recorded since; present: active items exist."
     },
     "AppointmentRef": {
       "type": "string",
@@ -524,6 +698,624 @@
       "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
       "description": "Opaque encounter reference (C5)."
     },
+    "HistoryChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "changeRef",
+        "itemSequence",
+        "state",
+        "displayText",
+        "codeRef",
+        "detailText",
+        "effectiveFrom",
+        "effectiveUntil",
+        "reasonCode",
+        "recorded"
+      ],
+      "properties": {
+        "changeRef": {
+          "$ref": "#/$defs/HistoryChangeRef"
+        },
+        "itemSequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "state": {
+          "$ref": "#/$defs/HistoryState"
+        },
+        "displayText": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HistoryText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "codeRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SyntheticCodeRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "detailText": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HistoryDetailText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "effectiveFrom": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalDate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "effectiveUntil": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalDate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reasonCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recorded": {
+          "$ref": "#/$defs/HistoryVersionHeader"
+        }
+      }
+    },
+    "HistoryChangeInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state"],
+      "description": "A new item (kind, no itemRef) or a change of an existing item (itemRef, no kind). Unspecified text and dates carry forward.",
+      "properties": {
+        "itemRef": {
+          "$ref": "#/$defs/HistoryItemRef"
+        },
+        "kind": {
+          "$ref": "#/$defs/HistoryKind"
+        },
+        "entryType": {
+          "$ref": "#/$defs/HistoryEntryType"
+        },
+        "state": {
+          "$ref": "#/$defs/HistoryState"
+        },
+        "displayText": {
+          "$ref": "#/$defs/HistoryText"
+        },
+        "codeRef": {
+          "$ref": "#/$defs/SyntheticCodeRef"
+        },
+        "detailText": {
+          "$ref": "#/$defs/HistoryDetailText"
+        },
+        "effectiveFrom": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "effectiveUntil": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "HistoryChangeRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["patientRef", "provenance", "reportedBy", "changes"],
+      "description": "Record one history version (an append-only change set). Verification is a separate command and cannot be set here.",
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "encounterRef": {
+          "$ref": "#/$defs/EncounterRef"
+        },
+        "provenance": {
+          "$ref": "#/$defs/HistoryProvenance"
+        },
+        "reportedBy": {
+          "$ref": "#/$defs/ReportedBy"
+        },
+        "sourceRef": {
+          "$ref": "#/$defs/SourceRef"
+        },
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "changes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/$defs/HistoryChangeInput"
+          }
+        }
+      }
+    },
+    "HistoryChangeRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque history change reference (C8)."
+    },
+    "HistoryDetailText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "description": "Free-text detail (reaction, dose, notes) as reported."
+    },
+    "HistoryEntryType": {
+      "enum": ["fact", "none_known"],
+      "description": "none_known records an explicit \"none known\" statement for allergy, condition or medication; it is not the same as nothing recorded."
+    },
+    "HistoryItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "itemRef",
+        "kind",
+        "entryType",
+        "streamRef",
+        "sourcePatientRef",
+        "current",
+        "verification",
+        "changes",
+        "verifications"
+      ],
+      "description": "An item as of the read instant: its current change, the verification of that exact change (or null), and every earlier change and verification.",
+      "properties": {
+        "itemRef": {
+          "$ref": "#/$defs/HistoryItemRef"
+        },
+        "kind": {
+          "$ref": "#/$defs/HistoryKind"
+        },
+        "entryType": {
+          "$ref": "#/$defs/HistoryEntryType"
+        },
+        "streamRef": {
+          "$ref": "#/$defs/HistoryStreamRef"
+        },
+        "sourcePatientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "current": {
+          "$ref": "#/$defs/HistoryChange"
+        },
+        "verification": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HistoryVerification"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "changes": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "$ref": "#/$defs/HistoryChange"
+          }
+        },
+        "verifications": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "$ref": "#/$defs/HistoryVerification"
+          }
+        }
+      }
+    },
+    "HistoryItemCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/HistoryItem"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "HistoryItemRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque history item reference (C8)."
+    },
+    "HistoryKind": {
+      "enum": ["condition", "allergy", "medication", "vital", "social"]
+    },
+    "HistoryProvenance": {
+      "enum": ["staff", "patient_reported", "imported"]
+    },
+    "HistoryRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["patientRef", "asOf", "recorded", "streams", "items"],
+          "properties": {
+            "patientRef": {
+              "$ref": "#/$defs/PatientRef"
+            },
+            "asOf": {
+              "$ref": "#/$defs/Instant"
+            },
+            "recorded": {
+              "type": "boolean",
+              "description": "False when nothing was recorded as of the instant: an unknown history, not an empty one."
+            },
+            "streams": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "$ref": "#/$defs/HistoryStream"
+              }
+            },
+            "items": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "$ref": "#/$defs/HistoryItem"
+              }
+            }
+          }
+        }
+      }
+    },
+    "HistoryReadQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "asOf": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "HistoryReview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reviewRef",
+        "encounterRef",
+        "patientRef",
+        "allergy",
+        "condition",
+        "medication",
+        "reviewedBy",
+        "reviewedAt"
+      ],
+      "properties": {
+        "reviewRef": {
+          "$ref": "#/$defs/HistoryReviewRef"
+        },
+        "encounterRef": {
+          "$ref": "#/$defs/EncounterRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "allergy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReviewOutcome"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "condition": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReviewOutcome"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "medication": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReviewOutcome"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reviewedBy": {
+          "$ref": "#/$defs/ClinicalAuthor"
+        },
+        "reviewedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "HistoryReviewAttest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "allergy": {
+          "$ref": "#/$defs/ReviewOutcome"
+        },
+        "condition": {
+          "$ref": "#/$defs/ReviewOutcome"
+        },
+        "medication": {
+          "$ref": "#/$defs/ReviewOutcome"
+        }
+      }
+    },
+    "HistoryReviewCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/HistoryReview"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "HistoryReviewRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque history review attestation reference (C8)."
+    },
+    "HistoryState": {
+      "enum": ["active", "resolved", "discontinued", "entered_in_error"],
+      "description": "Removal is a state change with a reason, never a delete. discontinued applies to medications only."
+    },
+    "HistoryStream": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["streamRef", "sourcePatientRef", "version"],
+      "properties": {
+        "streamRef": {
+          "$ref": "#/$defs/HistoryStreamRef"
+        },
+        "sourcePatientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "HistoryStreamRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque history stream reference: one per source patient (C8)."
+    },
+    "HistoryText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "Free text as reported; never interpreted, never checked against a drug database."
+    },
+    "HistoryVerification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["changeRef", "verifiedBy", "verifiedAt", "encounterRef"],
+      "properties": {
+        "changeRef": {
+          "$ref": "#/$defs/HistoryChangeRef"
+        },
+        "verifiedBy": {
+          "$ref": "#/$defs/ClinicalAuthor"
+        },
+        "verifiedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "encounterRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EncounterRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "HistoryVerify": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedChangeRef"],
+      "properties": {
+        "expectedChangeRef": {
+          "$ref": "#/$defs/HistoryChangeRef"
+        },
+        "encounterRef": {
+          "$ref": "#/$defs/EncounterRef"
+        }
+      }
+    },
+    "HistoryVersionCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/HistoryVersionDetail"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "HistoryVersionDetail": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["header", "changes"],
+      "properties": {
+        "header": {
+          "$ref": "#/$defs/HistoryVersionHeader"
+        },
+        "changes": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["itemRef", "kind", "entryType", "change"],
+            "properties": {
+              "itemRef": {
+                "$ref": "#/$defs/HistoryItemRef"
+              },
+              "kind": {
+                "$ref": "#/$defs/HistoryKind"
+              },
+              "entryType": {
+                "$ref": "#/$defs/HistoryEntryType"
+              },
+              "change": {
+                "$ref": "#/$defs/HistoryChange"
+              }
+            }
+          }
+        }
+      }
+    },
+    "HistoryVersionHeader": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "historyVersionRef",
+        "streamRef",
+        "version",
+        "provenance",
+        "reportedBy",
+        "sourceRef",
+        "encounterRef",
+        "recordedBy",
+        "recordedAt"
+      ],
+      "description": "One recorded history version: who reported it, who recorded it, from which source, when.",
+      "properties": {
+        "historyVersionRef": {
+          "$ref": "#/$defs/HistoryVersionRef"
+        },
+        "streamRef": {
+          "$ref": "#/$defs/HistoryStreamRef"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "provenance": {
+          "$ref": "#/$defs/HistoryProvenance"
+        },
+        "reportedBy": {
+          "$ref": "#/$defs/ReportedBy"
+        },
+        "sourceRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "encounterRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EncounterRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recordedBy": {
+          "$ref": "#/$defs/ClinicalAuthor"
+        },
+        "recordedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "HistoryVersionRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/HistoryVersionDetail"
+        }
+      }
+    },
+    "HistoryVersionRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque history version reference (C8)."
+    },
     "IdempotencyKey": {
       "type": "string",
       "pattern": "^[A-Za-z0-9._:-]{1,128}$"
@@ -534,19 +1326,59 @@
       "maxLength": 40,
       "description": "RFC 3339 instant, returned in UTC."
     },
+    "LocalDate": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
+    },
     "LocationRef": {
       "type": "string",
       "pattern": "^[a-z0-9-]{1,64}$"
+    },
+    "NotProvided": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provided", "statement"],
+      "properties": {
+        "provided": {
+          "const": false
+        },
+        "statement": {
+          "type": "string"
+        }
+      }
     },
     "PatientRef": {
       "type": "string",
       "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
       "description": "Opaque patient reference (S4)."
     },
+    "ReasonCode": {
+      "type": "string",
+      "pattern": "^[a-z_]{1,64}$",
+      "description": "Server-checked reason value; never free text (vocabulary pending clinical approval)."
+    },
+    "ReportedBy": {
+      "enum": ["patient", "guardian", "caregiver", "clinician", "external_record"],
+      "description": "Who reported the information (the recorder is always the authenticated clinical author)."
+    },
     "ResourceRefId": {
       "type": "string",
       "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
       "description": "Opaque scheduling resource reference (S7)."
+    },
+    "ReviewOutcome": {
+      "enum": ["none", "confirmed"],
+      "description": "none: reviewed with the patient and none present; confirmed: the recorded list was reviewed."
+    },
+    "SourceRef": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+      "description": "Reference to the source document or import batch; required for imported provenance."
+    },
+    "SyntheticCodeRef": {
+      "type": "string",
+      "pattern": "^SYN-[A-Z0-9-]{1,40}$",
+      "description": "Provisional internal synthetic code (C-D2). Not a licensed terminology code; carries no clinical meaning."
     },
     "Version": {
       "type": "integer",

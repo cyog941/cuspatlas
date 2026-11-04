@@ -14,8 +14,8 @@ Clinical semantics need dentist validation, which was not available. Per AGENTS.
 |---|---|---|---|
 | C-S1 chart semantics decision record | recommended-pending-clinical-approval (no reviewer) | e4bcc6e | ADR 0005 |
 | C-S2 note signing decision record | recommended-pending-clinical-approval (no reviewer) | e4bcc6e | ADR 0006 |
-| C5 encounter and clinical authorship | verified on synthetic data (Windows host); semantics pending clinical approval | (this commit) | see C5 |
-| C8 medical history, allergies, medications | not started | | |
+| C5 encounter and clinical authorship | verified on synthetic data (Windows host); semantics pending clinical approval | b0e6d6f | 703 tests |
+| C8 medical history, allergies, medications | verified on synthetic data (Windows host); semantics pending clinical approval | (this commit) | 743 tests |
 
 ## Pending decisions (none decided)
 
@@ -32,7 +32,12 @@ Clinical semantics need dentist validation, which was not available. Per AGENTS.
 | C5-P2 | Clinical role vocabulary | the plan's `ClinicalAuthor.role` enum (dentist, hygienist, assistant, other_clinical) | recommended-pending-clinical-approval | clinical lead | authorship records |
 | C5-P3 | Encounter disposition vocabulary | per-tenant configuration (synthetic codes in tests only); no value decided | blocking for release (no vocabulary) | clinical lead; practice manager | encounter close |
 | C5-P4 | Provider identity for assignments | a scheduling provider/staff resource (S7) at the encounter location; credential detail stays in the staff module | recommended-pending-clinical-approval | practice manager; clinical lead | C14 rendering provider |
-| C5-P5 | One encounter per appointment, ever | plan C5 case 1 and the completion condition ("exactly one encounter") | recommended-pending-clinical-approval | clinical lead | open after close is 409 |
+| C5-P5 | One encounter per appointment, ever | plan C5 case 1 and the completion condition ("exactly one encounter") | recommended-pending-clinical-approval | clinical lead | a second open, even after close, returns the one encounter (outcome existing) |
+| C8-P1 | History kinds, states per kind, the none-known representation and review outcomes | plan C8 contract (kinds, states, provenance); none-known as an explicit entry and per-encounter review outcomes none/confirmed from the batch brief | recommended-pending-clinical-approval | clinical lead / dentist reviewer | C8, S12 visit context |
+| C8-P2 | Which clinical roles may verify a history item or attest a review | **no recommendation in the plan**; implemented permissively (any active clinical author) with the role recorded, so a later rule needs no schema change | blocking for release (unresolved) | clinical lead | verifyItem, attestReview |
+| C8-P3 | Reason vocabulary for resolved, discontinued and entered_in_error | pattern-checked reason codes only; no vocabulary decided | blocking for release | clinical lead | recordChange |
+| C8-P4 | Alert relevance and interaction checking | none: every active allergy, condition and medication is listed as recorded; interaction checking and decision support explicitly not provided | recommended-pending-clinical-approval (scope boundary) | clinical lead | alerts, S12 |
+| C8-P5 | Codes for history items | provisional synthetic `SYN-` placeholders (C-D2); free text otherwise; no drug database | recommended-pending-clinical-approval | clinical lead; terminology-rights reviewer | C8 |
 
 ## Command log
 
@@ -70,3 +75,32 @@ Shared files touched (minimal, append-only): `packages/contracts/src/context.ts`
 Deviations: one contract file `clinical.schema.json` (C8 extends it) instead of per-aggregate files; integration tests live at `tests/integration/clinical-*.test.ts` because the integration project includes only `tests/integration/*.test.ts`; `getAuthorContext` is the caller's own context (no read of other members' profiles); `openEncounter` returns 201 for both `opened` and `existing` (one success status per route). Case 4's "amendment against a closed encounter names the alternative path" is implemented as the `requireOpenEncounter` seam with an `alternative` operation; no amendment command exists until C10, and C8 exercises the seam with a real command.
 
 Seams: `requireOpenEncounter` (C6-C15, C8); `loadClinicalPatient`/`assertNotMerged`; `ClinicalAuthor` snapshots on every row for C10 signing and C14 rendering; `assignments` with `treating_provider`/`supervising_provider` for C14's rendering-provider rule and a future co-signature rule (C-S2-Q5); S11 visit status still shows `clinicalCompletion: {ref: null, owner: 'C5'}` (S-owned code; the integrator may point it at the encounter by appointment).
+
+### C8 (medical history, allergies and medications)
+
+Acceptance cases (tests/integration/clinical-history.test.ts, every denial under the runtime role):
+
+1. an allergy added (version 1) and later marked `entered_in_error` with a reason (version 2) reads `active` as of the first instant and `entered_in_error` now, with both changes listed; version 1 is retrievable through `readVersion` (validates against `HistoryVersionRead`); an `entered_in_error` item takes no further change (409 `item_entered_in_error`);
+2. two patient-reported allergies, one verified by a hygienist: the verification names the verifier and instant, the reported text, detail and provenance are unchanged, and alerts show `patient_reported` for both with `verified` true and false; a second verification of the same change is 409 `already_verified`;
+3. an as-of read at the first version's instant is byte-identical before and after two later versions (stream version 1 then, 3 now); a future `asOf` is 422 `inTheFuture`;
+4. a patient with nothing recorded reads `recorded: false` with no items and alerts `unknown` for allergy, condition and medication (never "none"), with interaction checking and decision support `provided: false`; an explicit none-known allergy is `none_reported`; a clinician's `none` attestation at an encounter is `reviewed_none`; a new allergy while none-known is active is 409 `none_known_active` naming it; resolving the statement in the same change set gives `present` and marks the review stale; a `none` attestation over an active allergy is 409 `active_items_present`;
+5. another tenant recording for, reading, reading a version of, alerting on or verifying an alpha record gets a 404 identical to a missing reference, and no version is written;
+6. a medication discontinued without an end date stores `discontinued` with `effectiveUntil: null` and leaves the medication alert; `discontinued` for an allergy is 422 `stateNotForKind`; a non-active state without a reason is 422.
+
+Failure cases: (1) a duplicate submission under one key replays the same version; two concurrent changes of one item without `expectedVersion` both persist (versions 2 and 3, item sequences 1-3); a stale `expectedVersion` is 409 with `currentVersion`; (2) an import needs `external_record` and a `sourceRef` (422 otherwise), a smuggled `verifiedBy` is 400, the imported item has no verification, and `external_record` without `imported` is 422; (3) a change naming a closed encounter is 409 `encounter_closed` with `blockingRefs` and `alternative: clinical.encounters.open`, the same change without an encounter is accepted, and another patient's encounter is 422 `encounterPatientMismatch`; (4) a verified item later corrected shows `verification: null` with the first verification kept, verifying the old change is 409 `item_changed`, and the new change gets its own verification.
+
+Also: the runtime role cannot update or delete any history row (42501 from privilege or trigger, including stream origin and a head jump); a merge keeps both streams with their source patient, leaves every version, change and item row byte-identical, records a `clinicalHistoryStream` move with equal digests, and redirects the merged identity's alerts (409 `patient_merged` naming the survivor); the structural merge assertion in the C5 file now also covers `clinical_history_streams`; a member without a profile, a read-only member and a service principal cannot write, while the read-only member reads; the marker in display and detail text never reaches logs, audit, outbox, attempts, idempotency or sensitive-read rows; the S12 seam resolves inside a runtime-role transaction with states only; an MCP record replays a REST key and MCP alerts equal REST alerts.
+
+Negative harness: 6 rows appended (`clinical.history.recordChange|read|readVersion|alerts|verifyItem|attestReview`) with the history tables in the unchanged-state snapshot.
+
+- Red: C8 implementation stashed (`git stash push -u -- packages apps supabase docs`), `corepack pnpm test -- clinical-history` → exit 1, 16 failed (16). As for C5, the tests were written after the first implementation draft and then shown red against the tree without it.
+- Green: `corepack pnpm test -- clinical-history` → exit 0, 16 passed.
+- Pre-commit: `corepack pnpm typecheck`, `lint`, `contract:check` exit 0; `corepack pnpm test` exit 0, 35 files, 743 tests (703 + 16 history + 18 harness rows + 6 clinical tool drift).
+
+Shared files touched (append-only): `policy/authorize.ts` (6 rows), `patients/merge.ts` (one record class, one excluded reference; S-owned, flagged), `contract-drift.ts` (closed bodies), `apps/mcp/src/server.ts` and `tools/synthetic-tasks.ts` (path references), OpenAPI, the three shared test inventories and `docs/execution/foundation-contract-decisions.md`.
+
+Deviations: history items are addressed by `itemRef` and versions by `historyVersionRef`; `getHistoryVersion` takes the version reference (the plan names no signature); a version number is per source stream, so after a merge the survivor has two streams with their own numbers (`readHistory` lists both) instead of one renumbered sequence; an attestation of `none` locks the patient's own stream (creating an empty one if needed) to serialize with writers.
+
+Seam for the integrator (S12 visit context, not edited here): S12 resolves C8 by reference with `resolveHistoryReference(tx, patientRef)` from `@cuspatlas/domain`, inside its own tenant transaction, after probing a clinical read (for example `clinical.history.alerts`) with `authorize` before the transaction; it records its own sensitive read and shows `unknown` as unknown (never as none). The returned shape carries no clinical text. Inputs for later tasks: C10 references `historyVersionRef` (the version a note was signed against); C6 and C9 reuse the encounter seam and the `SYN-` code pattern; C14 uses the treating/supervising assignments.
+
+Unresolved: C8-P2 (verifier roles) and C8-P3 (reason vocabulary) have no plan recommendation and block a user-facing release; S11 visit status still reports `clinicalCompletion: {ref: null, owner: 'C5'}` because S-owned code was not edited.

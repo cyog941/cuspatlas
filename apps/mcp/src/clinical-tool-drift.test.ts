@@ -23,10 +23,13 @@ const tools = TOOLS.filter((t) => isClinical(t.operationId));
 /** List queries of clinical GET routes (the MCP twin takes them as arguments). */
 const LIST_QUERIES: Record<string, string> = {
   'clinical.encounters.list': 'EncounterListQuery',
+  'clinical.history.read': 'HistoryReadQuery',
 };
 const PATH_PARAMS: Record<string, string> = {
   encounterRef: 'EncounterRef',
   patientRef: 'PatientRef',
+  itemRef: 'HistoryItemRef',
+  historyVersionRef: 'HistoryVersionRef',
 };
 
 function restShape(route: (typeof routes)[number]): { properties: Schema; required?: string[] } {

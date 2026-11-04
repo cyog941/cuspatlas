@@ -4068,6 +4068,28 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/communications/export:
+    get:
+      operationId: communications.export
+      description: >-
+        Versioned export of every portal and communications record of the tenant (principals, consent facts,
+        decisions, enrollments, intake, threads, delivery metadata, receipts, telephony) with references
+        preserved and no tenant field. Tenant-wide human administrators only.
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   /portal/v1/session:
     get:
       operationId: portal.session.read

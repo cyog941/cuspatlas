@@ -743,6 +743,15 @@ export const COMMANDS: HarnessCommand[] = [
       idempotencyKey: randomUUID(),
     }),
   },
+  // E9 export (tenant-wide administrators; beta exports only its own rows).
+  {
+    operation: 'communications.export',
+    tool: 'communications_export',
+    crossTenant: 'tenant_own_data',
+    downgradedTo: 'readOnly',
+    rest: () => ({ method: 'GET', url: '/v1/communications/export', keyed: false, status: 200 }),
+    mcpArgs: () => ({}),
+  },
 ];
 
 /** Every portal-audience route (E1-E6, the S15 seam). */

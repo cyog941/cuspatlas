@@ -202,6 +202,8 @@ export const ACTION_POLICIES = {
   'telephony.calls.read': { scope: 'communications.read', principals: ['human', 'service'] },
   'telephony.calls.list': { scope: 'communications.read', principals: ['human', 'service'] },
   'telephony.calls.link': { scope: 'communications.write', principals: ['human'] },
+  // E9 minimal engagement export: a tenant-wide human administrator only (sensitive-read logged).
+  'communications.export': { scope: 'admin.configure', principals: ['human'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

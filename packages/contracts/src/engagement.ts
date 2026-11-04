@@ -133,6 +133,7 @@ export const validateCallLink = def('CallLink');
  */
 export const ENGAGEMENT_EXPORT_FORMAT = 'cuspatlas-engagement-export/1';
 export const ENGAGEMENT_EXPORT_TABLES = [
+  'portal_principals',
   'communication_consents',
   'contact_verifications',
   'message_templates',

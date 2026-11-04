@@ -1,8 +1,8 @@
-# Portal and communications execution ledger (workstream E, batch 1)
+# Portal and communications execution ledger (workstream E, batches 1 and 2)
 
 Branch: `codex/e-portal-1` in an isolated worktree outside the OneDrive-synced checkout. Base SHA: `3b76ad0` (foundation, complete workstream S and main's practice-time docs; 953 tests + 13 todo). Sibling workers build C and B on other branches. Status values: not started, in progress, blocked with cause, verified. Nothing is prechecked.
 
-Authorization basis: user instruction to build every backend workstream on synthetic data until only the UI phase remains. Scope of this batch: E1, E2, E3, E6 and E7 against a fake messaging provider. Synthetic patients and synthetic contacts only (`.invalid` email domains, 555-01xx phone numbers); no Supabase cloud connection, no host installs, no real network egress. E-S1 (messaging qualification), E-S2 (telephony) and E-S3 (portal identity proofing) are **blocked-on-discovery**; consent, suppression, retention and the other legal or compliance choices below are implemented as **recommended-pending-approval** and need reviewers who were not available. Nothing here is approved, deployed, compliant or clinically validated.
+Authorization basis: user instruction to build every backend workstream on synthetic data until only the UI phase remains. Scope of batch 1: E1, E2, E3, E6 and E7 against a fake messaging provider. Scope of batch 2 (from 75fdcee): the merge of codex/scheduling-patients (S12-S17 hardening), the review hardening of E1-E7, the S15 portal offer seam, E4, E5, E8 (fake telephony adapter) and E9. Synthetic patients and synthetic contacts only (`.invalid` email domains, 555-01xx phone numbers); no Supabase cloud connection, no host installs, no real network egress. E-S1 (messaging qualification), E-S2 (telephony) and E-S3 (portal identity proofing) are **blocked-on-discovery**; consent, suppression, retention and the other legal or compliance choices below are implemented as **recommended-pending-approval** and need reviewers who were not available. Nothing here is approved, deployed, compliant or clinically validated.
 
 ## Batch status
 
@@ -14,6 +14,14 @@ Authorization basis: user instruction to build every backend workstream on synth
 | E6 consent, suppression and recall enrollment | verified on synthetic data (Windows host); E-S1 blocked-on-discovery; rules pending legal/compliance review | a6e8d54 | S14 placeholder replaced; 1 of 6 S14 todo closed |
 | E7 delivery receipts, retries and unknown outcomes | verified against a FAKE provider only (Windows host); provider semantics blocked-on-discovery (E-S1) | c489ca6 | remaining 5 S14 todo closed |
 | Batch 1 gate | `corepack pnpm run ci` exit 0 | see Branch gate | 48 files / 1068 passed / 7 todo (C-owned) |
+| Batch 2 merge of codex/scheduling-patients | `corepack pnpm run ci` exit 0 | 78f1dfd | conflicts resolved keeping both behaviours |
+| Review hardening of E1-E7 | verified on synthetic data (Windows host) | 1b1301a | 1 REQUIRED + 5 SHOULD |
+| S15 portal offer seam | verified on synthetic data (Windows host) | 407a836 | portal accept/decline; never a service |
+| E4 intake forms and intake consent | verified on synthetic data (Windows host); form content pending clinical sign-off; C8 hand-off by reference | 5b5ba5d | treatment consent stays with C13 |
+| E5 secure messaging | verified on synthetic data (Windows host); retention pending legal review (E-D5) | 863bc3d | notices through E6/E7 only |
+| E8 telephony configuration and call references | verified against a FAKE adapter only; provider blocked-on-discovery (E-S2) | 7404d10 | recording refused |
+| E9 parity, negative matrix, export, scenario | verified on synthetic data (Windows host) | see Batch 2 gate | 58-row parity matrix |
+| Batch 2 gate | `corepack pnpm run ci` exit 0 on the E9 tree (56 files / 1211 passed / 7 todo C-owned; privacy scan, SBOM, evidence unreviewed, not certified) | E9 commit | re-run on the commit if needed |
 
 ## E1 (portal principals and the grant projection)
 
@@ -215,6 +223,53 @@ Deviations: `describeTelephonyConfig` returns routing as an open/closed pair rat
 
 Unresolved (E-S2): provider, number provisioning and portability, voicemail handling and tasks, recording availability and its consent rules, retention, cost and BAA scope.
 
+## Batch 2 merge (codex/scheduling-patients at 0c8cfdf)
+
+`git merge --no-ff codex/scheduling-patients` (S12-S17 hardening) conflicted in `scheduling/notification-intent.ts` and `tests/integration/notification-separation.test.ts`; both behaviours were kept (the S14 worklist excludes intents E6 allowed and intents whose subject is closed or past due; S's worklist-relevance tests and E's S14 cases both remain). Adaptations: `recallDueFor` takes S's new `patients.read` flag, and E6 enrollment discloses a patient-status exclusion only to a caller holding `patients.read` (otherwise `not_disclosed`); S17's new foreign-key validation exposed that S intents reference E6 decisions, so the import became `importExports` over several documents (S and E) validated together. `corepack pnpm run ci` exit 0 at the merge commit 78f1dfd (48 files / 1083 passed / 7 todo), after one run lost to the restore-smoke EBUSY flake fixed in the hardening commit.
+
+## E9 (parity matrix, negative matrix, export and release evidence)
+
+Files: `packages/domain/src/engagement/export.ts`, `packages/db/src/scheduling-import.ts` (`importExports`: several documents in one transaction, portal principal identities recreated, identity columns kept with `OVERRIDING SYSTEM VALUE`, every foreign key of every imported table validated across all documents), `ENGAGEMENT_EXPORT_FORMAT` / `ENGAGEMENT_EXPORT_TABLES` in `packages/contracts/src/engagement.ts`, one staff operation (`communications.export`), `tests/integration/comms-parity.test.ts` (3 tests), `tests/integration/engagement-export.test.ts` (4 tests), `tests/scenarios/ordinary-portal-day.test.ts` (1 test), `tests/integration/support/scenario-deps.ts`.
+
+Parity matrix (derived from `ENGAGEMENT_OPS` and `PORTAL_OPS` against the route manifest, the registered Fastify routes, the MCP `TOOLS` table, `ACTION_POLICIES`, `docs/api/openapi.yaml` and the harness rows): **58 rows** = 46 staff operations on REST and MCP (each with one policy and harness rows), 11 portal operations on the portal transport only (no MCP tool, no staff policy, portal harness rows) and the messaging worker path (`communications.deliver`, service-only policy, no REST or MCP surface). A removed MCP tool or an unregistered route is reported as a gap (self-test). Red: with the export harness row stashed the matrix reported exactly `communications.export:harness` (exit 1, 2 failed / 1 passed); green exit 0, 3 passed.
+
+Negative matrix (`engagement-negative-harness.test.ts`): 46 staff rows × (cross-tenant, revoked, downgraded) on REST and MCP with attempt reasons and unchanged write snapshots, the no-tenant-field check over every body and tool, 11 portal rows × six credentials (staff token, MCP token, revoked principal, pending principal, another tenant, staff subject on the portal audience), and every staff route and tool against a portal token; 154 tests with the parity file.
+
+Export (`communications.export`, tenant-wide human administrator, sensitive-read logged): `cuspatlas-engagement-export/1`, 20 tables in foreign-key order (portal principals, consent and verification facts, templates, channel policies, decisions, recall enrollments, intake forms, submissions, consent links and reviews, threads and messages, outbound delivery metadata, attempts, receipts, telephony configuration, calls and links), no tenant field, no recipient address; S14 intents travel in the S17 export. Round trip (`engagement-export.test.ts`): every table non-empty in the fixture; REST and MCP agree; a4 and a3 are 403, beta exports only its own rows; a thread message whose thread reference was replaced is refused (`foreign key`) and nothing is written; an unknown format is refused; S17 plus E9 re-import into a fresh synthetic database, both re-export identically, a submission, a thread, a call and a delivery read identically through the domain, and the re-imported portal principal authenticates (session 200). Red: exit 1, 4 failed (4) with the export stashed; green exit 0, 4 passed after adding a recall enrollment to the fixture (the first green run had none, so that table was empty).
+
+Ordinary portal day (`tests/scenarios/ordinary-portal-day.test.ts`, REST and the worker only): a guardian holding scheduling, demographics and consent registers the minor's appointment request through the portal; completes the intake form with the email reminder consent (`guardian_portal`, relationship recorded); staff attest the minor's contact and book from the request (the portal requests view shows `scheduled`); the sender delivers exactly one notice-only reminder (the template text, no name) to the minor's verified synthetic address through the fake provider and the receipt marks it delivered; the guardian opts out through the portal; the next booking's intent is suppressed `opt_out` and no second provider call happens; every recorded reason is in the single vocabulary and the marker reaches no log line. Exit 0, 1 passed (written after E1-E8 and passing on its first complete run, so it is regression evidence, not a red-first test).
+
+Deviations: the plan's export digest per record is not produced (identity is checked by re-export equality instead); the consent/suppression runbook (`docs/runbooks/consent-and-suppression.md`) is not written, because every rule it would document is still pending legal and compliance review; the parity matrix checks the worker path by policy and absence of surfaces, not by a worker-path denial run (the sender's revoked-membership refusal is covered in `comms-delivery.test.ts`).
+
+## Release evidence (workstream E, synthetic)
+
+| Gate | Evidence | Status |
+|---|---|---|
+| Tenant isolation, RLS forced on every E table | `tenant-isolation.test.ts` table list (20 E tables), harness cross-tenant rows | tested on synthetic data |
+| Portal principals never staff, staff never portal | harness portal rows, parity matrix, E1 cross-transport tests, startup audience guards | tested |
+| Revocation and expiry at command time | E1, E3, E4, E5 and the S15 seam tests (revoked guardian refused at the next command) | tested |
+| Single suppression vocabulary | DB CHECK on decisions and outbound messages, scenario check, `comms-consent` vocabulary test | tested |
+| Notice-only notifications | E7, E5 and scenario assertions on the fake provider payload | tested (fake provider only) |
+| Marker and body leakage | E1-E8 marker scans of audit, outbox, attempts, idempotency, sensitive-read, outbound and delivery rows and logs | tested |
+| Abuse bounds under concurrency | gated-runner tests (review hardening) | tested |
+| Export and re-import | `engagement-export.test.ts` with S17 | tested |
+| Messaging provider (E-S1) | none | blocked-on-discovery |
+| Telephony provider (E-S2) | none | blocked-on-discovery |
+| Portal identity proofing (E-S3) | `unverified-synthetic` staff attestation | blocked-on-discovery |
+| Legal, compliance, clinical, privacy and security review | none | not reviewed |
+
+Nothing in this table is approved, deployed, compliant or clinically validated; "tested" means the synthetic suite on this Windows host.
+
+## Workstream E handoff
+
+Built (synthetic, tested on this host): E1 portal principals and the S5 grant projection; E2 scoped allowlist views (demographics, appointments, requests, forms, messages; documents and balances `unavailable` until C15 and B4); E3 portal requests into S8 with abuse bounds that hold under concurrency; E4 intake forms (versioned, idempotent, consent capture, reviewed S4 import, C8 hand-off by reference); E5 secure messaging (queues, assignment, immutable messages, access audit, retention data and legal hold, notices through E6/E7); E6 consent, opt-out, the single suppression decision (now also offer_closed, subject_past, no_verified_channel) and recall enrollment; E7 delivery with receipts (including early and concurrent duplicates), retries, reconciliation and send-time contact verification on a fake provider; E8 telephony configuration and call references on a fake adapter; E9 export round trip with S17, a 58-row parity matrix, the negative harness and the portal-day scenario; the S15 portal offer seam.
+
+Pending decisions (recommended-pending-approval, see the table below): every consent, opt-out, quiet-hours, template, verification and decision-order rule (legal and compliance); E-D5 retention periods and legal-hold procedure (legal); intake form content (clinical sign-off), answer retention and which demographic groups a patient may propose (privacy); messaging reply targets and agent access to thread bodies (practice policy, security); abuse bounds (practice and security); E-D1 pilot channels, E-D7 timing, E-D8 notice content.
+
+Blocked: E-S1 (real messaging provider, receipts semantics, webhook signing, SMS registration), E-S2 (telephony provider, numbers, voicemail, recording), E-S3 (portal proofing level, second factor, recovery); C8 (medical-history intake), C13 (treatment consent, by reference only), C15 (documents view), B4 (balances view and suppression consumer), I1 (attachment bytes and grants).
+
+Honest status: workstream E backend is implemented and tested on synthetic data only, against fakes, on one Windows host. It is not reviewed by legal, compliance, clinical, privacy or security owners, not deployed, not compliant and not clinically validated, and it is not production-ready.
+
 ## Pending decisions
 
 | Decision | Recommendation implemented (pending approval) | Settles it |
@@ -233,5 +288,12 @@ Unresolved (E-S2): provider, number provisioning and portability, voicemail hand
 | E7 unknown outcomes | reconcile by delivery-key lookup; not found or unavailable escalates to staff (resend with the same key, or abandon); never an automatic resend | E-S1 provider semantics and practice policy |
 | E7 retry bounds | 5 attempts, exponential backoff with jitter (F6), permanent rejection fails at once | E-S1 |
 | E-D1 pilot channels | email only exercised (fake provider); SMS modelled, not exercised; channel none is the default everywhere | E-S1 and practice preference |
-| E-D5 message retention | not implemented (no message content is stored beyond the template version reference) | legal review |
 | E1 merge of an enrolled identity | portal access never follows a merge; re-enroll the survivor | security owner |
+| Contact verification (review hardening) | staff-attested verification fact per contact digest; send time and previews need a verified point (`no_verified_channel`) | E-S3 and compliance review |
+| Stale and closed subjects at send | a reminder whose visit has started is `subject_past`; a decided or expired offer is `offer_closed` | compliance review |
+| E4 intake content and import | synthetic forms `pending_clinical_review`; preferred name, pronouns and language proposable; applied through S4 by staff review | clinical reviewer and privacy reviewer |
+| E4 medical history | held by payload reference for C8, never written by E | C8 owner and clinical reviewer |
+| E5 messaging policy | queues by topic; 24 h reply target; service principals may read thread bodies with access audit | practice policy and security owner |
+| E-D5 message retention | policy data with no period (never eligible); legal-hold placeholder; nothing deletes | legal review |
+| E8 telephony | synthetic 555-01xx numbers; recording off and refused; caller kept as digest plus last four; links by person only | E-S2, legal (recording consent) and privacy review |
+| E9 export | full E content (including message bodies and answers) for a tenant-wide administrator, sensitive-read logged | M1 export contract and privacy review |

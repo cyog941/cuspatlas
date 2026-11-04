@@ -627,6 +627,20 @@ export const ENGAGEMENT_OPS: readonly EngagementOp[] = [
       'Confirm the patient of a call (or remove the link with null). A person confirms; a caller-number match is only a candidate. Human staff only.',
     invoke: (svc, actor, i) => svc.linkCall(actor, param(i, 'callRef'), env('telephony.calls.link', i)),
   },
+  // E9 minimal export (versioned JSON; re-imports together with the S17 scheduling export).
+  {
+    method: 'get',
+    path: '/v1/communications/export',
+    operationId: 'communications.export',
+    protected: true,
+    query: 'EmptyQuery',
+    success: { status: '200', schema: E('EngagementRead') },
+    refusals: ['400', '401', '403', '503'],
+    tool: 'communications_export',
+    description:
+      'Versioned export of every portal and communications record of the tenant (principals, consent facts, decisions, enrollments, intake, threads, delivery metadata, receipts, telephony) with references preserved and no tenant field. Tenant-wide human administrators only.',
+    invoke: (svc, actor, i) => data(svc.exportEngagement(actor, i.body)),
+  },
 ];
 
 export const ENGAGEMENT_OP_ROUTES: readonly RouteContract[] = ENGAGEMENT_OPS.map((o) => ({

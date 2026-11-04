@@ -5,6 +5,7 @@ export * from './communications/deliveries';
 export * from './communications/delivery';
 export * from './communications/recall-enrollment';
 export * from './communications/suppression';
+export * from './export';
 export * from './intake/forms';
 export * from './messaging/threads';
 export * from './portal/access';

@@ -122,8 +122,19 @@ export async function importExports(
       for (const table of FORMATS[doc.format] ?? []) {
         const list = doc.tables[table] ?? [];
         for (const row of list) {
+          if (table === 'portal_principals') {
+            // A portal principal's identity row is server-shaped (kind portal, handle from its id) and
+            // carries no other data; it is recreated rather than exported.
+            await client.query(
+              `INSERT INTO cuspatlas.principals (id, kind, handle) VALUES ($1::uuid, 'portal', 'portal-' || $1::uuid::text)
+               ON CONFLICT (id) DO NOTHING`,
+              [String(row.principal_id)],
+            );
+          }
+          // Identity columns (append-only fact order) keep their exported values.
           await client.query(
-            `INSERT INTO cuspatlas.${table} SELECT * FROM jsonb_populate_record(NULL::cuspatlas.${table}, $1::jsonb)`,
+            `INSERT INTO cuspatlas.${table} OVERRIDING SYSTEM VALUE
+             SELECT * FROM jsonb_populate_record(NULL::cuspatlas.${table}, $1::jsonb)`,
             [JSON.stringify({ ...row, tenant_id: tenantId })],
           );
         }

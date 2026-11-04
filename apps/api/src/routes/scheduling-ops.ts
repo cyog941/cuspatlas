@@ -407,6 +407,83 @@ export const SCHEDULING_OPS: readonly SchedulingOp[] = [
     invoke: (svc, actor, i) =>
       svc.revokeStandingPolicy(actor, param(i, 'policyRef'), env('scheduling.standingPolicies.revoke', i)),
   },
+  // S16 recall policy and due computation (S-D7 pending), and the PT-03 follow-up worklist.
+  {
+    method: 'post',
+    path: '/v1/scheduling/recall/policies',
+    operationId: 'scheduling.recall.definePolicy',
+    protected: true,
+    requestBody: S('RecallPolicyDefine'),
+    success: { status: '201', schema: S('RecallPolicyCommandResult') },
+    refusals: COMMAND,
+    tool: 'scheduling_recall_define_policy',
+    description:
+      'Define (a new version of) the recall policy of a category: interval in months, basis, already-booked exclusion (default on). The completed-procedure basis is refused until C14 exists.',
+    invoke: (svc, actor, i) => svc.defineRecallPolicy(actor, env('scheduling.recall.definePolicy', i)),
+  },
+  {
+    method: 'get',
+    path: '/v1/scheduling/recall/policies',
+    operationId: 'scheduling.recall.policies',
+    protected: true,
+    success: { status: '200', schema: S('RecallPolicyList') },
+    refusals: ['401', '403', '503'],
+    tool: 'scheduling_recall_policies',
+    description: 'List every recall policy version by category.',
+    invoke: (svc, actor) => data(svc.listRecallPolicies(actor)),
+  },
+  {
+    method: 'get',
+    path: '/v1/scheduling/recall/due',
+    operationId: 'scheduling.recall.due',
+    protected: true,
+    success: { status: '200', schema: S('RecallDue') },
+    refusals: ['400', '401', '403', '404', '503'],
+    query: 'RecallDueQuery',
+    tool: 'scheduling_recall_due',
+    description:
+      'Compute the recall due list for a category at an as-of instant: due, excluded (with the reason) and no-baseline patients, the policy version and freshness. Read-only; produces no outreach.',
+    invoke: (svc, actor, i) => data(svc.recallDue(actor, i.body)),
+  },
+  {
+    method: 'post',
+    path: '/v1/scheduling/recall/tasks',
+    operationId: 'scheduling.recall.createTask',
+    protected: true,
+    requestBody: S('RecallTaskCreate'),
+    success: { status: '201', schema: S('RecallTaskCommandResult') },
+    refusals: COMMAND,
+    tool: 'scheduling_recall_create_task',
+    description:
+      'Create a recall contact task for a due patient (idempotent per patient and policy version) and record a recall intent with channel none. Contact permission is the E6 decision.',
+    invoke: (svc, actor, i) => svc.createRecallTask(actor, env('scheduling.recall.createTask', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/scheduling/recall/tasks/{recallTaskRef}/resolve',
+    operationId: 'scheduling.recall.resolveTask',
+    protected: true,
+    requestBody: S('RecallTaskResolve'),
+    success: { status: '200', schema: S('RecallTaskCommandResult') },
+    refusals: ['400', '401', '403', '404', '409', '503'],
+    tool: 'scheduling_recall_resolve_task',
+    description: 'Resolve a recall task with a reason (never deleted).',
+    invoke: (svc, actor, i) =>
+      svc.resolveRecallTask(actor, param(i, 'recallTaskRef'), env('scheduling.recall.resolveTask', i)),
+  },
+  {
+    method: 'get',
+    path: '/v1/scheduling/follow-up/worklist',
+    operationId: 'scheduling.followUp.worklist',
+    protected: true,
+    success: { status: '200', schema: S('WorkItemList') },
+    refusals: LIST,
+    query: 'FollowUpWorklistQuery',
+    tool: 'scheduling_follow_up_worklist',
+    description:
+      'Follow-up work items: open recall tasks, unbooked requests and requests whose booking was lost, each with reason, owner, due time and next action. Treatment, lab and referral follow-up are listed as not covered (C11, C16, C17).',
+    invoke: (svc, actor, i) => data(svc.followUpWorklist(actor, i.body)),
+  },
 ];
 
 /** The route contracts only (spread into ROUTES). */

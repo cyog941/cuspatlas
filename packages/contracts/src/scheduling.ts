@@ -746,6 +746,8 @@ export interface WorkItemListData {
   readonly asOf: string;
   readonly coverage: WorkCoverage;
   readonly count: number;
+  /** Areas the list cannot cover yet (producer not deployed), reported rather than shown as empty. */
+  readonly notCovered?: readonly { readonly area: string; readonly owner: string; readonly reason: string }[];
   readonly items: readonly WorkItem[];
 }
 
@@ -842,3 +844,37 @@ export const validateRecoveryListQuery = def('RecoveryListQuery');
 export const validateRecoveryExecute = def('RecoveryExecute');
 export const validateStandingPolicyGrant = def('StandingPolicyGrant');
 export const validateStandingPolicyRevoke = def('StandingPolicyRevoke');
+
+/** S16 recall policy and due computation (ADR 0009 S-D7 pending approval). */
+export type RecallBasis = 'attended_visit' | 'completed_procedure';
+export interface RecallPolicyDefine {
+  readonly category: string;
+  readonly intervalMonths: number;
+  readonly basis: RecallBasis;
+  readonly appointmentTypeCodes?: readonly string[];
+  readonly excludeBooked?: boolean;
+}
+export interface RecallDueQuery {
+  readonly category: string;
+  readonly asOf?: string;
+  readonly locationRef?: string;
+}
+export interface RecallTaskCreate {
+  readonly patientRef: string;
+  readonly category: string;
+  readonly locationRef: string;
+  readonly expectedPolicyVersion: number;
+  readonly asOf?: string;
+}
+export interface RecallTaskResolve {
+  readonly expectedVersion: number;
+  readonly reasonCode: string;
+}
+export interface FollowUpWorklistQuery {
+  readonly locationRef?: string;
+}
+export const validateRecallPolicyDefine = def('RecallPolicyDefine');
+export const validateRecallDueQuery = def('RecallDueQuery');
+export const validateRecallTaskCreate = def('RecallTaskCreate');
+export const validateRecallTaskResolve = def('RecallTaskResolve');
+export const validateFollowUpWorklistQuery = def('FollowUpWorklistQuery');

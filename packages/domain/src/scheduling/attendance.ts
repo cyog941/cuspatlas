@@ -184,6 +184,17 @@ async function append(
   return id;
 }
 
+/** Derived attendance states of many appointments (S16 recall basis, S17 export). */
+export async function attendanceStatesOf(
+  tx: TenantTransaction,
+  appointmentIds: readonly string[],
+): Promise<Map<string, AttendanceState>> {
+  const rows = appointmentIds.length === 0 ? [] : await loadTransitions(tx, appointmentIds);
+  const out = new Map<string, AttendanceState>();
+  for (const id of appointmentIds) out.set(id, derive(rows.filter((r) => r.appointment_id === id)));
+  return out;
+}
+
 /** Derived attendance state of one appointment (S12 visit context, S16 recall basis). */
 export async function attendanceStateOf(
   tx: TenantTransaction,

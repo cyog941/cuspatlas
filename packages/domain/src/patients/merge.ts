@@ -166,6 +166,11 @@ export const MERGE_RECORD_CLASSES: readonly MergeRecordClass[] = [
 
 /** Foreign keys to patients that a merge deliberately does not move, with the reason. */
 export const MERGE_EXCLUDED_REFERENCES: readonly { table: string; column: string; why: string }[] = [
+  {
+    table: 'recall_tasks',
+    column: 'subject_patient_id',
+    why: 'a recall contact task stays with the identity it was created for; the follow-up worklist flags it (patient_merged) and recall is recomputed for the survivor',
+  },
   { table: 'patients', column: 'merged_into', why: 'the merge link itself' },
   {
     table: 'patient_status_history',

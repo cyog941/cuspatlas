@@ -80,6 +80,9 @@ export const EXTENDED_SCHEDULING_OPERATIONS: readonly string[] = [
   'scheduling.recovery.execute',
   'scheduling.standingPolicies.grant',
   'scheduling.standingPolicies.revoke',
+  'scheduling.recall.definePolicy',
+  'scheduling.recall.createTask',
+  'scheduling.recall.resolveTask',
 ];
 
 export const EXTENDED_SCHEDULING_CODECS: Readonly<Record<string, ReplayCodec<unknown>>> = Object.fromEntries(

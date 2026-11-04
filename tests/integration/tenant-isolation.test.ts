@@ -126,6 +126,8 @@ describe('runtime database role', () => {
       'patient_status_history',
       'patients',
       'principals',
+      'recall_policies',
+      'recall_tasks',
       'scheduling_attendance_reasons',
       'scheduling_availability_versions',
       'scheduling_holds',

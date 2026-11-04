@@ -22,6 +22,7 @@ export const TRANSPORT: Record<string, string> = {
   offerRef: 'OfferRef',
   recoveryRef: 'RecoveryRef',
   policyRef: 'StandingPolicyRef',
+  recallTaskRef: 'RecallTaskRef',
 };
 
 /**

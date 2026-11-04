@@ -130,6 +130,15 @@ export const ACTION_POLICIES = {
   'scheduling.standingPolicies.grant': { scope: 'admin.configure', principals: ['human'] },
   'scheduling.standingPolicies.revoke': { scope: 'admin.configure', principals: ['human'] },
   'scheduling.standingPolicies.list': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  // S16 recall (ADR 0009 S-D7 pending): defining a policy is practice configuration; the due list is a
+  // read that produces no outreach; a contact task is an explicit scheduling command.
+  'scheduling.recall.definePolicy': { scope: 'admin.configure', principals: ['human', 'service'] },
+  'scheduling.recall.policies': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  'scheduling.recall.due': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  'scheduling.recall.createTask': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.recall.resolveTask': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  // PT-03 (S part): the follow-up worklist of recall tasks and unbooked or lost-booking requests.
+  'scheduling.followUp.worklist': { scope: 'scheduling.read', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

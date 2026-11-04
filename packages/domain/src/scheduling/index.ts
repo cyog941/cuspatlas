@@ -6,6 +6,7 @@ export * from './booking';
 export * from './codecs';
 export * from './cursor';
 export * from './notification-intent';
+export * from './recall';
 export * from './recurrence';
 export * from './requests';
 export * from './resources';

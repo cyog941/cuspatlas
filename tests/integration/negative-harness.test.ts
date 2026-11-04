@@ -744,6 +744,8 @@ export const COMMANDS: HarnessCommand[] = [
   },
   // S15 waitlist and PT-02 cancellation recovery with its standing policies.
   ...waitlistRows(),
+  // S16 recall and the PT-03 follow-up worklist.
+  ...recallRows(),
 ];
 
 const APPT = '/v1/scheduling/appointments';
@@ -1050,6 +1052,85 @@ function waitlistRows(): HarnessCommand[] {
       (f) => ({ policyRef: f.alphaPolicy }),
       200,
     ),
+  ];
+}
+
+/** S16 rows. The due row names a category only alpha defines, so another tenant gets 404. */
+function recallRows(): HarnessCommand[] {
+  const R = '/v1/scheduling/recall';
+  const taskBody = (f: HarnessFixture) => ({
+    patientRef: f.alphaCounterparty,
+    category: 'harness-recall',
+    locationRef: f.alphaLocation,
+    expectedPolicyVersion: 1,
+    asOf: '2031-01-01T12:00:00Z',
+  });
+  const define = { category: 'harness-define', intervalMonths: 6, basis: 'attended_visit' };
+  return [
+    {
+      operation: 'scheduling.recall.definePolicy',
+      tool: 'scheduling_recall_define_policy',
+      crossTenant: 'own_tenant_only',
+      downgradedTo: 'readOnly',
+      rest: () => ({ method: 'POST', url: `${R}/policies`, body: define, keyed: true, status: 201 }),
+      mcpArgs: () => ({ ...define, idempotencyKey: randomUUID() }),
+    },
+    {
+      operation: 'scheduling.recall.policies',
+      tool: 'scheduling_recall_policies',
+      crossTenant: 'tenant_own_data',
+      downgradedTo: 'noPatientScopes',
+      rest: () => ({ method: 'GET', url: `${R}/policies`, keyed: false, status: 200 }),
+      mcpArgs: () => ({}),
+    },
+    {
+      operation: 'scheduling.recall.due',
+      tool: 'scheduling_recall_due',
+      crossTenant: 'not_found',
+      downgradedTo: 'noPatientScopes',
+      rest: () => ({
+        method: 'GET',
+        url: `${R}/due?category=harness-recall&asOf=2031-01-01T12%3A00%3A00Z`,
+        keyed: false,
+        status: 200,
+      }),
+      mcpArgs: () => ({ category: 'harness-recall', asOf: '2031-01-01T12:00:00Z' }),
+    },
+    {
+      operation: 'scheduling.recall.createTask',
+      tool: 'scheduling_recall_create_task',
+      crossTenant: 'not_found',
+      downgradedTo: 'readOnly',
+      rest: (f) => ({ method: 'POST', url: `${R}/tasks`, body: taskBody(f), keyed: true, status: 201 }),
+      mcpArgs: (f) => ({ ...taskBody(f), idempotencyKey: randomUUID() }),
+    },
+    {
+      operation: 'scheduling.recall.resolveTask',
+      tool: 'scheduling_recall_resolve_task',
+      crossTenant: 'not_found',
+      downgradedTo: 'readOnly',
+      rest: (f) => ({
+        method: 'POST',
+        url: `${R}/tasks/${f.alphaRecallTask}/resolve`,
+        body: { expectedVersion: 1, reasonCode: 'patient_booked' },
+        keyed: true,
+        status: 200,
+      }),
+      mcpArgs: (f) => ({
+        recallTaskRef: f.alphaRecallTask,
+        expectedVersion: 1,
+        reasonCode: 'patient_booked',
+        idempotencyKey: randomUUID(),
+      }),
+    },
+    {
+      operation: 'scheduling.followUp.worklist',
+      tool: 'scheduling_follow_up_worklist',
+      crossTenant: 'tenant_own_data',
+      downgradedTo: 'noPatientScopes',
+      rest: () => ({ method: 'GET', url: '/v1/scheduling/follow-up/worklist', keyed: false, status: 200 }),
+      mcpArgs: () => ({}),
+    },
   ];
 }
 
@@ -1376,7 +1457,39 @@ beforeAll(async () => {
     expiresAt: SOON,
   });
   expect(policy.statusCode).toBe(201);
+  // S16: a recall policy, an attended visit of the counterparty and one open recall task.
+  expect(
+    (
+      await owner('/v1/scheduling/recall/policies', {
+        category: 'harness-recall',
+        intervalMonths: 6,
+        basis: 'attended_visit',
+      })
+    ).statusCode,
+  ).toBe(201);
+  const recallVisit = await owner('/v1/scheduling/appointments', {
+    patientRef: alphaCounterparty,
+    locationRef: alphaLocation,
+    ...slot('2030-02-04T14:00:00Z', '2030-02-04T15:00:00Z'),
+  });
+  expect(recallVisit.statusCode).toBe(201);
+  expect(
+    (
+      await owner(`/v1/scheduling/appointments/${recallVisit.json().data.appointmentRef}/attendance`, {
+        kind: 'arrived',
+      })
+    ).statusCode,
+  ).toBe(201);
+  const recallTask = await owner('/v1/scheduling/recall/tasks', {
+    patientRef: alphaCounterparty,
+    category: 'harness-recall',
+    locationRef: alphaLocation,
+    expectedPolicyVersion: 1,
+    asOf: '2031-01-01T12:00:00Z',
+  });
+  expect(recallTask.statusCode).toBe(201);
   fixture = {
+    alphaRecallTask: recallTask.json().data.recallTaskRef,
     alphaEntry: idleEntry.json().data.entryRef,
     alphaOffer: liveOffer.json().data.offerRef,
     alphaRecovery,
@@ -1515,6 +1628,8 @@ async function state(): Promise<string> {
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.waitlist_offers'),
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.cancellation_recoveries'),
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.scheduling_standing_policies'),
+    await q(`SELECT count(*)::int AS n FROM cuspatlas.recall_policies WHERE tenant_id = '${T_ALPHA}'`),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.recall_tasks'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.audit_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.outbox_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.command_idempotency'),

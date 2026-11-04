@@ -2390,6 +2390,193 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/scheduling/recall/policies:
+    post:
+      operationId: scheduling.recall.definePolicy
+      description: >-
+        Define (a new version of) the recall policy of a category: interval in months, basis, already-booked
+        exclusion (default on). The completed-procedure basis is refused until C14 exists.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/RecallPolicyDefine'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/RecallPolicyCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: scheduling.recall.policies
+      description: >-
+        List every recall policy version by category.
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/RecallPolicyList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/recall/due:
+    get:
+      operationId: scheduling.recall.due
+      description: >-
+        Compute the recall due list for a category at an as-of instant: due, excluded (with the reason) and
+        no-baseline patients, the policy version and freshness. Read-only; produces no outreach.
+      parameters:
+        - name: category
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/RecallCategory'
+        - name: asOf
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/Instant'
+        - name: locationRef
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/LocationRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/RecallDue'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/recall/tasks:
+    post:
+      operationId: scheduling.recall.createTask
+      description: >-
+        Create a recall contact task for a due patient (idempotent per patient and policy version) and
+        record a recall intent with channel none. Contact permission is the E6 decision.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/RecallTaskCreate'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/RecallTaskCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/recall/tasks/{recallTaskRef}/resolve:
+    post:
+      operationId: scheduling.recall.resolveTask
+      description: >-
+        Resolve a recall task with a reason (never deleted).
+      parameters:
+        - $ref: '#/components/parameters/RecallTaskRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/RecallTaskResolve'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/RecallTaskCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/follow-up/worklist:
+    get:
+      operationId: scheduling.followUp.worklist
+      description: >-
+        Follow-up work items: open recall tasks, unbooked requests and requests whose booking was lost, each
+        with reason, owner, due time and next action. Treatment, lab and referral follow-up are listed as
+        not covered (C11, C16, C17).
+      parameters:
+        - name: locationRef
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/LocationRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/WorkItemList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
 components:
   securitySchemes:
     bearer:
@@ -2397,6 +2584,12 @@ components:
       scheme: bearer
       bearerFormat: JWT (EdDSA; claims sub, tid, sid, iss, aud, exp, iat)
   parameters:
+    RecallTaskRef:
+      name: recallTaskRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/RecallTaskRef'
     PolicyRef:
       name: policyRef
       in: path

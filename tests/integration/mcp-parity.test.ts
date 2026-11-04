@@ -128,6 +128,13 @@ const TOOL_NAMES = [
   'scheduling_standing_policies_grant',
   'scheduling_standing_policies_list',
   'scheduling_standing_policies_revoke',
+  // S16 recall and the PT-03 follow-up worklist.
+  'scheduling_recall_define_policy',
+  'scheduling_recall_policies',
+  'scheduling_recall_due',
+  'scheduling_recall_create_task',
+  'scheduling_recall_resolve_task',
+  'scheduling_follow_up_worklist',
 ].sort();
 
 let db: TestDatabase;

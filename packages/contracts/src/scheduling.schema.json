@@ -3282,6 +3282,21 @@
               "minimum": 0,
               "description": "Total open items (at most 100 listed)."
             },
+            "notCovered": {
+              "type": "array",
+              "maxItems": 10,
+              "description": "Areas this list cannot cover yet (their producer is not deployed): reported, never shown as empty.",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["area", "owner", "reason"],
+                "properties": {
+                  "area": { "$ref": "#/$defs/ReasonCode" },
+                  "owner": { "type": "string", "pattern": "^[A-Z][A-Z0-9-]{0,15}$" },
+                  "reason": { "$ref": "#/$defs/ReasonCode" }
+                }
+              }
+            },
             "items": {
               "type": "array",
               "maxItems": 100,
@@ -4306,6 +4321,409 @@
               }
             }
           }
+        }
+      }
+    },
+    "RecallPolicyRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque recall policy version reference."
+    },
+    "RecallTaskRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque recall contact task reference."
+    },
+    "RecallCategory": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,39}$"
+    },
+    "RecallBasis": {
+      "enum": ["attended_visit", "completed_procedure"],
+      "description": "attended_visit is implemented (S11 attendance); completed_procedure is refused until C14 exists."
+    },
+    "RecallPolicyDefine": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "S16 recall policy (ADR 0009 S-D7 pending approval). Each definition of a category is a new version; no clinical interval is fixed by the product.",
+      "required": ["category", "intervalMonths", "basis"],
+      "properties": {
+        "category": {
+          "$ref": "#/$defs/RecallCategory"
+        },
+        "intervalMonths": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60
+        },
+        "basis": {
+          "$ref": "#/$defs/RecallBasis"
+        },
+        "appointmentTypeCodes": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/AppointmentTypeCode"
+          }
+        },
+        "excludeBooked": {
+          "type": "boolean",
+          "description": "Already-booked exclusion rule (default true)."
+        }
+      }
+    },
+    "RecallPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policyRef",
+        "category",
+        "version",
+        "intervalMonths",
+        "basis",
+        "appointmentTypeCodes",
+        "excludeBooked",
+        "createdAt"
+      ],
+      "properties": {
+        "policyRef": {
+          "$ref": "#/$defs/RecallPolicyRef"
+        },
+        "category": {
+          "$ref": "#/$defs/RecallCategory"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "intervalMonths": {
+          "type": "integer"
+        },
+        "basis": {
+          "const": "attended_visit"
+        },
+        "appointmentTypeCodes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AppointmentTypeCode"
+          }
+        },
+        "excludeBooked": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "RecallPolicyCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["policyRef", "category", "version"],
+          "properties": {
+            "policyRef": {
+              "$ref": "#/$defs/RecallPolicyRef"
+            },
+            "category": {
+              "$ref": "#/$defs/RecallCategory"
+            },
+            "version": {
+              "$ref": "#/$defs/Version"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "RecallPolicyList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "#/$defs/RecallPolicy"
+          }
+        }
+      }
+    },
+    "RecallDueQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["category"],
+      "properties": {
+        "category": {
+          "$ref": "#/$defs/RecallCategory"
+        },
+        "asOf": {
+          "$ref": "#/$defs/Instant"
+        },
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        }
+      }
+    },
+    "RecallDue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Read-only. Reproducible from stored state for the same as-of instant and policy version. Produces no outreach.",
+          "required": ["asOf", "policy", "freshness", "due", "excluded", "noBaseline", "counts"],
+          "properties": {
+            "asOf": {
+              "$ref": "#/$defs/Instant"
+            },
+            "policy": {
+              "$ref": "#/$defs/RecallPolicy"
+            },
+            "freshness": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["computedAt", "basis", "sourceAgeSeconds"],
+              "properties": {
+                "computedAt": {
+                  "$ref": "#/$defs/Instant"
+                },
+                "basis": {
+                  "const": "computed_from_stored_state"
+                },
+                "sourceAgeSeconds": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            },
+            "due": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "patientRef",
+                  "lastEventRef",
+                  "lastEventAt",
+                  "dueDate",
+                  "reason",
+                  "futureBookingRef",
+                  "exclusionNotApplied",
+                  "openTaskRef"
+                ],
+                "properties": {
+                  "patientRef": {
+                    "$ref": "#/$defs/PatientRef"
+                  },
+                  "lastEventRef": {
+                    "$ref": "#/$defs/AppointmentRef"
+                  },
+                  "lastEventAt": {
+                    "$ref": "#/$defs/Instant"
+                  },
+                  "dueDate": {
+                    "$ref": "#/$defs/LocalDate"
+                  },
+                  "reason": {
+                    "const": "interval_elapsed"
+                  },
+                  "futureBookingRef": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/AppointmentRef"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "exclusionNotApplied": {
+                    "anyOf": [
+                      {
+                        "const": "already_booked"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "openTaskRef": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/RecallTaskRef"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "excluded": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["patientRef", "reason"],
+                "properties": {
+                  "patientRef": {
+                    "$ref": "#/$defs/PatientRef"
+                  },
+                  "reason": {
+                    "enum": ["already_booked", "patient_deceased", "patient_inactive"]
+                  }
+                }
+              }
+            },
+            "noBaseline": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["patientRef"],
+                "properties": {
+                  "patientRef": {
+                    "$ref": "#/$defs/PatientRef"
+                  }
+                }
+              },
+              "description": "Patients with no qualifying event: listed separately, never counted as overdue."
+            },
+            "counts": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["due", "excluded", "noBaseline"],
+              "properties": {
+                "due": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "excluded": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "noBaseline": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "RecallTaskCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["patientRef", "category", "locationRef", "expectedPolicyVersion"],
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "category": {
+          "$ref": "#/$defs/RecallCategory"
+        },
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "expectedPolicyVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "asOf": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "RecallTaskResolve": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "reasonCode"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "RecallTaskCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["recallTaskRef", "state", "created", "policyVersion", "dueDate", "intentRef"],
+          "properties": {
+            "recallTaskRef": {
+              "$ref": "#/$defs/RecallTaskRef"
+            },
+            "state": {
+              "enum": ["open", "resolved"]
+            },
+            "created": {
+              "type": "boolean"
+            },
+            "policyVersion": {
+              "$ref": "#/$defs/Version"
+            },
+            "dueDate": {
+              "$ref": "#/$defs/LocalDate"
+            },
+            "intentRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/IntentRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "FollowUpWorklistQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
         }
       }
     }

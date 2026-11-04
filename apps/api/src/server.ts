@@ -1,5 +1,6 @@
 import {
   assertSyntheticDatabaseName,
+  createLocalObjectStore,
   createMembershipSource,
   createSecurityAttemptSink,
   createTenantTransactionRunner,
@@ -36,6 +37,13 @@ export async function startServer(env: NodeJS.ProcessEnv): Promise<FastifyInstan
     tenantTransactions: createTenantTransactionRunner(appPool),
     ...(env.CUSPATLAS_MATCH_KEY_PEPPER
       ? { matchKeyPepper: new Uint8Array(Buffer.from(env.CUSPATLAS_MATCH_KEY_PEPPER, 'base64')) }
+      : {}),
+    ...(env.CUSPATLAS_IMAGING_TOKEN_SECRET
+      ? { imagingTokenSecret: new Uint8Array(Buffer.from(env.CUSPATLAS_IMAGING_TOKEN_SECRET, 'base64')) }
+      : {}),
+    // I1: the local adapter is synthetic only (refused under production); I-D1 picks the managed store.
+    ...(env.CUSPATLAS_OBJECT_STORE_DIR
+      ? { objectStore: createLocalObjectStore({ root: env.CUSPATLAS_OBJECT_STORE_DIR, env: runtimeEnv }) }
       : {}),
   });
   app.addHook('onClose', async () => {

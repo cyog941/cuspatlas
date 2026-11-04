@@ -137,6 +137,12 @@ const TOOL_NAMES = [
   'scheduling_follow_up_worklist',
   // S17 export.
   'scheduling_export',
+  // I imaging tools (derived from IMAGING_OPS; parity in imaging-negative-harness). No byte tool.
+  'imaging_objects_list',
+  'imaging_objects_get',
+  'imaging_objects_grant_read',
+  'imaging_objects_revoke_grant',
+  'imaging_storage_reconcile',
 ].sort();
 
 let db: TestDatabase;

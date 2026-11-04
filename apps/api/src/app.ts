@@ -1,16 +1,25 @@
 import { randomUUID } from 'node:crypto';
-import type { MembershipSource, SecurityAttemptSink, WithTenantTransaction } from '@cuspatlas/contracts';
+import type {
+  MalwareScannerPort,
+  MembershipSource,
+  ObjectStorePort,
+  SecurityAttemptSink,
+  WithTenantTransaction,
+} from '@cuspatlas/contracts';
 import {
   type AttemptRecordingDeps,
   type CommandExecutor,
   type CursorCodec,
   createAppointmentService,
   createAuthorize,
+  createImagingService,
   createPatientService,
   createProposalService,
   createSchedulingResourceService,
   createSyntheticTaskService,
   executeOnce,
+  type ImagingLimits,
+  resolveImagingTokenSecret,
   resolveMatchKeyPepper,
 } from '@cuspatlas/domain';
 import Fastify, {
@@ -26,6 +35,7 @@ import {
   registerAttendanceRoutes,
   registerBookingRoutes,
 } from './routes/appointments';
+import { registerImagingRoutes } from './routes/imaging-routes';
 import { registerPatientRoutes } from './routes/patients';
 import { registerProposalRoutes } from './routes/proposals';
 import { registerSchedulingRoutes } from './routes/scheduling';
@@ -59,6 +69,13 @@ export interface AppDeps {
   readonly proposalPolicyVersion?: string;
   /** Match-key pepper (CUSPATLAS_MATCH_KEY_PEPPER); optional only under synthetic-test. */
   readonly matchKeyPepper?: Uint8Array;
+  /** I1: private object store (synthetic local adapter in tests); absent = every byte path is 503. */
+  readonly objectStore?: ObjectStorePort;
+  /** I2: malware scanner; absent = every verdict is unknown, so nothing becomes available. */
+  readonly scanner?: MalwareScannerPort;
+  /** I1 read-grant secret (CUSPATLAS_IMAGING_TOKEN_SECRET); optional only under synthetic-test. */
+  readonly imagingTokenSecret?: Uint8Array;
+  readonly imagingLimits?: ImagingLimits;
 }
 
 function sendRefusal(request: FastifyRequest, reply: FastifyReply, err: unknown): FastifyReply {
@@ -188,6 +205,23 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       registerBookingRoutes(app, { authenticator, appointments });
       registerAttendanceRoutes(app, { authenticator, appointments });
       registerSchedulingOpRoutes(app, { authenticator, appointments });
+      const imaging = createImagingService({
+        authorize,
+        withTenantTransaction: deps.tenantTransactions,
+        recording,
+        execute: deps.execute ?? executeOnce,
+        tokenSecret: resolveImagingTokenSecret(deps.env, deps.imagingTokenSecret),
+        matchKeyPepper: resolveMatchKeyPepper(deps.env, deps.matchKeyPepper),
+        ...(deps.objectStore ? { objectStore: deps.objectStore } : {}),
+        ...(deps.scanner ? { scanner: deps.scanner } : {}),
+        ...(deps.imagingLimits ? { limits: deps.imagingLimits } : {}),
+        alert: (code) => app.log.error({ alert: code }, 'imaging alert'),
+      });
+      registerImagingRoutes(app, {
+        authenticator,
+        imaging,
+        maxObjectBytes: deps.imagingLimits?.maxObjectBytes ?? 32 * 1024 * 1024,
+      });
     }
   }
 

@@ -1,0 +1,273 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cuspatlas.invalid/schemas/imaging/v1",
+  "title": "Imaging contract v1 (I1-I4, I8; synthetic data only, no device or DICOM qualified)",
+  "$defs": {
+    "IdempotencyKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$"
+    },
+    "Version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "EntityRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "ObjectRef": {
+      "$ref": "#/$defs/EntityRef",
+      "description": "Opaque image object reference (an original or a derived object). Never a storage path."
+    },
+    "GrantRef": {
+      "$ref": "#/$defs/EntityRef",
+      "description": "Opaque reference of a short-lived read grant."
+    },
+    "PatientRef": {
+      "$ref": "#/$defs/EntityRef",
+      "description": "Opaque patient reference owned by workstream S."
+    },
+    "Instant": {
+      "type": "string",
+      "description": "RFC 3339 instant with an explicit offset; stored and returned in UTC.",
+      "format": "date-time",
+      "maxLength": 40
+    },
+    "ReasonCode": {
+      "type": "string",
+      "pattern": "^[a-z_]{1,64}$",
+      "description": "Server-checked reason enumeration value; never free text."
+    },
+    "TimeZone": {
+      "type": "string",
+      "description": "IANA time zone name. The server also requires its zone database to know it.",
+      "maxLength": 64,
+      "pattern": "^(UTC|[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+){1,2})$"
+    },
+    "Sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Lower-case hex SHA-256 of the exact object bytes."
+    },
+    "ContentType": {
+      "enum": ["image/png", "image/jpeg", "image/tiff", "application/pdf", "application/dicom"],
+      "description": "Accepted media types. The server sniffs magic bytes and never trusts a declared type or file extension. application/dicom is stored opaquely (I5 deferred; no parsing)."
+    },
+    "ObjectState": {
+      "enum": ["available", "quarantined", "deleted"],
+      "description": "available: verified and servable; quarantined: retained for investigation, never served; deleted: tombstone, bytes removed."
+    },
+    "ObjectKind": {
+      "enum": ["original", "derived"]
+    },
+    "ProvenanceSource": {
+      "enum": ["operatorUpload", "bridgeImport", "migrationArchive"]
+    },
+    "OriginalFilename": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^/\\\\\\u0000-\\u001f\\u007f]+$",
+      "description": "Display name supplied by the uploader. Never used as a storage path; separators, control characters and dot-only names are refused."
+    },
+    "DeviceRef": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,64}$",
+      "description": "Placeholder device identifier (no device is qualified; I-S1)."
+    },
+    "CaptureSoftware": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,64}$",
+      "description": "Placeholder acquisition-software code (no acquisition software is qualified; I-S1)."
+    },
+    "ProvenanceInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source"],
+      "description": "Recorded once per ingress and never rewritten. The uploader is the authenticated actor, never a body field.",
+      "properties": {
+        "source": { "$ref": "#/$defs/ProvenanceSource" },
+        "deviceRef": { "$ref": "#/$defs/DeviceRef" },
+        "captureSoftware": { "$ref": "#/$defs/CaptureSoftware" },
+        "originalFilename": { "$ref": "#/$defs/OriginalFilename" },
+        "acquiredAt": { "$ref": "#/$defs/Instant" },
+        "acquiredTimeZone": { "$ref": "#/$defs/TimeZone" }
+      }
+    },
+    "Provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provenanceRef",
+        "source",
+        "operatorRef",
+        "deviceRef",
+        "captureSoftware",
+        "originalFilename",
+        "acquiredAt",
+        "acquiredTimeZone",
+        "ingressRef",
+        "recordedAt"
+      ],
+      "properties": {
+        "provenanceRef": { "$ref": "#/$defs/EntityRef" },
+        "source": { "$ref": "#/$defs/ProvenanceSource" },
+        "operatorRef": { "$ref": "#/$defs/EntityRef" },
+        "deviceRef": { "anyOf": [{ "$ref": "#/$defs/DeviceRef" }, { "type": "null" }] },
+        "captureSoftware": { "anyOf": [{ "$ref": "#/$defs/CaptureSoftware" }, { "type": "null" }] },
+        "originalFilename": { "anyOf": [{ "$ref": "#/$defs/OriginalFilename" }, { "type": "null" }] },
+        "acquiredAt": { "anyOf": [{ "$ref": "#/$defs/Instant" }, { "type": "null" }] },
+        "acquiredTimeZone": { "anyOf": [{ "$ref": "#/$defs/TimeZone" }, { "type": "null" }] },
+        "ingressRef": { "anyOf": [{ "$ref": "#/$defs/EntityRef" }, { "type": "null" }] },
+        "recordedAt": { "$ref": "#/$defs/Instant" }
+      }
+    },
+    "ImageObject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "objectRef",
+        "kind",
+        "state",
+        "contentType",
+        "byteLength",
+        "digestSha256",
+        "receivedAt",
+        "quarantineReason",
+        "version",
+        "provenance"
+      ],
+      "description": "Object metadata. The storage key is internal and never returned; bytes are read only through a short-lived read grant on REST.",
+      "properties": {
+        "objectRef": { "$ref": "#/$defs/ObjectRef" },
+        "kind": { "$ref": "#/$defs/ObjectKind" },
+        "state": { "$ref": "#/$defs/ObjectState" },
+        "contentType": { "$ref": "#/$defs/ContentType" },
+        "byteLength": { "type": "integer", "minimum": 1 },
+        "digestSha256": { "$ref": "#/$defs/Sha256" },
+        "receivedAt": { "$ref": "#/$defs/Instant" },
+        "quarantineReason": { "anyOf": [{ "$ref": "#/$defs/ReasonCode" }, { "type": "null" }] },
+        "version": { "$ref": "#/$defs/Version" },
+        "provenance": {
+          "type": "array",
+          "maxItems": 50,
+          "items": { "$ref": "#/$defs/Provenance" }
+        }
+      }
+    },
+    "ImageObjectRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": { "data": { "$ref": "#/$defs/ImageObject" } }
+    },
+    "ObjectListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "state": { "$ref": "#/$defs/ObjectState" },
+        "limit": { "type": "string", "pattern": "^([1-9]|[1-9][0-9]|100)$" }
+      }
+    },
+    "ImageObjectList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/ImageObject" } }
+      }
+    },
+    "ReadGrantRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ttlSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 300,
+          "description": "Grant lifetime; default 60 s, at most 300 s."
+        }
+      }
+    },
+    "ReadGrant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["grantRef", "objectRef", "token", "expiresAt", "contentPath"],
+      "properties": {
+        "grantRef": { "$ref": "#/$defs/GrantRef" },
+        "objectRef": { "$ref": "#/$defs/ObjectRef" },
+        "token": {
+          "type": "string",
+          "pattern": "^v1\\.[0-9a-f-]{36}\\.[0-9]{10}\\.[A-Za-z0-9_-]{43}$",
+          "description": "HMAC token bound to tenant, principal, object, grant and expiry. Sent in the x-object-read-token header with the caller's own bearer token; useless to any other principal. Never logged."
+        },
+        "expiresAt": { "$ref": "#/$defs/Instant" },
+        "contentPath": { "type": "string", "maxLength": 120 }
+      }
+    },
+    "ReadGrantResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": { "data": { "$ref": "#/$defs/ReadGrant" } }
+    },
+    "ReadGrantRevoke": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "ReadGrantCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["grantRef", "objectRef", "state"],
+          "properties": {
+            "grantRef": { "$ref": "#/$defs/GrantRef" },
+            "objectRef": { "$ref": "#/$defs/ObjectRef" },
+            "state": { "enum": ["revoked"] }
+          }
+        },
+        "version": { "$ref": "#/$defs/Version" },
+        "correlationId": { "type": "string", "format": "uuid" },
+        "replayed": { "type": "boolean" }
+      }
+    },
+    "ObjectBytes": {
+      "type": "string",
+      "description": "Raw object bytes (application/octet-stream on the wire). REST only; MCP never carries bytes."
+    },
+    "StorageReconcile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "StorageReconcileResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["checked", "quarantined", "tombstoned", "abandonedIngress", "bytesRemoved", "more"],
+          "properties": {
+            "checked": { "type": "integer", "minimum": 0 },
+            "quarantined": { "type": "integer", "minimum": 0 },
+            "tombstoned": { "type": "integer", "minimum": 0 },
+            "abandonedIngress": { "type": "integer", "minimum": 0 },
+            "bytesRemoved": { "type": "integer", "minimum": 0 },
+            "more": { "type": "boolean" }
+          }
+        },
+        "version": { "$ref": "#/$defs/Version" },
+        "correlationId": { "type": "string", "format": "uuid" },
+        "replayed": { "type": "boolean" }
+      }
+    }
+  }
+}

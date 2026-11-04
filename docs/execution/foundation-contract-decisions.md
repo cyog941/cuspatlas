@@ -298,3 +298,13 @@ Additions only; no frozen row changed. Synthetic data only. Policy items come fr
 - Every occupancy-writing path (S7 time blocks included) releases expired holds on its resources before checking; a 23P01 conflict list is never empty.
 - Patient conflicts name merged, deceased or inactive state only to callers holding `patients.read`; others get `patient_unavailable` with a generic explanation.
 - Hold ownership decision: any member with `scheduling.write` at a visible location may convert or release a hold; a waitlist offer hold only through `scheduling.waitlist.respond`.
+
+## Task record: I1 private object storage boundary (workstream I batch 1, 2026-11-11)
+
+Additions only; no frozen row changed. Decisions are recommended-pending-approval in docs/execution/imaging-progress.md.
+
+- Object bytes live behind `ObjectStorePort` (contracts `imaging.ts`): tenant-scoped, content-addressed by SHA-256 inside the tenant prefix, no listing and no URL; verified against the registered digest on every read. The synthetic local adapter (`packages/db/src/object-store-local.ts`) is refused under `production`.
+- Route contract extension (same commit): `RouteContract.requestMedia` and `success.media` (only `application/octet-stream`) for the REST-only byte transports; the drift check resolves request and response refs under that media type. Schema prefix `imaging:` (`imaging.schema.json`, which copies `Version` and `IdempotencyKey` byte-identically). MCP never carries bytes.
+- Read grants: HMAC tokens (`CUSPATLAS_IMAGING_TOKEN_SECRET`; the test-only secret only under synthetic-test) bound to tenant, principal, object, grant and expiry (at most 300 s), sent in `x-object-read-token` with the caller's own bearer token and checked against a revocable grant row. Issuance is not keyed (a fresh grant per call; no token reaches `command_idempotency`). A missing secret outside synthetic-test disables grants (typed 503) instead of refusing startup.
+- Security reason codes added: `imaging_refused` (any imaging refusal without a specific reason), `object_token_invalid`, `object_integrity_failed`, `upload_gated`. Imaging commands and byte reads record every typed refusal (not only denials); metadata reads record denials.
+- Fixed alert lines: `imaging_object_integrity_failed`, `imaging_object_store_unavailable`, `imaging_token_secret_missing`.

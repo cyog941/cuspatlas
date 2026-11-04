@@ -2,6 +2,7 @@ export * from './backup';
 export * from './idempotency-maintenance';
 export * from './identity';
 export * from './migrate';
+export * from './object-store-local';
 export * from './outbox';
 export * from './restore';
 export * from './scheduling-import';

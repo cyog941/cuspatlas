@@ -74,6 +74,8 @@ Registered by workstream S (2026-11-04, synthetic implementation; decisions pend
 
 Registered by workstream S scheduling (2026-11-05, synthetic implementation; decisions pending approval in ADR 0009): `scheduling.read` (every scheduling read, availability search, and seeing which booking or hold blocks a slot) and `scheduling.override` (human only: an audited override of overrideable booking conflicts; resource overlap is never overrideable). `scheduling.write` covers requests, holds, booking, rescheduling and cancellation.
 
+Registered by workstream I imaging (2026-11-11, synthetic implementation; decisions pending approval in docs/execution/imaging-progress.md): `imaging.read` (object metadata, worklists, short-lived read grants and verified byte reads), `imaging.write` (ingress, mounts, annotations, derived images, revoking another principal's read grant), `imaging.associate` (human only: patient match candidates, association and correction), `imaging.delete` (human only: deletion requests and execution) and `imaging.legalHold` (human only: placing and releasing legal holds). Retention policy and the storage integrity sweep use `admin.configure`.
+
 Camel-case scope names (`receivables.read` written as `receivablesRead`) are a defect. A scope used in any plan must appear in the registry; a plan that needs a new scope adds it there first.
 
 ### Relationship scopes

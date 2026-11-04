@@ -146,6 +146,11 @@ export const SECURITY_REASON_CODES = [
   // S10: every booking, hold, reschedule and cancel refusal leaves an attempt row with its reason.
   'booking_conflict',
   'booking_refused',
+  // I (imaging): every imaging refusal leaves an attempt row; integrity and grant failures are named.
+  'imaging_refused',
+  'object_token_invalid',
+  'object_integrity_failed',
+  'upload_gated',
 ] as const;
 export type SecurityReasonCode = (typeof SECURITY_REASON_CODES)[number];
 

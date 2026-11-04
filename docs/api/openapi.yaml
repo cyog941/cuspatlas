@@ -2597,6 +2597,212 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  # --- imaging (generated from IMAGING_OPS by scripts/gen-imaging-openapi.ts) ---
+  /v1/imaging/objects:
+    get:
+      operationId: imaging.objects.list
+      description: >-
+        List image objects (newest first, at most 100), optionally by state. Metadata and provenance only;
+        never bytes or storage paths.
+      parameters:
+        - name: state
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectState'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectListQuery/properties/limit'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ImageObjectList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/objects/{objectRef}:
+    get:
+      operationId: imaging.objects.read
+      description: >-
+        Read one image object: state, media type, length, SHA-256 digest, provenance and (once decided) its
+        patient association. Another tenant's object is indistinguishable from a missing one.
+      parameters:
+        - name: objectRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ImageObjectRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/objects/{objectRef}/read-grants:
+    post:
+      operationId: imaging.objects.grantRead
+      description: >-
+        Issue a short-lived read grant (default 60 s, at most 300 s) bound to the caller, the object and the
+        expiry. The bytes are fetched on REST with the caller's own bearer token plus the grant token; the
+        grant is useless to anyone else.
+      parameters:
+        - name: objectRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectRef'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ReadGrantRequest'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ReadGrantResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/read-grants/{grantRef}/revoke:
+    post:
+      operationId: imaging.objects.revokeGrant
+      description: >-
+        Revoke a read grant (its holder, or a member who may write imaging records). Takes effect at once.
+      parameters:
+        - name: grantRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/GrantRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ReadGrantRevoke'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ReadGrantCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/objects/{objectRef}/content:
+    get:
+      operationId: imaging.objects.content
+      description: >-
+        The object bytes, verified against the registered digest on every read. Requires the caller's bearer
+        token and a live read grant in the x-object-read-token header. REST only.
+      parameters:
+        - name: objectRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectRef'
+        - name: x-object-read-token
+          in: header
+          required: true
+          description: Read-grant token from imaging.objects.grantRead; never logged.
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ReadGrant/properties/token'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/octet-stream:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectBytes'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/storage/reconcile:
+    post:
+      operationId: imaging.storage.reconcile
+      description: >-
+        Integrity sweep: verify stored bytes of available objects against their digest and quarantine
+        missing or altered ones (bounded per run).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/StorageReconcile'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/StorageReconcileResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  # --- end imaging ---
 components:
   securitySchemes:
     bearer:

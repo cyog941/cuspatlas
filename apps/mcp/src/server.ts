@@ -16,7 +16,9 @@ import {
 import {
   type ActorContext,
   type DomainRefusal,
+  type MalwareScannerPort,
   type MembershipSource,
+  type ObjectStorePort,
   REFUSAL_HTTP_STATUS,
   RefusalError,
   type SecurityAttemptSink,
@@ -28,11 +30,14 @@ import {
   type CursorCodec,
   createAppointmentService,
   createAuthorize,
+  createImagingService,
   createPatientService,
   createProposalService,
   createSchedulingResourceService,
   createSyntheticTaskService,
   executeOnce,
+  type ImagingLimits,
+  resolveImagingTokenSecret,
   resolveMatchKeyPepper,
 } from '@cuspatlas/domain';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -45,6 +50,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { assertDistinctAudience, assertIdentityAllowed, createMcpAuthenticator } from './auth';
 import { APPOINTMENT_TOOLS } from './tools/appointments';
+import { IMAGING_TOOLS } from './tools/imaging-ops';
 import { PATIENT_TOOLS } from './tools/patients';
 import { PROPOSAL_TOOLS } from './tools/proposals';
 import { SCHEDULING_TOOLS } from './tools/scheduling';
@@ -105,6 +111,12 @@ export interface McpServerDeps {
    * names and the host of `resourceMetadataUrl`; anything else is refused with 421 (DNS rebinding).
    */
   readonly allowedHosts?: readonly string[];
+  /** I imaging: object store (metadata tools work without it; byte-touching commands are 503). */
+  readonly objectStore?: ObjectStorePort;
+  readonly scanner?: MalwareScannerPort;
+  /** I1 read-grant secret; optional only under synthetic-test. */
+  readonly imagingTokenSecret?: Uint8Array;
+  readonly imagingLimits?: ImagingLimits;
 }
 
 export interface McpServerHandle {
@@ -124,6 +136,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   ...SCHEDULING_TOOLS,
   ...APPOINTMENT_TOOLS,
   ...SCHEDULING_OP_TOOLS,
+  ...IMAGING_TOOLS,
 ];
 
 /** Path parameters of the REST twin. A malformed one is a 404 there, decided by the domain. */
@@ -147,6 +160,9 @@ const REF_PARAMS = [
   'recoveryRef',
   'policyRef',
   'recallTaskRef',
+  // I imaging path parameters.
+  'objectRef',
+  'grantRef',
 ] as const;
 const PLACEHOLDER_REF = '00000000-0000-4000-8000-000000000000';
 
@@ -251,7 +267,28 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     recording,
     execute: deps.execute ?? executeOnce,
   });
-  const toolDeps: ToolDeps = { service, proposals, patients, scheduling, appointments, authorize, recording };
+  const imaging = createImagingService({
+    authorize,
+    withTenantTransaction: deps.tenantTransactions,
+    recording,
+    execute: deps.execute ?? executeOnce,
+    tokenSecret: resolveImagingTokenSecret(deps.env, deps.imagingTokenSecret),
+    matchKeyPepper: resolveMatchKeyPepper(deps.env, deps.matchKeyPepper),
+    ...(deps.objectStore ? { objectStore: deps.objectStore } : {}),
+    ...(deps.scanner ? { scanner: deps.scanner } : {}),
+    ...(deps.imagingLimits ? { limits: deps.imagingLimits } : {}),
+    alert: (code) => write({ level: 'error', msg: 'imaging alert', alert: code }),
+  });
+  const toolDeps: ToolDeps = {
+    service,
+    proposals,
+    patients,
+    scheduling,
+    appointments,
+    imaging,
+    authorize,
+    recording,
+  };
   const allowedOrigins = new Set(deps.allowedOrigins ?? []);
   if (deps.env !== 'synthetic-test' && !deps.resourceMetadataUrl) {
     throw new Error('Refusing to start: resourceMetadataUrl must be configured outside synthetic-test');

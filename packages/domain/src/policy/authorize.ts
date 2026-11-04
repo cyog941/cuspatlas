@@ -141,6 +141,16 @@ export const ACTION_POLICIES = {
   'scheduling.followUp.worklist': { scope: 'scheduling.read', principals: ['human', 'service'] },
   // S17 minimal scheduling export: a tenant-wide human administrator only (sensitive-read logged).
   'scheduling.export': { scope: 'admin.configure', principals: ['human'] },
+  // I1 imaging objects (workstream I, synthetic; scope decisions pending approval). Metadata reads and
+  // short-lived read grants need imaging.read; bytes are read only with a grant (REST only).
+  'imaging.objects.read': { scope: 'imaging.read', principals: ['human', 'service'] },
+  'imaging.objects.list': { scope: 'imaging.read', principals: ['human', 'service'] },
+  'imaging.objects.grantRead': { scope: 'imaging.read', principals: ['human', 'service'] },
+  'imaging.objects.content': { scope: 'imaging.read', principals: ['human', 'service'] },
+  'imaging.objects.revokeGrant': { scope: 'imaging.read', principals: ['human', 'service'] },
+  // Capability probe: revoking another principal's grant needs imaging.write.
+  'imaging.grants.revokeAny': { scope: 'imaging.write', principals: ['human', 'service'] },
+  'imaging.storage.reconcile': { scope: 'admin.configure', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

@@ -1,4 +1,5 @@
 import { APPOINTMENT_ROUTES } from './appointment-manifest';
+import { IMAGING_OP_ROUTES } from './imaging-ops';
 import { SCHEDULING_OP_ROUTES } from './scheduling-ops';
 
 /**
@@ -17,7 +18,14 @@ export interface RouteContract {
    * local `#/components/schemas/<name>`.
    */
   readonly requestBody?: string;
-  readonly success: { readonly status: '200' | '201'; readonly schema: string };
+  /** I addition: a non-JSON request body media type (binary upload); default application/json. */
+  readonly requestMedia?: 'application/octet-stream';
+  readonly success: {
+    readonly status: '200' | '201';
+    readonly schema: string;
+    /** I addition: a non-JSON success media type (object bytes); default application/json. */
+    readonly media?: 'application/octet-stream';
+  };
   /** Documented refusal statuses (all use the shared Refusal schema). */
   readonly refusals: readonly string[];
 }
@@ -26,6 +34,7 @@ export const SCHEMA_FILE = 'synthetic-task.schema.json';
 export const PROPOSAL_SCHEMA_FILE = 'action-proposal.schema.json';
 export const PATIENT_SCHEMA_FILE = 'patient.schema.json';
 export const SCHEDULING_SCHEMA_FILE = 'scheduling.schema.json';
+export const IMAGING_SCHEMA_FILE = 'imaging.schema.json';
 
 export const ROUTES: readonly RouteContract[] = [
   {
@@ -328,6 +337,7 @@ export const ROUTES: readonly RouteContract[] = [
   },
   ...APPOINTMENT_ROUTES,
   ...SCHEDULING_OP_ROUTES,
+  ...IMAGING_OP_ROUTES,
 ];
 
 export function routeFor(operationId: string): RouteContract & { fastifyPath: string } {

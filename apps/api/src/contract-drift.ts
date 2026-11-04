@@ -2,7 +2,9 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { REFUSAL_CODES } from '@cuspatlas/contracts';
 import { parse } from 'yaml';
+import { IMAGING_OPS } from './routes/imaging-ops';
 import {
+  IMAGING_SCHEMA_FILE,
   PATIENT_SCHEMA_FILE,
   PROPOSAL_SCHEMA_FILE,
   ROUTES,
@@ -17,6 +19,7 @@ export interface ContractSources {
   readonly proposalSchemaText: string;
   readonly patientSchemaText: string;
   readonly schedulingSchemaText: string;
+  readonly imagingSchemaText: string;
 }
 
 export const OPENAPI_PATH = 'docs/api/openapi.yaml';
@@ -28,6 +31,8 @@ export const PATIENT_SCHEMA_PATH = `packages/contracts/src/${PATIENT_SCHEMA_FILE
 const PATIENT_REF_PREFIX = `../../${PATIENT_SCHEMA_PATH}#`;
 export const SCHEDULING_SCHEMA_PATH = `packages/contracts/src/${SCHEDULING_SCHEMA_FILE}`;
 const SCHEDULING_REF_PREFIX = `../../${SCHEDULING_SCHEMA_PATH}#`;
+export const IMAGING_SCHEMA_PATH = `packages/contracts/src/${IMAGING_SCHEMA_FILE}`;
+const IMAGING_REF_PREFIX = `../../${IMAGING_SCHEMA_PATH}#`;
 
 export function loadContractSources(root: string): ContractSources {
   return {
@@ -36,6 +41,7 @@ export function loadContractSources(root: string): ContractSources {
     proposalSchemaText: readFileSync(resolve(root, PROPOSAL_SCHEMA_PATH), 'utf8'),
     patientSchemaText: readFileSync(resolve(root, PATIENT_SCHEMA_PATH), 'utf8'),
     schedulingSchemaText: readFileSync(resolve(root, SCHEDULING_SCHEMA_PATH), 'utf8'),
+    imagingSchemaText: readFileSync(resolve(root, IMAGING_SCHEMA_PATH), 'utf8'),
   };
 }
 
@@ -73,7 +79,9 @@ const schemaRef = (name: string) =>
         ? `${PATIENT_REF_PREFIX}/$defs/${name.slice('patient:'.length)}`
         : name.startsWith('scheduling:')
           ? `${SCHEDULING_REF_PREFIX}/$defs/${name.slice('scheduling:'.length)}`
-          : `${SCHEMA_REF_PREFIX}/$defs/${name}`;
+          : name.startsWith('imaging:')
+            ? `${IMAGING_REF_PREFIX}/$defs/${name.slice('imaging:'.length)}`
+            : `${SCHEMA_REF_PREFIX}/$defs/${name}`;
 
 /** Definitions the scheduling contract copies from the task contract; they must stay byte-identical. */
 const SCHEDULING_SHARED_DEFS = ['LocationRef', 'Version', 'IdempotencyKey'] as const;
@@ -111,6 +119,11 @@ const SCHEDULING_BODIES = [
   'WorklistQuery',
 ] as const;
 
+/** Definitions the imaging contract copies from the task contract; byte-identical too (I). */
+const IMAGING_SHARED_DEFS = ['Version', 'IdempotencyKey'] as const;
+/** JSON pointer segment of a media type. */
+const mediaKey = (media: string | undefined) => (media ?? 'application/json').replace('/', '~1');
+
 /** Definitions the proposal contract copies from the task contract; they must stay byte-identical. */
 const SHARED_DEFS = ['TaskRef', 'LocationRef', 'Label', 'Version', 'IdempotencyKey'] as const;
 /** Definitions the patient contract copies from the task contract (S4); byte-identical too. */
@@ -143,12 +156,14 @@ export function checkContractDrift(src: ContractSources): string[] {
   let proposal: Json;
   let patient: Json;
   let scheduling: Json;
+  let imaging: Json;
   try {
     api = parse(src.openapiText) as Json;
     schema = JSON.parse(src.schemaText) as Json;
     proposal = JSON.parse(src.proposalSchemaText) as Json;
     patient = JSON.parse(src.patientSchemaText) as Json;
     scheduling = JSON.parse(src.schedulingSchemaText) as Json;
+    imaging = JSON.parse(src.imagingSchemaText) as Json;
   } catch {
     return ['OpenAPI or JSON Schema does not parse'];
   }
@@ -157,6 +172,10 @@ export function checkContractDrift(src: ContractSources): string[] {
     if (ref.startsWith(SCHEDULING_REF_PREFIX)) {
       if (pointer(scheduling, ref.slice(SCHEDULING_REF_PREFIX.length)) === undefined) {
         problems.push(`OpenAPI $ref does not resolve in ${SCHEDULING_SCHEMA_FILE}: ${ref}`);
+      }
+    } else if (ref.startsWith(IMAGING_REF_PREFIX)) {
+      if (pointer(imaging, ref.slice(IMAGING_REF_PREFIX.length)) === undefined) {
+        problems.push(`OpenAPI $ref does not resolve in ${IMAGING_SCHEMA_FILE}: ${ref}`);
       }
     } else if (ref.startsWith(SCHEMA_REF_PREFIX)) {
       if (pointer(schema, ref.slice(SCHEMA_REF_PREFIX.length)) === undefined) {
@@ -200,15 +219,21 @@ export function checkContractDrift(src: ContractSources): string[] {
       problems.push(`Service implements ${route.operationId} but OpenAPI does not document it`);
       continue;
     }
-    const reqRef = pointer(op, '/requestBody/content/application~1json/schema/$ref');
+    const reqRef = pointer(op, `/requestBody/content/${mediaKey(route.requestMedia)}/schema/$ref`);
     if (route.requestBody !== undefined && reqRef !== schemaRef(route.requestBody)) {
       problems.push(`${route.operationId}: request body must reference ${schemaRef(route.requestBody)}`);
     }
-    if (route.requestBody === undefined && op.requestBody !== undefined) {
+    if (route.requestMedia !== undefined && reqRef === undefined) {
+      problems.push(`${route.operationId}: request body must be documented as ${route.requestMedia}`);
+    }
+    if (route.requestBody === undefined && route.requestMedia === undefined && op.requestBody !== undefined) {
       problems.push(`${route.operationId}: OpenAPI documents a request body the service does not accept`);
     }
     const responses = isObj(op.responses) ? op.responses : {};
-    const okRef = pointer(responses, `/${route.success.status}/content/application~1json/schema/$ref`);
+    const okRef = pointer(
+      responses,
+      `/${route.success.status}/content/${mediaKey(route.success.media)}/schema/$ref`,
+    );
     if (okRef !== schemaRef(route.success.schema)) {
       problems.push(
         `${route.operationId}: ${route.success.status} must reference ${schemaRef(route.success.schema)}`,
@@ -295,6 +320,22 @@ export function checkContractDrift(src: ContractSources): string[] {
   for (const name of ['ResourceListQuery', 'LocationListQuery']) {
     if (pointer(sdef(name), '/properties/limit/pattern') !== '^([1-9]|[1-9][0-9]|100)$') {
       problems.push(`${name}.limit must be bounded to 1..100`);
+    }
+  }
+  // I: every imaging request body and GET query is a closed object; shared definitions stay identical.
+  const idef = (name: string) => pointer(imaging, `/$defs/${name}`);
+  const imagingBodies = IMAGING_OPS.flatMap((o) => [
+    ...(o.requestBody && !o.requestMedia ? [o.requestBody.replace('imaging:', '')] : []),
+    ...(o.query ? [o.query] : []),
+  ]);
+  for (const name of imagingBodies) {
+    if (pointer(idef(name), '/additionalProperties') !== false) {
+      problems.push(`${name} must set additionalProperties: false`);
+    }
+  }
+  for (const name of IMAGING_SHARED_DEFS) {
+    if (JSON.stringify(idef(name)) !== JSON.stringify(def(name))) {
+      problems.push(`${IMAGING_SCHEMA_FILE} ${name} differs from ${SCHEMA_FILE}`);
     }
   }
   const codes = pointer(def('Refusal'), '/properties/code/enum');

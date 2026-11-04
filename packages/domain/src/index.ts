@@ -7,6 +7,7 @@ export * from './commands/replay-codecs';
 export * from './cursor';
 export * from './events/record-command';
 export * from './events/record-sensitive-read';
+export * from './imaging';
 export * from './integrations/adapter';
 export * from './patients';
 export * from './policy/authorize';

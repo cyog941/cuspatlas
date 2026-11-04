@@ -472,6 +472,19 @@ export const ROWS: ImagingHarnessRow[] = [
     }),
     mcpArgs: (x) => ({ deletionRef: x.deletion, idempotencyKey: randomUUID() }),
   },
+  // I5 DICOM boundary.
+  {
+    operation: 'imaging.containers.inspect',
+    crossTenant: 'not_found',
+    downgradedTo: 'noImagingScopes',
+    rest: (x) => ({
+      method: 'GET',
+      url: `/v1/imaging/objects/${x.object}/container`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (x) => ({ objectRef: x.object }),
+  },
 ];
 
 beforeAll(async () => {

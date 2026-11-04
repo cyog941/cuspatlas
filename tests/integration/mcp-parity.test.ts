@@ -168,6 +168,7 @@ const TOOL_NAMES = [
   'imaging_deletions_request',
   'imaging_deletions_evaluate',
   'imaging_deletions_execute',
+  'imaging_containers_inspect',
 ].sort();
 
 let db: TestDatabase;

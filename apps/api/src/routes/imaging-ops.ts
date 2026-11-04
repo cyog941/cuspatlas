@@ -467,6 +467,19 @@ export const IMAGING_OPS: readonly ImagingOp[] = [
     invoke: (svc, actor, i) =>
       svc.executeDeletion(actor, param(i, 'deletionRef'), env('imaging.deletions.execute', i)),
   },
+  // I5 DICOM boundary (I-S2 blocked-on-discovery): recognition only; parsing is refused.
+  {
+    method: 'get',
+    path: `${OBJ}/container`,
+    operationId: 'imaging.containers.inspect',
+    protected: true,
+    success: { status: '200', schema: I('ContainerInspection') },
+    refusals: ['401', '403', '404', '409', '503'],
+    tool: 'imaging_containers_inspect',
+    description:
+      'Container inspection of an available object: whether its verified bytes carry the DICOM marker. Parsing is refused (I-S2 conformance and parser licensing are blocked-on-discovery): no summary, identifier or element is ever extracted and the original is stored opaquely.',
+    invoke: (svc, actor, i) => data(svc.inspectContainer(actor, param(i, 'objectRef'))),
+  },
 ];
 
 /** The route contracts only (spread into ROUTES). */

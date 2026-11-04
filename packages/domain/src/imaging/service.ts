@@ -6,6 +6,7 @@ import {
   mountGuard,
   sourceOfDerived,
 } from './composition';
+import { createDicomOperations } from './dicom';
 import { createIngressOperations, sweepAbandonedIngress } from './ingress';
 import { createObjectOperations } from './objects';
 import { createRetentionOperations, reconcileDeletions } from './retention';
@@ -26,6 +27,7 @@ export function createImagingService(deps: ImagingDeps) {
     ...createAssociationOperations(base, [mountGuard], deps.limits?.unmatchedEscalationHours ?? 48),
     ...createCompositionOperations(base),
     ...createRetentionOperations(base),
+    ...createDicomOperations(base),
   };
 }
 

@@ -184,6 +184,8 @@ export const ACTION_POLICIES = {
   'imaging.deletions.request': { scope: 'imaging.delete', principals: ['human'] },
   'imaging.deletions.evaluate': { scope: 'imaging.read', principals: ['human', 'service'] },
   'imaging.deletions.execute': { scope: 'imaging.delete', principals: ['human'] },
+  // I5 DICOM boundary: recognition and the pinned parsing refusal (I-S2 blocked); a metadata read.
+  'imaging.containers.inspect': { scope: 'imaging.read', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

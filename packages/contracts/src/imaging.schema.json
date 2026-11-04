@@ -1288,6 +1288,40 @@
         }
       }
     },
+    "ContainerInspection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "description": "I5 DICOM boundary (I-S2 blocked-on-discovery): marker recognition and the pinned parsing refusal. Never a summary, identifier or element.",
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "objectRef",
+            "digestSha256",
+            "container",
+            "markerRecognized",
+            "supported",
+            "parsing",
+            "limitation",
+            "blockedOn",
+            "summary"
+          ],
+          "properties": {
+            "objectRef": { "$ref": "#/$defs/ObjectRef" },
+            "digestSha256": { "$ref": "#/$defs/Sha256" },
+            "container": { "enum": ["dicom", "none"] },
+            "markerRecognized": { "type": "boolean" },
+            "supported": { "const": false },
+            "parsing": { "const": "refused" },
+            "limitation": { "enum": ["dicom_parser_not_qualified", "not_a_container"] },
+            "blockedOn": { "const": "I-S2" },
+            "summary": { "type": "null" }
+          }
+        }
+      }
+    },
     "ImageRefRead": {
       "type": "object",
       "additionalProperties": false,

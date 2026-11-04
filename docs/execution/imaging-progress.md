@@ -149,6 +149,20 @@ Migration `20261111050000_imaging_review_hardening.sql`, tests `tests/integratio
 - Red: `corepack pnpm test -- imaging-review-hardening` → exit 1, 8 failed (8), each for the reviewed defect (deletion 200 under a racing hold; direct deleted transition `ok`; derived hold request 201; bytes `removed`; same objectRef; relink `ok`; 200 without expectedPatientRef; 500 on the repaired ingest). Two expectations were corrected after red, before green (a completion answers 201; an unassociated read is `{status:'unassociated'}`; a missing required query is 400).
 - Green: `corepack pnpm test -- imaging-review-hardening` → exit 0, 8 passed; `corepack pnpm test -- imaging patient-merge` → exit 0, 8 files, 174 passed; `corepack pnpm run ci` → exit 0, 49 files, 1129 passed + 13 todo.
 
+## I5 DICOM boundary (batch 2)
+
+Design (I-S2 conformance and parser licensing stay **blocked-on-discovery**; I-D3 implemented as "opaque storage only", recommended-pending-approval):
+
+- Recognition only: `application/dicom` is accepted by the I2 ingress when the verified bytes carry `DICM` at offset 128; the original is stored opaquely like any other object (same digest, dedupe, provenance, retention and hold rules).
+- Parsing is refused and pinned: `DICOM_BOUNDARY` (`packages/domain/src/imaging/dicom.ts`, frozen) names `parsing: refused`, `limitation: dicom_parser_not_qualified`, `blockedOn: I-S2`, `networkServices: out_of_scope`. No parser port implementation, library or summary record exists; therefore no element, identifier, transfer syntax, external reference or element length is ever read (the plan's parser-budget, external-reference and identifier-disagreement cases cannot arise and are tested as such).
+- Operation `imaging.containers.inspect` (`imaging.read`; REST `GET /v1/imaging/objects/{objectRef}/container`, MCP `imaging_containers_inspect`): verified bytes (a digest mismatch quarantines like the I1 read), marker recognition and the refusal; `summary` is always null; sensitive-read logged.
+- A future parser lands only after I-S2 closes, behind a reviewed port, storing each parse as its own versioned record next to the untouched original.
+
+Acceptance cases (`tests/integration/imaging-dicom.test.ts`, 8 tests, synthetic containers generated in `tests/integration/support/dicom-fixtures.ts`): the boundary constant is pinned and frozen; a container with a marker patient name and identifier is stored and downloaded byte-identical and inspects as refused, with the marker absent from responses, every record table and the logs; malformed and absurd-length containers store and inspect the same way; an external reference is never echoed; identifiers inside a container never propose a candidate or override an association; same digest for one patient deduplicates, another patient is a separate object; the marker at the wrong offset is quarantined `content_type_unrecognized` and PNG bytes declared DICOM `content_type_mismatch`; a PNG inspects as `none`, another tenant is 404, MCP returns the same result. Negative harness row added.
+
+- Red: `corepack pnpm test -- imaging-dicom` → exit 1, 5 failed, 3 passed. The 3 that passed pin existing I2/I3 behaviour (no association from container bytes, I2 dedupe of containers, wrong-offset quarantine) and could not be seen red honestly.
+- Green: `corepack pnpm test -- imaging-dicom imaging-negative mcp-parity tool-drift` → exit 0, 5 files, 298 passed; `corepack pnpm run ci` → exit 0, 50 files, 1140 passed + 13 todo.
+
 ## Seams for later tasks
 
 - C15 (encounter image links): store only the `imageRef`; resolve it with `imageReference(tx, imageRef, expectedPatientRef)` (in-process, inside the caller's tenant transaction) or `GET /v1/imaging/image-refs/{imageRef}?expectedPatientRef=`; refuse to show or rely on an image when `matchesExpected` is false or `objectState` is not `available`. C defines no matching, `matchStatus` or correction of its own.

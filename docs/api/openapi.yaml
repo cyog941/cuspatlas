@@ -3657,6 +3657,36 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/imaging/objects/{objectRef}/container:
+    get:
+      operationId: imaging.containers.inspect
+      description: >-
+        Container inspection of an available object: whether its verified bytes carry the DICOM marker.
+        Parsing is refused (I-S2 conformance and parser licensing are blocked-on-discovery): no summary,
+        identifier or element is ever extracted and the original is stored opaquely.
+      parameters:
+        - name: objectRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ContainerInspection'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   # --- end imaging ---
 components:
   securitySchemes:

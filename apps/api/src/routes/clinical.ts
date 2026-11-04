@@ -76,4 +76,48 @@ export function registerClinicalRoutes(
   mount('clinical.history.attestReview', (r) =>
     c.attestHistoryReview(requireActor(r), param(r, 'encounterRef'), env('clinical.history.attestReview', r)),
   );
+  mount('clinical.noteTemplates.define', (r) =>
+    c.defineNoteTemplate(requireActor(r), env('clinical.noteTemplates.define', r)),
+  );
+  mount('clinical.noteTemplates.read', async (r) => ({
+    data: await c.readNoteTemplate(requireActor(r), param(r, 'templateRef')),
+  }));
+  mount('clinical.noteTemplates.revise', (r) =>
+    c.reviseNoteTemplate(requireActor(r), param(r, 'templateRef'), env('clinical.noteTemplates.revise', r)),
+  );
+  mount('clinical.noteTemplates.retire', (r) =>
+    c.retireNoteTemplate(requireActor(r), param(r, 'templateRef'), env('clinical.noteTemplates.retire', r)),
+  );
+  mount('clinical.noteTemplates.readVersion', async (r) => ({
+    data: await c.readNoteTemplateVersion(requireActor(r), param(r, 'templateVersionRef')),
+  }));
+  mount('clinical.noteTemplates.applicable', async (r) => ({
+    data: await c.listApplicableTemplates(requireActor(r), param(r, 'encounterRef'), {
+      ...(r.query as object),
+    }),
+  }));
+  mount('clinical.notes.createDraft', (r) =>
+    c.createNoteDraft(requireActor(r), param(r, 'encounterRef'), env('clinical.notes.createDraft', r)),
+  );
+  mount('clinical.notes.list', async (r) => ({
+    data: await c.listNotes(requireActor(r), param(r, 'encounterRef')),
+  }));
+  mount('clinical.notes.read', async (r) => ({
+    data: await c.readNote(requireActor(r), param(r, 'noteRef')),
+  }));
+  mount('clinical.notes.updateDraft', (r) =>
+    c.updateNoteDraft(requireActor(r), param(r, 'noteRef'), env('clinical.notes.updateDraft', r)),
+  );
+  mount('clinical.notes.sign', (r) =>
+    c.signNote(requireActor(r), param(r, 'noteRef'), env('clinical.notes.sign', r)),
+  );
+  mount('clinical.notes.amend', (r) =>
+    c.amendNote(requireActor(r), param(r, 'noteRef'), env('clinical.notes.amend', r)),
+  );
+  mount('clinical.notes.addendum', (r) =>
+    c.addNoteAddendum(requireActor(r), param(r, 'noteRef'), env('clinical.notes.addendum', r)),
+  );
+  mount('clinical.notes.cosign', (r) =>
+    c.cosignNote(requireActor(r), param(r, 'noteRef'), env('clinical.notes.cosign', r)),
+  );
 }

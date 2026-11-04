@@ -151,6 +151,21 @@ export const CLINICAL_BODIES = [
   'PlanItemStateSet',
   'PlanDetailStateSet',
   'PlanVersionSupersede',
+  // C9 note templates.
+  'NoteTemplateDefine',
+  'NoteTemplateRevise',
+  'NoteTemplateRetire',
+  'NoteTemplateApplicableQuery',
+  'NoteTemplateSection',
+  // C10 notes.
+  'NoteDraftCreate',
+  'NoteDraftUpdate',
+  'NoteSign',
+  'NoteAmend',
+  'NoteAddendum',
+  'NoteCosign',
+  'NoteContent',
+  'NoteSectionEntry',
 ] as const;
 
 /** Definitions the proposal contract copies from the task contract; they must stay byte-identical. */

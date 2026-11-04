@@ -131,6 +131,27 @@ export const ACTION_POLICIES = {
   'clinical.treatmentPlans.supersede': { scope: 'clinical.write', principals: ['human'] },
   'clinical.treatmentPlans.read': { scope: 'clinical.read', principals: ['human', 'service'] },
   'clinical.treatmentPlans.list': { scope: 'clinical.read', principals: ['human', 'service'] },
+  // C9 progress-note templates (C-D4, recommended-pending-clinical-approval). Templates are practice
+  // configuration (human admin only); reads need clinical.read.
+  'clinical.noteTemplates.define': { scope: 'admin.configure', principals: ['human'] },
+  'clinical.noteTemplates.revise': { scope: 'admin.configure', principals: ['human'] },
+  'clinical.noteTemplates.retire': { scope: 'admin.configure', principals: ['human'] },
+  'clinical.noteTemplates.read': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.noteTemplates.readVersion': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.noteTemplates.applicable': { scope: 'clinical.read', principals: ['human', 'service'] },
+  // C10 notes (C-D4, C-D5 recommended-pending-clinical-approval). Signing, amendment and co-signature
+  // are human-only under clinical.sign; drafting and addenda need clinical.write; every write also
+  // needs a resolvable clinical author. Amending another clinician's signed note is checked as an
+  // additional capability of the amend caller (clinical.oversight), never as a separate operation.
+  'clinical.notes.createDraft': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.notes.updateDraft': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.notes.sign': { scope: 'clinical.sign', principals: ['human'] },
+  'clinical.notes.amend': { scope: 'clinical.sign', principals: ['human'] },
+  'clinical.notes.amendOthers': { scope: 'clinical.oversight', principals: ['human'] },
+  'clinical.notes.addendum': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.notes.cosign': { scope: 'clinical.sign', principals: ['human'] },
+  'clinical.notes.read': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.notes.list': { scope: 'clinical.read', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

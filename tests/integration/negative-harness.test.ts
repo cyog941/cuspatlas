@@ -16,6 +16,7 @@ import { seedClinicalScopes, seedDispositions, seedPerioConfiguration } from './
 import { openTestDatabase, type TestDatabase } from './support/db';
 import { seedTenancy, T_ALPHA, T_BETA, USER_A1, USER_A2, USER_A4, USER_B1 } from './support/fixtures';
 import { MARKER } from './support/marker';
+import { seedNoteScopes } from './support/note-fixtures';
 import { patientBody, seedPatientScopes, USER_A5 } from './support/patient-fixtures';
 import { seedSchedulingScopes } from './support/scheduling-fixtures';
 import { createTestTokenIssuer, TEST_AUDIENCE, type TestTokenIssuer } from './support/test-token-issuer';
@@ -1182,6 +1183,226 @@ export const COMMANDS: HarnessCommand[] = [
       idempotencyKey: randomUUID(),
     }),
   },
+  // C9 progress-note templates (workstream C).
+  {
+    operation: 'clinical.noteTemplates.define',
+    tool: 'clinical_note_templates_define',
+    crossTenant: 'own_tenant_only',
+    downgradedTo: 'readOnly',
+    rest: () => ({
+      method: 'POST',
+      url: '/v1/clinical/note-templates',
+      body: templateBody(),
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: () => ({ ...templateBody(), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'clinical.noteTemplates.revise',
+    tool: 'clinical_note_templates_revise',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/note-templates/${f.alphaTemplate}/versions`,
+      body: { expectedVersion: 1, enforced: false, sections: TEMPLATE_SECTIONS },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      templateRef: f.alphaTemplate,
+      expectedVersion: 1,
+      enforced: false,
+      sections: TEMPLATE_SECTIONS,
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.noteTemplates.retire',
+    tool: 'clinical_note_templates_retire',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/note-templates/${f.alphaTemplate}/retire`,
+      body: { expectedVersion: 1, reasonCode: 'superseded' },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({
+      templateRef: f.alphaTemplate,
+      expectedVersion: 1,
+      reasonCode: 'superseded',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.noteTemplates.read',
+    tool: 'clinical_note_templates_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/note-templates/${f.alphaTemplate}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ templateRef: f.alphaTemplate }),
+  },
+  {
+    operation: 'clinical.noteTemplates.readVersion',
+    tool: 'clinical_note_templates_get_version',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/note-template-versions/${f.alphaTemplateVersion}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ templateVersionRef: f.alphaTemplateVersion }),
+  },
+  {
+    operation: 'clinical.noteTemplates.applicable',
+    tool: 'clinical_note_templates_applicable',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/encounters/${f.alphaEncounter}/note-templates?procedureCodeRefs=SYN-PROC-001`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ encounterRef: f.alphaEncounter, procedureCodeRefs: 'SYN-PROC-001' }),
+  },
+  // C10 notes: drafting, signing, amendment, addendum and co-signature (workstream C).
+  {
+    operation: 'clinical.notes.createDraft',
+    tool: 'clinical_notes_create_draft',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/encounters/${f.alphaEncounter}/notes`,
+      body: noteBody(),
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({ encounterRef: f.alphaEncounter, ...noteBody(), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'clinical.notes.list',
+    tool: 'clinical_notes_list',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/encounters/${f.alphaEncounter}/notes`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ encounterRef: f.alphaEncounter }),
+  },
+  {
+    operation: 'clinical.notes.read',
+    tool: 'clinical_notes_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/notes/${f.alphaSignedNote}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ noteRef: f.alphaSignedNote }),
+  },
+  {
+    operation: 'clinical.notes.updateDraft',
+    tool: 'clinical_notes_update_draft',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/notes/${f.alphaNote}/draft`,
+      body: { expectedVersion: 1, content: NOTE_CONTENT },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({
+      noteRef: f.alphaNote,
+      ...{ expectedVersion: 1, content: NOTE_CONTENT },
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.notes.sign',
+    tool: 'clinical_notes_sign',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/notes/${f.alphaNote}/sign`,
+      body: { expectedVersion: 1 },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ noteRef: f.alphaNote, ...{ expectedVersion: 1 }, idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'clinical.notes.amend',
+    tool: 'clinical_notes_amend',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/notes/${f.alphaSignedNote}/amendments`,
+      body: { expectedVersion: 2, reasonCode: 'correction', content: NOTE_CONTENT },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      noteRef: f.alphaSignedNote,
+      ...{ expectedVersion: 2, reasonCode: 'correction', content: NOTE_CONTENT },
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.notes.addendum',
+    tool: 'clinical_notes_add_addendum',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/notes/${f.alphaSignedNote}/addenda`,
+      body: { expectedVersion: 2, reasonCode: 'clarification', text: `Synthetic ${MARKER}` },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      noteRef: f.alphaSignedNote,
+      ...{ expectedVersion: 2, reasonCode: 'clarification', text: `Synthetic ${MARKER}` },
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.notes.cosign',
+    tool: 'clinical_notes_cosign',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/notes/${f.alphaSignedNote}/cosignatures`,
+      body: { sequence: 1, contentDigest: f.alphaSignedDigest },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      noteRef: f.alphaSignedNote,
+      ...{ sequence: 1, contentDigest: f.alphaSignedDigest },
+      idempotencyKey: randomUUID(),
+    }),
+  },
 ];
 
 function perioBody(f: HarnessFixture) {
@@ -1217,6 +1438,26 @@ function chartBody(f: HarnessFixture) {
     kind: 'condition',
     findingRef: 'SYN-HARNESS-002',
     detailText: `Synthetic ${MARKER}`,
+  };
+}
+
+const NOTE_CONTENT = {
+  sections: [{ sectionKey: 'subjective', text: `Synthetic ${MARKER}` }],
+  procedureCodeRefs: [],
+};
+function noteBody() {
+  return { noteType: 'progress', content: NOTE_CONTENT };
+}
+
+const TEMPLATE_SECTIONS = [{ sectionKey: 'subjective', label: 'Synthetic subjective', required: true }];
+/** A fresh label per call: a second active template with the same type and label is refused. */
+function templateBody() {
+  return {
+    noteType: 'progress',
+    label: `Synthetic harness template ${randomUUID()}`,
+    enforced: true,
+    sections: TEMPLATE_SECTIONS,
+    procedureCodeRefs: ['SYN-PROC-001'],
   };
 }
 
@@ -1301,6 +1542,7 @@ beforeAll(async () => {
   await seedPatientScopes(db.admin);
   await seedSchedulingScopes(db.admin);
   await seedClinicalScopes(db.admin);
+  await seedNoteScopes(db.admin);
   await seedDispositions(db.admin, T_ALPHA, ['completed_as_planned']);
   await seedPerioConfiguration(db.admin, T_ALPHA);
   await seedPerioConfiguration(db.admin, T_BETA);
@@ -1526,6 +1768,30 @@ beforeAll(async () => {
     },
   );
   expect(planItem.statusCode).toBe(201);
+  // C9: one active alpha note template (version 1).
+  const template = await owner('/v1/clinical/note-templates', templateBody());
+  expect(template.statusCode).toBe(201);
+  // C10: one alpha draft (version 1) and one signed alpha note (version 2) at the alpha encounter.
+  const encounterRef = encounter.json().data.encounter.encounterRef;
+  const noteDraft = await owner(`/v1/clinical/encounters/${encounterRef}/notes`, {
+    noteType: 'progress',
+    content: {
+      sections: [{ sectionKey: 'subjective', text: 'Synthetic harness note' }],
+      procedureCodeRefs: [],
+    },
+  });
+  expect(noteDraft.statusCode).toBe(201);
+  const toSign = await owner(`/v1/clinical/encounters/${encounterRef}/notes`, {
+    noteType: 'progress',
+    content: {
+      sections: [{ sectionKey: 'subjective', text: 'Synthetic harness signed note' }],
+      procedureCodeRefs: [],
+    },
+  });
+  const signedNote = await owner(`/v1/clinical/notes/${toSign.json().data.noteRef}/sign`, {
+    expectedVersion: 1,
+  });
+  expect(signedNote.statusCode).toBe(200);
   fixture = {
     alphaPlan: plan.json().data.plan.planRef,
     alphaPlanVersion: planVersion,
@@ -1536,6 +1802,11 @@ beforeAll(async () => {
       (m: { measure: string; site: string | null }) => m.measure === 'probing_depth' && m.site === 'b',
     ).measurementRef,
     alphaChartEntry: chartEntry.json().data.entry.entryRef,
+    alphaNote: noteDraft.json().data.noteRef,
+    alphaSignedNote: signedNote.json().data.noteRef,
+    alphaSignedDigest: signedNote.json().data.versions[0].contentDigest,
+    alphaTemplate: template.json().data.templateRef,
+    alphaTemplateVersion: template.json().data.currentVersion.templateVersionRef,
     alphaHistoryVersion: recorded.header.historyVersionRef,
     alphaHistoryItem: recorded.changes[0].itemRef,
     alphaHistoryChange: recorded.changes[0].change.changeRef,
@@ -1685,6 +1956,12 @@ async function state(): Promise<string> {
     await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_plan_items'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_plan_item_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_plan_detail_events'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_note_templates'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_note_template_versions'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_notes'),
+    await q('SELECT json_agg(n.draft_sections ORDER BY n.id)::text AS d FROM cuspatlas.clinical_notes n'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_note_versions'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_note_cosignatures'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.audit_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.outbox_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.command_idempotency'),

@@ -121,6 +121,11 @@ describe('runtime database role', () => {
       'clinical_history_streams',
       'clinical_history_verifications',
       'clinical_history_versions',
+      'clinical_note_cosignatures',
+      'clinical_note_template_versions',
+      'clinical_note_templates',
+      'clinical_note_versions',
+      'clinical_notes',
       'clinical_perio_derivations',
       'clinical_perio_derived_values',
       'clinical_perio_exams',
@@ -223,6 +228,11 @@ describe('runtime database role', () => {
       'clinical_plan_items',
       'clinical_plan_detail_events',
       'clinical_plan_item_events',
+      'clinical_note_templates',
+      'clinical_note_template_versions',
+      'clinical_notes',
+      'clinical_note_versions',
+      'clinical_note_cosignatures',
     ]) {
       const { rows } = await db.app.query(`SELECT count(*)::int AS n FROM cuspatlas.${t}`);
       expect([t, rows[0].n]).toStrictEqual([t, 0]);

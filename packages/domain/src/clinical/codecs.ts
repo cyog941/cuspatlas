@@ -74,4 +74,15 @@ export const CLINICAL_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<Clinica
   'clinical.treatmentPlans.setItemState': refCodec('itemRef'),
   'clinical.treatmentPlans.setDetailState': refCodec('detailRef'),
   'clinical.treatmentPlans.supersede': refCodec('planVersionRef'),
+  // C9 note templates.
+  'clinical.noteTemplates.define': refCodec('templateRef'),
+  'clinical.noteTemplates.revise': refCodec('templateRef'),
+  'clinical.noteTemplates.retire': refCodec('templateRef'),
+  // C10 notes (the note projection, with every frozen version, is re-read on replay).
+  'clinical.notes.createDraft': refCodec('noteRef'),
+  'clinical.notes.updateDraft': refCodec('noteRef'),
+  'clinical.notes.sign': refCodec('noteRef'),
+  'clinical.notes.amend': refCodec('noteRef'),
+  'clinical.notes.addendum': refCodec('noteRef'),
+  'clinical.notes.cosign': refCodec('noteRef'),
 };

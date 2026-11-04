@@ -150,6 +150,8 @@ export const SECURITY_REASON_CODES = [
   'clinical_author_unresolved',
   // C5 hardening: two-person rule, nobody defines or changes their own clinical author profile.
   'clinical_author_self_definition',
+  // C10: amending another clinician's signed note without the clinical-oversight scope (C-D5).
+  'clinical_oversight_required',
 ] as const;
 export type SecurityReasonCode = (typeof SECURITY_REASON_CODES)[number];
 
@@ -197,6 +199,15 @@ export interface RefusalDetail {
    * its target no longer accepts it (for example a closed encounter). Server-authored only.
    */
   readonly alternative?: string;
+  /**
+   * C10 addition: what blocks signing under an enforced note template (C-D4): required section keys,
+   * synthetic procedure codes and unresolved section keys. Server-derived enumerations only.
+   */
+  readonly deficits?: {
+    readonly missingSections: readonly string[];
+    readonly missingCodeRefs: readonly string[];
+    readonly unresolvedSections: readonly string[];
+  };
 }
 
 export interface DomainRefusal {

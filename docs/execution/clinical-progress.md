@@ -16,6 +16,8 @@ Clinical semantics need dentist validation, which was not available. Per AGENTS.
 | C-S2 note signing decision record | recommended-pending-clinical-approval (no reviewer) | e4bcc6e | ADR 0006 |
 | C5 encounter and clinical authorship | verified on synthetic data (Windows host); semantics pending clinical approval | b0e6d6f | 703 tests |
 | C8 medical history, allergies, medications | verified on synthetic data (Windows host); semantics pending clinical approval | c16317f | 743 tests |
+| C9 note templates, enforcement, code association | verified on synthetic data (Windows host); semantics pending clinical approval | 4b914c1 | 782 tests on `codex/c-notes` |
+| C10 note drafting, signing, amendment, addendum, co-signature | verified on synthetic data (Windows host); semantics pending clinical approval; co-signature rule blocking | 8bb92b6 | 833 tests on `codex/c-notes` |
 
 ## Pending decisions (none decided)
 
@@ -277,3 +279,123 @@ Shared files touched: `packages/contracts/src/context.ts` (one reason code), `cl
 
 - `corepack pnpm run ci` at 2d93817 → exit 0: typecheck, lint, contract drift, 40 files / 902 tests passed, privacy scan ok, SBOM, evidence generated and verified (integrity and freshness only; controls unreviewed, not certified).
 - Status language: C6, C7 and C11 are tested on synthetic data on a Windows host. Nothing is approved, deployed, compliant or clinically validated; every clinical semantic is recommended-pending-clinical-approval or blocking (tables above). Branch `codex/c-chart` is not pushed; the orchestrator merges it with `codex/c-notes` (C9/C10) and `codex/scheduling-patients` (S12-S17). Expected merge-conflict points for the integrator: `clinical.schema.json` (sorted `$defs`), `clinical/service.ts`, `clinical/codecs.ts`, `clinical/index.ts`, `clinical/merge-probes.ts`, `policy/authorize.ts`, `patients/merge.ts`, `contract-drift.ts`, `apps/mcp/src/server.ts`, `tools/synthetic-tasks.ts`, `clinical-tool-drift.test.ts`, OpenAPI, the negative harness, tenant-isolation and mcp-parity inventories, `context.ts` (one reason code) and both ledgers.
+
+## Batch 2b (C9, C10) on `codex/c-notes`
+
+Folded from the former `docs/execution/clinical-progress-notes.md` at the batch 3 integration merge (the separate file is deleted).
+
+Branch: `codex/c-notes` in an isolated worktree outside the OneDrive-synced checkout. Base SHA: `58bb6b5` (C-S1, C-S2, C5, C8; 743 tests). Sibling worktrees build C6/C7/C11 (`codex/c-chart`) and S12-S17; folded into this ledger at the batch 3 integration merge. Status values: not started, in progress, blocked with cause, verified. Nothing is prechecked.
+
+Authorization basis: user instruction to build every backend workstream on synthetic data until only the UI phase remains. Scope of this branch: C9 and C10. No real patient data, no cloud connection, no host installs, no licensed terminology dataset.
+
+### Clinical-safety framing (batch 2b)
+
+Clinical semantics need dentist validation, which was not available. Everything here is a **synthetic engineering implementation** of the recommended options in [ADR 0006](../adr/0006-note-signing.md), each **recommended-pending-clinical-approval**, never decided or clinically validated:
+
+- **C-D4**: enforcement blocks **signing, not drafting**, until the named required sections and associated procedure codes are addressed; the refusal names the missing sections and codes.
+- **C-D5**: both addenda and amendments exist; amending **another clinician's** signed note needs an explicit clinical-oversight scope; an addendum is preferred for clarifying text. Both are append-only and audited.
+
+AI drafting is **not built** (A11 later): a draft may carry `source: 'human' | 'ai_draft'` provenance (with model and prompt version references) for future use, but nothing generates text, and only a named human clinician signs. Templates use synthetic content; codes are provisional `SYN-...` placeholders; no CDT or other licensed set. Nothing here is approved, deployed, compliant or clinically validated.
+
+### Batch 2b status
+
+| Task | Status | Head SHA | Notes |
+|---|---|---|---|
+| C9 note templates, enforcement, code association | verified on synthetic data (Windows host); semantics pending clinical approval | see commit log | 782 tests |
+| C10 note drafting, signing, amendment, addendum, co-signature | verified on synthetic data (Windows host); semantics pending clinical approval; co-signature rule blocking | see commit log | 833 tests |
+
+### Pending decisions added in batch 2b (none decided)
+
+| Id | Question | Recommendation used (source) | Status | Deciding role (pending) | Affects |
+|---|---|---|---|---|---|
+| C-D4 | What enforcement prevents, and where | ADR 0006: blocks signing (and amendment), not drafting | recommended-pending-clinical-approval | clinical lead / dentist reviewer | C9, C10 |
+| C-S2-Q1 | Required-section list per template type | none in the plan; synthetic sections only, configured per template | blocking for release | clinical lead / dentist reviewer | C9 templates |
+| C-S2-Q2 | How a code association is satisfied | none in the plan; engineering placeholder: a structured code entry on the note, never a text mention (the stricter reading) | blocking for release | clinical lead / dentist reviewer | `checkAgainstTemplate` |
+| C9-P1 | Who configures templates | practice configuration under `admin.configure`, human only | recommended-pending-clinical-approval | practice manager; clinical lead | define/revise/retire |
+| C9-P2 | Where applicability codes come from | caller-supplied SYN- codes until C11/C14 record encounter procedures | engineering seam | C11/C14 owners | applicable |
+| C9-P3 | Template retirement reasons | pattern-checked reason codes, no vocabulary | blocking for release | practice manager | retire |
+| C-D5 | Addenda and amendments; who amends another clinician's note | ADR 0006: both exist; another clinician's note needs `clinical.oversight`; addendum preferred | recommended-pending-clinical-approval | clinical lead / dentist reviewer | C10 amend/addendum |
+| C-S2-Q3 | Amendment and addendum command rules | ADR 0006: amend = `clinical.sign` and the signer or oversight; addendum = `clinical.write` and a clinical author; both append a version naming the version referenced | recommended-pending-clinical-approval | clinical lead | C10 |
+| C-S2-Q4 | Attestation wording shown at signing | none; no wording is shown or stored | blocking for user-facing release | compliance/records owner | C10 release |
+| C-S2-Q5 | Co-signature for any note class | none in the plan; engineering placeholder: a version frozen while the encounter has a supervising assignment records a pending co-signature; any other human with `clinical.sign` completes it (no resource-to-principal link exists to require the supervising provider) | blocking for release | clinical lead / dentist reviewer | C10 cosign |
+| C-S2-Q6 | Whether a model may author a signed note | ADR 0006: no; `ai_draft` provenance with model and prompt references, only a named human signs; nothing generates text (A11 later) | recommended-pending-clinical-approval | clinical lead | C10, A11 |
+| C10-P1 | Late signing | updating, signing, amending, addenda and co-signature allowed after the encounter closes; only a new draft needs an open encounter | recommended-pending-clinical-approval | clinical lead | C10 |
+| C10-P2 | Enforcement on amendments | the sign-time template check also gates amendments under an enforced template; addenda are not checked | recommended-pending-clinical-approval | clinical lead | C10 amend |
+| C10-P3 | Amendment and addendum reason vocabularies | pattern-checked reason codes, no vocabulary | blocking for release | clinical lead; compliance/records owner | C10 |
+| C10-P4 | History reference at signing | the head version of every C8 stream of the encounter patient (explicit `recorded: false` when none) | recommended-pending-clinical-approval | clinical lead | C10 |
+
+### Command log
+
+#### C9 (progress-note templates with per-template enforcement and code association)
+
+Acceptance cases (`tests/integration/clinical-note-templates.test.ts`, every denial under the runtime role `cuspatlas_app`; enforcement outcomes in `packages/domain/src/clinical/notes/template-check.test.ts`):
+
+1. an enforced template with an unaddressed required section (and a code mentioned only in text) yields a deficit list `{missingSections, missingCodeRefs, unresolvedSections}` with `blocksSigning: true` (unit); the blocked command is the C10 sign, exercised in the C10 tests;
+2. the same draft under a non-enforced template gives the same deficits with `blocksSigning: false`, recorded as a warning (unit);
+3. with `procedureCodeRefs=SYN-PROC-APPL-A` the associated template is offered with its matched code, a template with another code is not offered, a template with no code association appears only in `general`; without codes nothing is associated;
+4. a revision creates version 2; version 1 reads byte-identical before and after (including the code association removed in version 2; failure case 4); a stale `expectedVersion` is 409 with `currentVersion`; signed-note resolution of the old version is a C10 case;
+5. another tenant reading a template, a version or the applicability list of an alpha encounter, revising or retiring gets 404; the same type and label in beta is a separate template; codes are global synthetic placeholders, so "another tenant's code set" has no representation until a per-tenant procedure-code configuration exists (deviation, seam for C11/B);
+6. a retired template disappears from applicability, still reads (template and version), refuses revision and a second retirement (409 `template_retired`), and frees its type and label for a new active template.
+
+Failure cases: (1) a template retired while drafts pin it: C10 case; (2) unresolved sections are listed explicitly (unit: an empty draft lists every required section and code; a section the template does not define is `unresolvedSections`); (3) a second active template with the same type and case-insensitive label is 409 `template_exists` with `blockingRefs`, a different note type is allowed, and the partial unique index backs it under concurrency; (4) see case 4.
+
+Also: duplicate section keys are 422 `duplicateSection`; a body with `tenantId`, a non-`SYN-` code and duplicate codes are 400; a service principal (`principal_kind_denied`) and a read-only member (`scope_missing`) cannot define, each with an attempt row; the runtime role cannot update a version, delete a version or template, relabel or unretire a template (42501 by privilege or trigger), and the owner path (superuser pool) cannot rewrite a template version (append-only trigger); one audit row per define with resource type `clinicalNoteTemplate`; the marker in a section label and a template label never reaches logs, audit, outbox, attempts or idempotency rows; an MCP define replays a REST key, an MCP read equals the REST read, a cross-tenant MCP version read is 404, a malformed REST reference is 404.
+
+Negative harness: 6 rows appended (`clinical.noteTemplates.define|revise|retire|read|readVersion|applicable`), each cross-tenant, revoked and downgraded on REST and MCP, with the template tables in the unchanged-state snapshot. `define` is `own_tenant_only` (another tenant's admin defines in its own tenant).
+
+- Red: tests written first (integration file, unit file, harness rows, MCP tool list, tenant-isolation inventory) with no implementation; `corepack pnpm test -- clinical-note-templates template-check negative-harness mcp-parity tenant-isolation` → exit 1: 5 files failed (the unit file and the harness failed to load), 14 tests failed, 113 passed.
+- Green: the same command plus `clinical-tool-drift` → exit 0, 6 files, 340 passed.
+- Pre-commit: `corepack pnpm typecheck`, `npx biome check .`, `corepack pnpm run contract:check` exit 0; `corepack pnpm test` exit 0, 37 files, 782 tests (743 + 4 unit + 11 templates + 18 harness rows + 6 clinical tool drift).
+- One pre-existing C8 test was order-dependent: `clinical-history` case 2 destructured the changes of one version, which `versionDetail` orders by change id (random UUID), so it failed about half the time. The test now selects each change by its text; the C8 code is unchanged (flag for the integrator: a version's change order is not the submission order).
+
+Shared files touched (minimal, append-only): `packages/contracts/src/clinical.schema.json` (C9 definitions, title), `packages/contracts/src/index.ts` (one export line; new module `clinical-notes.ts`), `packages/domain/src/clinical/{codecs,service,index}.ts`, `packages/domain/src/policy/authorize.ts` (6 rows), `apps/api/src/routes/{clinical-manifest,clinical}.ts`, `apps/api/src/contract-drift.ts` (closed bodies), `apps/mcp/src/server.ts` and `tools/synthetic-tasks.ts` (path references), `apps/mcp/src/tools/clinical.ts`, `apps/mcp/src/clinical-tool-drift.test.ts`, `docs/api/openapi.yaml`, `docs/SHARED-CONTRACTS.md` (no new scope), `docs/execution/foundation-contract-decisions.md`, tests `negative-harness`, `tenant-isolation`, `mcp-parity`, `clinical-history` (order fix). New: `packages/domain/src/clinical/notes/{template-check,templates}.ts`, `tests/integration/support/note-fixtures.ts`.
+
+Deviations: one contract file (`clinical.schema.json`) instead of `note-template.schema.json`; tests at `tests/integration/clinical-note-templates.test.ts` (the integration project includes only `tests/integration/*.test.ts`); `validateAgainstTemplates` is the pure `checkAgainstTemplate` plus its use in C10 rather than a separate operation; `listApplicableTemplates` takes caller-supplied codes; template reads are not sensitive reads.
+
+#### C10 (note drafting, signing, amendment, addendum and co-signature)
+
+Acceptance cases (`tests/integration/clinical-notes.test.ts`, every denial under the runtime role):
+
+1. a draft is updated twice (versions 1 to 3); a stale update is 409 with `currentVersion`; signing freezes the original (sequence 1, signer, digest, `digestVerified: true`) and drops the draft; a later update is 409 `note_signed` with `alternative: clinical.notes.amend`; under the runtime role every rewrite of a frozen version (content, digest), a version delete, rewriting the signed draft, signed to draft, changing the encounter and deleting a note are 42501 (privilege or trigger), and the owner path (superuser pool) is refused by the triggers too;
+2. an amendment (reason required; 400 without) is sequence 2 referencing 1; the original stays byte-identical except `supersededBySequence: 2`; an addendum by a hygienist is sequence 3: a three-version chain with three distinct digests, each verifying; audit rows `createDraft, sign, amend, addendum`; the read validates against `NoteRead`;
+3. a draft pinned to an enforced template, missing a required section and an associated code (mentioned only in text), shows the deficits in its live `templateCheck`; signing is 409 `template_deficit` with `{missingSections: ['objective'], missingCodeRefs: ['SYN-PROC-001'], unresolvedSections: []}` and writes no version; the same content under a non-enforced template signs and records the check as a warning on the version; once the draft addresses the deficits it signs; an amendment that would reintroduce a deficit is refused at the same point. This is also the end-to-end C9 completion condition: one enforced and one non-enforced template give different outcomes on the same draft, and each signed note records the template version it was validated against;
+4. two concurrent signatures (two dentists) give one 200 and one 409 `note_signed` with `blockingRefs` and `alternative: clinical.notes.addendum`; one version row;
+5. an `ai_draft` records model and prompt references and keeps them after a human dentist signs; an AI draft without a prompt reference is 422 `aiDraftUnattributed`, a human draft with a model reference 422 `aiRefsOnlyForAiDraft`; a service principal can neither draft nor sign;
+6. a read-only member reads a draft but signing is 403; another tenant reading, listing, signing, amending and adding an addendum gets 404 and nothing is written;
+7. a dentist without `clinical.oversight` amending another dentist's note is 403 with `{reason: clinical_oversight_required, alternative: clinical.notes.addendum}` and an attempt row with that reason; the same dentist's addendum succeeds; a dentist with the oversight scope amends.
+
+Failure cases: (1) a retry with the same key after the signature was written replays (`replayed: true`) the same versions with one version row, and an MCP retry with that key replays too; (2) a draft pinned to version 1 of a template that is then revised and retired still signs against version 1 (`templateVersionRef` and `templateCheck` recorded), and that version still resolves unchanged (C9 case 4); a retired template is 409 `template_retired`, a superseded version 409 `template_version_superseded`, a type mismatch 422 `templateNoteTypeMismatch`; (3) two concurrent amendments give one 201 and one 409 `stale_version`, chain `[1, null], [2, 1]`; (4) the signed version names the C8 stream, version and `historyVersionRef` current at signing and keeps them after a later history change; a patient with no history signs with `recorded: false`.
+
+Also: at an encounter with a supervising assignment a hygienist's signed note records a pending co-signature naming the supervising resource; the author cannot co-sign (409 `cosigner_is_author`), a wrong digest is 409 `content_digest_mismatch`, a dentist co-signs (201, digest unchanged), a second co-signature is 409 `already_cosigned`, a note without the requirement is 409 `cosignature_not_required`; a closed encounter refuses a new draft (409 `encounter_closed`, `alternative: clinical.notes.addendum`) while an earlier draft still signs; the list validates against `NoteList`; an empty draft cannot be signed (409 `note_empty`); no `clinical_note*` table has a patient column or a foreign key to patients, a merge leaves every note and version row byte-identical, and the note reads under the survivor with a verifying digest; content altered with the append-only trigger disabled by a superuser reads `digestVerified: false` with the stored digest unchanged; the marker in section and addendum text (and in bodies refused for another tenant, a member without oversight and a read-only member) never reaches logs, audit, outbox, attempts, idempotency or sensitive-read rows, and reads and lists write sensitive-read rows; an MCP draft replays a REST key, MCP and REST reads are equal, a cross-tenant MCP sign is 404, MCP and REST template-deficit refusals carry the same detail. Unit (`packages/domain/src/clinical/notes/digest.test.ts`): a golden digest value pinned forever, key order irrelevant, any stated field changes it.
+
+Negative harness: 8 rows appended (`clinical.notes.createDraft|list|read|updateDraft|sign|amend|addendum|cosign`), each cross-tenant, revoked and downgraded on REST and MCP, with the note tables (counts, version sums and draft content) in the unchanged-state snapshot.
+
+- Red: the integration file, harness rows, MCP tool list and tenant-isolation inventory written before any C10 code; `corepack pnpm test -- clinical-notes negative-harness mcp-parity tenant-isolation` → exit 1: 4 files failed, 20 tests failed, 113 passed (the harness setup failed, so its rows were skipped). Honest note: the digest unit test was written after `digest.ts` (its golden value comes from the implementation); it is a regression pin, not a red-first test.
+- The first green run found a real fault: a co-signature reused the note's audit resource version (audit rows are unique per resource version) and returned 500 `internal_error`; the co-signature is now its own audited resource (`clinicalNoteCosignature`). Then `corepack pnpm test -- clinical-notes digest negative-harness mcp-parity tenant-isolation clinical-tool-drift` → exit 0, 7 files, 378 passed; `clinical-notes clinical-history` repeated three times, exit 0 each (33 passed).
+- Pre-commit: `corepack pnpm typecheck`, `npx biome check .`, `corepack pnpm run contract:check` exit 0; `corepack pnpm test` exit 0, 39 files, 833 tests (782 + 2 digest unit + 17 notes + 24 harness rows + 8 clinical tool drift). One earlier full run failed only in `restore-smoke` case (e) with `EBUSY` removing a Windows temp cluster directory (host file lock, unrelated to this change); the rerun passed.
+
+Shared files touched (append-only): `packages/contracts/src/context.ts` (`deficits`, reason `clinical_oversight_required`), `synthetic-task.schema.json` (Refusal `deficits`), `clinical.schema.json` (C10 definitions), `clinical-notes.ts` (types), domain `clinical/{codecs,service,index,merge-probes}.ts` (merge-probes: one array element), `policy/authorize.ts` (9 rows), API manifest, routes and contract drift, MCP server, tools and drift test, OpenAPI, `docs/SHARED-CONTRACTS.md` (`clinical.sign` used, `clinical.oversight` registered), `foundation-contract-decisions.md`, tests `negative-harness`, `tenant-isolation`, `mcp-parity`. No `MERGE_RECORD_CLASSES` line was added: notes carry no patient reference, which the merge test proves structurally, so there is nothing for a merge to move.
+
+Deviations: one contract file instead of `note.schema.json`; `readNoteVersions` is `clinical.notes.read` (the note with every version) plus `clinical.notes.list`; amendments and addenda are frozen at creation (no draft phase); an amendment references the latest version (a linear chain), not necessarily the original; the plan's per-version `state` is the note-level `status` (`draft | signed | amended`) plus a per-version `kind`; the direct-write privilege test lives in the C10 file (C18 owns the cross-record immutability proof).
+
+Seams: C13 and C14 can reference `noteRef` or `noteVersionRef` with its `contentDigest` (frozen, verified on read); C14 rendered procedures can supply the codes for `clinical.noteTemplates.applicable` and the structured `procedureCodeRefs` a note addresses (C-S2-Q2); C18 reuses `noteVersionDigest` and `digestVerified` for export and restore verification, and the runtime-role and owner-path refusals for the immutability proof; A11 sets `source: ai_draft` with `aiModelRef` and `aiPromptVersionRef` through `clinical.notes.createDraft` (human principal; a service-principal drafting path is a later decision) and can never sign; `NOTE_POST_MERGE_FACT_PROBE` is part of `CLINICAL_POST_MERGE_FACT_PROBES` for the S-D2 unmerge rule.
+
+Unresolved: C-S2-Q1, Q2, Q4, Q5 and the reason vocabularies have no clinical recommendation and block release; the co-signer cannot be tied to the supervising resource until staff records link scheduling resources to principals.
+
+Process incident (no repository effect): one shell chain in this session failed before its `cd`, so `corepack pnpm typecheck` and `npx biome check .` ran with the session's default directory (the OneDrive checkout). The first printed "command not found" after corepack fetched a pnpm binary into its cache; the second made npx fetch an unrelated `biome@0.3.3` package into the npx cache. `git status` in the OneDrive checkout is clean and no file there changed; every later command starts with `cd <worktree> || exit 1`.
+
+#### Batch 2b gate
+
+- `corepack pnpm run ci` at `8bb92b6` → exit 0: typecheck, lint, contract drift, 39 files / 833 tests passed, privacy scan ok, SBOM, evidence generated and verified (integrity and freshness only; controls unreviewed, not certified).
+- Commits: `4b914c1` (C9), `8bb92b6` (C10), then this ledger-only commit.
+- Status language: C9 and C10 are tested on synthetic data on a Windows host. Nothing is approved, deployed, compliant or clinically validated; every clinical semantic above is recommended-pending-clinical-approval or blocking.
+
+## Batch 3 (C12, C13, C14) on `codex/c-chart`
+
+### Integration merge of `codex/c-notes` (99ba582) into `codex/c-chart` (0b72f27)
+
+- Conflicts resolved by keeping both sides: registration lists (`contract-drift.ts`, MCP server, tool drift test, synthetic-task transport list, `context.ts` reason codes, contracts index, domain codecs, index, service, policy rows), the OpenAPI document (block-level three-way merge on paths and parameters, then checked structurally equal to a key-level three-way merge of the parsed documents), `clinical.schema.json` (key-level three-way merge of `$defs`, kept sorted, then formatted by Biome), the negative harness (the notes rows, fixtures and snapshot queries inserted at their own anchors), the tenant-isolation inventories (sorted list re-sorted) and `foundation-contract-decisions.md` (both task records).
+- C8 change order: the chart side's `ordinal` fix (a version lists its changes in request order) is kept; the notes side's test-only workaround in `clinical-history.test.ts` (select each change by text) was dropped as redundant.
+- Semantic conflict found by the first merged run: the notes fixture `seedNoteScopes` defined the a8 and a9 author profiles as self-defined, which the C5 hardening two-person trigger now refuses (`a clinical author profile is defined by another member`); the fixture now names a1 as the definer. No product code changed for this.
+- The notes ledger is folded into this file (section "Batch 2b"); `clinical-progress-notes.md` is deleted.
+- `corepack pnpm install --frozen-lockfile` up to date; `corepack pnpm run ci` → first run exit 1 (3 suites failed in setup on the definer rule above), after the fixture fix exit 0: 44 files, 992 tests (902 + 90), privacy scan ok, SBOM, evidence generated and verified (integrity and freshness only; unreviewed, not certified).

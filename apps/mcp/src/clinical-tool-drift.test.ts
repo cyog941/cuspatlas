@@ -26,6 +26,7 @@ const LIST_QUERIES: Record<string, string> = {
   'clinical.history.read': 'HistoryReadQuery',
   'clinical.chart.read': 'ChartReadQuery',
   'clinical.perio.compare': 'PerioCompareQuery',
+  'clinical.noteTemplates.applicable': 'NoteTemplateApplicableQuery',
 };
 const PATH_PARAMS: Record<string, string> = {
   encounterRef: 'EncounterRef',
@@ -38,6 +39,9 @@ const PATH_PARAMS: Record<string, string> = {
   planVersionRef: 'PlanVersionRef',
   planDetailRef: 'PlanDetailRef',
   planItemRef: 'PlanItemRef',
+  templateRef: 'NoteTemplateRef',
+  templateVersionRef: 'NoteTemplateVersionRef',
+  noteRef: 'NoteRef',
 };
 
 function restShape(route: (typeof routes)[number]): { properties: Schema; required?: string[] } {

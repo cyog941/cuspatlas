@@ -117,6 +117,29 @@
           "properties": {
             "currentVersion": { "$ref": "#/$defs/Version" },
             "reason": { "type": "string", "pattern": "^[a-z_]{1,64}$" },
+            "deficits": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "C10 addition: what blocks signing under an enforced template (server-derived section keys and synthetic codes).",
+              "required": ["missingSections", "missingCodeRefs", "unresolvedSections"],
+              "properties": {
+                "missingSections": {
+                  "type": "array",
+                  "maxItems": 30,
+                  "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$" }
+                },
+                "missingCodeRefs": {
+                  "type": "array",
+                  "maxItems": 50,
+                  "items": { "type": "string", "pattern": "^SYN-[A-Z0-9-]{1,40}$" }
+                },
+                "unresolvedSections": {
+                  "type": "array",
+                  "maxItems": 30,
+                  "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$" }
+                }
+              }
+            },
             "alternative": {
               "type": "string",
               "description": "C5 addition: operation id of the supported alternative path (server-authored).",

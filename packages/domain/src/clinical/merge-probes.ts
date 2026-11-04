@@ -67,4 +67,26 @@ export const CLINICAL_POST_MERGE_FACT_PROBES: readonly PostMergeFactProbe[] = [
       return Number(rows[0]?.n ?? 0);
     },
   },
+  // C11: plans, versions, details, items and their state events on the survivor's plans after the merge.
+  {
+    factKind: 'clinical',
+    async count(tx: TenantTransaction, survivorRef: string, mergedAt: Date): Promise<number> {
+      const { rows } = await tx.query<{ n: number }>(
+        `WITH p AS (SELECT id, tenant_id FROM cuspatlas.clinical_treatment_plans WHERE subject_patient_id = $1),
+              v AS (SELECT x.id, x.tenant_id, x.created_at FROM cuspatlas.clinical_plan_versions x
+                    JOIN p ON p.id = x.plan_id AND p.tenant_id = x.tenant_id)
+         SELECT (SELECT count(*) FROM v WHERE v.created_at >= $2)
+              + (SELECT count(*) FROM cuspatlas.clinical_plan_details d JOIN v ON v.id = d.plan_version_id
+                  AND v.tenant_id = d.tenant_id WHERE d.created_at >= $2)
+              + (SELECT count(*) FROM cuspatlas.clinical_plan_item_events e
+                  JOIN cuspatlas.clinical_plan_items i ON i.id = e.item_id AND i.tenant_id = e.tenant_id
+                  JOIN v ON v.id = i.plan_version_id AND v.tenant_id = i.tenant_id WHERE e.recorded_at >= $2)
+              + (SELECT count(*) FROM cuspatlas.clinical_plan_detail_events de
+                  JOIN cuspatlas.clinical_plan_details d ON d.id = de.detail_id AND d.tenant_id = de.tenant_id
+                  JOIN v ON v.id = d.plan_version_id AND v.tenant_id = d.tenant_id WHERE de.recorded_at >= $2) AS n`,
+        [survivorRef, mergedAt],
+      );
+      return Number(rows[0]?.n ?? 0);
+    },
+  },
 ];

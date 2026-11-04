@@ -4,6 +4,7 @@ import { createChartOperations } from './chart';
 import { createEncounterOperations } from './encounters';
 import { createHistoryOperations } from './history';
 import { createPerioOperations } from './perio';
+import { createTreatmentPlanOperations } from './treatment-plans';
 
 /**
  * The clinical service (C5 encounters and authorship, C8 medical history). The only command/query layer for these
@@ -18,6 +19,7 @@ export function createClinicalService(deps: ClinicalDeps) {
     ...createHistoryOperations(base),
     ...createChartOperations(base),
     ...createPerioOperations(base),
+    ...createTreatmentPlanOperations(base),
   };
 }
 

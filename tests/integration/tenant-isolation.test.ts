@@ -128,6 +128,12 @@ describe('runtime database role', () => {
       'clinical_perio_grade_vocabulary',
       'clinical_perio_measurements',
       'clinical_perio_streams',
+      'clinical_plan_detail_events',
+      'clinical_plan_details',
+      'clinical_plan_item_events',
+      'clinical_plan_items',
+      'clinical_plan_versions',
+      'clinical_treatment_plans',
       'command_idempotency',
       'delivery_receipts',
       'memberships',
@@ -211,6 +217,12 @@ describe('runtime database role', () => {
       'clinical_perio_measurements',
       'clinical_perio_derivations',
       'clinical_perio_derived_values',
+      'clinical_treatment_plans',
+      'clinical_plan_versions',
+      'clinical_plan_details',
+      'clinical_plan_items',
+      'clinical_plan_detail_events',
+      'clinical_plan_item_events',
     ]) {
       const { rows } = await db.app.query(`SELECT count(*)::int AS n FROM cuspatlas.${t}`);
       expect([t, rows[0].n]).toStrictEqual([t, 0]);

@@ -145,6 +145,12 @@ export const CLINICAL_BODIES = [
   'PerioCorrectionValue',
   'PerioDerive',
   'PerioCompareQuery',
+  'TreatmentPlanCreate',
+  'PlanDetailAdd',
+  'PlanItemAdd',
+  'PlanItemStateSet',
+  'PlanDetailStateSet',
+  'PlanVersionSupersede',
 ] as const;
 
 /** Definitions the proposal contract copies from the task contract; they must stay byte-identical. */

@@ -121,6 +121,16 @@ export const ACTION_POLICIES = {
   'clinical.perio.readExam': { scope: 'clinical.read', principals: ['human', 'service'] },
   'clinical.perio.listExams': { scope: 'clinical.read', principals: ['human', 'service'] },
   'clinical.perio.compare': { scope: 'clinical.read', principals: ['human', 'service'] },
+  // C11 treatment plans (recommended-pending-clinical-approval). Every plan mutation, including item
+  // state changes, is a human clinical author's; plan-version acceptance is C12's (seam only here).
+  'clinical.treatmentPlans.create': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.treatmentPlans.addDetail': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.treatmentPlans.addItem': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.treatmentPlans.setItemState': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.treatmentPlans.setDetailState': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.treatmentPlans.supersede': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.treatmentPlans.read': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.treatmentPlans.list': { scope: 'clinical.read', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

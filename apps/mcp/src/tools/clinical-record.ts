@@ -13,6 +13,10 @@ const TRANSPORT: Record<string, string> = {
   patientRef: 'PatientRef',
   chartEntryRef: 'ChartEntryRef',
   perioExamRef: 'PerioExamRef',
+  planRef: 'TreatmentPlanRef',
+  planVersionRef: 'PlanVersionRef',
+  planDetailRef: 'PlanDetailRef',
+  planItemRef: 'PlanItemRef',
 };
 
 /**
@@ -158,6 +162,110 @@ const SPECS: readonly Spec[] = [
     async run(d, actor, args) {
       return { data: await d.clinical.comparePerioExams(actor, args) };
     },
+  },
+  // C11 treatment plans.
+  {
+    name: 'clinical_treatment_plans_create',
+    operationId: 'clinical.treatmentPlans.create',
+    description: `Create a treatment plan with its first draft version for a patient. No amount exists on any level. ${SAFETY}`,
+    body: 'TreatmentPlanCreate',
+    transport: ['idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.createTreatmentPlan(actor, envelope('clinical.treatmentPlans.create', args)),
+  },
+  {
+    name: 'clinical_treatment_plans_get',
+    operationId: 'clinical.treatmentPlans.read',
+    description:
+      'Read one treatment plan at all three levels (versions, details, items) with item states, transitions and estimate readiness (fee schedule references present or not; never an amount).',
+    body: null,
+    transport: ['planRef'],
+    readOnly: true,
+    async run(d, actor, args) {
+      return { data: await d.clinical.readTreatmentPlan(actor, args.planRef as string) };
+    },
+  },
+  {
+    name: 'clinical_treatment_plans_list',
+    operationId: 'clinical.treatmentPlans.list',
+    description: 'List a patient’s treatment plans with their head version and its state.',
+    body: null,
+    transport: ['patientRef'],
+    readOnly: true,
+    async run(d, actor, args) {
+      return { data: await d.clinical.listTreatmentPlans(actor, args.patientRef as string) };
+    },
+  },
+  {
+    name: 'clinical_treatment_plans_add_detail',
+    operationId: 'clinical.treatmentPlans.addDetail',
+    description: `Add a detail (tooth, surface set, area or whole mouth) to a draft plan version if expectedRevision matches. A tooth must be on the chart or name its chart entry; nothing is charted implicitly. ${SAFETY}`,
+    body: 'PlanDetailAdd',
+    transport: ['planVersionRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.addPlanDetail(
+        actor,
+        args.planVersionRef as string,
+        envelope('clinical.treatmentPlans.addDetail', args, 'planVersionRef'),
+      ),
+  },
+  {
+    name: 'clinical_treatment_plans_add_item',
+    operationId: 'clinical.treatmentPlans.addItem',
+    description: `Add an item (provisional SYN- procedure code, sequence, optional tooth, fee schedule reference and chart entry) to an active detail of a draft version. No amount. ${SAFETY}`,
+    body: 'PlanItemAdd',
+    transport: ['planDetailRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.addPlanItem(
+        actor,
+        args.planDetailRef as string,
+        envelope('clinical.treatmentPlans.addItem', args, 'planDetailRef'),
+      ),
+  },
+  {
+    name: 'clinical_treatment_plans_set_item_state',
+    operationId: 'clinical.treatmentPlans.setItemState',
+    description: `Move an item through the designed transition set (proposed, accepted, scheduled with a booked appointment of the same patient, declined, discontinued). Completion is only by a rendered procedure. ${SAFETY}`,
+    body: 'PlanItemStateSet',
+    transport: ['planItemRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.setPlanItemState(
+        actor,
+        args.planItemRef as string,
+        envelope('clinical.treatmentPlans.setItemState', args, 'planItemRef'),
+      ),
+  },
+  {
+    name: 'clinical_treatment_plans_set_detail_state',
+    operationId: 'clinical.treatmentPlans.setDetailState',
+    description: `Decline or discontinue a detail with a reason; each open item's resulting state is recorded explicitly with the detail as parent. ${SAFETY}`,
+    body: 'PlanDetailStateSet',
+    transport: ['planDetailRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.setPlanDetailState(
+        actor,
+        args.planDetailRef as string,
+        envelope('clinical.treatmentPlans.setDetailState', args, 'planDetailRef'),
+      ),
+  },
+  {
+    name: 'clinical_treatment_plans_supersede',
+    operationId: 'clinical.treatmentPlans.supersede',
+    description: `Create a new plan version that names the version it supersedes and carries its details and items; the superseded version stays readable and unchanged. ${SAFETY}`,
+    body: 'PlanVersionSupersede',
+    transport: ['planVersionRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.supersedePlanVersion(
+        actor,
+        args.planVersionRef as string,
+        envelope('clinical.treatmentPlans.supersede', args, 'planVersionRef'),
+      ),
   },
 ];
 

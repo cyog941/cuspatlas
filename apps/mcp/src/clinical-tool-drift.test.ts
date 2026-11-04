@@ -34,6 +34,10 @@ const PATH_PARAMS: Record<string, string> = {
   historyVersionRef: 'HistoryVersionRef',
   chartEntryRef: 'ChartEntryRef',
   perioExamRef: 'PerioExamRef',
+  planRef: 'TreatmentPlanRef',
+  planVersionRef: 'PlanVersionRef',
+  planDetailRef: 'PlanDetailRef',
+  planItemRef: 'PlanItemRef',
 };
 
 function restShape(route: (typeof routes)[number]): { properties: Schema; required?: string[] } {

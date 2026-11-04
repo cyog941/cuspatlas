@@ -292,3 +292,172 @@ export const validatePerioDerivationCommandResult = def('PerioDerivationCommandR
 export const validatePerioExamRead = def('PerioExamRead');
 export const validatePerioExamList = def('PerioExamList');
 export const validatePerioComparison = def('PerioComparison');
+
+/** C11 treatment plans: plan version, detail and item as three addressable levels; no amount anywhere. */
+export type PlanDetailScope = 'tooth' | 'surface_set' | 'area' | 'whole_mouth';
+export type PlanAreaCode = 'ur' | 'ul' | 'll' | 'lr' | 'upper' | 'lower';
+export type PlanItemState = 'proposed' | 'accepted' | 'scheduled' | 'completed' | 'declined' | 'discontinued';
+export type PlanDetailState = 'active' | 'declined' | 'discontinued';
+export type PlanVersionState = 'draft' | 'accepted' | 'superseded';
+export type PlanTransitionCause =
+  | 'created'
+  | 'direct'
+  | 'detail_declined'
+  | 'detail_discontinued'
+  | 'carried_forward';
+
+export interface TreatmentPlanCreate {
+  readonly patientRef: string;
+  readonly encounterRef?: string;
+  readonly displayText?: string;
+}
+
+export interface PlanDetailAdd {
+  readonly expectedRevision: number;
+  readonly scope: PlanDetailScope;
+  readonly tooth?: ToothInput;
+  readonly surfaces?: readonly string[];
+  readonly areaCode?: PlanAreaCode;
+  readonly phase?: number;
+  readonly chartEntryRef?: string;
+  readonly displayText?: string;
+}
+
+export interface PlanItemAdd {
+  readonly expectedRevision: number;
+  readonly procedureCodeRef: string;
+  readonly sequence: number;
+  readonly tooth?: ToothInput;
+  readonly surfaces?: readonly string[];
+  readonly areaCode?: PlanAreaCode;
+  readonly feeScheduleRef?: string;
+  readonly chartEntryRef?: string;
+  readonly displayText?: string;
+}
+
+export interface PlanItemStateSet {
+  readonly expectedRevision: number;
+  readonly state: PlanItemState;
+  readonly reasonCode?: string;
+  readonly appointmentRef?: string;
+}
+
+export interface PlanDetailStateSet {
+  readonly expectedRevision: number;
+  readonly state: 'declined' | 'discontinued';
+  readonly reasonCode: string;
+}
+
+export interface PlanVersionSupersede {
+  readonly expectedRevision: number;
+  readonly reasonCode: string;
+  readonly displayText?: string;
+}
+
+export interface PlanItemTransition {
+  readonly from: PlanItemState | null;
+  readonly to: PlanItemState;
+  readonly cause: PlanTransitionCause;
+  readonly reasonCode: string | null;
+  readonly parentDetailRef: string | null;
+  readonly appointmentRef: string | null;
+  readonly recordedBy: ClinicalAuthor;
+  readonly recordedAt: string;
+}
+
+export interface PlanItem {
+  readonly itemRef: string;
+  readonly detailRef: string;
+  readonly planVersionRef: string;
+  readonly procedureCodeRef: string;
+  readonly sequence: number;
+  readonly tooth: ToothRef | null;
+  readonly surfaces: readonly string[] | null;
+  readonly areaCode: PlanAreaCode | null;
+  readonly feeScheduleRef: string | null;
+  readonly chartEntryRef: string | null;
+  readonly displayText: string | null;
+  readonly state: PlanItemState;
+  readonly appointmentRef: string | null;
+  readonly derivedFromItemRef: string | null;
+  readonly createdBy: ClinicalAuthor;
+  readonly createdAt: string;
+  readonly transitions: readonly PlanItemTransition[];
+}
+
+export interface PlanDetail {
+  readonly detailRef: string;
+  readonly planVersionRef: string;
+  readonly sequence: number;
+  readonly phase: number | null;
+  readonly scope: PlanDetailScope;
+  readonly tooth: ToothRef | null;
+  readonly surfaces: readonly string[] | null;
+  readonly areaCode: PlanAreaCode | null;
+  readonly chartEntryRef: string | null;
+  readonly displayText: string | null;
+  readonly state: PlanDetailState;
+  readonly reasonCode: string | null;
+  readonly stateRecordedBy: ClinicalAuthor | null;
+  readonly stateRecordedAt: string | null;
+  readonly derivedFromDetailRef: string | null;
+  readonly createdBy: ClinicalAuthor;
+  readonly createdAt: string;
+  readonly items: readonly PlanItem[];
+}
+
+export interface PlanVersion {
+  readonly planVersionRef: string;
+  readonly number: number;
+  readonly state: PlanVersionState;
+  readonly revision: number;
+  readonly displayText: string | null;
+  readonly supersedesRef: string | null;
+  readonly supersededByRef: string | null;
+  readonly supersedeReasonCode: string | null;
+  readonly acceptance: { readonly acceptanceRef: string; readonly acceptedAt: string } | null;
+  readonly encounterRef: string | null;
+  readonly createdBy: ClinicalAuthor;
+  readonly createdAt: string;
+  readonly estimateReadiness: {
+    readonly complete: boolean;
+    readonly itemCount: number;
+    readonly itemsWithoutFeeScheduleRef: readonly string[];
+  };
+  readonly details: readonly PlanDetail[];
+}
+
+export interface TreatmentPlan {
+  readonly planRef: string;
+  readonly patientRef: string;
+  readonly sourcePatientRef: string;
+  readonly headVersionRef: string;
+  readonly createdBy: ClinicalAuthor;
+  readonly createdAt: string;
+  readonly versions: readonly PlanVersion[];
+}
+
+export interface TreatmentPlanCommandData {
+  readonly targetRef: string;
+  readonly plan: TreatmentPlan;
+}
+
+export interface TreatmentPlanHeader {
+  readonly planRef: string;
+  readonly patientRef: string;
+  readonly sourcePatientRef: string;
+  readonly headVersionRef: string;
+  readonly headVersionNumber: number;
+  readonly headState: PlanVersionState;
+  readonly createdAt: string;
+}
+
+export const validateTreatmentPlanCreate = def('TreatmentPlanCreate');
+export const validatePlanDetailAdd = def('PlanDetailAdd');
+export const validatePlanItemAdd = def('PlanItemAdd');
+export const validatePlanItemStateSet = def('PlanItemStateSet');
+export const validatePlanDetailStateSet = def('PlanDetailStateSet');
+export const validatePlanVersionSupersede = def('PlanVersionSupersede');
+export const validateTreatmentPlanCommandResult = def('TreatmentPlanCommandResult');
+export const validateTreatmentPlanRead = def('TreatmentPlanRead');
+export const validateTreatmentPlanList = def('TreatmentPlanList');

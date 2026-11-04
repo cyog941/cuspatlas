@@ -53,7 +53,8 @@ export interface MergeRecordClass {
     | 'clinical_history_streams'
     // C6/C7/C11 clinical classes (workstream C batch 2a).
     | 'clinical_charts'
-    | 'clinical_perio_streams';
+    | 'clinical_perio_streams'
+    | 'clinical_treatment_plans';
   readonly column: 'subject_patient_id' | 'counterparty_patient_id';
   /** Public name of the reference in the record's contract. */
   readonly referenceField: string;
@@ -193,6 +194,16 @@ export const MERGE_RECORD_CLASSES: readonly MergeRecordClass[] = [
     factKind: 'clinical',
     digestExclude: ['subject_patient_id', 'head_sequence', 'version', 'updated_at'],
   },
+  // C11 (workstream C): a treatment plan follows its patient; versions, details, items and events
+  // reference the plan, never the patient; the plan keeps its source patient.
+  {
+    recordClass: 'clinicalTreatmentPlan',
+    table: 'clinical_treatment_plans',
+    column: 'subject_patient_id',
+    referenceField: 'patientRef',
+    factKind: 'clinical',
+    digestExclude: ['subject_patient_id', 'head_version', 'version', 'updated_at'],
+  },
 ];
 
 /** Foreign keys to patients that a merge deliberately does not move, with the reason. */
@@ -227,6 +238,11 @@ export const MERGE_EXCLUDED_REFERENCES: readonly { table: string; column: string
     table: 'clinical_perio_streams',
     column: 'origin_patient_id',
     why: 'a perio stream keeps its source patient so merged exams stay distinct (C7)',
+  },
+  {
+    table: 'clinical_treatment_plans',
+    column: 'origin_patient_id',
+    why: 'a treatment plan keeps its source patient (C11)',
   },
 ];
 

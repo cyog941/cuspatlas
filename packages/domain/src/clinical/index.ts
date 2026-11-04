@@ -33,3 +33,9 @@ export {
   toothDisplay,
   toothInfo,
 } from './tooth-identity';
+export {
+  PLAN_ITEM_TRANSITIONS,
+  PLAN_VERSION_RESOURCE,
+  recordPlanVersionAcceptance,
+  TREATMENT_PLAN_RESOURCE,
+} from './treatment-plans';

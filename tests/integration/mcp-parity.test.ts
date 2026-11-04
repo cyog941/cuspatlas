@@ -123,6 +123,15 @@ const TOOL_NAMES = [
   'clinical_perio_get_exam',
   'clinical_perio_list_exams',
   'clinical_perio_record_exam',
+  // C11 treatment plan tools (parity in clinical-treatment-plans and negative-harness tests).
+  'clinical_treatment_plans_add_detail',
+  'clinical_treatment_plans_add_item',
+  'clinical_treatment_plans_create',
+  'clinical_treatment_plans_get',
+  'clinical_treatment_plans_list',
+  'clinical_treatment_plans_set_detail_state',
+  'clinical_treatment_plans_set_item_state',
+  'clinical_treatment_plans_supersede',
 ].sort();
 
 let db: TestDatabase;

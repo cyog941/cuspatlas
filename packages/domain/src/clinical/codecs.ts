@@ -67,4 +67,11 @@ export const CLINICAL_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<Clinica
   'clinical.perio.recordExam': refCodec('examRef'),
   'clinical.perio.correctExam': refCodec('examRef'),
   'clinical.perio.derive': refCodec('derivationRef'),
+  // C11 treatment plans (the target reference only; the plan is re-read on replay).
+  'clinical.treatmentPlans.create': refCodec('planRef'),
+  'clinical.treatmentPlans.addDetail': refCodec('detailRef'),
+  'clinical.treatmentPlans.addItem': refCodec('itemRef'),
+  'clinical.treatmentPlans.setItemState': refCodec('itemRef'),
+  'clinical.treatmentPlans.setDetailState': refCodec('detailRef'),
+  'clinical.treatmentPlans.supersede': refCodec('planVersionRef'),
 };

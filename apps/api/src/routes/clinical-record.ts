@@ -70,4 +70,41 @@ export function registerClinicalRecordRoutes(
   mount('clinical.perio.compare', async (r) => ({
     data: await c.comparePerioExams(requireActor(r), query(r)),
   }));
+  // C11 treatment plans.
+  mount('clinical.treatmentPlans.create', (r) =>
+    c.createTreatmentPlan(requireActor(r), env('clinical.treatmentPlans.create', r)),
+  );
+  mount('clinical.treatmentPlans.read', async (r) => ({
+    data: await c.readTreatmentPlan(requireActor(r), param(r, 'planRef')),
+  }));
+  mount('clinical.treatmentPlans.list', async (r) => ({
+    data: await c.listTreatmentPlans(requireActor(r), param(r, 'patientRef')),
+  }));
+  mount('clinical.treatmentPlans.addDetail', (r) =>
+    c.addPlanDetail(requireActor(r), param(r, 'planVersionRef'), env('clinical.treatmentPlans.addDetail', r)),
+  );
+  mount('clinical.treatmentPlans.addItem', (r) =>
+    c.addPlanItem(requireActor(r), param(r, 'planDetailRef'), env('clinical.treatmentPlans.addItem', r)),
+  );
+  mount('clinical.treatmentPlans.setItemState', (r) =>
+    c.setPlanItemState(
+      requireActor(r),
+      param(r, 'planItemRef'),
+      env('clinical.treatmentPlans.setItemState', r),
+    ),
+  );
+  mount('clinical.treatmentPlans.setDetailState', (r) =>
+    c.setPlanDetailState(
+      requireActor(r),
+      param(r, 'planDetailRef'),
+      env('clinical.treatmentPlans.setDetailState', r),
+    ),
+  );
+  mount('clinical.treatmentPlans.supersede', (r) =>
+    c.supersedePlanVersion(
+      requireActor(r),
+      param(r, 'planVersionRef'),
+      env('clinical.treatmentPlans.supersede', r),
+    ),
+  );
 }

@@ -1039,6 +1039,149 @@ export const COMMANDS: HarnessCommand[] = [
     }),
     mcpArgs: (f) => ({ baseExamRef: f.alphaPerioExam, targetExamRef: f.alphaPerioExam }),
   },
+  // C11 treatment plans (workstream C batch 2a).
+  {
+    operation: 'clinical.treatmentPlans.create',
+    tool: 'clinical_treatment_plans_create',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: '/v1/clinical/treatment-plans',
+      body: { patientRef: f.alphaPatient, displayText: `Synthetic ${MARKER}` },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      patientRef: f.alphaPatient,
+      displayText: `Synthetic ${MARKER}`,
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.treatmentPlans.read',
+    tool: 'clinical_treatment_plans_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/treatment-plans/${f.alphaPlan}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ planRef: f.alphaPlan }),
+  },
+  {
+    operation: 'clinical.treatmentPlans.list',
+    tool: 'clinical_treatment_plans_list',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/patients/${P(f)}/treatment-plans`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ patientRef: P(f) }),
+  },
+  {
+    operation: 'clinical.treatmentPlans.addDetail',
+    tool: 'clinical_treatment_plans_add_detail',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/treatment-plans/versions/${f.alphaPlanVersion}/details`,
+      body: { expectedRevision: 3, scope: 'whole_mouth', displayText: `Synthetic ${MARKER}` },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      planVersionRef: f.alphaPlanVersion,
+      expectedRevision: 3,
+      scope: 'whole_mouth',
+      displayText: `Synthetic ${MARKER}`,
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.treatmentPlans.addItem',
+    tool: 'clinical_treatment_plans_add_item',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/treatment-plans/details/${f.alphaPlanDetail}/items`,
+      body: { expectedRevision: 3, procedureCodeRef: 'SYN-HARNESS-PROC', sequence: 2 },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      planDetailRef: f.alphaPlanDetail,
+      expectedRevision: 3,
+      procedureCodeRef: 'SYN-HARNESS-PROC',
+      sequence: 2,
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.treatmentPlans.setItemState',
+    tool: 'clinical_treatment_plans_set_item_state',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/treatment-plans/items/${f.alphaPlanItem}/state`,
+      body: { expectedRevision: 3, state: 'accepted' },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({
+      planItemRef: f.alphaPlanItem,
+      expectedRevision: 3,
+      state: 'accepted',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.treatmentPlans.setDetailState',
+    tool: 'clinical_treatment_plans_set_detail_state',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/treatment-plans/details/${f.alphaPlanDetail}/state`,
+      body: { expectedRevision: 3, state: 'declined', reasonCode: 'patient_declined' },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({
+      planDetailRef: f.alphaPlanDetail,
+      expectedRevision: 3,
+      state: 'declined',
+      reasonCode: 'patient_declined',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.treatmentPlans.supersede',
+    tool: 'clinical_treatment_plans_supersede',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/treatment-plans/versions/${f.alphaPlanVersion}/supersede`,
+      body: { expectedRevision: 3, reasonCode: 'treatment_changed' },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      planVersionRef: f.alphaPlanVersion,
+      expectedRevision: 3,
+      reasonCode: 'treatment_changed',
+      idempotencyKey: randomUUID(),
+    }),
+  },
 ];
 
 function perioBody(f: HarnessFixture) {
@@ -1365,7 +1508,29 @@ beforeAll(async () => {
   });
   expect(perio.statusCode).toBe(201);
   const perioExam = perio.json().data;
+  // C11: one alpha plan (revision 3): a whole-mouth detail with one proposed item.
+  const plan = await owner('/v1/clinical/treatment-plans', { patientRef: alphaPatient });
+  expect(plan.statusCode).toBe(201);
+  const planVersion = plan.json().data.plan.headVersionRef;
+  const planDetail = await owner(`/v1/clinical/treatment-plans/versions/${planVersion}/details`, {
+    expectedRevision: 1,
+    scope: 'whole_mouth',
+  });
+  expect(planDetail.statusCode).toBe(201);
+  const planItem = await owner(
+    `/v1/clinical/treatment-plans/details/${planDetail.json().data.targetRef}/items`,
+    {
+      expectedRevision: 2,
+      procedureCodeRef: 'SYN-HARNESS-PROC',
+      sequence: 1,
+    },
+  );
+  expect(planItem.statusCode).toBe(201);
   fixture = {
+    alphaPlan: plan.json().data.plan.planRef,
+    alphaPlanVersion: planVersion,
+    alphaPlanDetail: planDetail.json().data.targetRef,
+    alphaPlanItem: planItem.json().data.targetRef,
     alphaPerioExam: perioExam.examRef,
     alphaPerioMeasurement: perioExam.measurements.find(
       (m: { measure: string; site: string | null }) => m.measure === 'probing_depth' && m.site === 'b',
@@ -1514,6 +1679,12 @@ async function state(): Promise<string> {
     await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_perio_measurements'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_perio_derivations'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_perio_derived_values'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_treatment_plans'),
+    await q('SELECT count(*)::int AS n, sum(revision)::int AS v FROM cuspatlas.clinical_plan_versions'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_plan_details'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_plan_items'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_plan_item_events'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_plan_detail_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.audit_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.outbox_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.command_idempotency'),

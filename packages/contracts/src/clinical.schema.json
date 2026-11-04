@@ -1129,6 +1129,11 @@
       "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
       "description": "Opaque encounter reference (C5)."
     },
+    "FeeScheduleRef": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+      "description": "Reference to a fee schedule entry owned by billing; no amount is stored here."
+    },
     "HistoryChange": {
       "type": "object",
       "additionalProperties": false,
@@ -2602,6 +2607,664 @@
         }
       }
     },
+    "PlanAreaCode": {
+      "enum": ["ur", "ul", "ll", "lr", "upper", "lower"],
+      "description": "Provisional area vocabulary (quadrants and arches; pending clinical approval)."
+    },
+    "PlanDetail": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "detailRef",
+        "planVersionRef",
+        "sequence",
+        "phase",
+        "scope",
+        "tooth",
+        "surfaces",
+        "areaCode",
+        "chartEntryRef",
+        "displayText",
+        "state",
+        "reasonCode",
+        "stateRecordedBy",
+        "stateRecordedAt",
+        "derivedFromDetailRef",
+        "createdBy",
+        "createdAt",
+        "items"
+      ],
+      "properties": {
+        "detailRef": {
+          "$ref": "#/$defs/PlanDetailRef"
+        },
+        "planVersionRef": {
+          "$ref": "#/$defs/PlanVersionRef"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "phase": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scope": {
+          "$ref": "#/$defs/PlanDetailScope"
+        },
+        "tooth": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToothRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "surfaces": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SurfaceSet"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "areaCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanAreaCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "chartEntryRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChartEntryRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "displayText": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "$ref": "#/$defs/PlanDetailState"
+        },
+        "reasonCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stateRecordedBy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ClinicalAuthor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stateRecordedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "derivedFromDetailRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanDetailRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "createdBy": {
+          "$ref": "#/$defs/ClinicalAuthor"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PlanItem"
+          }
+        }
+      }
+    },
+    "PlanDetailAdd": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedRevision", "scope"],
+      "properties": {
+        "expectedRevision": {
+          "$ref": "#/$defs/Version"
+        },
+        "scope": {
+          "$ref": "#/$defs/PlanDetailScope"
+        },
+        "tooth": {
+          "$ref": "#/$defs/ToothInput"
+        },
+        "surfaces": {
+          "$ref": "#/$defs/SurfaceSet"
+        },
+        "areaCode": {
+          "$ref": "#/$defs/PlanAreaCode"
+        },
+        "phase": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 99
+        },
+        "chartEntryRef": {
+          "$ref": "#/$defs/ChartEntryRef"
+        },
+        "displayText": {
+          "$ref": "#/$defs/PlanText"
+        }
+      }
+    },
+    "PlanDetailRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque plan detail reference (C11)."
+    },
+    "PlanDetailScope": {
+      "enum": ["tooth", "surface_set", "area", "whole_mouth"]
+    },
+    "PlanDetailState": {
+      "enum": ["active", "declined", "discontinued"]
+    },
+    "PlanDetailStateSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedRevision", "state", "reasonCode"],
+      "properties": {
+        "expectedRevision": {
+          "$ref": "#/$defs/Version"
+        },
+        "state": {
+          "enum": ["declined", "discontinued"]
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "PlanItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "itemRef",
+        "detailRef",
+        "planVersionRef",
+        "procedureCodeRef",
+        "sequence",
+        "tooth",
+        "surfaces",
+        "areaCode",
+        "feeScheduleRef",
+        "chartEntryRef",
+        "displayText",
+        "state",
+        "appointmentRef",
+        "derivedFromItemRef",
+        "createdBy",
+        "createdAt",
+        "transitions"
+      ],
+      "properties": {
+        "itemRef": {
+          "$ref": "#/$defs/PlanItemRef"
+        },
+        "detailRef": {
+          "$ref": "#/$defs/PlanDetailRef"
+        },
+        "planVersionRef": {
+          "$ref": "#/$defs/PlanVersionRef"
+        },
+        "procedureCodeRef": {
+          "$ref": "#/$defs/SyntheticCodeRef"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "tooth": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToothRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "surfaces": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SurfaceSet"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "areaCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanAreaCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "feeScheduleRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FeeScheduleRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "chartEntryRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChartEntryRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "displayText": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "$ref": "#/$defs/PlanItemState"
+        },
+        "appointmentRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AppointmentRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "derivedFromItemRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanItemRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "createdBy": {
+          "$ref": "#/$defs/ClinicalAuthor"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "transitions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PlanItemTransition"
+          }
+        }
+      }
+    },
+    "PlanItemAdd": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedRevision", "procedureCodeRef", "sequence"],
+      "description": "Add an item to a detail. There is no amount: a fee schedule reference or nothing (estimate-incomplete).",
+      "properties": {
+        "expectedRevision": {
+          "$ref": "#/$defs/Version"
+        },
+        "procedureCodeRef": {
+          "$ref": "#/$defs/SyntheticCodeRef"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 999
+        },
+        "tooth": {
+          "$ref": "#/$defs/ToothInput"
+        },
+        "surfaces": {
+          "$ref": "#/$defs/SurfaceSet"
+        },
+        "areaCode": {
+          "$ref": "#/$defs/PlanAreaCode"
+        },
+        "feeScheduleRef": {
+          "$ref": "#/$defs/FeeScheduleRef"
+        },
+        "chartEntryRef": {
+          "$ref": "#/$defs/ChartEntryRef"
+        },
+        "displayText": {
+          "$ref": "#/$defs/PlanText"
+        }
+      }
+    },
+    "PlanItemRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque plan item reference (C11; C14 renders against it)."
+    },
+    "PlanItemState": {
+      "enum": ["proposed", "accepted", "scheduled", "completed", "declined", "discontinued"],
+      "description": "Item state; completed is set only by a rendered procedure (C14)."
+    },
+    "PlanItemStateSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedRevision", "state"],
+      "properties": {
+        "expectedRevision": {
+          "$ref": "#/$defs/Version"
+        },
+        "state": {
+          "$ref": "#/$defs/PlanItemState"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "appointmentRef": {
+          "$ref": "#/$defs/AppointmentRef"
+        }
+      }
+    },
+    "PlanItemTransition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "to",
+        "cause",
+        "reasonCode",
+        "parentDetailRef",
+        "appointmentRef",
+        "recordedBy",
+        "recordedAt"
+      ],
+      "properties": {
+        "from": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanItemState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "to": {
+          "$ref": "#/$defs/PlanItemState"
+        },
+        "cause": {
+          "enum": ["created", "direct", "detail_declined", "detail_discontinued", "carried_forward"]
+        },
+        "reasonCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "parentDetailRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanDetailRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "appointmentRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AppointmentRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recordedBy": {
+          "$ref": "#/$defs/ClinicalAuthor"
+        },
+        "recordedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "PlanText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "Free text as recorded."
+    },
+    "PlanVersion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "planVersionRef",
+        "number",
+        "state",
+        "revision",
+        "displayText",
+        "supersedesRef",
+        "supersededByRef",
+        "supersedeReasonCode",
+        "acceptance",
+        "encounterRef",
+        "createdBy",
+        "createdAt",
+        "estimateReadiness",
+        "details"
+      ],
+      "properties": {
+        "planVersionRef": {
+          "$ref": "#/$defs/PlanVersionRef"
+        },
+        "number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "state": {
+          "$ref": "#/$defs/PlanVersionState"
+        },
+        "revision": {
+          "$ref": "#/$defs/Version"
+        },
+        "displayText": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "supersedesRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanVersionRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "supersededByRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanVersionRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "supersedeReasonCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "acceptance": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["acceptanceRef", "acceptedAt"],
+              "description": "Recorded by C12 through the acceptance seam; consent (C13) is a separate later fact.",
+              "properties": {
+                "acceptanceRef": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "acceptedAt": {
+                  "$ref": "#/$defs/Instant"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "encounterRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EncounterRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "createdBy": {
+          "$ref": "#/$defs/ClinicalAuthor"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "estimateReadiness": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["complete", "itemCount", "itemsWithoutFeeScheduleRef"],
+          "description": "Whether every item names a fee schedule reference. Never an amount: pricing is C12 and billing.",
+          "properties": {
+            "complete": {
+              "type": "boolean"
+            },
+            "itemCount": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "itemsWithoutFeeScheduleRef": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/PlanItemRef"
+              }
+            }
+          }
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PlanDetail"
+          }
+        }
+      }
+    },
+    "PlanVersionRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque plan version reference (C11; C12 binds estimates and acceptance to it)."
+    },
+    "PlanVersionState": {
+      "enum": ["draft", "accepted", "superseded"],
+      "description": "superseded once a later version names this one; accepted (C12 seam) is immutable content."
+    },
+    "PlanVersionSupersede": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedRevision", "reasonCode"],
+      "properties": {
+        "expectedRevision": {
+          "$ref": "#/$defs/Version"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "displayText": {
+          "$ref": "#/$defs/PlanText"
+        }
+      }
+    },
     "ReasonCode": {
       "type": "string",
       "pattern": "^[a-z_]{1,64}$",
@@ -2714,6 +3377,157 @@
     "ToothSurface": {
       "enum": ["M", "D", "O", "I", "B", "F", "L"],
       "description": "Provisional surface vocabulary (C-S1-Q2 pending reviewer); validated per tooth type by the server."
+    },
+    "TreatmentPlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "planRef",
+        "patientRef",
+        "sourcePatientRef",
+        "headVersionRef",
+        "createdBy",
+        "createdAt",
+        "versions"
+      ],
+      "properties": {
+        "planRef": {
+          "$ref": "#/$defs/TreatmentPlanRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "sourcePatientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "headVersionRef": {
+          "$ref": "#/$defs/PlanVersionRef"
+        },
+        "createdBy": {
+          "$ref": "#/$defs/ClinicalAuthor"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "versions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PlanVersion"
+          }
+        }
+      }
+    },
+    "TreatmentPlanCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["targetRef", "plan"],
+          "properties": {
+            "targetRef": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The plan, version, detail or item the command created or changed."
+            },
+            "plan": {
+              "$ref": "#/$defs/TreatmentPlan"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "TreatmentPlanCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["patientRef"],
+      "description": "Create a plan and its first (draft) version.",
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "encounterRef": {
+          "$ref": "#/$defs/EncounterRef"
+        },
+        "displayText": {
+          "$ref": "#/$defs/PlanText"
+        }
+      }
+    },
+    "TreatmentPlanList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "planRef",
+              "patientRef",
+              "sourcePatientRef",
+              "headVersionRef",
+              "headVersionNumber",
+              "headState",
+              "createdAt"
+            ],
+            "properties": {
+              "planRef": {
+                "$ref": "#/$defs/TreatmentPlanRef"
+              },
+              "patientRef": {
+                "$ref": "#/$defs/PatientRef"
+              },
+              "sourcePatientRef": {
+                "$ref": "#/$defs/PatientRef"
+              },
+              "headVersionRef": {
+                "$ref": "#/$defs/PlanVersionRef"
+              },
+              "headVersionNumber": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "headState": {
+                "$ref": "#/$defs/PlanVersionState"
+              },
+              "createdAt": {
+                "$ref": "#/$defs/Instant"
+              }
+            }
+          }
+        }
+      }
+    },
+    "TreatmentPlanRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/TreatmentPlan"
+        }
+      }
+    },
+    "TreatmentPlanRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque treatment plan reference (C11)."
     },
     "Version": {
       "type": "integer",

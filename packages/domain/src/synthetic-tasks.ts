@@ -20,6 +20,7 @@ import {
 import { type AttemptRecordingDeps, withAttemptRecording } from './commands/boundary';
 import { type CommandExecutor, executeDirect } from './commands/executor';
 import { type CursorCodec, createCursorCodec } from './cursor';
+import { recordCommand } from './events/record-command';
 import { type ActionName, type Authorize, assertLocation } from './policy/authorize';
 
 export interface SyntheticTaskDeps {
@@ -35,6 +36,7 @@ export interface SyntheticTaskDeps {
 export type TaskSummary = { readonly taskRef: string; readonly label: string };
 
 const DEFAULT_LIMIT = 25;
+const RESOURCE_TYPE = 'syntheticTask';
 
 interface TaskRow extends Record<string, unknown> {
   id: string;
@@ -103,6 +105,16 @@ export function createSyntheticTaskService(deps: SyntheticTaskDeps) {
             );
             const row = rows[0];
             if (!row) throw new Error('insert returned no row');
+            await recordCommand(
+              tx,
+              {
+                operation: 'syntheticTasks.create',
+                resourceType: RESOURCE_TYPE,
+                resourceRef: row.id,
+                resourceVersion: row.version,
+              },
+              { changedFields: ['label', 'locationRef'] },
+            );
             return { data: { taskRef: row.id, label: row.label }, version: row.version };
           }),
         );
@@ -151,6 +163,16 @@ export function createSyntheticTaskService(deps: SyntheticTaskDeps) {
               );
               const row = rows[0];
               if (!row) throw new RefusalError({ code: 'stale_version' });
+              await recordCommand(
+                tx,
+                {
+                  operation: 'syntheticTasks.relabel',
+                  resourceType: RESOURCE_TYPE,
+                  resourceRef: row.id,
+                  resourceVersion: row.version,
+                },
+                { changedFields: ['label'] },
+              );
               return { data: { taskRef: row.id, label: row.label }, version: row.version };
             },
           );

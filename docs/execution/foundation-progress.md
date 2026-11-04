@@ -27,7 +27,7 @@ Limitations: Windows-only spike; CI must prove the Linux path. The embedded bina
 | E0 environment and baseline | verified | (this commit) | see above |
 | E1 reproducible service (Task 1) | verified | bb25a6b | pnpm workspace, contracts, safe error boundary, ADR 0001 |
 | E2 identity and contracts (Tasks 2–3) | verified (revision cycle 1 applied) | Task 2 013ef79; Task 3 bd2cfc7; revision see git log | exit gate met on the Windows host; Linux CI pending (Task 8) |
-| E3 trustworthy mutations (Tasks 4–5) | not started | | |
+| E3 trustworthy mutations (Tasks 4–5) | in progress | Task 4 see git log | Task 4 verified; Task 5 in progress |
 | E4 durable integrations (Task 6) | not started | | |
 | E5 programmatic control (Tasks 7–7a) | not started | | |
 | E6 reproducibility and recovery (Task 8) | not started | | |
@@ -112,3 +112,16 @@ Isolation tests adapted to the stricter guard: `pg_sleep` replaced with `generat
 - `corepack pnpm audit` → no known vulnerabilities
 
 Unresolved: cursor key is per process (multi-instance pagination needs a shared key; deployment decision). `server.ts` has not been started against a live database here (no non-test database exists); only its refusal paths were exercised.
+
+### E3 / Task 4 (atomic audit and outbox)
+
+Acceptance cases (tests/integration/atomic-events.test.ts, 15 tests): create and relabel each record exactly one task change, one audit row and one outbox row with matching correlation id, trace id, tenant, actor and aggregate version; a fault thrown after the domain write rolls back task, audit and outbox together (create and relabel); revoking the runtime role's INSERT on audit (and separately on outbox) makes the create fail with a safe 500 and nothing commits; RLS enabled and forced on both tables; under `cuspatlas_app` UPDATE/DELETE/TRUNCATE on audit and DELETE or payload UPDATE on outbox are refused (42501), only the delivery-state columns are updatable; the owner is also refused audit UPDATE by the append-only trigger; tenant B sees only B's audit/outbox rows, no context sees none, and inserts naming another tenant or actor are refused; logs captured at `trace` contain neither the marker nor payload content, and no audit/outbox row contains the marker after a create and relabel whose labels carry it; a denial raised after a domain write rolls the write back while its attempt row survives; a policy denial writes an attempt row and no audit/outbox row; an unauthenticated attempt has null tenant/actor; a forged tenant header plus another tenant's resource records the authenticated tenant, and a signed token naming a tenant without membership records a null tenant; a duplicate `attempt_ref` insert under the runtime role is refused (23505) while two retries of one business request produce two attempt rows; a sink outage keeps the denial closed with a safe 503 and alert line, and once the sink recovers the next denial is recorded.
+
+- Red: `corepack pnpm test:integration -- atomic-events` before the migration/recordCommand existed → exit 1 (14 failed, 1 passed: the duplicate-attempt/retry case already held with the E2 sink; `relation "cuspatlas.audit_events" does not exist`)
+- One test bug fixed during green: two refused statements had shared one transaction (the second saw 25P02); split into separate transactions.
+- Green: `corepack pnpm test:integration -- atomic-events` → exit 0, 15 tests
+- tests/integration/tenant-isolation.test.ts table inventory and default-deny lists extended with the two new tables (intentional contract change).
+- `corepack pnpm typecheck` → 0; `corepack pnpm lint` → 0; `corepack pnpm contract:check` → 0
+- `corepack pnpm test` → exit 0, 9 files, 83 tests; `corepack pnpm test:integration` → exit 0, 6 files, 70 tests
+
+Crash-window limits, fail-closed handling and the outbox column grants for Task 6 are recorded in foundation-contract-decisions.md ("Task record: F Task 4"). Unresolved: trace ids are derived from the server correlation id (no OpenTelemetry/traceparent yet); Supabase advisors not run (no cloud connection by instruction); Linux CI pending (Task 8).

@@ -100,7 +100,9 @@ describe('runtime database role', () => {
        ORDER BY c.relname`,
     );
     expect(rows.map((r) => r.relname)).toStrictEqual([
+      'audit_events',
       'memberships',
+      'outbox_events',
       'principals',
       'security_attempt_events',
       'synthetic_tasks',
@@ -111,7 +113,14 @@ describe('runtime database role', () => {
   });
 
   it('without tenant context the runtime role sees nothing (default deny)', async () => {
-    for (const t of ['tenants', 'principals', 'memberships', 'synthetic_tasks']) {
+    for (const t of [
+      'tenants',
+      'principals',
+      'memberships',
+      'synthetic_tasks',
+      'audit_events',
+      'outbox_events',
+    ]) {
       const { rows } = await db.app.query(`SELECT count(*)::int AS n FROM cuspatlas.${t}`);
       expect([t, rows[0].n]).toStrictEqual([t, 0]);
     }

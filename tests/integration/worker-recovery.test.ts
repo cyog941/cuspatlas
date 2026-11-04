@@ -242,7 +242,9 @@ describe('crash and lease recovery', () => {
         { afterAccept: async (req) => (req.attempt === 1 ? response.wait.then(() => undefined) : undefined) },
       );
       const id = await enqueue(T_ALPHA, USER_A1);
-      const slow = workerWith({ leaseSeconds: 0.3, deliverTimeoutSeconds: 0.2 }).runOnce(T_ALPHA, provider);
+      // Lease 0.6 s leaves 0.4 s for the lease check and fenced finalization around the 0.2 s deliver
+      // timeout; 0.3 s flaked under full-suite load (lease-lost, still no second send).
+      const slow = workerWith({ leaseSeconds: 0.6, deliverTimeoutSeconds: 0.2 }).runOnce(T_ALPHA, provider);
       expect(await slow).toStrictEqual([{ eventId: id, result: 'reconciliation' }]);
       expect(provider.effectsFor(id)).toBe(1);
       // Still inside the quiet period: nobody may look the key up or resend yet.

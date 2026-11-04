@@ -21,7 +21,10 @@ const PARAM_DEF: Record<string, string> = {
   legalHoldRef: 'LegalHoldRef',
   deletionRef: 'DeletionRef',
 };
-const defs = imagingSchema.$defs as Record<string, { properties?: Record<string, { $ref?: string }> }>;
+const defs = imagingSchema.$defs as Record<
+  string,
+  { properties?: Record<string, { $ref?: string }>; required?: string[] }
+>;
 
 const wrap = (text: string, indent: string) => {
   const words = text.split(' ');
@@ -76,7 +79,7 @@ for (const [path, ops] of byPath) {
         params.push(
           `        - name: ${name}`,
           '          in: query',
-          '          required: false',
+          `          required: ${(defs[op.query]?.required ?? []).includes(name)}`,
           '          schema:',
           `            $ref: '${prop.$ref ? `${REF}${prop.$ref.replace('#/$defs/', '')}` : `${REF}${op.query}/properties/${name}`}'`,
         );

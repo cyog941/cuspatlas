@@ -219,7 +219,7 @@ export interface AssociationCorrect {
   readonly reasonCode: string;
 }
 export interface ImageRefQuery {
-  readonly expectedPatientRef?: string;
+  readonly expectedPatientRef: string;
 }
 export const validateAssociationConfirm = def('AssociationConfirm');
 export const validateAssociationCorrect = def('AssociationCorrect');

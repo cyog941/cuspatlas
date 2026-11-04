@@ -60,16 +60,12 @@ export async function evaluateDeletionOf(tx: TenantTransaction, row: ObjectRow):
   const recordClass: RecordClass =
     row.kind === 'derived' ? 'derived' : associated ? 'associated_original' : 'unassociated_original';
   const requiresSecondActor = associated;
+  // Review hardening: one database definition of the governing holds (the object, its source, its
+  // derived children, every patient ever associated and identities merged into them), shared with the
+  // trigger that re-checks the deleted transition.
   const holds = await tx.query<{ id: string }>(
-    `SELECT h.id FROM cuspatlas.imaging_legal_holds h
-     WHERE h.released_at IS NULL AND (
-       (h.subject_kind = 'object' AND h.subject_ref IN ($1, $2))
-       OR (h.subject_kind = 'patient' AND (
-         h.subject_ref IN (SELECT d.subject_patient_id FROM cuspatlas.imaging_match_decisions d WHERE d.object_id = $2)
-         OR h.subject_ref IN (SELECT p.id FROM cuspatlas.patients p WHERE p.merged_into IN (
-           SELECT d.subject_patient_id FROM cuspatlas.imaging_match_decisions d WHERE d.object_id = $2)))))
-     ORDER BY h.placed_at, h.id LIMIT 20`,
-    [row.id, owner],
+    'SELECT h AS id FROM cuspatlas.imaging_object_holds($1) h LIMIT 20',
+    [row.id],
   );
   const base = { recordClass, requiresSecondActor };
   if (holds.rows.length > 0)
@@ -158,10 +154,27 @@ async function removeBytes(
   let shared = false;
   for (const r of rows) {
     await store.writeTombstone(ctx.tenantId, r.id, r.digest_sha256);
-    if (r.shared) shared = true;
+    // Serialized with an ingest of the same bytes (it holds this lock from promotion to commit), then
+    // re-checked on a fresh snapshot: bytes a concurrent ingest just registered are never removed.
+    await tx.query('SELECT cuspatlas.imaging_lock_content(cuspatlas.current_tenant_id(), $1)', [
+      r.digest_sha256,
+    ]);
+    const live = await tx.query(
+      `SELECT 1 FROM cuspatlas.imaging_objects WHERE storage_key = $1 AND state <> 'deleted' LIMIT 1`,
+      [r.storage_key],
+    );
+    if (r.shared || live.rowCount > 0) shared = true;
     else await store.remove(ctx.tenantId, r.storage_key);
   }
   return shared ? 'retained_shared' : 'removed';
+}
+
+/** Takes every governing hold-subject lock of an object (sorted; see the review-hardening migration). */
+async function lockHoldSubjects(tx: TenantTransaction, objectId: string): Promise<void> {
+  await tx.query(
+    'SELECT cuspatlas.imaging_lock_subjects(cuspatlas.current_tenant_id(), cuspatlas.imaging_hold_subjects($1))',
+    [objectId],
+  );
 }
 
 /** I8: retention policy versions, legal holds and tombstone deletion with byte removal. */
@@ -376,6 +389,7 @@ export function createRetentionOperations(base: ImagingBase) {
         const p = envelope.payload as DeletionRequestCreate;
         return deps.withTenantTransaction(ctx, async (tx) => {
           const row = await loadObject(tx, objectRef, 'FOR UPDATE');
+          await lockHoldSubjects(tx, row.id);
           return execute(ctx, { ...envelope, payload: { objectRef, ...p } }, tx, async () => {
             if (row.state === 'deleted') throw refused('object_already_deleted');
             const pending = await tx.query<{ id: string }>(
@@ -464,6 +478,9 @@ export function createRetentionOperations(base: ImagingBase) {
           // Lock order: object, then the request.
           const row = await loadObject(tx, pre.object_id, 'FOR UPDATE');
           const r = await loadRequest(tx, deletionRef, true);
+          // Waits for any transaction placing a hold on a governing subject; the evaluation below then
+          // runs on a fresh snapshot and sees that hold (the deleted-transition trigger re-checks too).
+          await lockHoldSubjects(tx, row.id);
           return execute(ctx, { ...envelope, payload: { deletionRef } }, tx, async () => {
             if (r.state === 'executed')
               return { data: executedData(r, r.bytes_state ?? 'pending'), version: r.version };
@@ -545,11 +562,25 @@ export const reconcileDeletions: ReconcileStep = async (tx, ctx, store, op) => {
   );
   for (const r of rows) {
     if (!(await store.hasTombstone(ctx.tenantId, r.id))) continue;
-    const up = await tx.query<{ version: number }>(
-      `UPDATE cuspatlas.imaging_objects SET state = 'deleted', deleted_at = now(), version = version + 1,
-         updated_at = now() WHERE id = $1 RETURNING version`,
-      [r.id],
-    );
+    // A hold placed on a restored row before this sweep blocks the deleted transition (trigger); its
+    // bytes are gone, so it is quarantined instead (never served) and left for review.
+    const up = await tx
+      .savepoint(() =>
+        tx.query<{ version: number }>(
+          `UPDATE cuspatlas.imaging_objects SET state = 'deleted', deleted_at = now(), version = version + 1,
+             updated_at = now() WHERE id = $1 RETURNING version`,
+          [r.id],
+        ),
+      )
+      .catch(async (err: unknown) => {
+        if ((err as { code?: unknown }).code !== '42501') throw err;
+        return tx.query<{ version: number }>(
+          `UPDATE cuspatlas.imaging_objects SET state = 'quarantined', quarantine_reason = 'tombstoned_under_hold',
+             version = version + 1, updated_at = now() WHERE id = $1 AND state = 'available' RETURNING version`,
+          [r.id],
+        );
+      });
+    if (up.rowCount === 0) continue;
     await recordCommand(
       tx,
       {

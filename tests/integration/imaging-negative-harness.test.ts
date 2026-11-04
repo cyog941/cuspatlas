@@ -255,8 +255,13 @@ export const ROWS: ImagingHarnessRow[] = [
     operation: 'imaging.imageRefs.resolve',
     crossTenant: 'not_found',
     downgradedTo: 'noImagingScopes',
-    rest: (x) => ({ method: 'GET', url: `/v1/imaging/image-refs/${x.imageRef}`, keyed: false, status: 200 }),
-    mcpArgs: (x) => ({ imageRef: x.imageRef }),
+    rest: (x) => ({
+      method: 'GET',
+      url: `/v1/imaging/image-refs/${x.imageRef}?expectedPatientRef=${x.patient}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (x) => ({ imageRef: x.imageRef, expectedPatientRef: x.patient }),
   },
   // I4 mounts, annotations and derived images.
   {

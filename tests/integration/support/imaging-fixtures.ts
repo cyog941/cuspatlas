@@ -181,7 +181,12 @@ export interface ImagingStack {
 /** One REST app and one MCP server over a fresh database, a per-run object store and the fake scanner. */
 export async function startImagingStack(
   label: string,
-  opts: { limits?: ImagingLimits; withStore?: boolean } = {},
+  opts: {
+    limits?: ImagingLimits;
+    withStore?: boolean;
+    /** Test-only: wraps the per-run store (for example to pause inside a port call). */
+    wrapStore?: (store: ObjectStorePort) => ObjectStorePort;
+  } = {},
 ): Promise<ImagingStack> {
   const db = await openTestDatabase(label);
   await seedTenancy(db.admin);
@@ -201,7 +206,9 @@ export async function startImagingStack(
     attempts,
     tenantTransactions,
     scanner,
-    ...(opts.withStore === false ? {} : { objectStore: temp.store }),
+    ...(opts.withStore === false
+      ? {}
+      : { objectStore: opts.wrapStore ? opts.wrapStore(temp.store) : temp.store }),
     ...(opts.limits ? { imagingLimits: opts.limits } : {}),
   };
   const app = await buildApp({

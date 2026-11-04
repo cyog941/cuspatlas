@@ -98,8 +98,13 @@ export function createLocalObjectStore(options: LocalObjectStoreOptions): Object
     if (await exists(abs)) {
       // Identical content is already stored: verify it is intact before relying on it.
       const current = await readFile(abs).catch(fsFailure);
-      if (sha256(current) !== digest) throw new ObjectStoreError('digest_mismatch');
-      return { storageKey: key, created: false };
+      if (sha256(current) === digest) return { storageKey: key, created: false };
+      // Review hardening: the stored file was altered. The caller's bytes are verified against the
+      // digest, so they repair the content key; the altered file is kept in quarantine for review
+      // (objects already quarantined because of it stay quarantined).
+      await atomicWrite(pathOf(`quarantine/${tenantId}/repaired-${randomUUID()}`), current).catch(fsFailure);
+      await atomicWrite(abs, bytes).catch(fsFailure);
+      return { storageKey: key, created: true };
     }
     await atomicWrite(abs, bytes).catch(fsFailure);
     return { storageKey: key, created: true };

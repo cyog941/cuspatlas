@@ -317,15 +317,24 @@ export function createIngressOperations(base: ImagingBase) {
             );
           }
           return execute(ctx, env, tx, async () => {
+            // Serializes with byte removal of a deleted object sharing this content (review hardening).
+            await tx.query('SELECT cuspatlas.imaging_lock_content(cuspatlas.current_tenant_id(), $1)', [
+              row.declared_digest,
+            ]);
             const { storageKey } = await store.promote(
               ctx.tenantId,
               row.staging_key as string,
               row.declared_digest,
             );
             const scope = row.intended_patient_id;
+            // An unscoped upload deduplicates only into an unscoped object never associated with anyone;
+            // otherwise it is a separate object sharing the content-addressed bytes (review hardening).
             const existing = await tx.query<{ id: string }>(
-              `SELECT id FROM cuspatlas.imaging_objects WHERE kind = 'original' AND state = 'available'
-                 AND digest_sha256 = $1 AND dedupe_patient_id IS NOT DISTINCT FROM $2 FOR UPDATE`,
+              `SELECT o.id FROM cuspatlas.imaging_objects o WHERE o.kind = 'original' AND o.state = 'available'
+                 AND o.digest_sha256 = $1 AND o.dedupe_patient_id IS NOT DISTINCT FROM $2
+                 AND ($2::uuid IS NOT NULL OR NOT EXISTS (
+                   SELECT 1 FROM cuspatlas.imaging_match_decisions d WHERE d.object_id = o.id))
+               ORDER BY o.created_at, o.id LIMIT 1 FOR UPDATE OF o`,
               [row.declared_digest, scope],
             );
             let objectId = existing.rows[0]?.id;

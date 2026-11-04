@@ -3133,7 +3133,7 @@ paths:
             $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ImageRef'
         - name: expectedPatientRef
           in: query
-          required: false
+          required: true
           schema:
             $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/PatientRef'
       responses:

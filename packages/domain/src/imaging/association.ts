@@ -154,7 +154,7 @@ export function associationExtension(sourceOf: () => AssociationSource): ObjectR
  * the current decision. `matchesExpected` is false when the association moved (correction) or the
  * object is no longer available; a consumer must then refuse to use it.
  */
-export async function imageReference(tx: TenantTransaction, imageRef: string, expectedPatientRef?: string) {
+export async function imageReference(tx: TenantTransaction, imageRef: string, expectedPatientRef: string) {
   checkRef(imageRef);
   const { rows } = await tx.query<{ object_id: string; minted_at: Date }>(
     'SELECT object_id, minted_at FROM cuspatlas.imaging_image_refs WHERE id = $1',
@@ -188,10 +188,8 @@ export async function imageReference(tx: TenantTransaction, imageRef: string, ex
             decidedAt: d.decided_at.toISOString(),
           },
     decisionCount: history.rows[0]?.n ?? 0,
-    matchesExpected:
-      expectedPatientRef === undefined
-        ? null
-        : current && d !== null && d.subject_patient_id === expectedPatientRef,
+    // Review hardening: a consumer always names the patient it expects; there is no unchecked read.
+    matchesExpected: current && d !== null && d.subject_patient_id === expectedPatientRef,
   };
 }
 
@@ -547,7 +545,7 @@ export function createAssociationOperations(
             operation: op,
             resourceType: IMAGE_REF_RESOURCE,
             resourceRefs: [imageRef, data.objectRef],
-            queryFields: q.expectedPatientRef === undefined ? [] : ['expectedPatientRef'],
+            queryFields: ['expectedPatientRef'],
           });
           return data;
         });

@@ -105,6 +105,12 @@ const TOOL_NAMES = [
   'scheduling_visit_context_unassign_form',
   'scheduling_visit_context_link_lab_case',
   'scheduling_visit_context_relink_lab_case',
+  // S13 recurrence series tools.
+  'scheduling_series_plan',
+  'scheduling_series_create',
+  'scheduling_series_get',
+  'scheduling_series_extend',
+  'scheduling_series_end',
 ].sort();
 
 let db: TestDatabase;

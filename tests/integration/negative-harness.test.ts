@@ -718,6 +718,8 @@ export const COMMANDS: HarnessCommand[] = [
   },
   // S12 visit context (every command; producers are absent, but every dimension is refused first).
   ...visitRows(),
+  // S13 recurrence series.
+  ...seriesRows(),
 ];
 
 const APPT = '/v1/scheduling/appointments';
@@ -789,6 +791,92 @@ function visitRows(): HarnessCommand[] {
         reasonCode: 'wrong_visit',
       },
     ),
+  ];
+}
+
+/** S13 rows. */
+function seriesRows(): HarnessCommand[] {
+  const SERIES = '/v1/scheduling/series';
+  const seriesBody = (f: HarnessFixture) => ({
+    patientRef: f.alphaPatient,
+    locationRef: f.alphaLocation,
+    provider: { kind: 'provider', resourceRef: f.alphaProvider },
+    operatory: { kind: 'operatory', resourceRef: f.alphaResource },
+    pattern: { frequency: 'weekly', interval: 1 },
+    firstDate: '2030-02-04',
+    startTime: '10:00',
+    durationMinutes: 30,
+    count: 2,
+  });
+  return [
+    {
+      operation: 'scheduling.series.plan',
+      tool: 'scheduling_series_plan',
+      crossTenant: 'not_found',
+      downgradedTo: 'noPatientScopes',
+      rest: (f) => ({
+        method: 'POST',
+        url: `${SERIES}/plan`,
+        body: seriesBody(f),
+        keyed: false,
+        status: 200,
+      }),
+      mcpArgs: (f) => seriesBody(f),
+    },
+    {
+      operation: 'scheduling.series.create',
+      tool: 'scheduling_series_create',
+      crossTenant: 'not_found',
+      downgradedTo: 'readOnly',
+      rest: (f) => ({ method: 'POST', url: SERIES, body: seriesBody(f), keyed: true, status: 201 }),
+      mcpArgs: (f) => ({ ...seriesBody(f), idempotencyKey: randomUUID() }),
+    },
+    {
+      operation: 'scheduling.series.read',
+      tool: 'scheduling_series_get',
+      crossTenant: 'not_found',
+      downgradedTo: 'noPatientScopes',
+      rest: (f) => ({ method: 'GET', url: `${SERIES}/${f.alphaSeries}`, keyed: false, status: 200 }),
+      mcpArgs: (f) => ({ seriesRef: f.alphaSeries }),
+    },
+    {
+      operation: 'scheduling.series.extend',
+      tool: 'scheduling_series_extend',
+      crossTenant: 'not_found',
+      downgradedTo: 'readOnly',
+      rest: (f) => ({
+        method: 'POST',
+        url: `${SERIES}/${f.alphaSeries}/extend`,
+        body: { expectedVersion: 1, count: 1 },
+        keyed: true,
+        status: 201,
+      }),
+      mcpArgs: (f) => ({
+        seriesRef: f.alphaSeries,
+        expectedVersion: 1,
+        count: 1,
+        idempotencyKey: randomUUID(),
+      }),
+    },
+    {
+      operation: 'scheduling.series.end',
+      tool: 'scheduling_series_end',
+      crossTenant: 'not_found',
+      downgradedTo: 'readOnly',
+      rest: (f) => ({
+        method: 'POST',
+        url: `${SERIES}/${f.alphaSeries}/end`,
+        body: { expectedVersion: 1, reasonCode: 'provider_unavailable' },
+        keyed: true,
+        status: 200,
+      }),
+      mcpArgs: (f) => ({
+        seriesRef: f.alphaSeries,
+        expectedVersion: 1,
+        reasonCode: 'provider_unavailable',
+        idempotencyKey: randomUUID(),
+      }),
+    },
   ];
 }
 
@@ -1033,7 +1121,21 @@ beforeAll(async () => {
     ttlMinutes: 1440,
   });
   expect(hold.statusCode).toBe(201);
+  // S13: one alpha series (one Monday occurrence) for the series rows.
+  const series = await owner('/v1/scheduling/series', {
+    patientRef: alphaPatient,
+    locationRef: alphaLocation,
+    provider: { kind: 'provider', resourceRef: alphaProvider },
+    operatory: { kind: 'operatory', resourceRef: alphaResource },
+    pattern: { frequency: 'weekly', interval: 1 },
+    firstDate: '2030-01-14',
+    startTime: '10:00',
+    durationMinutes: 30,
+    count: 1,
+  });
+  expect(series.statusCode).toBe(201);
   fixture = {
+    alphaSeries: series.json().data.seriesRef,
     alphaProvider,
     alphaAppointment: appointment.json().data.appointmentRef,
     alphaHold: hold.json().data.holdRef,
@@ -1158,6 +1260,9 @@ async function state(): Promise<string> {
     await q('SELECT count(*)::int AS n FROM cuspatlas.appointment_lifecycle_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.appointment_attendance_transitions'),
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.visit_context_items'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.appointment_series'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.appointment_series_occurrences'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.appointment_series_exceptions'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.audit_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.outbox_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.command_idempotency'),

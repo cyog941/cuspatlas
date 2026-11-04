@@ -44,7 +44,7 @@ export const MERGE_POLICY_VERSION = 'patient-merge.pending-approval.1';
  */
 export interface MergeRecordClass {
   readonly recordClass: string;
-  readonly table: 'patient_relationships' | 'appointment_requests' | 'appointments';
+  readonly table: 'patient_relationships' | 'appointment_requests' | 'appointments' | 'appointment_series';
   readonly column: 'subject_patient_id' | 'counterparty_patient_id';
   /** Public name of the reference in the record's contract. */
   readonly referenceField: string;
@@ -126,6 +126,24 @@ export const MERGE_RECORD_CLASSES: readonly MergeRecordClass[] = [
       'cancelled_at',
       'rescheduled_to_id',
       'request_id',
+      'version',
+      'updated_at',
+    ],
+  },
+  // S13: a recurrence series follows its patient (its occurrences are appointments, registered above).
+  // The pattern, anchor and creator are content; state, end and counters are lifecycle.
+  {
+    recordClass: 'appointmentSeries',
+    table: 'appointment_series',
+    column: 'subject_patient_id',
+    referenceField: 'patientRef',
+    factKind: 'administrative',
+    digestExclude: [
+      'subject_patient_id',
+      'occurrence_count',
+      'state',
+      'end_reason',
+      'ended_at',
       'version',
       'updated_at',
     ],

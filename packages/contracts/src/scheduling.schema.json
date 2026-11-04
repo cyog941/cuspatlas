@@ -2605,6 +2605,512 @@
           }
         }
       }
+    },
+    "SeriesRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque recurrence series reference."
+    },
+    "SeriesPattern": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["frequency", "interval"],
+      "properties": {
+        "frequency": {
+          "enum": ["weekly", "monthly"]
+        },
+        "interval": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 12
+        }
+      }
+    },
+    "SeriesCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "S13 series request (and plan query). Wall-clock times are in the location's zone (ADR 0009 S-S3-R1 month-end, S-S3-R2 daylight saving). count is at most the configuration ceiling 52; the per-request limit (default 26, scheduling.series.occurrenceLimit) is enforced by the domain and named in the refusal.",
+      "required": [
+        "patientRef",
+        "locationRef",
+        "provider",
+        "operatory",
+        "pattern",
+        "firstDate",
+        "startTime",
+        "durationMinutes",
+        "count"
+      ],
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "provider": {
+          "$ref": "#/$defs/ProviderRef"
+        },
+        "operatory": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OperatoryRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "noOperatoryReason": {
+          "$ref": "#/$defs/NoOperatoryReason"
+        },
+        "resources": {
+          "$ref": "#/$defs/AdditionalResources"
+        },
+        "appointmentTypeCode": {
+          "$ref": "#/$defs/AppointmentTypeCode"
+        },
+        "pattern": {
+          "$ref": "#/$defs/SeriesPattern"
+        },
+        "firstDate": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "startTime": {
+          "$ref": "#/$defs/LocalTime"
+        },
+        "durationMinutes": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 480
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 52
+        },
+        "skipConflicts": {
+          "type": "boolean",
+          "description": "Create only the conflict-free occurrences and enumerate the skipped ones (default false: atomic)."
+        }
+      }
+    },
+    "SeriesExtend": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Explicit continuation: books the next block of occurrences after the last one (never silent).",
+      "required": ["expectedVersion", "count"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 52
+        },
+        "skipConflicts": {
+          "type": "boolean"
+        }
+      }
+    },
+    "SeriesEnd": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "reasonCode"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "SeriesSkipped": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "localDate", "reason"],
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "localDate": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "reason": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "SeriesCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "seriesRef",
+            "state",
+            "requested",
+            "created",
+            "skipped",
+            "appointmentRefs",
+            "skippedOccurrences",
+            "openOccurrenceRefs"
+          ],
+          "properties": {
+            "seriesRef": {
+              "$ref": "#/$defs/SeriesRef"
+            },
+            "state": {
+              "enum": ["active", "ended"]
+            },
+            "requested": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "created": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "skipped": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "appointmentRefs": {
+              "type": "array",
+              "maxItems": 52,
+              "items": {
+                "$ref": "#/$defs/AppointmentRef"
+              }
+            },
+            "skippedOccurrences": {
+              "type": "array",
+              "maxItems": 52,
+              "items": {
+                "$ref": "#/$defs/SeriesSkipped"
+              }
+            },
+            "openOccurrenceRefs": {
+              "type": "array",
+              "maxItems": 500,
+              "description": "On end: the future occurrences still booked, for explicit reassignment or cancellation.",
+              "items": {
+                "$ref": "#/$defs/AppointmentRef"
+              }
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "SeriesConflict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "explanation", "overrideable"],
+      "properties": {
+        "kind": {
+          "enum": [
+            "resource_overlap",
+            "provider_assignment",
+            "outside_availability",
+            "insufficient_duration",
+            "patient_unavailable",
+            "patient_inactive",
+            "policy_override_required"
+          ]
+        },
+        "resourceRef": {
+          "$ref": "#/$defs/ResourceRef"
+        },
+        "existingRef": {
+          "$ref": "#/$defs/EntityRef"
+        },
+        "explanation": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "overrideable": {
+          "type": "boolean"
+        }
+      }
+    },
+    "SeriesPlanResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["limit", "requested", "conflicted", "occurrences"],
+          "description": "Read-only preview: nothing is written.",
+          "properties": {
+            "limit": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "value", "ceiling"],
+              "properties": {
+                "name": {
+                  "const": "scheduling.series.occurrenceLimit"
+                },
+                "value": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 52
+                },
+                "ceiling": {
+                  "const": 52
+                }
+              }
+            },
+            "requested": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "conflicted": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "occurrences": {
+              "type": "array",
+              "maxItems": 52,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["index", "localDate", "startsAt", "endsAt", "conflicts"],
+                "properties": {
+                  "index": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "localDate": {
+                    "$ref": "#/$defs/LocalDate"
+                  },
+                  "startsAt": {
+                    "$ref": "#/$defs/Instant"
+                  },
+                  "endsAt": {
+                    "$ref": "#/$defs/Instant"
+                  },
+                  "conflicts": {
+                    "type": "array",
+                    "maxItems": 50,
+                    "items": {
+                      "$ref": "#/$defs/SeriesConflict"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "SeriesRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "seriesRef",
+            "patientRef",
+            "locationRef",
+            "pattern",
+            "firstDate",
+            "startTime",
+            "durationMinutes",
+            "timeZone",
+            "provider",
+            "operatory",
+            "state",
+            "endReason",
+            "limitAtCreation",
+            "version",
+            "occurrences",
+            "exceptions"
+          ],
+          "properties": {
+            "seriesRef": {
+              "$ref": "#/$defs/SeriesRef"
+            },
+            "patientRef": {
+              "$ref": "#/$defs/PatientRef"
+            },
+            "locationRef": {
+              "$ref": "#/$defs/LocationRef"
+            },
+            "pattern": {
+              "$ref": "#/$defs/SeriesPattern"
+            },
+            "firstDate": {
+              "$ref": "#/$defs/LocalDate"
+            },
+            "startTime": {
+              "$ref": "#/$defs/LocalTime"
+            },
+            "durationMinutes": {
+              "type": "integer"
+            },
+            "timeZone": {
+              "$ref": "#/$defs/TimeZone"
+            },
+            "provider": {
+              "$ref": "#/$defs/ProviderRef"
+            },
+            "operatory": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/OperatoryRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "state": {
+              "enum": ["active", "ended"]
+            },
+            "endReason": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ReasonCode"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "limitAtCreation": {
+              "type": "integer"
+            },
+            "version": {
+              "$ref": "#/$defs/Version"
+            },
+            "occurrences": {
+              "type": "array",
+              "maxItems": 1000,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "index",
+                  "localDate",
+                  "startsAt",
+                  "endsAt",
+                  "outcome",
+                  "skipReason",
+                  "appointmentRef",
+                  "currentAppointmentRef",
+                  "status"
+                ],
+                "properties": {
+                  "index": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "localDate": {
+                    "$ref": "#/$defs/LocalDate"
+                  },
+                  "startsAt": {
+                    "$ref": "#/$defs/Instant"
+                  },
+                  "endsAt": {
+                    "$ref": "#/$defs/Instant"
+                  },
+                  "outcome": {
+                    "enum": ["booked", "skipped"]
+                  },
+                  "skipReason": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/ReasonCode"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "appointmentRef": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/AppointmentRef"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "currentAppointmentRef": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/AppointmentRef"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The standing booking after reschedules (the reschedule chain is followed)."
+                  },
+                  "status": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/AppointmentStatus"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "exceptions": {
+              "type": "array",
+              "maxItems": 1000,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["index", "appointmentRef", "kind", "reasonCode", "occurredAt"],
+                "properties": {
+                  "index": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "appointmentRef": {
+                    "$ref": "#/$defs/AppointmentRef"
+                  },
+                  "kind": {
+                    "enum": ["cancelled", "rescheduled"]
+                  },
+                  "reasonCode": {
+                    "$ref": "#/$defs/ReasonCode"
+                  },
+                  "occurredAt": {
+                    "$ref": "#/$defs/Instant"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

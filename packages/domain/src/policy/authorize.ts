@@ -102,6 +102,12 @@ export const ACTION_POLICIES = {
   'scheduling.visitContext.unassignForm': { scope: 'scheduling.write', principals: ['human', 'service'] },
   'scheduling.visitContext.linkLabCase': { scope: 'scheduling.write', principals: ['human', 'service'] },
   'scheduling.visitContext.relinkLabCase': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  // S13 recurrence series (ADR 0009 S-D1 pending approval). Planning is a read.
+  'scheduling.series.plan': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  'scheduling.series.read': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  'scheduling.series.create': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.series.extend': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.series.end': { scope: 'scheduling.write', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

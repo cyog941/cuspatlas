@@ -19,6 +19,7 @@ Authorization basis: user instruction on 2026-11-04 to build workstream S on syn
 | S11 attendance (+ S10 contention fix) | verified on synthetic data (Windows host); decisions pending approval | 8648aa9 | 644 tests |
 | Review hardening of S4-S9 | verified on synthetic data (Windows host) | 427979e | 655 tests |
 | S12 visit context (container; producer-bound cases open on C8/C10/C11/C13/C16) | container verified on synthetic data (Windows host); clinical producers absent | see S12 | 696 tests + 6 todo |
+| S13 recurrence series with cap | verified on synthetic data (Windows host); S-D1/R1/R2 pending approval | see S13 | 729 tests + 6 todo |
 
 ## Command log
 
@@ -354,3 +355,21 @@ Open (it.todo, blocked on C): C8 real pin with provenance; C8 change produces a 
 - Harness: 7 rows added (`visitRows()`); the state snapshot covers `visit_context_items`. Explicit lists updated: MCP tool names (`mcp-parity.test.ts`), RLS table list (`tenant-isolation.test.ts`).
 
 Deviations: patient status is not part of the context projection (a scheduling reader without `patients.read` must not learn deceased/merged; the patient reference only). Form ownership is named C13 although intake forms are E4; the owner string is one value per item. Reads are not sensitive-read logged (as S10/S11).
+
+### S13 recurrence series with a deliberate cap
+
+Files: `supabase/migrations/20261107010000_appointment_recurrence.sql`, `packages/domain/src/scheduling/recurrence.ts` (the S10 insert path lifted to `insertBookingIn` in `booking.ts`), S13 definitions in `scheduling.schema.json`, `limit` and `occurrences` on the shared refusal detail (`context.ts`, `synthetic-task.schema.json`), five `SCHEDULING_OPS` rows, `tests/integration/recurrence.test.ts`.
+
+Rules (ADR 0009, all recommended-pending-approval): per-request limit `scheduling.series.occurrenceLimit` = `scheduling_policy_settings.series_occurrence_limit` (default 26, CHECK 1-52); the configuration ceiling 52 is also the schema maximum of `count` (53 is a 400); continuation only through `extendSeries`. The plan leaves atomic vs partial open only as "a documented flag may create only the conflict-free occurrences": implemented as atomic by default plus `skipConflicts: true`. Month-end S-S3-R1 (`occurrenceDate`: anchor kept, last day of a short month). Daylight saving S-S3-R2 through the existing `localToInstant` (compatible disambiguation), with the location's zone (the series takes no client zone).
+
+Acceptance cases: 1 (26 creates 26 individually readable bookings at version 1; 27 is 422 `validation_failed` `series_limit_exceeded` with `detail.limit = {name: 'scheduling.series.occurrenceLimit', value: 26}` and zero rows in series, occurrences, appointments and audit; 53 is 400); 2 (rescheduling occurrence 2 and cancelling occurrence 3 leave occurrence 1 at version 1; the series shows exceptions `[2, rescheduled]`, `[3, cancelled]` and follows the reschedule chain to the standing booking); 3 (plan returns per-occurrence conflicts and the limit `{value 26, ceiling 52}`; series, appointments, audit, idempotency and outbox counts unchanged); 4 (a later conflict refuses the whole series with `detail.occurrences` naming occurrence 3 and its start, no appointment written; with `skipConflicts` 3 created + 1 skipped (`resource_overlap`) = 4 requested, recorded as a `skipped` occurrence); 5 (2031-01-31 -> 02-28 -> 03-31 -> 04-30; 2032-01-31 -> 02-29 -> 03-31); 5b (America/New_York 02:30 on 2031-03-02/09/16 -> 07:30Z, 07:30Z (03:30 EDT), 06:30Z; 01:30 for 60 minutes on 2031-10-26/11-02/11-09 -> 05:30-06:30Z, 05:30-06:30Z (first 01:30, ends 01:30 EST), 06:30-07:30Z); 6 (same key replays the same series and occurrence refs, no new appointment); 7 (another tenant reads 404, creating with a foreign provider is 404, no appointment references a foreign resource).
+
+Failure cases: 1 (a fault after the last occurrence is written rolls back series, occurrences, appointments, audit and outbox); 2 (limit lowered to 10: the existing 12-occurrence series is untouched, a new 11 and an extension of 11 are refused naming 10); continuation (`extend` books occurrences 3-4 from where the series stopped, version 2; a stale version is 409 `stale_version`); 3 (S7 refuses deactivating a provider with future bookings (409), so the provider leaves through an availability version with no hours: extending is a 409 booking conflict; `endSeries` sets `ended` and returns the still-booked future occurrences in `openOccurrenceRefs` for explicit reassignment, nothing is cancelled; extending an ended series is 409 `series_not_active`); 4 (two concurrent creations of the same slots: one 201 and one 409 whose `occurrences` are 1, 2 and 3; exactly 3 appointments on the provider).
+
+Found and fixed during green: a refused series' per-occurrence detail exceeded the 2 KiB idempotency result bound (500). Series conflicts are now `replayable: false` (new `RefusalInit.replayable`, honoured by `executeOnce`): a resource conflict another command can clear is neither stored nor replayed, so a same-key retry is evaluated again. Terminal validation refusals (the limit) are still stored.
+
+- Red: `corepack pnpm test -- tests/integration/recurrence.test.ts` before implementation: exit 1, 13 failed.
+- Green: same command exit 0, 13 passed. `typecheck`, `lint`, `contract:check` exit 0; `corepack pnpm test` exit 0, 34 files / 729 passed / 6 todo.
+- Harness: 5 rows (`seriesRows()`, fixture series `alphaSeries`); snapshot covers series, occurrences and exceptions. Merge registry: `appointment_series.subject_patient_id` registered (`appointmentSeries`).
+
+Deviations: overrides are not available for series occurrences (no override field); `count` per request counts skipped occurrences too; S-D1/R1/R2 remain recommended-pending-approval.

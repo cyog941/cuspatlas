@@ -2,6 +2,7 @@ import type { ActorContext, CommandEnvelope, TenantTransaction } from '@cuspatla
 import { createAppointmentBase } from './appointment-base';
 import { bookingAttendanceGuard, createAttendanceOperations } from './attendance';
 import { createBookingOperations, loadAppointment } from './booking';
+import { createRecurrenceOperations, recordSeriesException } from './recurrence';
 import { createRequestOperations, type LinkHook, linkRequestToBookingIn } from './requests';
 import type { SchedulingDeps } from './resources';
 import { createVisitContextOperations } from './visit-context';
@@ -31,6 +32,7 @@ export function createAppointmentService(deps: SchedulingDeps) {
   const booking = createBookingOperations(base);
   const attendance = createAttendanceOperations(base);
   const visitContext = createVisitContextOperations(base);
+  const recurrence = createRecurrenceOperations(base);
   const bookingStillActive = async (tx: TenantTransaction, appointmentId: string) => {
     const { rows } = await tx.query<{ status: string }>(
       'SELECT status FROM cuspatlas.appointments WHERE id = $1',
@@ -43,16 +45,19 @@ export function createAppointmentService(deps: SchedulingDeps) {
     ...booking,
     ...attendance,
     ...visitContext,
+    ...recurrence,
     reopenRequest: (ctx: ActorContext, requestRef: string, envelope: CommandEnvelope<unknown>) =>
       requests.reopenRequest(ctx, requestRef, envelope, bookingStillActive),
     rescheduleAppointment: (ctx: ActorContext, appointmentRef: string, envelope: CommandEnvelope<unknown>) =>
-      booking.rescheduleAppointment(ctx, appointmentRef, envelope, (tx, id, reason) =>
-        bookingAttendanceGuard(tx, 'scheduling.appointments.reschedule', id, 'rescheduled', reason),
-      ),
+      booking.rescheduleAppointment(ctx, appointmentRef, envelope, async (tx, id, reason) => {
+        await bookingAttendanceGuard(tx, 'scheduling.appointments.reschedule', id, 'rescheduled', reason);
+        await recordSeriesException(tx, id, 'rescheduled', reason);
+      }),
     cancelAppointment: (ctx: ActorContext, appointmentRef: string, envelope: CommandEnvelope<unknown>) =>
-      booking.cancelAppointment(ctx, appointmentRef, envelope, (tx, id, reason) =>
-        bookingAttendanceGuard(tx, 'scheduling.appointments.cancel', id, 'cancelled', reason),
-      ),
+      booking.cancelAppointment(ctx, appointmentRef, envelope, async (tx, id, reason) => {
+        await bookingAttendanceGuard(tx, 'scheduling.appointments.cancel', id, 'cancelled', reason);
+        await recordSeriesException(tx, id, 'cancelled', reason);
+      }),
   };
 }
 

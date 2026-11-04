@@ -123,12 +123,12 @@ export async function loadAppointment(
   return row;
 }
 
-interface Window {
+export interface Window {
   readonly s: number;
   readonly e: number;
 }
 
-function checkWindow(startsAt: string, endsAt: string): Window {
+export function checkWindow(startsAt: string, endsAt: string): Window {
   const s = Date.parse(startsAt);
   const e = Date.parse(endsAt);
   if (!(s < e)) throw failedAt('/endsAt', 'intervalOrder');
@@ -147,7 +147,7 @@ function checkWindow(startsAt: string, endsAt: string): Window {
  * their pre-check, and a concurrent deactivation (FOR UPDATE) serializes with the booking; foreign-key
  * inserts (KEY SHARE) from other commands are not blocked.
  */
-async function resolveBookingResources(
+export async function resolveBookingResources(
   tx: TenantTransaction,
   decision: AuthorizationDecision,
   location: LocationRow,
@@ -174,10 +174,10 @@ async function resolveBookingResources(
   });
 }
 
-const refOf = (r: ResourceRow): ResourceRef => ({ kind: r.kind, resourceRef: r.id });
+export const refOf = (r: ResourceRow): ResourceRef => ({ kind: r.kind, resourceRef: r.id });
 
 /** Weekly hours of the version in force, as instants, for the local dates around the window. */
-async function availabilityConflicts(
+export async function availabilityConflicts(
   tx: TenantTransaction,
   resources: readonly ResourceRow[],
   w: Window,
@@ -238,7 +238,11 @@ async function availabilityConflicts(
 }
 
 /** Releases hold occupancy that has expired on these resources in this window (lazy reconciliation). */
-async function releaseExpiredHolds(tx: TenantTransaction, ids: readonly string[], w: Window): Promise<void> {
+export async function releaseExpiredHolds(
+  tx: TenantTransaction,
+  ids: readonly string[],
+  w: Window,
+): Promise<void> {
   const expired = await tx.query<{ id: string }>(
     `SELECT DISTINCT h.id FROM cuspatlas.scheduling_holds h
      JOIN cuspatlas.scheduling_occupancy o ON o.source_kind = 'hold' AND o.source_id = h.id AND o.tenant_id = h.tenant_id
@@ -254,7 +258,7 @@ async function releaseExpiredHolds(tx: TenantTransaction, ids: readonly string[]
     );
 }
 
-async function expireHolds(tx: TenantTransaction, holdIds: readonly string[]): Promise<number> {
+export async function expireHolds(tx: TenantTransaction, holdIds: readonly string[]): Promise<number> {
   const locked = await tx.query<{ id: string; version: number }>(
     `SELECT id, version FROM cuspatlas.scheduling_holds WHERE id = ANY ($1::uuid[]) AND state = 'active'
        AND expires_at <= now() ORDER BY id FOR UPDATE`,
@@ -289,7 +293,7 @@ async function expireHolds(tx: TenantTransaction, holdIds: readonly string[]): P
  * Busy time overlapping the window on these resources (or location-wide). The blocking record is
  * named only to callers who may read bookings; the blocking resource is always one the caller named.
  */
-async function busyConflicts(
+export async function busyConflicts(
   tx: TenantTransaction,
   location: LocationRow,
   ids: readonly string[],
@@ -375,7 +379,7 @@ export async function occupy(
   }
 }
 
-interface Prepared {
+export interface Prepared {
   readonly resources: ResourceRow[];
   readonly w: Window;
   readonly operatory: ResourceRow | null;
@@ -384,7 +388,7 @@ interface Prepared {
 }
 
 /** Schema-independent checks of a booking window and its resources (domain validation, 422). */
-async function prepareWindow(
+export async function prepareWindow(
   tx: TenantTransaction,
   decision: AuthorizationDecision,
   location: LocationRow,
@@ -412,7 +416,7 @@ async function prepareWindow(
   };
 }
 
-async function patientConflicts(tx: TenantTransaction, patientRef: string): Promise<Conflict[]> {
+export async function patientConflicts(tx: TenantTransaction, patientRef: string): Promise<Conflict[]> {
   try {
     await assertPatientSchedulable(tx, patientRef);
     return [];
@@ -451,6 +455,102 @@ function settle(
   return [...new Set(conflicts.map((c) => c.kind))];
 }
 
+/**
+ * Inserts a booking for a prepared window after every check; returns the appointment id. The one
+ * booking insert path: S10 book and reschedule, S13 series occurrences and S15 offer acceptance.
+ */
+export async function insertBookingIn(
+  tx: TenantTransaction,
+  operation: string,
+  o: {
+    location: LocationRow;
+    prepared: Prepared;
+    patientRef: string;
+    timeZone: string;
+    appointmentTypeCode: string | null;
+    requestId: string | null;
+    holdId: string | null;
+    rescheduledFrom: string | null;
+    ignoreSources: string[];
+    canReadBookings: boolean;
+    override: BookingWindowInput['override'];
+    canOverride: boolean;
+    extraConflicts: Conflict[];
+  },
+): Promise<string> {
+  const { prepared, location } = o;
+  const ids = prepared.resources.map((r) => r.id);
+  await releaseExpiredHolds(tx, ids, prepared.w);
+  const conflicts = [
+    ...o.extraConflicts,
+    ...(await patientConflicts(tx, o.patientRef)),
+    ...(await availabilityConflicts(tx, prepared.resources, prepared.w, location.time_zone)),
+    ...(await busyConflicts(tx, location, ids, prepared.w, o.ignoreSources, o.canReadBookings)),
+  ];
+  if (location.status !== 'active') throw failedAt('/locationRef', 'locationInactive');
+  const overridden = settle(conflicts, o.override, o.canOverride);
+  const { rows } = await tx.query<{ id: string }>(
+    `INSERT INTO cuspatlas.appointments (tenant_id, subject_patient_id, location_id, starts_at, ends_at, time_zone,
+       provider_id, operatory_id, no_operatory_reason, appointment_type_code, request_id, hold_id, rescheduled_from_id,
+       created_by)
+     VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, cuspatlas.current_actor_id())
+     RETURNING id`,
+    [
+      o.patientRef,
+      location.id,
+      new Date(prepared.w.s),
+      new Date(prepared.w.e),
+      o.timeZone,
+      prepared.provider.id,
+      prepared.operatory?.id ?? null,
+      prepared.noOperatoryReason,
+      o.appointmentTypeCode,
+      o.requestId,
+      o.holdId,
+      o.rescheduledFrom,
+    ],
+  );
+  const id = rows[0]?.id;
+  if (!id) throw new Error('insert returned no row');
+  await occupy(tx, 'appointment', id, location, prepared.resources.map(refOf), prepared.w, () =>
+    busyConflicts(tx, location, ids, prepared.w, [...o.ignoreSources, id], o.canReadBookings),
+  );
+  await tx.query(
+    `INSERT INTO cuspatlas.appointment_lifecycle_events (tenant_id, appointment_id, kind, related_appointment_id,
+       appointment_version, actor_id)
+     VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, 1, cuspatlas.current_actor_id())`,
+    [id, o.rescheduledFrom === null ? 'booked' : 'rescheduled_in', o.rescheduledFrom],
+  );
+  await recordCommand(
+    tx,
+    { operation, resourceType: APPOINTMENT_RESOURCE, resourceRef: id, resourceVersion: 1 },
+    { changedFields: ['patientRef', 'window', 'resources', 'status'] },
+  );
+  if (overridden.length > 0 && o.override) {
+    const ov = await tx.query<{ id: string }>(
+      `INSERT INTO cuspatlas.appointment_overrides (tenant_id, appointment_id, override_code, reason_code,
+         overridden_kinds, policy_version, actor_id)
+       VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4::text[], $5, cuspatlas.current_actor_id())
+       RETURNING id`,
+      [id, o.override.code, o.override.reasonCode, overridden, OVERRIDE_POLICY_VERSION],
+    );
+    const overrideId = ov.rows[0]?.id;
+    if (!overrideId) throw new Error('insert returned no row');
+    // Its own audited record (one audit row per resource version).
+    await recordCommand(
+      tx,
+      {
+        operation: 'scheduling.appointments.override',
+        resourceType: 'appointmentOverride',
+        resourceRef: overrideId,
+        resourceVersion: 1,
+      },
+      { changedFields: ['override'] },
+    );
+  }
+  return id;
+}
+
 /** S10 commands and queries: holds, booking, reschedule, cancel and the appointment read. */
 export function createBookingOperations(base: AppointmentBase) {
   const { deps, execute } = base;
@@ -460,99 +560,6 @@ export function createBookingOperations(base: AppointmentBase) {
     const canOverride =
       override === undefined ? false : await base.can(ctx, 'scheduling.appointments.override');
     return { canReadBookings, canOverride };
-  }
-
-  /** Inserts a booking for a prepared window after every check; returns the appointment id. */
-  async function insertBooking(
-    tx: TenantTransaction,
-    operation: string,
-    o: {
-      location: LocationRow;
-      prepared: Prepared;
-      patientRef: string;
-      timeZone: string;
-      appointmentTypeCode: string | null;
-      requestId: string | null;
-      holdId: string | null;
-      rescheduledFrom: string | null;
-      ignoreSources: string[];
-      canReadBookings: boolean;
-      override: BookingWindowInput['override'];
-      canOverride: boolean;
-      extraConflicts: Conflict[];
-    },
-  ): Promise<string> {
-    const { prepared, location } = o;
-    const ids = prepared.resources.map((r) => r.id);
-    await releaseExpiredHolds(tx, ids, prepared.w);
-    const conflicts = [
-      ...o.extraConflicts,
-      ...(await patientConflicts(tx, o.patientRef)),
-      ...(await availabilityConflicts(tx, prepared.resources, prepared.w, location.time_zone)),
-      ...(await busyConflicts(tx, location, ids, prepared.w, o.ignoreSources, o.canReadBookings)),
-    ];
-    if (location.status !== 'active') throw failedAt('/locationRef', 'locationInactive');
-    const overridden = settle(conflicts, o.override, o.canOverride);
-    const { rows } = await tx.query<{ id: string }>(
-      `INSERT INTO cuspatlas.appointments (tenant_id, subject_patient_id, location_id, starts_at, ends_at, time_zone,
-         provider_id, operatory_id, no_operatory_reason, appointment_type_code, request_id, hold_id, rescheduled_from_id,
-         created_by)
-       VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, cuspatlas.current_actor_id())
-       RETURNING id`,
-      [
-        o.patientRef,
-        location.id,
-        new Date(prepared.w.s),
-        new Date(prepared.w.e),
-        o.timeZone,
-        prepared.provider.id,
-        prepared.operatory?.id ?? null,
-        prepared.noOperatoryReason,
-        o.appointmentTypeCode,
-        o.requestId,
-        o.holdId,
-        o.rescheduledFrom,
-      ],
-    );
-    const id = rows[0]?.id;
-    if (!id) throw new Error('insert returned no row');
-    await occupy(tx, 'appointment', id, location, prepared.resources.map(refOf), prepared.w, () =>
-      busyConflicts(tx, location, ids, prepared.w, [...o.ignoreSources, id], o.canReadBookings),
-    );
-    await tx.query(
-      `INSERT INTO cuspatlas.appointment_lifecycle_events (tenant_id, appointment_id, kind, related_appointment_id,
-         appointment_version, actor_id)
-       VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, 1, cuspatlas.current_actor_id())`,
-      [id, o.rescheduledFrom === null ? 'booked' : 'rescheduled_in', o.rescheduledFrom],
-    );
-    await recordCommand(
-      tx,
-      { operation, resourceType: APPOINTMENT_RESOURCE, resourceRef: id, resourceVersion: 1 },
-      { changedFields: ['patientRef', 'window', 'resources', 'status'] },
-    );
-    if (overridden.length > 0 && o.override) {
-      const ov = await tx.query<{ id: string }>(
-        `INSERT INTO cuspatlas.appointment_overrides (tenant_id, appointment_id, override_code, reason_code,
-           overridden_kinds, policy_version, actor_id)
-         VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4::text[], $5, cuspatlas.current_actor_id())
-         RETURNING id`,
-        [id, o.override.code, o.override.reasonCode, overridden, OVERRIDE_POLICY_VERSION],
-      );
-      const overrideId = ov.rows[0]?.id;
-      if (!overrideId) throw new Error('insert returned no row');
-      // Its own audited record (one audit row per resource version).
-      await recordCommand(
-        tx,
-        {
-          operation: 'scheduling.appointments.override',
-          resourceType: 'appointmentOverride',
-          resourceRef: overrideId,
-          resourceVersion: 1,
-        },
-        { changedFields: ['override'] },
-      );
-    }
-    return id;
   }
 
   async function releaseOccupancy(tx: TenantTransaction, kind: 'hold' | 'appointment', sourceId: string) {
@@ -615,7 +622,7 @@ export function createBookingOperations(base: AppointmentBase) {
             }
             // A converted hold gives its range to the booking: released first, in this transaction.
             if (hold) await releaseOccupancy(tx, 'hold', hold.id);
-            const id = await insertBooking(tx, op, {
+            const id = await insertBookingIn(tx, op, {
               location,
               prepared,
               patientRef: p.patientRef,
@@ -829,7 +836,7 @@ export function createBookingOperations(base: AppointmentBase) {
               if (guard) await guard(tx, old.id, p.reasonCode);
               // The old range is released first (same transaction), so the new window may overlap it.
               await releaseOccupancy(tx, 'appointment', old.id);
-              const id = await insertBooking(tx, op, {
+              const id = await insertBookingIn(tx, op, {
                 location,
                 prepared,
                 patientRef: old.subject_patient_id,

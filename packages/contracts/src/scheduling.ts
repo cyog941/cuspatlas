@@ -1,5 +1,5 @@
 import type { ValidateFunction } from 'ajv/dist/2020.js';
-import type { ResourceKind, ResourceRef } from './context';
+import type { Conflict, ResourceKind, ResourceRef } from './context';
 import schema from './scheduling.schema.json' with { type: 'json' };
 import { collectPropertyNames, createAjv } from './validation';
 
@@ -615,3 +615,100 @@ export const validateVisitFormAssign = def('VisitFormAssign');
 export const validateVisitFormUnassign = def('VisitFormUnassign');
 export const validateVisitLabLink = def('VisitLabLink');
 export const validateVisitLabRelink = def('VisitLabRelink');
+
+/** S13 recurrence series (ADR 0009 S-D1 cap; S-S3-R1/R2 occurrence rules). */
+export const SERIES_LIMIT_NAME = 'scheduling.series.occurrenceLimit';
+/** Published configuration ceiling of the per-request occurrence limit (default limit 26). */
+export const SERIES_LIMIT_CEILING = 52;
+export const SERIES_DEFAULT_LIMIT = 26;
+export interface SeriesPattern {
+  readonly frequency: 'weekly' | 'monthly';
+  readonly interval: number;
+}
+export interface SeriesCreate {
+  readonly patientRef: string;
+  readonly locationRef: string;
+  readonly provider: { readonly kind: 'provider'; readonly resourceRef: string };
+  readonly operatory: { readonly kind: 'operatory'; readonly resourceRef: string } | null;
+  readonly noOperatoryReason?: NoOperatoryReason;
+  readonly resources?: readonly ResourceRef[];
+  readonly appointmentTypeCode?: string;
+  readonly pattern: SeriesPattern;
+  readonly firstDate: string;
+  readonly startTime: string;
+  readonly durationMinutes: number;
+  readonly count: number;
+  readonly skipConflicts?: boolean;
+}
+export interface SeriesExtend {
+  readonly expectedVersion: number;
+  readonly count: number;
+  readonly skipConflicts?: boolean;
+}
+export interface SeriesEnd {
+  readonly expectedVersion: number;
+  readonly reasonCode: string;
+}
+export interface SeriesCommandData {
+  readonly seriesRef: string;
+  readonly state: 'active' | 'ended';
+  readonly requested: number;
+  readonly created: number;
+  readonly skipped: number;
+  readonly appointmentRefs: string[];
+  readonly skippedOccurrences: {
+    readonly index: number;
+    readonly localDate: string;
+    readonly reason: string;
+  }[];
+  readonly openOccurrenceRefs: string[];
+}
+export interface SeriesPlanData {
+  readonly limit: { readonly name: string; readonly value: number; readonly ceiling: number };
+  readonly requested: number;
+  readonly conflicted: number;
+  readonly occurrences: {
+    readonly index: number;
+    readonly localDate: string;
+    readonly startsAt: string;
+    readonly endsAt: string;
+    readonly conflicts: readonly Conflict[];
+  }[];
+}
+export interface SeriesRecord {
+  readonly seriesRef: string;
+  readonly patientRef: string;
+  readonly locationRef: string;
+  readonly pattern: SeriesPattern;
+  readonly firstDate: string;
+  readonly startTime: string;
+  readonly durationMinutes: number;
+  readonly timeZone: string;
+  readonly provider: { readonly kind: 'provider'; readonly resourceRef: string };
+  readonly operatory: { readonly kind: 'operatory'; readonly resourceRef: string } | null;
+  readonly state: 'active' | 'ended';
+  readonly endReason: string | null;
+  readonly limitAtCreation: number;
+  readonly version: number;
+  readonly occurrences: {
+    readonly index: number;
+    readonly localDate: string;
+    readonly startsAt: string;
+    readonly endsAt: string;
+    readonly outcome: 'booked' | 'skipped';
+    readonly skipReason: string | null;
+    readonly appointmentRef: string | null;
+    readonly currentAppointmentRef: string | null;
+    readonly status: AppointmentStatus | null;
+  }[];
+  readonly exceptions: {
+    readonly index: number;
+    readonly appointmentRef: string;
+    readonly kind: 'cancelled' | 'rescheduled';
+    readonly reasonCode: string;
+    readonly occurredAt: string;
+  }[];
+}
+export const validateSeriesCreate = def('SeriesCreate');
+export const validateSeriesExtend = def('SeriesExtend');
+export const validateSeriesEnd = def('SeriesEnd');

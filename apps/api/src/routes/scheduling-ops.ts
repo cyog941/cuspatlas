@@ -145,6 +145,72 @@ export const SCHEDULING_OPS: readonly SchedulingOp[] = [
     invoke: (svc, actor, i) =>
       svc.relinkLabCase(actor, param(i, 'appointmentRef'), env('scheduling.visitContext.relinkLabCase', i)),
   },
+  // S13 recurrence series (ADR 0009 S-D1: limit 26 per request, ceiling 52, explicit continuation).
+  {
+    method: 'post',
+    path: '/v1/scheduling/series/plan',
+    operationId: 'scheduling.series.plan',
+    protected: true,
+    requestBody: S('SeriesCreate'),
+    success: { status: '200', schema: S('SeriesPlanResult') },
+    refusals: ['400', '401', '403', '404', '422', '503'],
+    postRead: true,
+    tool: 'scheduling_series_plan',
+    description:
+      'Preview a series: every occurrence with its conflicts and the published limit. Read-only; writes nothing.',
+    invoke: (svc, actor, i) => data(svc.planSeries(actor, i.body)),
+  },
+  {
+    method: 'post',
+    path: '/v1/scheduling/series',
+    operationId: 'scheduling.series.create',
+    protected: true,
+    requestBody: S('SeriesCreate'),
+    success: { status: '201', schema: S('SeriesCommandResult') },
+    refusals: COMMAND,
+    tool: 'scheduling_series_create',
+    description:
+      'Create a series: every occurrence is a real booking. Atomic by default (any conflict refuses all, with per-occurrence conflicts); skipConflicts creates only the free ones and enumerates the rest. Over the limit is 422 series_limit_exceeded naming the limit.',
+    invoke: (svc, actor, i) => svc.createSeries(actor, env('scheduling.series.create', i)),
+  },
+  {
+    method: 'get',
+    path: '/v1/scheduling/series/{seriesRef}',
+    operationId: 'scheduling.series.read',
+    protected: true,
+    success: { status: '200', schema: S('SeriesRead') },
+    refusals: READ,
+    tool: 'scheduling_series_get',
+    description: 'Read a series with every occurrence (and its standing booking) and its exceptions.',
+    invoke: (svc, actor, i) => data(svc.getSeries(actor, param(i, 'seriesRef'))),
+  },
+  {
+    method: 'post',
+    path: '/v1/scheduling/series/{seriesRef}/extend',
+    operationId: 'scheduling.series.extend',
+    protected: true,
+    requestBody: S('SeriesExtend'),
+    success: { status: '201', schema: S('SeriesCommandResult') },
+    refusals: COMMAND,
+    tool: 'scheduling_series_extend',
+    description:
+      'Continue a series explicitly with the next block of occurrences (same limit and atomicity).',
+    invoke: (svc, actor, i) =>
+      svc.extendSeries(actor, param(i, 'seriesRef'), env('scheduling.series.extend', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/scheduling/series/{seriesRef}/end',
+    operationId: 'scheduling.series.end',
+    protected: true,
+    requestBody: S('SeriesEnd'),
+    success: { status: '200', schema: S('SeriesCommandResult') },
+    refusals: ['400', '401', '403', '404', '409', '503'],
+    tool: 'scheduling_series_end',
+    description:
+      'End a series with a reason. Nothing is deleted or cancelled: future occurrences are listed for explicit reassignment.',
+    invoke: (svc, actor, i) => svc.endSeries(actor, param(i, 'seriesRef'), env('scheduling.series.end', i)),
+  },
 ];
 
 void LIST;

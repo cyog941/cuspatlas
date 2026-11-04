@@ -175,7 +175,7 @@ export function createExecuteOnce(options: ExecuteOnceOptions): CommandExecutor 
     try {
       outcome = await tx.savepoint(handler);
     } catch (err) {
-      if (!isRefusalError(err) || !TERMINAL.has(err.code) || err.retryable) throw err;
+      if (!isRefusalError(err) || !TERMINAL.has(err.code) || err.retryable || !err.replayable) throw err;
       const stored = {
         kind: 'refusal',
         code: err.code,

@@ -5,6 +5,7 @@ export * from './availability';
 export * from './booking';
 export * from './codecs';
 export * from './cursor';
+export * from './recurrence';
 export * from './requests';
 export * from './resources';
 export * from './visit-context';

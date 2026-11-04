@@ -9,7 +9,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
  */
 export interface ClinicalAck {
   readonly ref: string;
-  readonly outcome?: 'opened' | 'existing';
+  readonly outcome?: 'opened' | 'existing' | 'recorded';
 }
 
 const malformed = () => new Error('Stored result is malformed');
@@ -37,6 +37,21 @@ const openCodec: ReplayCodec<ClinicalAck> = {
   },
 };
 
+/** C6: a recorded entry or the existing duplicate it resolved to (reference and outcome only). */
+const recordCodec: ReplayCodec<ClinicalAck> = {
+  persist: (data): StoredResult => ({
+    kind: 'success',
+    entryRef: data.ref,
+    outcome: data.outcome ?? 'recorded',
+  }),
+  restore(stored) {
+    const ref = stored.entryRef;
+    if (stored.kind !== 'success' || typeof ref !== 'string' || !UUID.test(ref)) throw malformed();
+    if (stored.outcome !== 'recorded' && stored.outcome !== 'existing') throw malformed();
+    return { ref, outcome: stored.outcome };
+  },
+};
+
 export const CLINICAL_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<ClinicalAck>>> = {
   'clinical.authors.define': refCodec('actorRef'),
   'clinical.encounters.open': openCodec,
@@ -45,4 +60,7 @@ export const CLINICAL_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<Clinica
   'clinical.history.recordChange': refCodec('historyVersionRef'),
   'clinical.history.verifyItem': refCodec('itemRef'),
   'clinical.history.attestReview': refCodec('reviewRef'),
+  // C6 chart (workstream C batch 2a).
+  'clinical.chart.recordEntry': recordCodec,
+  'clinical.chart.correctEntry': refCodec('entryRef'),
 };

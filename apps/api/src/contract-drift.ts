@@ -133,6 +133,11 @@ export const CLINICAL_BODIES = [
   'HistoryReadQuery',
   'HistoryVerify',
   'HistoryReviewAttest',
+  // C6/C7/C11 clinical record bodies, queries and nested inputs.
+  'ChartEntryRecord',
+  'ChartEntryCorrect',
+  'ChartReadQuery',
+  'ToothInput',
 ] as const;
 
 /** Definitions the proposal contract copies from the task contract; they must stay byte-identical. */

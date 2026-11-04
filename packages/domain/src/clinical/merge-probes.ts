@@ -33,4 +33,17 @@ export const CLINICAL_POST_MERGE_FACT_PROBES: readonly PostMergeFactProbe[] = [
       return Number(rows[0]?.n ?? 0);
     },
   },
+  // C6: chart entries recorded on any of the survivor's charts after the merge instant.
+  {
+    factKind: 'clinical',
+    async count(tx: TenantTransaction, survivorRef: string, mergedAt: Date): Promise<number> {
+      const { rows } = await tx.query<{ n: number }>(
+        `SELECT count(*)::int AS n FROM cuspatlas.clinical_chart_entries x
+         JOIN cuspatlas.clinical_charts c ON c.id = x.chart_id AND c.tenant_id = x.tenant_id
+         WHERE c.subject_patient_id = $1 AND x.recorded_at >= $2`,
+        [survivorRef, mergedAt],
+      );
+      return Number(rows[0]?.n ?? 0);
+    },
+  },
 ];

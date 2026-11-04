@@ -141,6 +141,7 @@ const KNOWN_PROPERTIES: ReadonlySet<string> = new Set([
   'encounterRef',
   'itemRef',
   'historyVersionRef',
+  'chartEntryRef',
 ]);
 
 const ajv = createAjv();

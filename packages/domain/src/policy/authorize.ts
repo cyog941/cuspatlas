@@ -108,6 +108,11 @@ export const ACTION_POLICIES = {
   'clinical.history.read': { scope: 'clinical.read', principals: ['human', 'service'] },
   'clinical.history.readVersion': { scope: 'clinical.read', principals: ['human', 'service'] },
   'clinical.history.alerts': { scope: 'clinical.read', principals: ['human', 'service'] },
+  // C6 chart (recommended-pending-clinical-approval): writes are human clinical authors only; the
+  // chart read is a sensitive read.
+  'clinical.chart.recordEntry': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.chart.correctEntry': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.chart.read': { scope: 'clinical.read', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

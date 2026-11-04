@@ -112,6 +112,10 @@ const TOOL_NAMES = [
   'clinical_history_read',
   'clinical_history_record_change',
   'clinical_history_verify_item',
+  // C6 chart tools (parity in clinical-chart and negative-harness tests).
+  'clinical_chart_correct_entry',
+  'clinical_chart_read',
+  'clinical_chart_record_entry',
 ].sort();
 
 let db: TestDatabase;

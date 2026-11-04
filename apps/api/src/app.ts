@@ -29,6 +29,7 @@ import {
   registerBookingRoutes,
 } from './routes/appointments';
 import { registerClinicalRoutes } from './routes/clinical';
+import { registerClinicalRecordRoutes } from './routes/clinical-record';
 import { registerPatientRoutes } from './routes/patients';
 import { registerProposalRoutes } from './routes/proposals';
 import { registerSchedulingRoutes } from './routes/scheduling';
@@ -198,6 +199,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         ...(deps.cursors ? { cursors: deps.cursors } : {}),
       });
       registerClinicalRoutes(app, { authenticator, clinical });
+      registerClinicalRecordRoutes(app, { authenticator, clinical });
     }
   }
 

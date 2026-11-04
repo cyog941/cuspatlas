@@ -909,7 +909,62 @@ export const COMMANDS: HarnessCommand[] = [
       idempotencyKey: randomUUID(),
     }),
   },
+  // C6 chart (workstream C batch 2a).
+  {
+    operation: 'clinical.chart.recordEntry',
+    tool: 'clinical_chart_record_entry',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: '/v1/clinical/chart/entries',
+      body: chartBody(f),
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({ ...chartBody(f), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'clinical.chart.correctEntry',
+    tool: 'clinical_chart_correct_entry',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/chart/entries/${f.alphaChartEntry}/corrections`,
+      body: { reasonCode: 'wrong_surface', state: 'active', detailText: `Synthetic ${MARKER}` },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      chartEntryRef: f.alphaChartEntry,
+      reasonCode: 'wrong_surface',
+      state: 'active',
+      detailText: `Synthetic ${MARKER}`,
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.chart.read',
+    tool: 'clinical_chart_read',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({ method: 'GET', url: `/v1/clinical/patients/${P(f)}/chart`, keyed: false, status: 200 }),
+    mcpArgs: (f) => ({ patientRef: P(f) }),
+  },
 ];
+
+function chartBody(f: HarnessFixture) {
+  return {
+    patientRef: f.alphaPatient,
+    provenance: 'recorded',
+    tooth: { system: 'universal', code: '19' },
+    surfaces: ['O'],
+    kind: 'condition',
+    findingRef: 'SYN-HARNESS-002',
+    detailText: `Synthetic ${MARKER}`,
+  };
+}
 
 function historyBody(f: HarnessFixture) {
   return {
@@ -1180,7 +1235,17 @@ beforeAll(async () => {
   });
   expect(history.statusCode).toBe(201);
   const recorded = history.json().data;
+  // C6: one active chart entry for the alpha patient.
+  const chartEntry = await owner('/v1/clinical/chart/entries', {
+    patientRef: alphaPatient,
+    provenance: 'recorded',
+    tooth: { system: 'universal', code: '3' },
+    kind: 'condition',
+    findingRef: 'SYN-HARNESS-001',
+  });
+  expect(chartEntry.statusCode).toBe(201);
   fixture = {
+    alphaChartEntry: chartEntry.json().data.entry.entryRef,
     alphaHistoryVersion: recorded.header.historyVersionRef,
     alphaHistoryItem: recorded.changes[0].itemRef,
     alphaHistoryChange: recorded.changes[0].change.changeRef,
@@ -1317,6 +1382,8 @@ async function state(): Promise<string> {
     await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_history_changes'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_history_verifications'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_history_reviews'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_charts'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_chart_entries'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.audit_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.outbox_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.command_idempotency'),

@@ -264,6 +264,437 @@
         }
       }
     },
+    "ChartCorrectionResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/ChartEntry"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ChartDetailText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "description": "Free text as recorded; never interpreted."
+    },
+    "ChartEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entryRef",
+        "chartRef",
+        "patientRef",
+        "sourcePatientRef",
+        "sequence",
+        "tooth",
+        "surfaces",
+        "kind",
+        "findingRef",
+        "state",
+        "recordedState",
+        "detailText",
+        "provenance",
+        "sourceRef",
+        "encounterRef",
+        "recordedBy",
+        "clinicalAuthor",
+        "recordedAt",
+        "supersedesEntryRef",
+        "supersededByEntryRef",
+        "correctionReasonCode",
+        "toothVocabulary"
+      ],
+      "properties": {
+        "entryRef": {
+          "$ref": "#/$defs/ChartEntryRef"
+        },
+        "chartRef": {
+          "$ref": "#/$defs/ChartRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "sourcePatientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "tooth": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToothRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "surfaces": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SurfaceSet"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "$ref": "#/$defs/ChartEntryKind"
+        },
+        "findingRef": {
+          "$ref": "#/$defs/SyntheticCodeRef"
+        },
+        "state": {
+          "$ref": "#/$defs/ChartEntryState"
+        },
+        "recordedState": {
+          "$ref": "#/$defs/ChartRecordedState"
+        },
+        "detailText": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChartDetailText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "provenance": {
+          "$ref": "#/$defs/ChartProvenance"
+        },
+        "sourceRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "encounterRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EncounterRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recordedBy": {
+          "$ref": "#/$defs/ClinicalAuthor"
+        },
+        "clinicalAuthor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ClinicalAuthor"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The clinician the finding is attributed to; null for imported and patient-reported entries (the recorder is recordedBy)."
+        },
+        "recordedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "supersedesEntryRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChartEntryRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "supersededByEntryRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChartEntryRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "correctionReasonCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "toothVocabulary": {
+          "anyOf": [
+            {
+              "const": "cuspatlas-tooth.v1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "ChartEntryCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["outcome", "entry"],
+          "properties": {
+            "outcome": {
+              "enum": ["recorded", "existing"]
+            },
+            "entry": {
+              "$ref": "#/$defs/ChartEntry"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ChartEntryCorrect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasonCode", "state"],
+      "description": "Write a superseding entry for the named entry; unspecified fields carry forward, null clears surfaces or detail text. The prior entry is never changed or deleted.",
+      "properties": {
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "state": {
+          "$ref": "#/$defs/ChartRecordedState"
+        },
+        "encounterRef": {
+          "$ref": "#/$defs/EncounterRef"
+        },
+        "tooth": {
+          "$ref": "#/$defs/ToothInput"
+        },
+        "surfaces": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SurfaceSet"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "$ref": "#/$defs/ChartEntryKind"
+        },
+        "findingRef": {
+          "$ref": "#/$defs/SyntheticCodeRef"
+        },
+        "detailText": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChartDetailText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "ChartEntryKind": {
+      "enum": ["condition", "existing_restoration", "missing", "supernumerary", "implant", "prosthodontic"]
+    },
+    "ChartEntryRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["patientRef", "provenance", "kind", "findingRef"],
+      "description": "Record one chart entry (append-only). A duplicate of an active entry (same tooth, surface set, kind, finding and provenance) returns the existing entry.",
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "encounterRef": {
+          "$ref": "#/$defs/EncounterRef"
+        },
+        "provenance": {
+          "$ref": "#/$defs/ChartProvenance"
+        },
+        "sourceRef": {
+          "$ref": "#/$defs/SourceRef"
+        },
+        "tooth": {
+          "$ref": "#/$defs/ToothInput"
+        },
+        "surfaces": {
+          "$ref": "#/$defs/SurfaceSet"
+        },
+        "kind": {
+          "$ref": "#/$defs/ChartEntryKind"
+        },
+        "findingRef": {
+          "$ref": "#/$defs/SyntheticCodeRef"
+        },
+        "state": {
+          "enum": ["active", "resolved"]
+        },
+        "detailText": {
+          "$ref": "#/$defs/ChartDetailText"
+        }
+      }
+    },
+    "ChartEntryRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque chart entry reference (C6)."
+    },
+    "ChartEntryState": {
+      "enum": ["active", "resolved", "superseded", "entered_in_error"],
+      "description": "State as of the read: superseded when a later correction names this entry."
+    },
+    "ChartProvenance": {
+      "enum": ["recorded", "imported", "patient_reported"]
+    },
+    "ChartRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["patientRef", "asOf", "displaySystem", "recorded", "charts", "entries", "teeth"],
+          "properties": {
+            "patientRef": {
+              "$ref": "#/$defs/PatientRef"
+            },
+            "asOf": {
+              "$ref": "#/$defs/Instant"
+            },
+            "displaySystem": {
+              "$ref": "#/$defs/ToothDisplaySystem"
+            },
+            "recorded": {
+              "type": "boolean",
+              "description": "false: nothing was charted by then (an explicit empty state, not an error)."
+            },
+            "charts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["chartRef", "sourcePatientRef", "version"],
+                "properties": {
+                  "chartRef": {
+                    "$ref": "#/$defs/ChartRef"
+                  },
+                  "sourcePatientRef": {
+                    "$ref": "#/$defs/PatientRef"
+                  },
+                  "version": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              }
+            },
+            "entries": {
+              "type": "array",
+              "maxItems": 2000,
+              "items": {
+                "$ref": "#/$defs/ChartEntry"
+              }
+            },
+            "teeth": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ChartToothState"
+              }
+            }
+          }
+        }
+      }
+    },
+    "ChartReadQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "asOf": {
+          "$ref": "#/$defs/Instant"
+        },
+        "dentition": {
+          "enum": ["permanent", "primary"]
+        },
+        "provenance": {
+          "$ref": "#/$defs/ChartProvenance"
+        },
+        "displaySystem": {
+          "$ref": "#/$defs/ToothDisplaySystem"
+        }
+      }
+    },
+    "ChartRecordedState": {
+      "enum": ["active", "resolved", "entered_in_error"],
+      "description": "The state stated when the entry was written. entered_in_error only by correction."
+    },
+    "ChartRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque chart reference: one per source patient, so merged charts stay distinguishable (C6)."
+    },
+    "ChartToothState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tooth", "status", "activeEntryRefs"],
+      "description": "Chart state reconstructed from active entries. A tooth with no active entry is not listed (not charted is not the same as healthy or missing).",
+      "properties": {
+        "tooth": {
+          "$ref": "#/$defs/ToothRef"
+        },
+        "status": {
+          "enum": ["present", "missing", "implant"]
+        },
+        "activeEntryRefs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ChartEntryRef"
+          }
+        }
+      }
+    },
     "ClinicalAuthor": {
       "type": "object",
       "additionalProperties": false,
@@ -1375,10 +1806,95 @@
       "pattern": "^[A-Za-z0-9._:-]{1,128}$",
       "description": "Reference to the source document or import batch; required for imported provenance."
     },
+    "SurfaceSet": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 7,
+      "items": {
+        "$ref": "#/$defs/ToothSurface"
+      }
+    },
     "SyntheticCodeRef": {
       "type": "string",
       "pattern": "^SYN-[A-Z0-9-]{1,40}$",
       "description": "Provisional internal synthetic code (C-D2). Not a licensed terminology code; carries no clinical meaning."
+    },
+    "ToothDentition": {
+      "enum": ["permanent", "primary", "supernumerary"]
+    },
+    "ToothDisplaySystem": {
+      "enum": ["universal", "fdi"],
+      "description": "Numbering projection of the canonical identity (C-D1: Universal is the US default; FDI per preference)."
+    },
+    "ToothInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["system", "code"],
+      "description": "A tooth named in a supported numbering system (Universal, FDI) or by canonical reference. The server resolves the canonical identity; an unknown code is refused, never guessed.",
+      "properties": {
+        "system": {
+          "$ref": "#/$defs/ToothInputSystem"
+        },
+        "code": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9-]{1,12}$"
+        }
+      }
+    },
+    "ToothInputSystem": {
+      "enum": ["universal", "fdi", "canonical"]
+    },
+    "ToothRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["canonicalRef", "dentition", "displaySystem", "display", "universal", "fdi"],
+      "description": "Canonical tooth identity (the authority) with numbering projections; null where a system has no counterpart (for example a supernumerary tooth).",
+      "properties": {
+        "canonicalRef": {
+          "type": "string",
+          "pattern": "^(perm|prim|sn)-(ur|ul|ll|lr)-[1-8]$"
+        },
+        "dentition": {
+          "$ref": "#/$defs/ToothDentition"
+        },
+        "displaySystem": {
+          "$ref": "#/$defs/ToothDisplaySystem"
+        },
+        "display": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "universal": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fdi": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "ToothSurface": {
+      "enum": ["M", "D", "O", "I", "B", "F", "L"],
+      "description": "Provisional surface vocabulary (C-S1-Q2 pending reviewer); validated per tooth type by the server."
     },
     "Version": {
       "type": "integer",

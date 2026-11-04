@@ -48,6 +48,7 @@ import {
 import { assertDistinctAudience, assertIdentityAllowed, createMcpAuthenticator } from './auth';
 import { APPOINTMENT_TOOLS } from './tools/appointments';
 import { CLINICAL_TOOLS } from './tools/clinical';
+import { CLINICAL_RECORD_TOOLS } from './tools/clinical-record';
 import { PATIENT_TOOLS } from './tools/patients';
 import { PROPOSAL_TOOLS } from './tools/proposals';
 import { SCHEDULING_TOOLS } from './tools/scheduling';
@@ -126,6 +127,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   ...SCHEDULING_TOOLS,
   ...APPOINTMENT_TOOLS,
   ...CLINICAL_TOOLS,
+  ...CLINICAL_RECORD_TOOLS,
 ];
 
 /** Path parameters of the REST twin. A malformed one is a 404 there, decided by the domain. */
@@ -143,6 +145,8 @@ const REF_PARAMS = [
   'encounterRef',
   'itemRef',
   'historyVersionRef',
+  // C6/C7/C11 clinical record path references.
+  'chartEntryRef',
 ] as const;
 const PLACEHOLDER_REF = '00000000-0000-4000-8000-000000000000';
 

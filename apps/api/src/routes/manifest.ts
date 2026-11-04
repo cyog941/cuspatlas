@@ -1,5 +1,6 @@
 import { APPOINTMENT_ROUTES } from './appointment-manifest';
 import { CLINICAL_ROUTES } from './clinical-manifest';
+import { CLINICAL_RECORD_ROUTES } from './clinical-record-manifest';
 
 /**
  * Every HTTP operation the service implements, in OpenAPI path syntax. Routes are registered from
@@ -330,6 +331,7 @@ export const ROUTES: readonly RouteContract[] = [
   },
   ...APPOINTMENT_ROUTES,
   ...CLINICAL_ROUTES,
+  ...CLINICAL_RECORD_ROUTES,
 ];
 
 export function routeFor(operationId: string): RouteContract & { fastifyPath: string } {

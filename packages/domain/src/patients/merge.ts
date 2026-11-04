@@ -50,7 +50,9 @@ export interface MergeRecordClass {
     | 'appointments'
     // C5/C8 clinical classes (appended by workstream C).
     | 'clinical_encounters'
-    | 'clinical_history_streams';
+    | 'clinical_history_streams'
+    // C6/C7/C11 clinical classes (workstream C batch 2a).
+    | 'clinical_charts';
   readonly column: 'subject_patient_id' | 'counterparty_patient_id';
   /** Public name of the reference in the record's contract. */
   readonly referenceField: string;
@@ -170,6 +172,16 @@ export const MERGE_RECORD_CLASSES: readonly MergeRecordClass[] = [
     factKind: 'clinical',
     digestExclude: ['subject_patient_id', 'head_sequence', 'version', 'updated_at'],
   },
+  // C6 (workstream C): a chart follows its patient. Entries reference the chart, never the patient,
+  // so a merge cannot touch them; the chart keeps its source patient (origin_patient_id, excluded).
+  {
+    recordClass: 'clinicalChart',
+    table: 'clinical_charts',
+    column: 'subject_patient_id',
+    referenceField: 'patientRef',
+    factKind: 'clinical',
+    digestExclude: ['subject_patient_id', 'head_sequence', 'version', 'updated_at'],
+  },
 ];
 
 /** Foreign keys to patients that a merge deliberately does not move, with the reason. */
@@ -194,6 +206,11 @@ export const MERGE_EXCLUDED_REFERENCES: readonly { table: string; column: string
     table: 'clinical_history_streams',
     column: 'origin_patient_id',
     why: 'a history stream keeps its source patient so merged histories stay distinguishable (C8)',
+  },
+  {
+    table: 'clinical_charts',
+    column: 'origin_patient_id',
+    why: 'a chart keeps its source patient so merged charts stay distinguishable (C6)',
   },
 ];
 

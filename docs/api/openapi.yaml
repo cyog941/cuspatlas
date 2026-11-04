@@ -1946,6 +1946,107 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/clinical/chart/entries:
+    post:
+      operationId: clinical.chart.recordEntry
+      description: >-
+        Record one append-only chart entry (C6) for a patient: a kind (condition, existing_restoration, missing, supernumerary, implant, prosthodontic), a provisional SYN- finding code, an optional tooth named in Universal, FDI or canonical form (resolved to the canonical identity; an unknown code is 422 unknownToothCode, never guessed) and an optional surface set validated against the tooth type (provisional surface scope, C-S1-Q2). Provenance recorded, imported (needs sourceRef; never attributed to the recorder as clinical author) or patient_reported. A duplicate of an active entry (same tooth, surface set, kind, finding, provenance and state) returns it with outcome existing and applies nothing. With an encounterRef the encounter must be open (409 encounter_closed naming clinical.encounters.open). A merged-away patient is 409 patient_merged. No diagnosis, no decision support. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ChartEntryRecord'
+      responses:
+        '201':
+          description: Entry recorded, or the existing duplicate.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ChartEntryCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/chart/entries/{chartEntryRef}/corrections:
+    post:
+      operationId: clinical.chart.correctEntry
+      description: >-
+        Correct a chart entry (C6) by writing a superseding entry with a reason code into the same chart; unspecified fields carry forward, null clears surfaces or detail text, provenance and source carry forward. The state may be active, resolved or entered_in_error. There is no update or delete of a recorded entry. A base that was already superseded is 409 entry_superseded naming the current successor (so duplicated corrections keep one successor); an entered_in_error base is 409 entry_entered_in_error. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/ChartEntryRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ChartEntryCorrect'
+      responses:
+        '201':
+          description: Superseding entry recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ChartCorrectionResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/patients/{patientRef}/chart:
+    get:
+      operationId: clinical.chart.read
+      description: >-
+        The patient chart as of an instant (query asOf; default now; a future instant is 422): every entry of every chart of the patient (one per source patient, so merged charts stay distinguishable) with its state as of then (superseded once a correction names it), recorder, clinical author and provenance, plus the per-tooth state reconstructed from active entries (present, missing, implant; a tooth without an active entry is not listed). Optional filters dentition and provenance; displaySystem universal (default) or fdi projects each canonical tooth. recorded=false is an explicit empty chart. A merged-away patient is 409 patient_merged naming the survivor. A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/PatientRef'
+        - $ref: '#/components/parameters/HistoryAsOf'
+        - $ref: '#/components/parameters/ChartDentition'
+        - $ref: '#/components/parameters/ChartProvenanceFilter'
+        - $ref: '#/components/parameters/ToothDisplaySystem'
+      responses:
+        '200':
+          description: The chart as of the instant.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ChartRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
 components:
   securitySchemes:
     bearer:
@@ -2084,6 +2185,33 @@ components:
       description: RFC 3339 instant; the history as recorded at that instant (default now).
       schema:
         $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/Instant'
+    ChartEntryRef:
+      name: chartEntryRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ChartEntryRef'
+    ChartDentition:
+      name: dentition
+      in: query
+      required: false
+      description: Only entries on teeth of this dentition (entries without a tooth are kept).
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ChartReadQuery/properties/dentition'
+    ChartProvenanceFilter:
+      name: provenance
+      in: query
+      required: false
+      description: Only entries of this provenance (for example recorded, to exclude imported history).
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ChartProvenance'
+    ToothDisplaySystem:
+      name: displaySystem
+      in: query
+      required: false
+      description: Numbering projection of each canonical tooth (default universal).
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ToothDisplaySystem'
   responses:
     Refusal:
       description: Typed refusal (code, retryable, correlationId, optional safe detail).

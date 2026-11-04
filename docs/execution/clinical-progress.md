@@ -561,3 +561,17 @@ Pending decisions added (none decided):
 | C14-P7 | Correction reason vocabulary | pattern-checked codes, no vocabulary | blocking for release | clinical lead; billing lead |
 
 Seams: B (`codex/b-billing-1`) consumes outbox events with `aggregate_type = clinicalRenderedProcedure` (operations `clinical.procedures.render` and `clinical.procedures.correct`) and reads the payload with `loadRenderedProcedureEvent(tx, aggregate_id)` (or `clinical.procedures.read` → `billingEvent`); B must accept a UUID `procedureRef` and SYN- codes up to 40 characters with hyphens (its placeholder `SyntheticProcedureRef` is `syn-proc-...` and `SyntheticProcedureCode` is `^SYN-[A-Z0-9]{1,12}$`, a contract mismatch for B to reconcile); a reversal event maps to a charge reversal and a replacement event (with `replacesProcedureRef`) to the replacement charge. C9 `applicable` can take its codes from an encounter's net procedures; C15-C17 can reference `procedureRef`; C18 exports procedures with their correction chains.
+
+### Batch 3 gate
+
+| Task | Status | Commit | Notes |
+|---|---|---|---|
+| Merge of `codex/c-notes` | integrated; 992 tests | dcdba54 | notes ledger folded in |
+| C12 estimates, alternatives, acceptance | verified on synthetic data (Windows host); C-D7 recommended-pending-approval; coverage unknown until B5 | ffbe9cc | 1033 tests at commit |
+| C13 consent capture | verified on synthetic data; C-D6 recommended-pending-approval; witness policy and vocabularies blocking | 5527edb | 1065 tests at commit |
+| Review hardening (C6-C11, S6 merge rows) | verified on synthetic data | 44b9b48 | 1077 tests at commit |
+| C14 rendered procedures, billing boundary | verified on synthetic data; transition and provider rules pending approval | 9ee8d7b | 1106 tests at commit |
+
+- `corepack pnpm run ci` at 9ee8d7b → exit 0: typecheck, lint, contract drift, 48 files / 1106 tests passed, privacy scan ok, SBOM, evidence generated and verified (integrity and freshness only; controls unreviewed, not certified).
+- Status language: C12, C13 and C14 are tested on synthetic data on a Windows host. Nothing is approved, deployed, compliant or clinically validated. Branch `codex/c-chart` is not pushed.
+- Process note: the session scratch directory is shared with other workers; one commit (44b9b48, before amendment) briefly picked up another worker's commit-message file of the same name and was amended at once with its own message (content unchanged). Later scratch files live under the worktree's ignored `node_modules/.cache/cb3/`.

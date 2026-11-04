@@ -7192,6 +7192,36 @@
         }
       },
       "description": "The printable referral package under its share record: references only (C-D10; nothing is transmitted)."
+    },
+    "ClinicalExport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["format", "exportedAt", "tables"],
+          "description": "C18 clinical export (synthetic; the full export contract, manifest and completeness validation are M1). One array of row objects per workstream C table, foreign-key order, references preserved (correction chains, consent withdrawals, note version digests), no tenant field. Image objects and their digests export from I, not here.",
+          "properties": {
+            "format": {
+              "const": "cuspatlas-clinical-export/1"
+            },
+            "exportedAt": {
+              "$ref": "#/$defs/Instant"
+            },
+            "tables": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

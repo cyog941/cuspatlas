@@ -4158,6 +4158,24 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/clinical/export:
+    get:
+      operationId: clinical.export
+      description: >-
+        C18 clinical export (synthetic round-trip scope; M1 owns the full export contract): every workstream C record of the tenant, versioned (cuspatlas-clinical-export/1), one array per table in foreign-key order, references preserved (correction chains, consent withdrawals, note version digests), no tenant field. Image objects export from I. Tenant-wide human administrators only (admin.configure; 403 location_denied for a location-restricted member). Sensitive-read logged.
+      responses:
+        '200':
+          description: The export.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ClinicalExport'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   /v1/scheduling/appointments/{appointmentRef}/visit-context:
     get:
       operationId: scheduling.visitContext.read

@@ -4,6 +4,7 @@ import { createChartOperations } from './chart';
 import { createConsentOperations } from './consents';
 import { createEncounterOperations } from './encounters';
 import { createEstimateOperations } from './estimates';
+import { createClinicalExportOperations } from './export';
 import { createHistoryOperations } from './history';
 import { createImageLinkOperations } from './image-links';
 import { createLabCaseOperations } from './lab-cases';
@@ -34,6 +35,7 @@ export function createClinicalService(deps: ClinicalDeps) {
     ...createImageLinkOperations(base),
     ...createLabCaseOperations(base),
     ...createReferralOperations(base),
+    ...createClinicalExportOperations(base),
     ...createNoteTemplateOperations(base),
     ...createNoteOperations(base),
   };

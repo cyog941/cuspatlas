@@ -440,3 +440,16 @@ Additions only; no frozen row changed. Migration `20261109050000_review_hardenin
 - C12 acceptance: `clinical_plan_acceptances.accepted_revision` (new, required for runtime inserts) is the plan-version revision accepted; acceptance requires a presentation and a complete estimate at the current revision. New refusal reasons: `estimate_not_presented`, `estimate_coverage_stale`, `plan_item_completion_unbacked`; validation rules `itemNotOpen`, `witnessNotHumanMember`.
 - C13: consent method without a policy row requires a witness (fail closed). One item's procedure consent binds only that item; the version is `bound` by a treatment-plan consent or by procedure consents covering every open item.
 - C14 → B across a merge: a procedure event's `patientRef` is the encounter's patient when the fact was recorded and never moves. B joins a reversal or replacement to its original only by `reversesProcedureRef` / `replacesProcedureRef` (procedure identity), never by patient; to attribute a charge to the current patient after a merge, B follows the encounter (`clinical.procedures.read` returns the current encounter patient) or the `patients.merged_into` chain. A merge or unmerge never emits new procedure events.
+
+## Task record: C15-C18 (workstream C batch 4, branch codex/c-chart)
+
+Additions only; no frozen row changed. Synthetic data only; clinical semantics are recommended-pending-clinical-approval and nothing is clinically validated.
+
+- C15 (`20261109070000`): `clinical.imageLinks.*`; C stores an encounter link by opaque `imageRef` only (no bytes, digest, modality or match status). Port `ImageRefResolver` (`ClinicalDeps.imageRefResolver`, passed through `AppDeps` and `McpServerDeps`) for I3; unwired it refuses 409 `image_resolver_unavailable`.
+- C16 (`20261109080000`): `clinical.labCases.*`; C-D9 recommended (configurable proposed states, print/export only). Merge class `clinicalLabCase`.
+- C17 (`20261109090000`): `clinical.referrals.*`; C-D10 recommended (record-keeping, print/export, explicit share records). Merge class `clinicalReferral`. Practice configuration `clinical_referral_policies` (disclosure consent template; fail closed).
+- Shared work-item model (S-owned, adopted rather than duplicated): `WorkItem.kind` gains `lab_return_overdue`, `lab_case_review`, `referral_response_due`, `referral_review`; `owner.queue` gains `clinical`.
+- S12 port (S-owned, minimal): `VisitProducerRecord.patientRef?`, `VisitContextProducer.available?`, slot reason `producer_access_denied`; C producers deployed in API and MCP.
+- S16 (S-owned policy): basis `completed_procedure` with `procedureCodeRefs` (`20261109060000`); the C14 read is `SchedulingDeps.completedProcedures` (`readLatestCompletedProcedures`); that due list also needs `clinical.procedures.list`.
+- C18: `clinical.export` (`admin.configure`, human, tenant-wide) `cuspatlas-clinical-export/1` over `CLINICAL_EXPORT_TABLES`; `importClinicalExport` (synthetic round trip, not the M1 import); parity matrix derived from the route manifest and MCP tool list.
+- Merge registry (`MERGE_RECORD_CLASSES` and the SQL mirror) gained `appointmentSeries`, `waitlistEntry` (merge of codex/scheduling-patients), `clinicalLabCase`, `clinicalReferral`.

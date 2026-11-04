@@ -70,6 +70,8 @@ export function registerClinicalRecordRoutes(
   mount('clinical.perio.compare', async (r) => ({
     data: await c.comparePerioExams(requireActor(r), query(r)),
   }));
+  // C18 clinical export.
+  mount('clinical.export', async (r) => ({ data: await c.exportClinical(requireActor(r)) }));
   // C17 referrals.
   mount('clinical.referrals.create', (r) =>
     c.createReferral(requireActor(r), env('clinical.referrals.create', r)),

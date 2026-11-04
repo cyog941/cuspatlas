@@ -187,6 +187,8 @@ export const ACTION_POLICIES = {
   'clinical.referrals.list': { scope: 'clinical.read', principals: ['human', 'service'] },
   'clinical.referrals.worklist': { scope: 'clinical.read', principals: ['human', 'service'] },
   'clinical.referrals.export': { scope: 'clinical.read', principals: ['human'] },
+  // C18 clinical export: a tenant-wide human administrator only (sensitive-read logged).
+  'clinical.export': { scope: 'admin.configure', principals: ['human'] },
   // C9 progress-note templates (C-D4, recommended-pending-clinical-approval). Templates are practice
   // configuration (human admin only); reads need clinical.read.
   'clinical.noteTemplates.define': { scope: 'admin.configure', principals: ['human'] },

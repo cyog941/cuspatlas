@@ -10,6 +10,15 @@ const QUERY = ['400', '401', '403', '404', '409', '422', '503'] as const;
  * one table. Semantics are recommended-pending-clinical-approval; synthetic data only.
  */
 export const CLINICAL_RECORD_ROUTES: readonly RouteContract[] = [
+  // C18 clinical export (synthetic round-trip scope; M1 owns the full contract).
+  {
+    method: 'get',
+    path: '/v1/clinical/export',
+    operationId: 'clinical.export',
+    protected: true,
+    success: { status: '200', schema: C('ClinicalExport') },
+    refusals: ['401', '403', '503'],
+  },
   // C17 referrals (record-keeping and print/export only; explicit share records).
   {
     method: 'post',

@@ -545,3 +545,68 @@ export const validateReferralCommandResult = def('ReferralCommandResult');
 export const validateReferralRead = def('ReferralRead');
 export const validateReferralList = def('ReferralList');
 export const validateReferralExport = def('ReferralExport');
+
+// C18 clinical export (synthetic round-trip scope; M1 owns the full export contract).
+export const CLINICAL_EXPORT_FORMAT = 'cuspatlas-clinical-export/1';
+/** Every workstream C table, in foreign-key order (cycles are validated after import). */
+export const CLINICAL_EXPORT_TABLES = [
+  'clinical_author_profiles',
+  'clinical_encounter_dispositions',
+  'clinical_encounters',
+  'clinical_encounter_assignments',
+  'clinical_history_streams',
+  'clinical_history_versions',
+  'clinical_history_items',
+  'clinical_history_changes',
+  'clinical_history_verifications',
+  'clinical_history_reviews',
+  'clinical_charts',
+  'clinical_chart_entries',
+  'clinical_perio_grade_vocabulary',
+  'clinical_perio_formulas',
+  'clinical_perio_streams',
+  'clinical_perio_exams',
+  'clinical_perio_measurements',
+  'clinical_perio_derivations',
+  'clinical_perio_derived_values',
+  'clinical_treatment_plans',
+  'clinical_plan_versions',
+  'clinical_plan_details',
+  'clinical_plan_items',
+  'clinical_plan_detail_events',
+  'clinical_plan_alternatives',
+  'clinical_estimates',
+  'clinical_estimate_lines',
+  'clinical_estimate_assumptions',
+  'clinical_estimate_presentations',
+  'clinical_plan_acceptances',
+  'clinical_consent_templates',
+  'clinical_consent_method_policies',
+  'clinical_consents',
+  'clinical_consent_withdrawals',
+  'clinical_note_templates',
+  'clinical_note_template_versions',
+  'clinical_notes',
+  'clinical_note_versions',
+  'clinical_note_cosignatures',
+  'clinical_rendered_procedures',
+  'clinical_plan_item_events',
+  'clinical_encounter_image_links',
+  'clinical_lab_case_state_config',
+  'clinical_lab_cases',
+  'clinical_lab_case_transitions',
+  'clinical_lab_case_attachments',
+  'clinical_referral_policies',
+  'clinical_referrals',
+  'clinical_referral_selections',
+  'clinical_referral_shares',
+  'clinical_referral_events',
+  'clinical_referral_responses',
+] as const;
+export type ClinicalExportTable = (typeof CLINICAL_EXPORT_TABLES)[number];
+export interface ClinicalExport {
+  readonly format: typeof CLINICAL_EXPORT_FORMAT;
+  readonly exportedAt: string;
+  readonly tables: Readonly<Record<string, readonly Record<string, unknown>[]>>;
+}
+export const validateClinicalExport = def('ClinicalExport');

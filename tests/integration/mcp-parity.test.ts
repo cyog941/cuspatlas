@@ -180,6 +180,8 @@ const TOOL_NAMES = [
   'clinical_referrals_record_share',
   'clinical_referrals_record_transmission_failure',
   'clinical_referrals_worklist',
+  // C18 clinical export.
+  'clinical_export',
   // C9 note template tools (parity in clinical-note-templates and negative-harness tests).
   'clinical_note_templates_applicable',
   'clinical_note_templates_define',

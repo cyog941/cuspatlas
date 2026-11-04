@@ -1,4 +1,5 @@
 export * from './backup';
+export * from './clinical-import';
 export * from './idempotency-maintenance';
 export * from './identity';
 export * from './migrate';

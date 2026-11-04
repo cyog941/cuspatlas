@@ -2132,6 +2132,15 @@ export const COMMANDS: HarnessCommand[] = [
     }),
     mcpArgs: (f) => ({}),
   },
+  // C18 clinical export: another tenant exports only its own records.
+  {
+    operation: 'clinical.export',
+    tool: 'clinical_export',
+    crossTenant: 'own_tenant_only',
+    downgradedTo: 'readOnly',
+    rest: () => ({ method: 'GET', url: '/v1/clinical/export', keyed: false, status: 200 }),
+    mcpArgs: () => ({}),
+  },
   // S12 visit context (every command; producers are absent, but every dimension is refused first).
   ...visitRows(),
   // S13 recurrence series.

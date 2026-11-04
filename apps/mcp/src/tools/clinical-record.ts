@@ -58,6 +58,16 @@ const SAFETY =
   'Synthetic engineering implementation; clinical semantics are recommended-pending-clinical-approval and not clinically validated. No diagnosis and no decision support.';
 
 const SPECS: readonly Spec[] = [
+  // C18 clinical export.
+  {
+    name: 'clinical_export',
+    operationId: 'clinical.export',
+    description: `Versioned JSON export of every clinical record of the tenant (references, correction chains, consent history, note version digests; no tenant field). A tenant-wide human administrator only. ${SAFETY}`,
+    body: null,
+    transport: [],
+    readOnly: true,
+    run: async (d, actor) => ({ data: await d.clinical.exportClinical(actor) }),
+  },
   // C17 referral records (record-keeping and print/export only; explicit share records).
   {
     name: 'clinical_referrals_create',

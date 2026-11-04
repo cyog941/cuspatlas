@@ -97,6 +97,13 @@ const TOOL_NAMES = [
   'scheduling_attendance_record',
   'scheduling_attendance_visit_status',
   'scheduling_worklist_daily',
+  // B1 billing journal tools (parity in billing-journal and negative-harness tests).
+  'billing_balances_get',
+  'billing_charges_get',
+  'billing_charges_post',
+  'billing_entries_get',
+  'billing_entries_reverse',
+  'billing_ledger_list',
 ].sort();
 
 let db: TestDatabase;

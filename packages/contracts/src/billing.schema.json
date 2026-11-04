@@ -1,0 +1,663 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cuspatlas.invalid/schemas/billing/v1",
+  "title": "Billing journal, payments and allocations contract v1 (B1-B2; synthetic data only; ADR 0008 pending billing approval)",
+  "$defs": {
+    "Version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "IdempotencyKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$"
+    },
+    "Cursor": {
+      "type": "string",
+      "description": "Opaque, tenant-bound, HMAC-protected. Never parse it.",
+      "pattern": "^[A-Za-z0-9_-]{1,600}\\.[A-Za-z0-9_-]{22}$"
+    },
+    "PatientRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "ChargeRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "EntryRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "PaymentRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "PrincipalRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "CurrencyCode": {
+      "type": "string",
+      "description": "ISO 4217 alphabetic code; must equal the tenant billing currency (422 currency_mismatch).",
+      "pattern": "^[A-Z]{3}$"
+    },
+    "MinorUnits": {
+      "type": "integer",
+      "description": "Signed integer minor units. On journal lines debit is positive and credit negative.",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "PositiveMinorUnits": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 99999999999
+    },
+    "Money": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "SHARED-CONTRACTS Money: explicit currency and integer minor units. Never a float.",
+      "required": ["currency", "minor"],
+      "properties": {
+        "currency": {
+          "$ref": "#/$defs/CurrencyCode"
+        },
+        "minor": {
+          "$ref": "#/$defs/MinorUnits"
+        }
+      }
+    },
+    "PositiveMoney": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["currency", "minor"],
+      "properties": {
+        "currency": {
+          "$ref": "#/$defs/CurrencyCode"
+        },
+        "minor": {
+          "$ref": "#/$defs/PositiveMinorUnits"
+        }
+      }
+    },
+    "LocalDate": {
+      "type": "string",
+      "format": "date"
+    },
+    "Instant": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "ReasonCode": {
+      "type": "string",
+      "pattern": "^[a-z_]{1,64}$"
+    },
+    "SyntheticRef": {
+      "type": "string",
+      "description": "Synthetic opaque external reference (check number, deposit, refund). Never real data.",
+      "pattern": "^syn-[a-z0-9-]{1,60}$"
+    },
+    "SyntheticProcedureRef": {
+      "type": "string",
+      "description": "C14 seam: a synthetic rendered-procedure reference until C14 drives charge posting.",
+      "pattern": "^syn-proc-[a-z0-9-]{1,60}$"
+    },
+    "SyntheticProcedureCode": {
+      "type": "string",
+      "description": "Synthetic placeholder code only; no licensed code set is bundled (B-S4).",
+      "pattern": "^SYN-[A-Z0-9]{1,12}$"
+    },
+    "PayerRef": {
+      "type": "string",
+      "description": "Synthetic payer reference until B5 coverage records exist.",
+      "pattern": "^syn-payer-[a-z0-9-]{1,40}$"
+    },
+    "EntryKind": {
+      "enum": [
+        "charge",
+        "patientPayment",
+        "insurerPayment",
+        "adjustment",
+        "refund",
+        "writeOff",
+        "transfer",
+        "openingBalance",
+        "allocation",
+        "settlement",
+        "responsibilityTransfer"
+      ]
+    },
+    "Account": {
+      "enum": [
+        "patient_receivable",
+        "insurer_receivable",
+        "production_revenue",
+        "unapplied_credit",
+        "undeposited_funds",
+        "settled_cash"
+      ]
+    },
+    "ChargePost": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "B1 charge posting, the seam C14 will drive. Posts Dr patient_receivable / Cr production_revenue. A replacement names a fully reversed charge of the same patient and procedure.",
+      "required": ["patientRef", "procedureRef", "serviceDate", "amount"],
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "procedureRef": {
+          "$ref": "#/$defs/SyntheticProcedureRef"
+        },
+        "procedureCode": {
+          "$ref": "#/$defs/SyntheticProcedureCode"
+        },
+        "serviceDate": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "amount": {
+          "$ref": "#/$defs/PositiveMoney"
+        },
+        "replacesChargeRef": {
+          "$ref": "#/$defs/ChargeRef"
+        }
+      }
+    },
+    "EntryReverse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasonCode"],
+      "properties": {
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "LedgerQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "limit": {
+          "type": "string",
+          "pattern": "^([1-9]|[1-9][0-9]|100)$"
+        },
+        "cursor": {
+          "$ref": "#/$defs/Cursor"
+        }
+      }
+    },
+    "BalanceQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "currency": {
+          "$ref": "#/$defs/CurrencyCode"
+        },
+        "asOf": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "JournalLine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lineNo", "account", "amount", "patientRef", "chargeRef", "paymentRef", "payerRef"],
+      "properties": {
+        "lineNo": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
+        },
+        "account": {
+          "$ref": "#/$defs/Account"
+        },
+        "amount": {
+          "$ref": "#/$defs/Money"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "chargeRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChargeRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "paymentRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PaymentRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "payerRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PayerRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "JournalEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entryRef",
+        "kind",
+        "currency",
+        "chargeRef",
+        "paymentRef",
+        "reversesEntryRef",
+        "reversedByEntryRef",
+        "reasonCode",
+        "externalRef",
+        "serviceDate",
+        "postedAt",
+        "postedByRef",
+        "lines"
+      ],
+      "properties": {
+        "entryRef": {
+          "$ref": "#/$defs/EntryRef"
+        },
+        "kind": {
+          "$ref": "#/$defs/EntryKind"
+        },
+        "currency": {
+          "$ref": "#/$defs/CurrencyCode"
+        },
+        "chargeRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChargeRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "paymentRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PaymentRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reversesEntryRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EntryRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reversedByEntryRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EntryRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reasonCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "externalRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SyntheticRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "serviceDate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalDate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "postedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "postedByRef": {
+          "$ref": "#/$defs/PrincipalRef"
+        },
+        "lines": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/JournalLine"
+          }
+        }
+      }
+    },
+    "JournalEntryRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/JournalEntry"
+        }
+      }
+    },
+    "LedgerPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "nextCursor"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/JournalEntry"
+          }
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Cursor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "PayerAmount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["payerRef", "amount"],
+      "properties": {
+        "payerRef": {
+          "$ref": "#/$defs/PayerRef"
+        },
+        "amount": {
+          "$ref": "#/$defs/Money"
+        }
+      }
+    },
+    "Charge": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Open responsibility and allocated amounts are derived from journal lines, never stored.",
+      "required": [
+        "chargeRef",
+        "patientRef",
+        "procedureRef",
+        "procedureCode",
+        "serviceDate",
+        "amount",
+        "entryRef",
+        "state",
+        "reversalEntryRef",
+        "replacesChargeRef",
+        "replacedByChargeRef",
+        "patientResponsibility",
+        "insurerResponsibility",
+        "allocated",
+        "version"
+      ],
+      "properties": {
+        "chargeRef": {
+          "$ref": "#/$defs/ChargeRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "procedureRef": {
+          "$ref": "#/$defs/SyntheticProcedureRef"
+        },
+        "procedureCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SyntheticProcedureCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "serviceDate": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "amount": {
+          "$ref": "#/$defs/Money"
+        },
+        "entryRef": {
+          "$ref": "#/$defs/EntryRef"
+        },
+        "state": {
+          "enum": ["posted", "reversed"]
+        },
+        "reversalEntryRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EntryRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "replacesChargeRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChargeRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "replacedByChargeRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChargeRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "patientResponsibility": {
+          "$ref": "#/$defs/Money"
+        },
+        "insurerResponsibility": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/$defs/PayerAmount"
+          }
+        },
+        "allocated": {
+          "$ref": "#/$defs/Money"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "ChargeRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/Charge"
+        }
+      }
+    },
+    "ChargeCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["chargeRef", "entryRef"],
+          "properties": {
+            "chargeRef": {
+              "$ref": "#/$defs/ChargeRef"
+            },
+            "entryRef": {
+              "$ref": "#/$defs/EntryRef"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ReversalCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["entryRef", "reversesEntryRef"],
+          "properties": {
+            "entryRef": {
+              "$ref": "#/$defs/EntryRef"
+            },
+            "reversesEntryRef": {
+              "$ref": "#/$defs/EntryRef"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "Balance": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Derived from journal lines posted at or before asOf; never stored. balance = patientResponsibility - unappliedCredit (negative is a credit balance). Covers the patient merge set; merges never relink posted rows.",
+      "required": [
+        "patientRef",
+        "accountPatientRef",
+        "coveredPatientRefs",
+        "currency",
+        "asOf",
+        "patientResponsibility",
+        "insurerResponsibility",
+        "unappliedCredit",
+        "balance",
+        "entryCount",
+        "lastPostedAt"
+      ],
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "accountPatientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "coveredPatientRefs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/PatientRef"
+          }
+        },
+        "currency": {
+          "$ref": "#/$defs/CurrencyCode"
+        },
+        "asOf": {
+          "$ref": "#/$defs/Instant"
+        },
+        "patientResponsibility": {
+          "$ref": "#/$defs/Money"
+        },
+        "insurerResponsibility": {
+          "$ref": "#/$defs/Money"
+        },
+        "unappliedCredit": {
+          "$ref": "#/$defs/Money"
+        },
+        "balance": {
+          "$ref": "#/$defs/Money"
+        },
+        "entryCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "lastPostedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "BalanceRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/Balance"
+        }
+      }
+    }
+  }
+}

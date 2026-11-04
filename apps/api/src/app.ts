@@ -2,10 +2,12 @@ import { randomUUID } from 'node:crypto';
 import type { MembershipSource, SecurityAttemptSink, WithTenantTransaction } from '@cuspatlas/contracts';
 import {
   type AttemptRecordingDeps,
+  BILLING_POST_MERGE_PROBE,
   type CommandExecutor,
   type CursorCodec,
   createAppointmentService,
   createAuthorize,
+  createBillingService,
   createPatientService,
   createProposalService,
   createSchedulingResourceService,
@@ -26,6 +28,7 @@ import {
   registerAttendanceRoutes,
   registerBookingRoutes,
 } from './routes/appointments';
+import { registerBillingRoutes } from './routes/billing';
 import { registerPatientRoutes } from './routes/patients';
 import { registerProposalRoutes } from './routes/proposals';
 import { registerSchedulingRoutes } from './routes/scheduling';
@@ -167,6 +170,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         recording,
         execute: deps.execute ?? executeOnce,
         ...(deps.cursors ? { cursors: deps.cursors } : {}),
+        // B1: a financial fact posted after a merge makes the unmerge need reconciliation review.
+        postMergeFactProbes: [BILLING_POST_MERGE_PROBE],
       });
       registerPatientRoutes(app, { authenticator, patients });
       const scheduling = createSchedulingResourceService({
@@ -185,6 +190,13 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       registerAppointmentRoutes(app, { authenticator, appointments });
       registerBookingRoutes(app, { authenticator, appointments });
       registerAttendanceRoutes(app, { authenticator, appointments });
+      const billing = createBillingService({
+        authorize,
+        withTenantTransaction: deps.tenantTransactions,
+        recording,
+        execute: deps.execute ?? executeOnce,
+      });
+      registerBillingRoutes(app, { authenticator, billing });
     }
   }
 

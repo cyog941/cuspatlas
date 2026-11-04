@@ -1,6 +1,7 @@
 import {
   ACTION_PROPOSAL_PROPERTIES,
   type ActorContext,
+  BILLING_PROPERTIES,
   createAjv,
   PATIENT_PROPERTIES,
   RefusalError,
@@ -14,6 +15,7 @@ import {
   type AppointmentService,
   type AttemptRecordingDeps,
   type Authorize,
+  type BillingService,
   type PatientService,
   type ProposalService,
   type SchedulingResourceService,
@@ -90,6 +92,8 @@ export interface ToolDeps {
   readonly scheduling: SchedulingResourceService;
   /** S8/S10/S11 appointment requests, booking and attendance. */
   readonly appointments: AppointmentService;
+  /** B1/B2 billing journal, payments and allocations. */
+  readonly billing: BillingService;
   readonly authorize: Authorize;
   readonly recording: AttemptRecordingDeps;
 }
@@ -125,6 +129,7 @@ const KNOWN_PROPERTIES: ReadonlySet<string> = new Set([
   ...ACTION_PROPOSAL_PROPERTIES,
   ...PATIENT_PROPERTIES,
   ...SCHEDULING_PROPERTIES,
+  ...BILLING_PROPERTIES,
   'idempotencyKey',
   'proposalRef',
   'patientRef',
@@ -133,6 +138,10 @@ const KNOWN_PROPERTIES: ReadonlySet<string> = new Set([
   'requestRef',
   'appointmentRef',
   'holdRef',
+  'chargeRef',
+  'entryRef',
+  'paymentRef',
+  'attemptRef',
 ]);
 
 const ajv = createAjv();

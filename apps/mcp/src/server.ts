@@ -24,10 +24,12 @@ import {
 } from '@cuspatlas/contracts';
 import {
   type AttemptRecordingDeps,
+  BILLING_POST_MERGE_PROBE,
   type CommandExecutor,
   type CursorCodec,
   createAppointmentService,
   createAuthorize,
+  createBillingService,
   createPatientService,
   createProposalService,
   createSchedulingResourceService,
@@ -45,6 +47,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { assertDistinctAudience, assertIdentityAllowed, createMcpAuthenticator } from './auth';
 import { APPOINTMENT_TOOLS } from './tools/appointments';
+import { BILLING_TOOLS } from './tools/billing';
 import { PATIENT_TOOLS } from './tools/patients';
 import { PROPOSAL_TOOLS } from './tools/proposals';
 import { SCHEDULING_TOOLS } from './tools/scheduling';
@@ -122,6 +125,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   ...PATIENT_TOOLS,
   ...SCHEDULING_TOOLS,
   ...APPOINTMENT_TOOLS,
+  ...BILLING_TOOLS,
 ];
 
 /** Path parameters of the REST twin. A malformed one is a 404 there, decided by the domain. */
@@ -136,6 +140,10 @@ const REF_PARAMS = [
   'requestRef',
   'appointmentRef',
   'holdRef',
+  'chargeRef',
+  'entryRef',
+  'paymentRef',
+  'attemptRef',
 ] as const;
 const PLACEHOLDER_REF = '00000000-0000-4000-8000-000000000000';
 
@@ -226,6 +234,7 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     recording,
     execute: deps.execute ?? executeOnce,
     ...(deps.cursors ? { cursors: deps.cursors } : {}),
+    postMergeFactProbes: [BILLING_POST_MERGE_PROBE],
   });
   const scheduling = createSchedulingResourceService({
     authorize,
@@ -239,7 +248,22 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     recording,
     execute: deps.execute ?? executeOnce,
   });
-  const toolDeps: ToolDeps = { service, proposals, patients, scheduling, appointments, authorize, recording };
+  const billing = createBillingService({
+    authorize,
+    withTenantTransaction: deps.tenantTransactions,
+    recording,
+    execute: deps.execute ?? executeOnce,
+  });
+  const toolDeps: ToolDeps = {
+    service,
+    proposals,
+    patients,
+    scheduling,
+    appointments,
+    billing,
+    authorize,
+    recording,
+  };
   const allowedOrigins = new Set(deps.allowedOrigins ?? []);
   if (deps.env !== 'synthetic-test' && !deps.resourceMetadataUrl) {
     throw new Error('Refusing to start: resourceMetadataUrl must be configured outside synthetic-test');

@@ -12,7 +12,8 @@ info:
     Hidden cross-tenant and missing resources return the same 404 body. Proposal bodies are defined
     by packages/contracts/src/action-proposal.schema.json. Patient bodies (S4-S6, synthetic data only) are
     defined by packages/contracts/src/patient.schema.json. Scheduling resource and availability
-    bodies (S7, S9) are defined by packages/contracts/src/scheduling.schema.json.
+    bodies (S7, S9) are defined by packages/contracts/src/scheduling.schema.json. Billing bodies (B1, B2;
+    synthetic data only; money is integer minor units) are defined by packages/contracts/src/billing.schema.json.
   license:
     name: AGPL-3.0-or-later
     identifier: AGPL-3.0-or-later
@@ -1563,6 +1564,171 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/billing/charges:
+    post:
+      operationId: billing.charges.post
+      description: >-
+        Post a charge (B1; the seam C14 will drive with rendered-procedure facts, synthetic procedure reference until then). Posts one balanced journal entry (Dr patient_receivable, Cr production_revenue) in the tenant currency (422 detail.reason currency_mismatch otherwise, never converted). One original charge per procedure (409 charge_already_posted); a correction is a reversal plus a replacement naming the reversed charge (409 replaced_charge_not_reversed / charge_already_replaced, 422 replacement_mismatch). A merged patient is 409 patient_merged; a patient of another tenant is 404. Requires billing.write (human or service). Synthetic data only; ADR 0008 pending billing approval.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ChargePost'
+      responses:
+        '201':
+          description: Charge and its journal entry posted (version 1).
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ChargeCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/charges/{chargeRef}:
+    get:
+      operationId: billing.charges.read
+      description: >-
+        Read one charge with open patient and insurer responsibility and the allocated amount, derived from journal lines. Hidden and missing are the same 404. Requires ledger.read.
+      parameters:
+        - $ref: '#/components/parameters/ChargeRef'
+      responses:
+        '200':
+          description: The charge.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ChargeRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/entries/{entryRef}:
+    get:
+      operationId: billing.entries.read
+      description: >-
+        Read one posted journal entry with signed lines (debit positive), currency and reversal links. Posted entries are never updated. Requires ledger.read.
+      parameters:
+        - $ref: '#/components/parameters/EntryRef'
+      responses:
+        '200':
+          description: The entry.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/JournalEntryRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/entries/{entryRef}/reverse:
+    post:
+      operationId: billing.entries.reverse
+      description: >-
+        Correct a posted entry by a reversal that exactly negates it and names it (B1). Both stay readable. 409 already_reversed (with the existing reversal), reversal_not_reversible, or allocation_reversal_required / settlement_reversal_required / dependent_reversal_required naming the entries to reverse first. Requires billing.correct (human only).
+      parameters:
+        - $ref: '#/components/parameters/EntryRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/EntryReverse'
+      responses:
+        '201':
+          description: Reversal entry posted; the version is the owning aggregate version.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ReversalCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/patients/{patientRef}/ledger:
+    get:
+      operationId: billing.ledger.list
+      description: >-
+        Journal entries touching the patient's account (the patient's merge set; merges never relink posted rows), oldest first, one bounded page at a time. Requires ledger.read.
+      parameters:
+        - $ref: '#/components/parameters/PatientRef'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/BillingCursor'
+      responses:
+        '200':
+          description: One page of entries.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/LedgerPage'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/patients/{patientRef}/balance:
+    get:
+      operationId: billing.balances.read
+      description: >-
+        readPatientBalance (B1): patient and insurer responsibility, unapplied credit and net balance derived from journal lines posted at or before asOf (default now). Never stored, never an estimate, reads no clinical table. A currency other than the tenant currency is 422 currency_mismatch. Requires ledger.read.
+      parameters:
+        - $ref: '#/components/parameters/PatientRef'
+        - $ref: '#/components/parameters/BillingCurrency'
+        - $ref: '#/components/parameters/BillingAsOf'
+      responses:
+        '200':
+          description: The derived balance.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/BalanceRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
 components:
   securitySchemes:
     bearer:
@@ -1670,6 +1836,36 @@ components:
       required: false
       schema:
         $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/Cursor'
+    ChargeRef:
+      name: chargeRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ChargeRef'
+    EntryRef:
+      name: entryRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/billing.schema.json#/$defs/EntryRef'
+    BillingCursor:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Cursor'
+    BillingCurrency:
+      name: currency
+      in: query
+      required: false
+      schema:
+        $ref: '../../packages/contracts/src/billing.schema.json#/$defs/CurrencyCode'
+    BillingAsOf:
+      name: asOf
+      in: query
+      required: false
+      schema:
+        $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Instant'
   responses:
     Refusal:
       description: Typed refusal (code, retryable, correlationId, optional safe detail).

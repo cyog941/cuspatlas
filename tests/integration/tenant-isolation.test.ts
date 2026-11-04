@@ -109,6 +109,10 @@ describe('runtime database role', () => {
       'appointment_requests',
       'appointments',
       'audit_events',
+      'billing_charges',
+      'billing_journal_entries',
+      'billing_journal_lines',
+      'billing_settings',
       'command_idempotency',
       'delivery_receipts',
       'memberships',
@@ -173,6 +177,11 @@ describe('runtime database role', () => {
       'appointment_lifecycle_events',
       'appointment_attendance_transitions',
       'scheduling_attendance_reasons',
+      // B1 journal.
+      'billing_settings',
+      'billing_charges',
+      'billing_journal_entries',
+      'billing_journal_lines',
     ]) {
       const { rows } = await db.app.query(`SELECT count(*)::int AS n FROM cuspatlas.${t}`);
       expect([t, rows[0].n]).toStrictEqual([t, 0]);

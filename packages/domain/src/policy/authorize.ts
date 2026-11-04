@@ -89,6 +89,15 @@ export const ACTION_POLICIES = {
   'scheduling.attendance.list': { scope: 'scheduling.read', principals: ['human', 'service'] },
   'scheduling.attendance.visitStatus': { scope: 'scheduling.read', principals: ['human', 'service'] },
   'scheduling.worklist.daily': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  // B1 journal (ADR 0008, recommended-pending-billing-approval). Posting is billing.write (human or
+  // service: C14 will post charges as a service). Every correction (reversal) is human-only
+  // billing.correct. Reads need the registry's report scope ledger.read, never patients.read alone.
+  'billing.charges.post': { scope: 'billing.write', principals: ['human', 'service'] },
+  'billing.charges.read': { scope: 'ledger.read', principals: ['human', 'service'] },
+  'billing.entries.read': { scope: 'ledger.read', principals: ['human', 'service'] },
+  'billing.entries.reverse': { scope: 'billing.correct', principals: ['human'] },
+  'billing.ledger.list': { scope: 'ledger.read', principals: ['human', 'service'] },
+  'billing.balances.read': { scope: 'ledger.read', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

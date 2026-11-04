@@ -150,6 +150,10 @@ export const MERGE_EXCLUDED_REFERENCES: readonly { table: string; column: string
     column: 'merged_patient_id',
     why: 'merge history keeps both source identifiers',
   },
+  // B1 (ADR 0008 M-11): posted financial history is never relinked; the account follows the merge
+  // at read time (billing mergeSet) and BILLING_POST_MERGE_PROBE gates the unmerge.
+  { table: 'billing_charges', column: 'patient_id', why: 'posted financial facts are never relinked' },
+  { table: 'billing_journal_lines', column: 'patient_id', why: 'posted financial facts are never relinked' },
 ];
 
 /**

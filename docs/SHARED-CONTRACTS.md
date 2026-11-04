@@ -74,6 +74,8 @@ Registered by workstream S (2026-11-04, synthetic implementation; decisions pend
 
 Registered by workstream S scheduling (2026-11-05, synthetic implementation; decisions pending approval in ADR 0009): `scheduling.read` (every scheduling read, availability search, and seeing which booking or hold blocks a slot) and `scheduling.override` (human only: an audited override of overrideable booking conflicts; resource overlap is never overrideable). `scheduling.write` covers requests, holds, booking, rescheduling and cancellation.
 
+Registered by workstream B (2026-11-04, synthetic implementation; decisions pending billing approval in ADR 0008): `billing.write` (post charges, record and settle payments, allocate, transfer responsibility; human or service) and `billing.correct` (human only: reversals, refunds and transfers of funds between patients). Billing reads use the report scopes already listed (`ledger.read`, `paymentDistribution.read`, `undistributedFunds.read`), never `patients.read` alone.
+
 Camel-case scope names (`receivables.read` written as `receivablesRead`) are a defect. A scope used in any plan must appear in the registry; a plan that needs a new scope adds it there first.
 
 ### Relationship scopes

@@ -11,6 +11,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { seedBillingScopes } from './support/billing-fixtures';
 import { openTestDatabase, type TestDatabase } from './support/db';
 import { seedTenancy, T_ALPHA, T_BETA, USER_A1, USER_A2, USER_A4, USER_B1 } from './support/fixtures';
 import { MARKER } from './support/marker';
@@ -716,7 +717,78 @@ export const COMMANDS: HarnessCommand[] = [
     }),
     mcpArgs: (f) => ({ locationRef: f.alphaLocation, date: '2030-01-07' }),
   },
+  // B1 billing journal. Corrections are human-only (billing.correct); reads need ledger.read.
+  {
+    operation: 'billing.charges.post',
+    tool: 'billing_charges_post',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: '/v1/billing/charges',
+      body: chargeBody(f),
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({ ...chargeBody(f), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'billing.charges.read',
+    tool: 'billing_charges_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({ method: 'GET', url: `/v1/billing/charges/${f.alphaCharge}`, keyed: false, status: 200 }),
+    mcpArgs: (f) => ({ chargeRef: f.alphaCharge }),
+  },
+  {
+    operation: 'billing.entries.read',
+    tool: 'billing_entries_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({ method: 'GET', url: `/v1/billing/entries/${f.alphaEntry}`, keyed: false, status: 200 }),
+    mcpArgs: (f) => ({ entryRef: f.alphaEntry }),
+  },
+  {
+    operation: 'billing.entries.reverse',
+    tool: 'billing_entries_reverse',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/billing/entries/${f.alphaEntry}/reverse`,
+      body: { reasonCode: 'posted_in_error' },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({ entryRef: f.alphaEntry, reasonCode: 'posted_in_error', idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'billing.ledger.list',
+    tool: 'billing_ledger_list',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({ method: 'GET', url: `/v1/billing/patients/${P(f)}/ledger`, keyed: false, status: 200 }),
+    mcpArgs: (f) => ({ patientRef: P(f) }),
+  },
+  {
+    operation: 'billing.balances.read',
+    tool: 'billing_balances_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({ method: 'GET', url: `/v1/billing/patients/${P(f)}/balance`, keyed: false, status: 200 }),
+    mcpArgs: (f) => ({ patientRef: P(f) }),
+  },
 ];
+
+/** B1 charge body: a fresh synthetic procedure per call so a success could never collide. */
+function chargeBody(f: HarnessFixture) {
+  return {
+    patientRef: P(f),
+    procedureRef: `syn-proc-harness-${randomUUID().slice(0, 8)}`,
+    serviceDate: '2026-10-01',
+    amount: { currency: 'USD', minor: 1500 },
+  };
+}
 
 const APPT = '/v1/scheduling/appointments';
 const HOLDS = '/v1/scheduling/holds';
@@ -789,6 +861,7 @@ beforeAll(async () => {
   await seedTenancy(db.admin);
   await seedPatientScopes(db.admin);
   await seedSchedulingScopes(db.admin);
+  await seedBillingScopes(db.admin);
   issuer = await createTestTokenIssuer();
   logLines = [];
   const stream = { write: (l: string) => logLines.push(l) };
@@ -961,7 +1034,12 @@ beforeAll(async () => {
     ttlMinutes: 1440,
   });
   expect(hold.statusCode).toBe(201);
+  // B1: one posted charge for the alpha patient.
+  const charge = await owner('/v1/billing/charges', chargeBody({ alphaPatient } as HarnessFixture));
+  expect(charge.statusCode).toBe(201);
   fixture = {
+    alphaCharge: charge.json().data.chargeRef,
+    alphaEntry: charge.json().data.entryRef,
     alphaProvider,
     alphaAppointment: appointment.json().data.appointmentRef,
     alphaHold: hold.json().data.holdRef,
@@ -1085,6 +1163,9 @@ async function state(): Promise<string> {
     await q('SELECT count(*)::int AS n FROM cuspatlas.appointment_overrides'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.appointment_lifecycle_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.appointment_attendance_transitions'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.billing_charges'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.billing_journal_entries'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.billing_journal_lines'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.audit_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.outbox_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.command_idempotency'),

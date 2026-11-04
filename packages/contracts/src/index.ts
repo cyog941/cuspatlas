@@ -1,5 +1,7 @@
 export * from './action-proposal';
+export * from './billing';
 export * from './context';
+export * from './money';
 export * from './patient';
 export * from './ports';
 export * from './scheduling';

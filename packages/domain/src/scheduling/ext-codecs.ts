@@ -1,0 +1,60 @@
+import type { ReplayCodec, StoredResult } from '../commands/execute-once';
+
+/**
+ * Replay projection for the S12-S16 commands. Their command results are flat objects of server
+ * references, server enumerations, instants, counts and flags (and lists of server references); no
+ * caller text is ever part of a command result. `persist` checks that shape value by value and fails
+ * closed on anything else, so a future field carrying caller text cannot reach the idempotency table
+ * unnoticed.
+ */
+const SAFE = [
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+  /^[a-z][a-z0-9_.:-]{0,79}$/,
+  /^[0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9:.]+Z)?$/,
+];
+const safe = (v: string) => SAFE.some((r) => r.test(v));
+const LIST = 'listFields';
+
+export const flatCodec: ReplayCodec<Record<string, unknown>> = {
+  persist(data): StoredResult {
+    const out: Record<string, string | number | boolean | null> = { kind: 'success' };
+    const lists: string[] = [];
+    for (const [k, v] of Object.entries(data)) {
+      if (k === 'kind' || k === LIST) throw new Error('Command result uses a reserved key');
+      if (v === null || typeof v === 'number' || typeof v === 'boolean') out[k] = v;
+      else if (typeof v === 'string' && safe(v)) out[k] = v;
+      else if (Array.isArray(v) && v.every((x) => typeof x === 'string' && safe(x) && !x.includes(','))) {
+        out[k] = v.join(',');
+        lists.push(k);
+      } else {
+        throw new Error('Command result is not a flat server projection');
+      }
+    }
+    out[LIST] = lists.join(',');
+    return out;
+  },
+  restore(stored) {
+    if (stored.kind !== 'success' || typeof stored[LIST] !== 'string')
+      throw new Error('Stored result is malformed');
+    const lists = new Set((stored[LIST] as string).split(',').filter((x) => x !== ''));
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(stored)) {
+      if (k === 'kind' || k === LIST) continue;
+      out[k] = lists.has(k) ? (v === '' ? [] : String(v).split(',')) : v;
+    }
+    return out;
+  },
+};
+
+/** Operations replayed through `flatCodec`; each later S task appends its commands here. */
+export const EXTENDED_SCHEDULING_OPERATIONS: readonly string[] = [
+  'scheduling.visitContext.pinMedicalHistory',
+  'scheduling.visitContext.assignForm',
+  'scheduling.visitContext.unassignForm',
+  'scheduling.visitContext.linkLabCase',
+  'scheduling.visitContext.relinkLabCase',
+];
+
+export const EXTENDED_SCHEDULING_CODECS: Readonly<Record<string, ReplayCodec<unknown>>> = Object.fromEntries(
+  EXTENDED_SCHEDULING_OPERATIONS.map((op) => [op, flatCodec as ReplayCodec<unknown>]),
+);

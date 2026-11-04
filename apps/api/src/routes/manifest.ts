@@ -1,4 +1,5 @@
 import { APPOINTMENT_ROUTES } from './appointment-manifest';
+import { SCHEDULING_OP_ROUTES } from './scheduling-ops';
 
 /**
  * Every HTTP operation the service implements, in OpenAPI path syntax. Routes are registered from
@@ -326,6 +327,7 @@ export const ROUTES: readonly RouteContract[] = [
     refusals: ['400', '401', '403', '404', '422', '503'],
   },
   ...APPOINTMENT_ROUTES,
+  ...SCHEDULING_OP_ROUTES,
 ];
 
 export function routeFor(operationId: string): RouteContract & { fastifyPath: string } {

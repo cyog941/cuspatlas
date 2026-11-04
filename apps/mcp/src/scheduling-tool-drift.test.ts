@@ -1,4 +1,4 @@
-import { ROUTES } from '@cuspatlas/api';
+import { pathParamsOf, ROUTES, SCHEDULING_OPS } from '@cuspatlas/api';
 import { schedulingSchema } from '@cuspatlas/contracts';
 import { describe, expect, it } from 'vitest';
 import { TOOLS } from './server';
@@ -26,7 +26,13 @@ const LIST_QUERIES: Record<string, string> = {
   'scheduling.locations.list': 'LocationListQuery',
   'scheduling.requests.list': 'AppointmentRequestListQuery',
   'scheduling.worklist.daily': 'WorklistQuery',
+  ...Object.fromEntries(SCHEDULING_OPS.filter((o) => o.query).map((o) => [o.operationId, o.query as string])),
 };
+/** POST routes that only read: no Idempotency-Key and a read-only tool. */
+const POST_READS = new Set([
+  'scheduling.availability.search',
+  ...SCHEDULING_OPS.filter((o) => o.postRead).map((o) => o.operationId),
+]);
 function restShape(route: (typeof routes)[number]): { properties: Schema; required?: string[] } {
   if (route.requestBody !== undefined) {
     return DEFS[route.requestBody.replace('scheduling:', '')] as { properties: Schema; required?: string[] };
@@ -39,11 +45,8 @@ function restShape(route: (typeof routes)[number]): { properties: Schema; requir
 /** Transport-only additions: the Idempotency-Key header of a mutating POST and the path parameters. */
 function transportOf(route: (typeof routes)[number]): string[] {
   const out: string[] = [];
-  if (route.method === 'post' && route.operationId !== 'scheduling.availability.search')
-    out.push('idempotencyKey');
-  if (route.path.includes('{resourceRef}')) out.push('resourceRef');
-  if (route.path.includes('{locationRef}')) out.push('locationRef');
-  for (const p of ['requestRef', 'appointmentRef', 'holdRef']) if (route.path.includes(`{${p}}`)) out.push(p);
+  if (route.method === 'post' && !POST_READS.has(route.operationId)) out.push('idempotencyKey');
+  out.push(...pathParamsOf(route.path));
   return out.sort();
 }
 
@@ -58,9 +61,7 @@ describe('REST/MCP contract drift (scheduling resources and availability)', () =
     const route = routes.find((r) => r.operationId === tool.operationId);
     expect(route).toBeDefined();
     if (!route) return;
-    expect(tool.readOnly).toBe(
-      route.method === 'get' || route.operationId === 'scheduling.availability.search',
-    );
+    expect(tool.readOnly).toBe(route.method === 'get' || POST_READS.has(route.operationId));
     const schema = tool.inputSchema;
     expect(schema.additionalProperties).toBe(false);
     const transport = transportOf(route);
@@ -86,6 +87,7 @@ describe('REST/MCP contract drift (scheduling resources and availability)', () =
       requestRef: 'RequestRef',
       appointmentRef: 'AppointmentRef',
       holdRef: 'HoldRef',
+      itemRef: 'VisitItemRef',
     };
     for (const p of transport) {
       expect(resolve(schema.properties[p], local)).toStrictEqual(

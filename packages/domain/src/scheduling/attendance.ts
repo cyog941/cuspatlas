@@ -184,6 +184,14 @@ async function append(
   return id;
 }
 
+/** Derived attendance state of one appointment (S12 visit context, S16 recall basis). */
+export async function attendanceStateOf(
+  tx: TenantTransaction,
+  appointmentId: string,
+): Promise<AttendanceState> {
+  return derive(await loadTransitions(tx, [appointmentId]));
+}
+
 /**
  * Booking-side guard (S10 cancel and reschedule): a visit that has begun cannot be cancelled or
  * moved; otherwise the booking command appends the matching attendance fact in its transaction.

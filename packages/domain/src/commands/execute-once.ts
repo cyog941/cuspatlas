@@ -12,6 +12,7 @@ import {
 } from '@cuspatlas/contracts';
 import { PATIENT_REPLAY_CODECS } from '../patients/replay-codecs';
 import { APPOINTMENT_REPLAY_CODECS, SCHEDULING_REPLAY_CODECS } from '../scheduling/codecs';
+import { EXTENDED_SCHEDULING_CODECS } from '../scheduling/ext-codecs';
 import { idempotencyKeyDigest, payloadDigest } from './digest';
 import type { CommandExecutor } from './executor';
 import { SYNTHETIC_TASK_REPLAY_CODECS } from './replay-codecs';
@@ -210,5 +211,6 @@ export const executeOnce: CommandExecutor = createExecuteOnce({
     ...PATIENT_REPLAY_CODECS,
     ...SCHEDULING_REPLAY_CODECS,
     ...APPOINTMENT_REPLAY_CODECS,
+    ...EXTENDED_SCHEDULING_CODECS,
   },
 });

@@ -97,6 +97,14 @@ const TOOL_NAMES = [
   'scheduling_attendance_record',
   'scheduling_attendance_visit_status',
   'scheduling_worklist_daily',
+  // S12 visit context tools (derived from SCHEDULING_OPS; parity in scheduling-parity).
+  'scheduling_visit_context_get',
+  'scheduling_visit_context_items',
+  'scheduling_visit_context_pin_medical_history',
+  'scheduling_visit_context_assign_form',
+  'scheduling_visit_context_unassign_form',
+  'scheduling_visit_context_link_lab_case',
+  'scheduling_visit_context_relink_lab_case',
 ].sort();
 
 let db: TestDatabase;

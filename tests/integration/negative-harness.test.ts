@@ -716,10 +716,82 @@ export const COMMANDS: HarnessCommand[] = [
     }),
     mcpArgs: (f) => ({ locationRef: f.alphaLocation, date: '2030-01-07' }),
   },
+  // S12 visit context (every command; producers are absent, but every dimension is refused first).
+  ...visitRows(),
 ];
 
 const APPT = '/v1/scheduling/appointments';
 const HOLDS = '/v1/scheduling/holds';
+/** S12 rows: reads need scheduling.read, reference commands scheduling.write. */
+function visitRows(): HarnessCommand[] {
+  const ctx = (f: HarnessFixture) => `${APPT}/${f.alphaAppointment}/visit-context`;
+  const read = (operation: string, tool: string, suffix: string): HarnessCommand => ({
+    operation,
+    tool,
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({ method: 'GET', url: `${ctx(f)}${suffix}`, keyed: false, status: 200 }),
+    mcpArgs: (f) => ({ appointmentRef: f.alphaAppointment }),
+  });
+  const write = (
+    operation: string,
+    tool: string,
+    suffix: (f: HarnessFixture) => string,
+    body: Record<string, unknown>,
+    extra: (f: HarnessFixture) => Record<string, unknown> = () => ({}),
+  ): HarnessCommand => ({
+    operation,
+    tool,
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({ method: 'POST', url: `${ctx(f)}${suffix(f)}`, body, keyed: true, status: 201 }),
+    mcpArgs: (f) => ({
+      appointmentRef: f.alphaAppointment,
+      ...extra(f),
+      ...body,
+      idempotencyKey: randomUUID(),
+    }),
+  });
+  const item = '0b0b0b0b-0000-4000-8000-000000000001';
+  return [
+    read('scheduling.visitContext.read', 'scheduling_visit_context_get', ''),
+    read('scheduling.visitContext.items', 'scheduling_visit_context_items', '/items'),
+    write(
+      'scheduling.visitContext.pinMedicalHistory',
+      'scheduling_visit_context_pin_medical_history',
+      () => '/medical-history-pin',
+      {},
+    ),
+    write('scheduling.visitContext.assignForm', 'scheduling_visit_context_assign_form', () => '/forms', {
+      formRef: item,
+    }),
+    write(
+      'scheduling.visitContext.unassignForm',
+      'scheduling_visit_context_unassign_form',
+      () => `/forms/${item}/unassign`,
+      { expectedVersion: 1, reasonCode: 'assigned_in_error' },
+      () => ({ itemRef: item }),
+    ),
+    write(
+      'scheduling.visitContext.linkLabCase',
+      'scheduling_visit_context_link_lab_case',
+      () => '/lab-cases',
+      {
+        labCaseRef: item,
+      },
+    ),
+    write(
+      'scheduling.visitContext.relinkLabCase',
+      'scheduling_visit_context_relink_lab_case',
+      () => '/lab-cases/relink',
+      {
+        labCaseRef: item,
+        reasonCode: 'wrong_visit',
+      },
+    ),
+  ];
+}
+
 function windowOf(f: HarnessFixture, startsAt: string, endsAt: string) {
   return {
     startsAt,
@@ -1085,6 +1157,7 @@ async function state(): Promise<string> {
     await q('SELECT count(*)::int AS n FROM cuspatlas.appointment_overrides'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.appointment_lifecycle_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.appointment_attendance_transitions'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.visit_context_items'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.audit_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.outbox_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.command_idempotency'),

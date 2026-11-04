@@ -29,6 +29,7 @@ import {
 import { registerPatientRoutes } from './routes/patients';
 import { registerProposalRoutes } from './routes/proposals';
 import { registerSchedulingRoutes } from './routes/scheduling';
+import { registerSchedulingOpRoutes } from './routes/scheduling-ops-routes';
 import { registerSessionRoutes } from './routes/session';
 import { registerSyntheticTaskRoutes } from './routes/synthetic-tasks';
 
@@ -185,6 +186,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       registerAppointmentRoutes(app, { authenticator, appointments });
       registerBookingRoutes(app, { authenticator, appointments });
       registerAttendanceRoutes(app, { authenticator, appointments });
+      registerSchedulingOpRoutes(app, { authenticator, appointments });
     }
   }
 

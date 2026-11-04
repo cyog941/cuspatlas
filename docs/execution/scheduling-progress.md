@@ -18,6 +18,7 @@ Authorization basis: user instruction on 2026-11-04 to build workstream S on syn
 | S10 booking, holds, conflict result | verified on synthetic data (Windows host); decisions pending approval | 7e0b5c6 | 612 tests |
 | S11 attendance (+ S10 contention fix) | verified on synthetic data (Windows host); decisions pending approval | 8648aa9 | 644 tests |
 | Review hardening of S4-S9 | verified on synthetic data (Windows host) | 427979e | 655 tests |
+| S12 visit context (container; producer-bound cases open on C8/C10/C11/C13/C16) | container verified on synthetic data (Windows host); clinical producers absent | see S12 | 696 tests + 6 todo |
 
 ## Command log
 
@@ -331,3 +332,25 @@ Verification: `typecheck`, `lint`, `contract:check` exit 0; `corepack pnpm test`
 ### Batch 2 gate
 
 `corepack pnpm run ci` at 427979e: exit 0 (typecheck, lint, contract drift, 32 files / 655 tests, privacy scan of 222 tracked files and the artifacts, SBOM 270 components, evidence manifest and verification: unreviewed, not certified). Re-run on the commit containing this entry. Nothing here is approved, deployed, compliant or clinically validated; every ADR 0003 / ADR 0009 item and every proposed vocabulary (override, cancellation, attendance transitions and reasons) remains recommended-pending-approval.
+
+## Batch 3 (S12-S17, branch `codex/scheduling-patients`)
+
+Base: 4b1a2e2 (655 tests). `origin/main` d2610d8 (docs only: PRACTICE-TIME-AND-AUTOMATION.md and plan additions) merged first as cdf756c. Every S12-S16 operation is declared once in `apps/api/src/routes/scheduling-ops.ts` (`SCHEDULING_OPS`: route contract, MCP tool name, domain call); REST registration, MCP tools, the closed-body drift check and the OpenAPI entries are derived from it.
+
+### S12 appointment visit context
+
+Files: `supabase/migrations/20261107000000_visit_context.sql`, `packages/domain/src/scheduling/visit-context.ts`, `packages/domain/src/scheduling/ext-codecs.ts`, S12 definitions in `scheduling.schema.json`, `apps/api/src/routes/scheduling-ops.ts` + `scheduling-ops-routes.ts`, `apps/mcp/src/tools/scheduling-ops.ts`, `tests/integration/visit-context.test.ts`, `tests/integration/support/domain-harness.ts`.
+
+Design: the context is a container of references. Producer port `VisitContextProducers` (domain `SchedulingDeps.visitContextProducers`) per item: medical history (C8), forms (C13; intake forms are E4), note drafts (C10), lab cases (C16), treatment-plan items (C11). No producer is deployed, so through REST/MCP every item is `{status: 'unavailable', owner, reason: 'producer_not_deployed'}` and `readiness.complete` is false; unavailable never counts as resolved. Commands bound to an absent producer are 409 `conflict` `producer_unavailable` (checked before the idempotency handler, so a later deployment is not answered from a stored refusal) and write nothing. `visit_context_items` holds producer references, the pinned version and provenance reference only (column list asserted), with runtime SELECT/INSERT and column UPDATE of the end fields only; a guard trigger allows only active -> ended once by the acting principal; the pin is immutable.
+
+Acceptance cases through the deployed transports (`visit-context.test.ts`): 5 (every item unavailable with owner and reason; REST = MCP), the producer-bound commands refused 409 with one attempt row and no write, 4 (cross-tenant and other-location 404 identical to missing; malformed ref 404), 6 (cancelled context readable and marked `acceptsChanges: false`), read-only member reads but cannot assign (403), the structural reference-only column list and grants.
+
+Container mechanics against a synthetic producer stub injected at the domain port only (not a C producer): pin names the captured version and survives a later producer version; a second pin 409 `already_pinned`; 2 (same form twice -> one row, `created` true then false; unassign needs a reason and stays in history); 3 (lab case bound elsewhere 409 `lab_case_bound_elsewhere` naming the other appointment only when the caller may see it; relink ends the old binding naming the new one and the new one names the old); 4 (another tenant's producer record is 404); failure 1 (voided record resolves `voided`, never omitted; readiness incomplete); failure 2 (a fault after the write rolls back the item, audit and outbox); failure 3 and 6 (a cancelled appointment keeps its active forms and refuses a new assignment `appointment_not_open`).
+
+Open (it.todo, blocked on C): C8 real pin with provenance; C8 change produces a new version; C13 real form assignment; C10 note drafts; C16 real lab case and foreign-tenant case; C11 treatment-plan items. The visit-workspace claim stays open until these pass.
+
+- Red: `corepack pnpm test -- tests/integration/visit-context.test.ts` before implementation: exit 1, 12 failed / 1 passed / 6 todo (the cross-tenant case passed only because the route did not exist).
+- Green: same command exit 0, 13 passed / 6 todo. `typecheck`, `lint`, `contract:check` exit 0; `corepack pnpm test` exit 0, 33 files / 696 passed / 6 todo.
+- Harness: 7 rows added (`visitRows()`); the state snapshot covers `visit_context_items`. Explicit lists updated: MCP tool names (`mcp-parity.test.ts`), RLS table list (`tenant-isolation.test.ts`).
+
+Deviations: patient status is not part of the context projection (a scheduling reader without `patients.read` must not learn deceased/merged; the patient reference only). Form ownership is named C13 although intake forms are E4; the owner string is one value per item. Reads are not sensitive-read logged (as S10/S11).

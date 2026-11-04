@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cuspatlas.invalid/schemas/scheduling/v1",
-  "title": "Scheduling resources, availability, requests, booking and attendance contract v1 (S7-S11; synthetic data only)",
+  "title": "Scheduling contract v1 (S7-S17; synthetic data only)",
   "$defs": {
     "AvailabilityRequirement": {
       "type": "object",
@@ -2099,6 +2099,509 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "VisitItemRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque reference of one visit-context item (a pin, form assignment or lab-case link)."
+    },
+    "ProducerRecordRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque reference into the owning clinical producer (C8, C13, C16); never content."
+    },
+    "VisitContextPin": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "S12 pin of the current medical-history version (C8). Empty body: the version comes from the producer.",
+      "properties": {}
+    },
+    "VisitFormAssign": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["formRef"],
+      "properties": {
+        "formRef": {
+          "$ref": "#/$defs/ProducerRecordRef"
+        }
+      }
+    },
+    "VisitFormUnassign": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "reasonCode"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "VisitLabLink": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["labCaseRef"],
+      "properties": {
+        "labCaseRef": {
+          "$ref": "#/$defs/ProducerRecordRef"
+        }
+      }
+    },
+    "VisitLabRelink": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["labCaseRef", "reasonCode"],
+      "properties": {
+        "labCaseRef": {
+          "$ref": "#/$defs/ProducerRecordRef"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "VisitItemKind": {
+      "enum": ["medical_history_pin", "form_assignment", "lab_case_link"]
+    },
+    "VisitProducerOwner": {
+      "enum": ["C8", "C10", "C11", "C13", "C16"]
+    },
+    "VisitItemCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "itemRef",
+            "appointmentRef",
+            "itemKind",
+            "producerRef",
+            "itemVersion",
+            "state",
+            "endKind",
+            "created"
+          ],
+          "properties": {
+            "itemRef": {
+              "$ref": "#/$defs/VisitItemRef"
+            },
+            "appointmentRef": {
+              "$ref": "#/$defs/AppointmentRef"
+            },
+            "itemKind": {
+              "$ref": "#/$defs/VisitItemKind"
+            },
+            "producerRef": {
+              "$ref": "#/$defs/ProducerRecordRef"
+            },
+            "itemVersion": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "state": {
+              "enum": ["active", "ended"]
+            },
+            "endKind": {
+              "anyOf": [
+                {
+                  "enum": ["unassigned", "relinked"]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "created": {
+              "type": "boolean",
+              "description": "false when the same form was already assigned to the appointment (the recorded assignment is returned)."
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "VisitContextEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "itemRef",
+        "producerRef",
+        "version",
+        "currentVersion",
+        "provenanceRef",
+        "resolution",
+        "state"
+      ],
+      "properties": {
+        "itemRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/VisitItemRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "producerRef": {
+          "$ref": "#/$defs/ProducerRecordRef"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "currentVersion": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "provenanceRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProvenanceRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resolution": {
+          "enum": ["resolved", "voided", "not_found"],
+          "description": "Resolved through the producer at read time; a voided or missing record is reported, never omitted."
+        },
+        "state": {
+          "enum": ["active", "ended"]
+        }
+      }
+    },
+    "VisitContextSlot": {
+      "description": "One producer-bound item: explicitly unavailable (with owner and reason), or the resolved entries.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "owner", "reason"],
+          "properties": {
+            "status": {
+              "const": "unavailable"
+            },
+            "owner": {
+              "$ref": "#/$defs/VisitProducerOwner"
+            },
+            "reason": {
+              "enum": ["producer_not_deployed"]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "owner", "entries"],
+          "properties": {
+            "status": {
+              "const": "available"
+            },
+            "owner": {
+              "$ref": "#/$defs/VisitProducerOwner"
+            },
+            "entries": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "$ref": "#/$defs/VisitContextEntry"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "VisitContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "appointmentRef",
+            "asOf",
+            "appointment",
+            "patient",
+            "attendance",
+            "items",
+            "readiness"
+          ],
+          "properties": {
+            "appointmentRef": {
+              "$ref": "#/$defs/AppointmentRef"
+            },
+            "asOf": {
+              "$ref": "#/$defs/Instant"
+            },
+            "appointment": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["status", "version", "startsAt", "locationRef", "acceptsChanges"],
+              "properties": {
+                "status": {
+                  "$ref": "#/$defs/AppointmentStatus"
+                },
+                "version": {
+                  "$ref": "#/$defs/Version"
+                },
+                "startsAt": {
+                  "$ref": "#/$defs/Instant"
+                },
+                "locationRef": {
+                  "$ref": "#/$defs/LocationRef"
+                },
+                "acceptsChanges": {
+                  "type": "boolean",
+                  "description": "false once the booking is cancelled or rescheduled."
+                }
+              }
+            },
+            "patient": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["status", "patientRef"],
+              "properties": {
+                "status": {
+                  "const": "resolved"
+                },
+                "patientRef": {
+                  "$ref": "#/$defs/PatientRef"
+                }
+              }
+            },
+            "attendance": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["status", "state"],
+              "properties": {
+                "status": {
+                  "const": "resolved"
+                },
+                "state": {
+                  "$ref": "#/$defs/AttendanceState"
+                }
+              }
+            },
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["medicalHistory", "forms", "noteDrafts", "labCases", "treatmentPlanItems"],
+              "properties": {
+                "medicalHistory": {
+                  "$ref": "#/$defs/VisitContextSlot"
+                },
+                "forms": {
+                  "$ref": "#/$defs/VisitContextSlot"
+                },
+                "noteDrafts": {
+                  "$ref": "#/$defs/VisitContextSlot"
+                },
+                "labCases": {
+                  "$ref": "#/$defs/VisitContextSlot"
+                },
+                "treatmentPlanItems": {
+                  "$ref": "#/$defs/VisitContextSlot"
+                }
+              }
+            },
+            "readiness": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["resolved", "unavailable", "complete"],
+              "description": "Unavailable items never count as checked: complete is true only when every producer is available and every entry resolves.",
+              "properties": {
+                "resolved": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "unavailable": {
+                  "type": "array",
+                  "maxItems": 5,
+                  "items": {
+                    "enum": ["medicalHistory", "forms", "noteDrafts", "labCases", "treatmentPlanItems"]
+                  }
+                },
+                "complete": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "VisitContextItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "itemRef",
+        "itemKind",
+        "producer",
+        "producerRef",
+        "itemVersion",
+        "provenanceRef",
+        "state",
+        "endKind",
+        "endReason",
+        "relinkedFrom",
+        "relinkedTo",
+        "actorRef",
+        "createdAt",
+        "endedAt",
+        "version"
+      ],
+      "properties": {
+        "itemRef": {
+          "$ref": "#/$defs/VisitItemRef"
+        },
+        "itemKind": {
+          "$ref": "#/$defs/VisitItemKind"
+        },
+        "producer": {
+          "enum": ["C8", "C13", "C16"]
+        },
+        "producerRef": {
+          "$ref": "#/$defs/ProducerRecordRef"
+        },
+        "itemVersion": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "provenanceRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProvenanceRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "enum": ["active", "ended"]
+        },
+        "endKind": {
+          "anyOf": [
+            {
+              "enum": ["unassigned", "relinked"]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "endReason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "relinkedFrom": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/VisitItemRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "relinkedTo": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/VisitItemRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "actorRef": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "endedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "VisitContextItemList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "#/$defs/VisitContextItem"
           }
         }
       }

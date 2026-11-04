@@ -89,6 +89,19 @@ export const ACTION_POLICIES = {
   'scheduling.attendance.list': { scope: 'scheduling.read', principals: ['human', 'service'] },
   'scheduling.attendance.visitStatus': { scope: 'scheduling.read', principals: ['human', 'service'] },
   'scheduling.worklist.daily': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  // S12 visit context: a container of references to clinical producers. Reading it needs
+  // scheduling.read; pinning, assigning and linking references are scheduling work (scheduling.write).
+  // A clinical producer applies its own policy when it resolves a reference.
+  'scheduling.visitContext.read': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  'scheduling.visitContext.items': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  'scheduling.visitContext.pinMedicalHistory': {
+    scope: 'scheduling.write',
+    principals: ['human', 'service'],
+  },
+  'scheduling.visitContext.assignForm': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.visitContext.unassignForm': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.visitContext.linkLabCase': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.visitContext.relinkLabCase': { scope: 'scheduling.write', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

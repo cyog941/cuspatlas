@@ -524,3 +524,94 @@ export interface DailyWorklistData {
 
 export const validateAttendanceRecord = def('AttendanceRecord');
 export const validateWorklistQuery = def('WorklistQuery');
+
+/** S12 visit context: a container of references to clinical producers (C8, C10, C11, C13, C16). */
+export type VisitItemKind = 'medical_history_pin' | 'form_assignment' | 'lab_case_link';
+export type VisitProducerKey = 'medicalHistory' | 'forms' | 'noteDrafts' | 'labCases' | 'treatmentPlanItems';
+export type VisitProducerOwner = 'C8' | 'C10' | 'C11' | 'C13' | 'C16';
+export interface VisitFormAssign {
+  readonly formRef: string;
+}
+export interface VisitFormUnassign {
+  readonly expectedVersion: number;
+  readonly reasonCode: string;
+}
+export interface VisitLabLink {
+  readonly labCaseRef: string;
+}
+export interface VisitLabRelink {
+  readonly labCaseRef: string;
+  readonly reasonCode: string;
+}
+export interface VisitItemCommandData {
+  readonly itemRef: string;
+  readonly appointmentRef: string;
+  readonly itemKind: VisitItemKind;
+  readonly producerRef: string;
+  readonly itemVersion: number | null;
+  readonly state: 'active' | 'ended';
+  readonly endKind: 'unassigned' | 'relinked' | null;
+  readonly created: boolean;
+}
+export interface VisitContextEntry {
+  readonly itemRef: string | null;
+  readonly producerRef: string;
+  readonly version: number | null;
+  readonly currentVersion: number | null;
+  readonly provenanceRef: string | null;
+  readonly resolution: 'resolved' | 'voided' | 'not_found';
+  readonly state: 'active' | 'ended';
+}
+export type VisitContextSlot =
+  | {
+      readonly status: 'unavailable';
+      readonly owner: VisitProducerOwner;
+      readonly reason: 'producer_not_deployed';
+    }
+  | {
+      readonly status: 'available';
+      readonly owner: VisitProducerOwner;
+      readonly entries: VisitContextEntry[];
+    };
+export interface VisitContextData {
+  readonly appointmentRef: string;
+  readonly asOf: string;
+  readonly appointment: {
+    readonly status: AppointmentStatus;
+    readonly version: number;
+    readonly startsAt: string;
+    readonly locationRef: string;
+    readonly acceptsChanges: boolean;
+  };
+  readonly patient: { readonly status: 'resolved'; readonly patientRef: string };
+  readonly attendance: { readonly status: 'resolved'; readonly state: AttendanceState };
+  readonly items: Readonly<Record<VisitProducerKey, VisitContextSlot>>;
+  readonly readiness: {
+    readonly resolved: number;
+    readonly unavailable: VisitProducerKey[];
+    readonly complete: boolean;
+  };
+}
+export interface VisitContextItemRecord {
+  readonly itemRef: string;
+  readonly itemKind: VisitItemKind;
+  readonly producer: 'C8' | 'C13' | 'C16';
+  readonly producerRef: string;
+  readonly itemVersion: number | null;
+  readonly provenanceRef: string | null;
+  readonly state: 'active' | 'ended';
+  readonly endKind: 'unassigned' | 'relinked' | null;
+  readonly endReason: string | null;
+  readonly relinkedFrom: string | null;
+  readonly relinkedTo: string | null;
+  readonly actorRef: string;
+  readonly createdAt: string;
+  readonly endedAt: string | null;
+  readonly version: number;
+}
+
+export const validateVisitContextPin = def('VisitContextPin');
+export const validateVisitFormAssign = def('VisitFormAssign');
+export const validateVisitFormUnassign = def('VisitFormUnassign');
+export const validateVisitLabLink = def('VisitLabLink');
+export const validateVisitLabRelink = def('VisitLabRelink');

@@ -54,6 +54,7 @@ import {
 } from '../policy/authorize';
 import { assertAvailabilitySearch, searchAvailabilityIn } from './availability';
 import { createSchedulingCursorCodec, type SchedulingCursorCodec } from './cursor';
+import type { VisitContextProducers } from './visit-context';
 import { isKnownTimeZone, isRealDate, minutesOf } from './zoned-time';
 
 export interface SchedulingDeps {
@@ -64,6 +65,11 @@ export interface SchedulingDeps {
   readonly execute?: CommandExecutor;
   /** Defaults to a per-process random HMAC key. */
   readonly cursors?: SchedulingCursorCodec;
+  /**
+   * S12 clinical producers behind the visit context. None is deployed in this foundation (each item
+   * is reported `unavailable`); tests inject a synthetic stub at this port only.
+   */
+  readonly visitContextProducers?: VisitContextProducers;
 }
 
 /** Version of the reserved state-label vocabulary held by cuspatlas.scheduling_state_terms(). */

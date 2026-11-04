@@ -1563,6 +1563,231 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/scheduling/appointments/{appointmentRef}/visit-context:
+    get:
+      operationId: scheduling.visitContext.read
+      description: >-
+        Visit context of one appointment: patient, attendance and the producer-bound items (medical history
+        C8, forms C13, note drafts C10, lab cases C16, treatment-plan items C11), each a resolvable
+        reference or an explicit unavailable with its reason. Unavailable never counts as checked.
+      parameters:
+        - $ref: '#/components/parameters/AppointmentRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/VisitContext'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/appointments/{appointmentRef}/visit-context/items:
+    get:
+      operationId: scheduling.visitContext.items
+      description: >-
+        History of the visit-context references of one appointment (pins, assignments, links, relinks).
+      parameters:
+        - $ref: '#/components/parameters/AppointmentRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/VisitContextItemList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/appointments/{appointmentRef}/visit-context/medical-history-pin:
+    post:
+      operationId: scheduling.visitContext.pinMedicalHistory
+      description: >-
+        Pin the current medical-history version (a version reference, never a copy). Refused with
+        producer_unavailable until C8 exists.
+      parameters:
+        - $ref: '#/components/parameters/AppointmentRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/VisitContextPin'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/VisitItemCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/appointments/{appointmentRef}/visit-context/forms:
+    post:
+      operationId: scheduling.visitContext.assignForm
+      description: >-
+        Assign a form to the visit (idempotent per form and appointment). Refused with producer_unavailable
+        until C13 exists.
+      parameters:
+        - $ref: '#/components/parameters/AppointmentRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/VisitFormAssign'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/VisitItemCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/appointments/{appointmentRef}/visit-context/forms/{itemRef}/unassign:
+    post:
+      operationId: scheduling.visitContext.unassignForm
+      description: >-
+        Unassign a form with a reason (explicit; the assignment stays in the item history).
+      parameters:
+        - $ref: '#/components/parameters/AppointmentRef'
+        - $ref: '#/components/parameters/ItemRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/VisitFormUnassign'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/VisitItemCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/appointments/{appointmentRef}/visit-context/lab-cases:
+    post:
+      operationId: scheduling.visitContext.linkLabCase
+      description: >-
+        Bind a lab case to the visit. A case bound to another appointment needs the relink command. Refused
+        with producer_unavailable until C16 exists.
+      parameters:
+        - $ref: '#/components/parameters/AppointmentRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/VisitLabLink'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/VisitItemCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/appointments/{appointmentRef}/visit-context/lab-cases/relink:
+    post:
+      operationId: scheduling.visitContext.relinkLabCase
+      description: >-
+        Move a lab case binding to this visit with a reason; both bindings stay in history.
+      parameters:
+        - $ref: '#/components/parameters/AppointmentRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/VisitLabRelink'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/VisitItemCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
 components:
   securitySchemes:
     bearer:
@@ -1570,6 +1795,12 @@ components:
       scheme: bearer
       bearerFormat: JWT (EdDSA; claims sub, tid, sid, iss, aud, exp, iat)
   parameters:
+    ItemRef:
+      name: itemRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/VisitItemRef'
     TaskRef:
       name: taskRef
       in: path

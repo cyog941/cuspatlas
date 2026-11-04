@@ -4,6 +4,7 @@ import { bookingAttendanceGuard, createAttendanceOperations } from './attendance
 import { createBookingOperations, loadAppointment } from './booking';
 import { createRequestOperations, type LinkHook, linkRequestToBookingIn } from './requests';
 import type { SchedulingDeps } from './resources';
+import { createVisitContextOperations } from './visit-context';
 
 /**
  * The appointment service: S8 requests, S10 booking and S11 attendance. The only
@@ -29,6 +30,7 @@ export function createAppointmentService(deps: SchedulingDeps) {
   const requests = createRequestOperations(base, link);
   const booking = createBookingOperations(base);
   const attendance = createAttendanceOperations(base);
+  const visitContext = createVisitContextOperations(base);
   const bookingStillActive = async (tx: TenantTransaction, appointmentId: string) => {
     const { rows } = await tx.query<{ status: string }>(
       'SELECT status FROM cuspatlas.appointments WHERE id = $1',
@@ -40,6 +42,7 @@ export function createAppointmentService(deps: SchedulingDeps) {
     ...requests,
     ...booking,
     ...attendance,
+    ...visitContext,
     reopenRequest: (ctx: ActorContext, requestRef: string, envelope: CommandEnvelope<unknown>) =>
       requests.reopenRequest(ctx, requestRef, envelope, bookingStillActive),
     rescheduleAppointment: (ctx: ActorContext, appointmentRef: string, envelope: CommandEnvelope<unknown>) =>

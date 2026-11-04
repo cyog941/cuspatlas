@@ -7,4 +7,5 @@ export * from './codecs';
 export * from './cursor';
 export * from './requests';
 export * from './resources';
+export * from './visit-context';
 export * from './zoned-time';

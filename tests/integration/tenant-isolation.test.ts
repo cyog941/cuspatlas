@@ -133,6 +133,7 @@ describe('runtime database role', () => {
       'sensitive_read_events',
       'synthetic_tasks',
       'tenants',
+      'visit_context_items',
     ]);
     for (const r of rows)
       expect([r.relname, r.relrowsecurity, r.relforcerowsecurity]).toStrictEqual([r.relname, true, true]);

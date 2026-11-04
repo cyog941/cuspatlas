@@ -211,9 +211,33 @@ export const SCHEDULING_OPS: readonly SchedulingOp[] = [
       'End a series with a reason. Nothing is deleted or cancelled: future occurrences are listed for explicit reassignment.',
     invoke: (svc, actor, i) => svc.endSeries(actor, param(i, 'seriesRef'), env('scheduling.series.end', i)),
   },
+  // S14 notification intents (channel none until S-S2 qualifies a channel; E6 decides, E7 delivers).
+  {
+    method: 'get',
+    path: '/v1/scheduling/notifications/worklist',
+    operationId: 'scheduling.notifications.worklist',
+    protected: true,
+    success: { status: '200', schema: S('WorkItemList') },
+    refusals: LIST,
+    query: 'NotificationWorklistQuery',
+    tool: 'scheduling_notifications_worklist',
+    description:
+      'Work items for notification intents no verified channel will deliver (channel none): reason, explanation, evidence, owner, due time and next action. Nothing is ever sent by scheduling.',
+    invoke: (svc, actor, i) => data(svc.notificationWorklist(actor, i.body)),
+  },
+  {
+    method: 'get',
+    path: '/v1/scheduling/notifications/{intentRef}',
+    operationId: 'scheduling.notifications.read',
+    protected: true,
+    success: { status: '200', schema: S('NotificationIntentRead') },
+    refusals: READ,
+    tool: 'scheduling_notifications_get',
+    description:
+      'Read one notification intent: purpose, channel (none), delivery key, the E6-owned suppression decision placeholder and the E7 delivery state.',
+    invoke: (svc, actor, i) => data(svc.readNotificationIntent(actor, param(i, 'intentRef'))),
+  },
 ];
-
-void LIST;
 
 /** The route contracts only (spread into ROUTES). */
 export const SCHEDULING_OP_ROUTES: readonly RouteContract[] = SCHEDULING_OPS.map((o) => ({

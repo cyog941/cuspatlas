@@ -111,6 +111,9 @@ const TOOL_NAMES = [
   'scheduling_series_get',
   'scheduling_series_extend',
   'scheduling_series_end',
+  // S14 notification intents.
+  'scheduling_notifications_worklist',
+  'scheduling_notifications_get',
 ].sort();
 
 let db: TestDatabase;

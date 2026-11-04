@@ -108,6 +108,10 @@ export const ACTION_POLICIES = {
   'scheduling.series.create': { scope: 'scheduling.write', principals: ['human', 'service'] },
   'scheduling.series.extend': { scope: 'scheduling.write', principals: ['human', 'service'] },
   'scheduling.series.end': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  // S14 notification intents: recorded by the commands that cause them; staff read them and the
+  // worklist of intents no channel will deliver. No send operation exists in scheduling.
+  'scheduling.notifications.read': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  'scheduling.notifications.worklist': { scope: 'scheduling.read', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

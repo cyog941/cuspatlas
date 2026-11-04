@@ -17,6 +17,7 @@ export const TRANSPORT: Record<string, string> = {
   // S12-S16 path parameters.
   itemRef: 'VisitItemRef',
   seriesRef: 'SeriesRef',
+  intentRef: 'IntentRef',
 };
 
 /**

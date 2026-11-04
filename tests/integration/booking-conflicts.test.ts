@@ -187,13 +187,16 @@ describe('S10 acceptance', () => {
         actorRef: USER_A1,
       },
     ]);
-    // One audit row for the booking and one for the override record, in the same transaction.
+    // One audit row for the booking, one for its S14 notification intent and one for the override
+    // record, in the same transaction.
     const audit = await db.admin.query(
-      `SELECT operation, resource_type FROM cuspatlas.audit_events WHERE correlation_id = $1 ORDER BY operation`,
+      `SELECT operation, resource_type FROM cuspatlas.audit_events WHERE correlation_id = $1
+       ORDER BY operation, resource_type`,
       [overridden.headers['x-correlation-id']],
     );
     expect(audit.rows).toStrictEqual([
       { operation: 'scheduling.appointments.book', resource_type: 'appointment' },
+      { operation: 'scheduling.appointments.book', resource_type: 'notificationIntent' },
       { operation: 'scheduling.appointments.override', resource_type: 'appointmentOverride' },
     ]);
     // The same window again: the overlap with the overridden booking is not overrideable.

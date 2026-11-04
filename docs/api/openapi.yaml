@@ -1946,6 +1946,56 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/scheduling/notifications/worklist:
+    get:
+      operationId: scheduling.notifications.worklist
+      description: >-
+        Work items for notification intents no verified channel will deliver (channel none): reason,
+        explanation, evidence, owner, due time and next action. Nothing is ever sent by scheduling.
+      parameters:
+        - name: locationRef
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/LocationRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/WorkItemList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/notifications/{intentRef}:
+    get:
+      operationId: scheduling.notifications.read
+      description: >-
+        Read one notification intent: purpose, channel (none), delivery key, the E6-owned suppression
+        decision placeholder and the E7 delivery state.
+      parameters:
+        - $ref: '#/components/parameters/IntentRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/NotificationIntentRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
 components:
   securitySchemes:
     bearer:
@@ -1953,6 +2003,12 @@ components:
       scheme: bearer
       bearerFormat: JWT (EdDSA; claims sub, tid, sid, iss, aud, exp, iat)
   parameters:
+    IntentRef:
+      name: intentRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/IntentRef'
     SeriesRef:
       name: seriesRef
       in: path

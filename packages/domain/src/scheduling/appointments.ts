@@ -2,6 +2,7 @@ import type { ActorContext, CommandEnvelope, TenantTransaction } from '@cuspatla
 import { createAppointmentBase } from './appointment-base';
 import { bookingAttendanceGuard, createAttendanceOperations } from './attendance';
 import { createBookingOperations, loadAppointment } from './booking';
+import { createNotificationOperations } from './notification-intent';
 import { createRecurrenceOperations, recordSeriesException } from './recurrence';
 import { createRequestOperations, type LinkHook, linkRequestToBookingIn } from './requests';
 import type { SchedulingDeps } from './resources';
@@ -33,6 +34,7 @@ export function createAppointmentService(deps: SchedulingDeps) {
   const attendance = createAttendanceOperations(base);
   const visitContext = createVisitContextOperations(base);
   const recurrence = createRecurrenceOperations(base);
+  const notifications = createNotificationOperations(base);
   const bookingStillActive = async (tx: TenantTransaction, appointmentId: string) => {
     const { rows } = await tx.query<{ status: string }>(
       'SELECT status FROM cuspatlas.appointments WHERE id = $1',
@@ -46,6 +48,7 @@ export function createAppointmentService(deps: SchedulingDeps) {
     ...attendance,
     ...visitContext,
     ...recurrence,
+    ...notifications,
     reopenRequest: (ctx: ActorContext, requestRef: string, envelope: CommandEnvelope<unknown>) =>
       requests.reopenRequest(ctx, requestRef, envelope, bookingStillActive),
     rescheduleAppointment: (ctx: ActorContext, appointmentRef: string, envelope: CommandEnvelope<unknown>) =>

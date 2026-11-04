@@ -720,6 +720,28 @@ export const COMMANDS: HarnessCommand[] = [
   ...visitRows(),
   // S13 recurrence series.
   ...seriesRows(),
+  // S14 notification intents (reads only; intents are recorded by the commands that cause them).
+  {
+    operation: 'scheduling.notifications.read',
+    tool: 'scheduling_notifications_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/scheduling/notifications/${f.alphaIntent}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ intentRef: f.alphaIntent }),
+  },
+  {
+    operation: 'scheduling.notifications.worklist',
+    tool: 'scheduling_notifications_worklist',
+    crossTenant: 'tenant_own_data',
+    downgradedTo: 'noPatientScopes',
+    rest: () => ({ method: 'GET', url: '/v1/scheduling/notifications/worklist', keyed: false, status: 200 }),
+    mcpArgs: () => ({}),
+  },
 ];
 
 const APPT = '/v1/scheduling/appointments';
@@ -1134,7 +1156,18 @@ beforeAll(async () => {
     count: 1,
   });
   expect(series.statusCode).toBe(201);
+  const intents = await app.inject({
+    method: 'GET',
+    url: '/v1/scheduling/notifications/worklist',
+    headers: { authorization: `Bearer ${rest.owner}` },
+  });
+  const alphaIntent = intents
+    .json()
+    .data.items.find((i: { evidenceRefs: { ref: string }[] }) =>
+      i.evidenceRefs.some((e) => e.ref === appointment.json().data.appointmentRef),
+    ).workItemRef as string;
   fixture = {
+    alphaIntent,
     alphaSeries: series.json().data.seriesRef,
     alphaProvider,
     alphaAppointment: appointment.json().data.appointmentRef,
@@ -1263,6 +1296,7 @@ async function state(): Promise<string> {
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.appointment_series'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.appointment_series_occurrences'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.appointment_series_exceptions'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.notification_intents'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.audit_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.outbox_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.command_idempotency'),

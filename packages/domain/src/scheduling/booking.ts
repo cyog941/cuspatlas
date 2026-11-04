@@ -35,6 +35,7 @@ import { recordCommand } from '../events/record-command';
 import { assertPatientSchedulable } from '../patients/identity';
 import { type AuthorizationDecision, assertLocation } from '../policy/authorize';
 import { type AppointmentBase, assertVisibleLocation } from './appointment-base';
+import { currentIntentOf, recordNotificationIntent } from './notification-intent';
 import { linkRequestToBookingIn, loadRequest } from './requests';
 import {
   checkEnvelope,
@@ -526,6 +527,15 @@ export async function insertBookingIn(
     { operation, resourceType: APPOINTMENT_RESOURCE, resourceRef: id, resourceVersion: 1 },
     { changedFields: ['patientRef', 'window', 'resources', 'status'] },
   );
+  // S14: one reminder intent per booking, channel none; a reschedule supersedes the old reminder.
+  await recordNotificationIntent(tx, operation, {
+    subjectKind: 'appointment',
+    subjectId: id,
+    locationId: location.id,
+    purpose: 'reminder',
+    dueAt: new Date(prepared.w.s),
+    supersedes: o.rescheduledFrom === null ? null : await currentIntentOf(tx, o.rescheduledFrom, 'reminder'),
+  });
   if (overridden.length > 0 && o.override) {
     const ov = await tx.query<{ id: string }>(
       `INSERT INTO cuspatlas.appointment_overrides (tenant_id, appointment_id, override_code, reason_code,
@@ -937,7 +947,16 @@ export function createBookingOperations(base: AppointmentBase) {
                VALUES (cuspatlas.current_tenant_id(), $1, 'cancelled', $2, $3, cuspatlas.current_actor_id())`,
                 [appt.id, p.reasonCode, version],
               );
-              // The outbox row is the notification intent seam (S14/E7 decide channel and delivery).
+              // S14: the cancellation intent (channel none) supersedes the booking's reminder; the
+              // outbox events of both rows are the seam E7 consumes. Nothing is sent from here.
+              await recordNotificationIntent(tx, op, {
+                subjectKind: 'appointment',
+                subjectId: appt.id,
+                locationId: appt.location_id,
+                purpose: 'cancellation',
+                dueAt: null,
+                supersedes: await currentIntentOf(tx, appt.id, 'reminder'),
+              });
               await recordCommand(
                 tx,
                 {

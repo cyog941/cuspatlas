@@ -3111,6 +3111,327 @@
           }
         }
       }
+    },
+    "IntentRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque notification intent reference."
+    },
+    "WorkItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Proposed shared exception-first work item (docs/PRACTICE-TIME-AND-AUTOMATION.md): reason, safe explanation, evidence, owner, due time, next action and who owes it. Owned by S until a shared module adopts it.",
+      "required": [
+        "workItemRef",
+        "kind",
+        "reasonCode",
+        "explanation",
+        "evidenceRefs",
+        "owner",
+        "nextActionOwedBy",
+        "dueAt",
+        "priority",
+        "priorityRationale",
+        "suggestedNextAction",
+        "blockingDependencies"
+      ],
+      "properties": {
+        "workItemRef": {
+          "$ref": "#/$defs/EntityRef"
+        },
+        "kind": {
+          "enum": [
+            "notification_without_channel",
+            "cancellation_recovery",
+            "waitlist_offer_pending",
+            "recall_due",
+            "recall_task_open",
+            "request_unbooked",
+            "request_booking_lost"
+          ]
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "explanation": {
+          "type": "string",
+          "maxLength": 300,
+          "description": "Server-authored, plain language; never caller text."
+        },
+        "evidenceRefs": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "ref"],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "pattern": "^[a-z][A-Za-z]{0,63}$"
+              },
+              "ref": {
+                "$ref": "#/$defs/EntityRef"
+              }
+            }
+          }
+        },
+        "owner": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["queue", "principalRef"],
+          "properties": {
+            "queue": {
+              "enum": ["front_desk", "scheduling", "recall", "practice_manager"]
+            },
+            "principalRef": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "nextActionOwedBy": {
+          "enum": ["practice", "patient", "payer", "vendor", "platform"]
+        },
+        "dueAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "priority": {
+          "enum": ["routine", "soon", "urgent"]
+        },
+        "priorityRationale": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "suggestedNextAction": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "blockingDependencies": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9-]{0,15}$"
+          }
+        }
+      }
+    },
+    "WorkCoverage": {
+      "description": "Whether the list could be computed: an unavailable list is never an empty one.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status"],
+          "properties": {
+            "status": {
+              "const": "available"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "reason", "owner"],
+          "properties": {
+            "status": {
+              "const": "unavailable"
+            },
+            "reason": {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            "owner": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9-]{0,15}$"
+            }
+          }
+        }
+      ]
+    },
+    "WorkItemList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["asOf", "coverage", "count", "items"],
+          "properties": {
+            "asOf": {
+              "$ref": "#/$defs/Instant"
+            },
+            "coverage": {
+              "$ref": "#/$defs/WorkCoverage"
+            },
+            "count": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Total open items (at most 100 listed)."
+            },
+            "items": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "$ref": "#/$defs/WorkItem"
+              }
+            }
+          }
+        }
+      }
+    },
+    "NotificationWorklistQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        }
+      }
+    },
+    "NotificationIntentRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "intentRef",
+            "subjectKind",
+            "subjectRef",
+            "locationRef",
+            "purpose",
+            "channel",
+            "deliveryKey",
+            "policyRef",
+            "templateRef",
+            "supersedes",
+            "supersededBy",
+            "dueAt",
+            "suppressionDecision",
+            "delivery",
+            "createdAt"
+          ],
+          "properties": {
+            "intentRef": {
+              "$ref": "#/$defs/IntentRef"
+            },
+            "subjectKind": {
+              "enum": ["appointment", "waitlist_offer", "recall_task"]
+            },
+            "subjectRef": {
+              "$ref": "#/$defs/EntityRef"
+            },
+            "locationRef": {
+              "$ref": "#/$defs/LocationRef"
+            },
+            "purpose": {
+              "enum": ["reminder", "cancellation", "waitlist_offer", "recall"]
+            },
+            "channel": {
+              "enum": ["none", "sms", "email", "voice", "portal"]
+            },
+            "deliveryKey": {
+              "type": "string",
+              "pattern": "^[a-z_]{1,32}:[0-9a-f-]{36}$"
+            },
+            "policyRef": {
+              "$ref": "#/$defs/PolicyRef"
+            },
+            "templateRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/PolicyRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "supersedes": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/IntentRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "supersededBy": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/IntentRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "dueAt": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Instant"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "suppressionDecision": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["ref", "owner", "state", "statement"],
+              "description": "Typed placeholder: the decision is E6's; scheduling evaluates no consent and stores no reason of its own.",
+              "properties": {
+                "ref": {
+                  "type": "null"
+                },
+                "owner": {
+                  "const": "E6"
+                },
+                "state": {
+                  "const": "undecided"
+                },
+                "statement": {
+                  "type": "string"
+                }
+              }
+            },
+            "delivery": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["owner", "state"],
+              "properties": {
+                "owner": {
+                  "const": "E7"
+                },
+                "state": {
+                  "const": "not_sent_no_verified_channel"
+                }
+              }
+            },
+            "createdAt": {
+              "$ref": "#/$defs/Instant"
+            }
+          }
+        }
+      }
     }
   }
 }

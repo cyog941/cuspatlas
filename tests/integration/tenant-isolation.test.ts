@@ -115,6 +115,7 @@ describe('runtime database role', () => {
       'command_idempotency',
       'delivery_receipts',
       'memberships',
+      'notification_intents',
       'outbox_events',
       'patient_merge_moves',
       'patient_merge_reversals',

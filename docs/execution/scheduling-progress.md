@@ -20,6 +20,7 @@ Authorization basis: user instruction on 2026-11-04 to build workstream S on syn
 | Review hardening of S4-S9 | verified on synthetic data (Windows host) | 427979e | 655 tests |
 | S12 visit context (container; producer-bound cases open on C8/C10/C11/C13/C16) | container verified on synthetic data (Windows host); clinical producers absent | see S12 | 696 tests + 6 todo |
 | S13 recurrence series with cap | verified on synthetic data (Windows host); S-D1/R1/R2 pending approval | see S13 | 729 tests + 6 todo |
+| S14 notification intent (channel none; E6/E7 cases open) | verified on synthetic data (Windows host); S-S2/S-D5 blocked-on-discovery | see S14 | 745 tests + 12 todo |
 
 ## Command log
 
@@ -373,3 +374,22 @@ Found and fixed during green: a refused series' per-occurrence detail exceeded t
 - Harness: 5 rows (`seriesRows()`, fixture series `alphaSeries`); snapshot covers series, occurrences and exceptions. Merge registry: `appointment_series.subject_patient_id` registered (`appointmentSeries`).
 
 Deviations: overrides are not available for series occurrences (no override field); `count` per request counts skipped occurrences too; S-D1/R1/R2 remain recommended-pending-approval.
+
+### S14 notification intent separated from booking
+
+Files: `supabase/migrations/20261107020000_notification_intents.sql`, `packages/domain/src/scheduling/notification-intent.ts`, `packages/domain/src/work-items/index.ts` (proposed shared work-item model), S14 and `WorkItem`/`WorkCoverage`/`WorkItemList` definitions in `scheduling.schema.json`, two `SCHEDULING_OPS` rows, `docs/integrations/notifications-qualification.md` (S-S2: every channel row `unknown` with an owner role, no vendor), `tests/integration/notification-separation.test.ts`.
+
+Design: `insertBookingIn` (book, reschedule, series occurrence) records one `reminder` intent and `cancelAppointment` one `cancellation` intent, in the command transaction, `channel: 'none'`, delivery key `<purpose>:<subjectRef>` (unique per tenant), policy `notification-intent-pending-approval-1`. A reschedule's reminder and a cancellation supersede the earlier reminder (`superseded_intent_id`; the table is append-only). `suppression_decision_ref` is a NULL placeholder: the decision is E6's and is reported as `{ref: null, owner: 'E6', state: 'undecided'}`; delivery is reported as `{owner: 'E7', state: 'not_sent_no_verified_channel'}`. No send path, no consent read.
+
+Acceptance cases: a booking records exactly one intent (`reminder`, `none`, placeholder decision, `reminder:<ref>`), the delivery-receipt count is unchanged, and the worklist shows it as a work item (`notification_without_channel`, `no_verified_channel`, evidence = the appointment, queue `front_desk`, owed by `practice`, due = the appointment start, `contact_patient_manually`, blocked on `S-S2`, `E6`, `E7`); 6 (cancel records one `cancellation` intent superseding the reminder; the worklist lists the cancellation and no longer the reminder; no send); reschedule (one reminder for the new booking superseding the old one, none for the old); a series of 3 records 3 intents and a same-key replay none; 5 (structural: every SQL statement of a book, reschedule and cancel run under a capturing runtime-role transaction runner is free of `consent|opt_out|suppression_decision|quiet_hours`; no table named like consent, opt-out or suppression exists; the intent column list is fixed; the module source reads no consent table).
+
+Failure cases: 1 (a conflict refusal and a fault after the handler both leave no intent); 2 (an intent without a decision is `undecided`, NULL decision reference, channel none, and listed); cross-tenant 404 and absent from the beta worklist; a3 (loc-north only) sees north's intents and gets 404 for another location's intent; REST and MCP worklists list the same items; coverage `available`.
+
+Open (it.todo, owned by E): E6 suppressed decision with reference and reason; E7 exactly-once delivery through the fake provider; opt-out between intent and delivery; E6 vocabulary for missing contact data vs quiet hours; E6 suppression of intents derived from a cancelled appointment; E7 withdrawn template and post-acceptance crash reconciliation.
+
+- Red: `corepack pnpm test -- tests/integration/notification-separation.test.ts` before implementation: exit 1, 8 failed / 6 todo.
+- Green: same command exit 0, 8 passed / 6 todo. `typecheck`, `lint`, `contract:check` exit 0; `corepack pnpm test` exit 0, 35 files / 745 passed / 12 todo.
+- Existing test updated: `booking-conflicts.test.ts` case 4 audit rows now include the booking's `notificationIntent` row (same correlation).
+- Harness: 2 rows (read, worklist as `tenant_own_data`); snapshot covers `notification_intents`.
+
+Deviations: purpose `cancellation` is added to the plan's `NotificationIntent.purpose` enum (`reminder | waitlist_offer | recall`), because the plan's case 6 records a cancellation intent; the S10 cancel outbox event (`changedFields: [status, notificationIntent]`) is kept and the intent row now exists beside it; the intent subject is the appointment (not the patient), so no patient reference needs merge registration.

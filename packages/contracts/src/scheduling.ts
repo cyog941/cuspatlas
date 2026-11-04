@@ -712,3 +712,69 @@ export interface SeriesRecord {
 export const validateSeriesCreate = def('SeriesCreate');
 export const validateSeriesExtend = def('SeriesExtend');
 export const validateSeriesEnd = def('SeriesEnd');
+
+/** Proposed shared exception-first work item (S-owned until a shared module adopts it). */
+export type WorkItemKind =
+  | 'notification_without_channel'
+  | 'cancellation_recovery'
+  | 'waitlist_offer_pending'
+  | 'recall_due'
+  | 'recall_task_open'
+  | 'request_unbooked'
+  | 'request_booking_lost';
+export interface WorkItem {
+  readonly workItemRef: string;
+  readonly kind: WorkItemKind;
+  readonly reasonCode: string;
+  readonly explanation: string;
+  readonly evidenceRefs: readonly { readonly kind: string; readonly ref: string }[];
+  readonly owner: {
+    readonly queue: 'front_desk' | 'scheduling' | 'recall' | 'practice_manager';
+    readonly principalRef: string | null;
+  };
+  readonly nextActionOwedBy: 'practice' | 'patient' | 'payer' | 'vendor' | 'platform';
+  readonly dueAt: string | null;
+  readonly priority: 'routine' | 'soon' | 'urgent';
+  readonly priorityRationale: string;
+  readonly suggestedNextAction: string;
+  readonly blockingDependencies: readonly string[];
+}
+export type WorkCoverage =
+  | { readonly status: 'available' }
+  | { readonly status: 'unavailable'; readonly reason: string; readonly owner: string };
+export interface WorkItemListData {
+  readonly asOf: string;
+  readonly coverage: WorkCoverage;
+  readonly count: number;
+  readonly items: readonly WorkItem[];
+}
+
+/** S14 notification intents (no verified channel; E6 decides suppression; E7 delivers). */
+export type NotificationPurpose = 'reminder' | 'cancellation' | 'waitlist_offer' | 'recall';
+export type NotificationChannel = 'none' | 'sms' | 'email' | 'voice' | 'portal';
+export interface NotificationWorklistQuery {
+  readonly locationRef?: string;
+}
+export interface NotificationIntentRecord {
+  readonly intentRef: string;
+  readonly subjectKind: 'appointment' | 'waitlist_offer' | 'recall_task';
+  readonly subjectRef: string;
+  readonly locationRef: string;
+  readonly purpose: NotificationPurpose;
+  readonly channel: NotificationChannel;
+  readonly deliveryKey: string;
+  readonly policyRef: string;
+  readonly templateRef: string | null;
+  readonly supersedes: string | null;
+  readonly supersededBy: string | null;
+  readonly dueAt: string | null;
+  readonly suppressionDecision: {
+    readonly ref: null;
+    readonly owner: 'E6';
+    readonly state: 'undecided';
+    readonly statement: string;
+  };
+  readonly delivery: { readonly owner: 'E7'; readonly state: 'not_sent_no_verified_channel' };
+  readonly createdAt: string;
+}
+export const validateNotificationWorklistQuery = def('NotificationWorklistQuery');

@@ -89,6 +89,7 @@ describe('REST/MCP contract drift (scheduling resources and availability)', () =
       holdRef: 'HoldRef',
       itemRef: 'VisitItemRef',
       seriesRef: 'SeriesRef',
+      intentRef: 'IntentRef',
     };
     for (const p of transport) {
       expect(resolve(schema.properties[p], local)).toStrictEqual(

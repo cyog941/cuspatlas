@@ -181,6 +181,7 @@ const TOOL_NAMES = [
   'imaging_acquisitions_resolve',
   'imaging_bridge_jobs_reconcile',
   'imaging_bridge_worklist',
+  'imaging_export',
 ].sort();
 
 let db: TestDatabase;

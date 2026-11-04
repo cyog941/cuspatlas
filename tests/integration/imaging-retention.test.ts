@@ -252,31 +252,8 @@ describe('I8 legal hold, dual approval and execution', () => {
   });
 });
 
-describe('I8 backup interaction', () => {
-  it('a restored backup that still lists a deleted object as available is reconciled to deleted, never served', async () => {
-    await setPolicy('associated_original', 0);
-    const { objectRef, bytes } = await associated();
-    const r = await request(objectRef);
-    expect((await execute((r.json.data as { deletionRef: string }).deletionRef)).status).toBe(200);
-    // Simulated restore drill (test-only fixture path): the object row reverts to its pre-deletion
-    // state, as a logical backup taken before the deletion would restore it. The bytes stay gone.
-    await s.db.admin.query(
-      `BEGIN; SET LOCAL session_replication_role = replica;
-       UPDATE cuspatlas.imaging_objects SET state = 'available', deleted_at = NULL, deletion_id = NULL
-         WHERE id = '${objectRef}';
-       COMMIT;`,
-    );
-    const rec = await s.command('owner', '/v1/imaging/storage/reconcile', {});
-    expect((rec.json.data as { tombstoned: number }).tombstoned).toBeGreaterThanOrEqual(1);
-    const row = await s.db.admin.query('SELECT state FROM cuspatlas.imaging_objects WHERE id = $1', [
-      objectRef,
-    ]);
-    expect(row.rows[0].state).toBe('deleted');
-    expect(existsSync(blobPath(bytes))).toBe(false);
-    const g = await s.inject('owner', 'POST', `/v1/imaging/objects/${objectRef}/read-grants`, {});
-    expect([g.status, reason(g)]).toStrictEqual([409, 'object_not_available']);
-  });
-
+describe('I8 MCP parity', () => {
+  // The restore interaction is a real drill now: tests/integration/imaging-restore-drill.test.ts (I9).
   it('MCP places and releases holds and evaluates deletions with the same outcomes', async () => {
     const { objectRef } = await associated();
     const h = await s.mcp('owner', 'imaging_legal_holds_place', {

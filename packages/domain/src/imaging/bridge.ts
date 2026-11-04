@@ -835,6 +835,9 @@ export function createBridgeOperations(base: ImagingBase, opts: BridgeOptions) {
         const store = base.store();
         return deps.withTenantTransaction(ctx, async (tx) => {
           const d = await activeDevice(tx, ctx);
+          // Visibility first: another tenant's or another device's job is the same 404 as a missing one.
+          const j = await loadJob(tx, jobRef, 'FOR UPDATE');
+          if (j.device_id !== d.id) throw notFound();
           const keyRow = await tx.query<{ public_key: string }>(
             `SELECT public_key FROM cuspatlas.imaging_device_keys WHERE device_id = $1 AND state = 'active'`,
             [d.id],
@@ -846,8 +849,6 @@ export function createBridgeOperations(base: ImagingBase, opts: BridgeOptions) {
           if (!r || r.jobRef !== jobRef || r.deviceRef !== d.id) throw unauth('device_signature_invalid');
           if (Math.abs(Date.parse(r.reportedAt) - Date.now()) > opts.resultSkewSeconds * 1000)
             throw refused('result_stale', {}, { replayable: false });
-          const j = await loadJob(tx, jobRef, 'FOR UPDATE');
-          if (j.device_id !== d.id) throw notFound();
           if (j.state === 'completed') {
             if (r.nonce === j.claim_nonce || r.artifact?.digestSha256 === j.result_digest) {
               await bumpJob(tx, op, j, { duplicate_reports: j.duplicate_reports + 1 });

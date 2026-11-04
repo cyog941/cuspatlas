@@ -650,6 +650,20 @@ export const ROWS: ImagingHarnessRow[] = [
     rest: () => ({ method: 'GET', url: '/v1/imaging/worklists/bridge', keyed: false, status: 200 }),
     mcpArgs: () => ({}),
   },
+  // I9 imaging export (a tenant-wide human administrator; blobs are REST only).
+  {
+    operation: 'imaging.export',
+    crossTenant: 'own_tenant_only',
+    downgradedTo: 'writer',
+    rest: () => ({ method: 'GET', url: '/v1/imaging/export', keyed: false, status: 200 }),
+    mcpArgs: () => ({}),
+  },
+  {
+    operation: 'imaging.export.blobs',
+    crossTenant: 'own_tenant_only',
+    downgradedTo: 'writer',
+    rest: () => ({ method: 'GET', url: '/v1/imaging/export/blobs', keyed: false, status: 200 }),
+  },
 ];
 
 beforeAll(async () => {

@@ -741,6 +741,33 @@ export const IMAGING_OPS: readonly ImagingOp[] = [
       'Exception-first bridge worklist: deferred acquisitions, failed jobs, unknown outcomes, late results and unavailable devices with waiting work, each with owner, reason, due time and next action. Coverage names devices whose job picture is unknown (unavailable is not empty).',
     invoke: (svc, actor) => data(svc.bridgeWorklist(actor)),
   },
+  // I9 imaging export (versioned JSON; blobs are a separate content-addressed bundle, REST only).
+  {
+    method: 'get',
+    path: '/v1/imaging/export',
+    operationId: 'imaging.export',
+    protected: true,
+    success: { status: '200', schema: I('ImagingExportRead') },
+    refusals: ['401', '403', '422', '503'],
+    tool: 'imaging_export',
+    description:
+      'Versioned imaging export of the caller tenant: object metadata with digests, provenance, association decisions and imageRefs, mounts, annotations, derived lineage, retention policies, legal holds and deletion requests, plus the content-addressed blob manifest. Tenant-wide human administrators only.',
+    invoke: (svc, actor) => data(svc.exportImaging(actor)),
+  },
+  {
+    method: 'get',
+    path: '/v1/imaging/export/blobs',
+    operationId: 'imaging.export.blobs',
+    protected: true,
+    success: { status: '200', schema: I('ImagingBlobBundle') },
+    refusals: ['400', '401', '403', '409', '503'],
+    query: 'ImagingExportBlobsQuery',
+    restOnly: true,
+    tool: 'imaging_export_blobs',
+    description:
+      'One page of the content-addressed blob bundle (verified bytes in digest order after `after`; base64). REST only: MCP never carries bytes.',
+    invoke: (svc, actor, i) => data(svc.exportImagingBlobs(actor, i.body)),
+  },
 ];
 
 /** The route contracts only (spread into ROUTES). */

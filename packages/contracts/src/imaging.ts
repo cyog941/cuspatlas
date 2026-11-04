@@ -384,3 +384,35 @@ export interface BridgeJobReconcile {
 export const validateAcquisitionRequest = def('AcquisitionRequest');
 export const validateDeferralResolve = def('DeferralResolve');
 export const validateBridgeJobReconcile = def('BridgeJobReconcile');
+
+// I9 imaging export (versioned JSON) and content-addressed blob bundles (REST only).
+export const IMAGING_EXPORT_FORMAT = 'cuspatlas-imaging-export/1';
+/** Exported tables in foreign-key order (the re-import inserts in this order). */
+export const IMAGING_EXPORT_TABLES = [
+  'imaging_objects',
+  'imaging_object_provenance',
+  'imaging_match_decisions',
+  'imaging_image_refs',
+  'imaging_mounts',
+  'imaging_mount_slots',
+  'imaging_annotations',
+  'imaging_derivations',
+  'imaging_retention_policies',
+  'imaging_legal_holds',
+  'imaging_deletion_requests',
+] as const;
+export interface ImagingExport {
+  readonly format: typeof IMAGING_EXPORT_FORMAT;
+  readonly exportedAt: string;
+  readonly tables: Readonly<Record<string, readonly Record<string, unknown>[]>>;
+  readonly blobs: readonly { readonly digestSha256: string; readonly byteLength: number }[];
+}
+export interface ImagingBlobBundle {
+  readonly format: 'cuspatlas-imaging-blobs/1';
+  readonly blobs: readonly {
+    readonly digestSha256: string;
+    readonly byteLength: number;
+    readonly contentBase64: string;
+  }[];
+}
+export const validateImagingExportBlobsQuery = def('ImagingExportBlobsQuery');

@@ -24,7 +24,7 @@ The logical database backup (`docs/runbooks/restore.md`) contains rows, not obje
 - After any database restore, run `imaging.storage.reconcile` before serving images. It quarantines live rows whose bytes are missing or altered and turns any live row with a tombstone back into `deleted`, so a restored backup cannot resurrect a deleted image as available. It also completes pending byte removals and sweeps abandoned ingress.
 - Restoring object-store bytes from an older storage backup can bring back deleted bytes; reconcile keeps the rows deleted, and the bytes are then orphans the maintenance listing (`listLocalStoreKeys`) finds for operator-reviewed removal.
 
-Evidence: `tests/integration/imaging-retention.test.ts` (the restore case is a simulated restore: the object row is reverted to its pre-deletion state through the superuser fixture path, as a backup taken before the deletion would restore it; a full logical backup and restore of imaging tables is covered table-by-table by `restore-smoke`, not by an imaging-specific drill).
+Evidence: `tests/integration/imaging-restore-drill.test.ts` (I9): a real F8 logical backup plus a storage-layer backup of the synthetic store, a deletion and an upload after the backup, restore into a fresh synthetic database and an empty store with the live tombstones carried forward, reconcile before serving; the deleted image stays deleted, the kept image is served with its verified digest, the later upload is not resurrected. See [imaging-recovery.md](imaging-recovery.md).
 
 ## Not covered
 

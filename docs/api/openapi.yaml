@@ -4277,6 +4277,63 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/imaging/export:
+    get:
+      operationId: imaging.export
+      description: >-
+        Versioned imaging export of the caller tenant: object metadata with digests, provenance, association
+        decisions and imageRefs, mounts, annotations, derived lineage, retention policies, legal holds and
+        deletion requests, plus the content-addressed blob manifest. Tenant-wide human administrators only.
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ImagingExportRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/export/blobs:
+    get:
+      operationId: imaging.export.blobs
+      description: >-
+        One page of the content-addressed blob bundle (verified bytes in digest order after `after`;
+        base64). REST only: MCP never carries bytes.
+      parameters:
+        - name: x-object-read-token
+          in: header
+          required: true
+          description: Read-grant token from imaging.objects.grantRead; never logged.
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ReadGrant/properties/token'
+        - name: after
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/Sha256'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ImagingBlobBundle'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   # --- end imaging ---
 components:
   securitySchemes:

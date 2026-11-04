@@ -9,6 +9,7 @@ import {
   sourceOfDerived,
 } from './composition';
 import { createDicomOperations } from './dicom';
+import { createExportOperations } from './export';
 import { createIngressOperations, sweepAbandonedIngress } from './ingress';
 import { createObjectOperations } from './objects';
 import { createRetentionOperations, reconcileDeletions } from './retention';
@@ -30,6 +31,7 @@ export function createImagingService(deps: ImagingDeps) {
     ...createCompositionOperations(base),
     ...createRetentionOperations(base),
     ...createDicomOperations(base),
+    ...createExportOperations(base),
     ...createBridgeHealthOperations(base, {
       staleSeconds: deps.limits?.bridgeStaleSeconds ?? 120,
       offlineSeconds: deps.limits?.bridgeOfflineSeconds ?? 600,

@@ -210,6 +210,9 @@ export const ACTION_POLICIES = {
   'imaging.acquisitions.resolve': { scope: 'imaging.write', principals: ['human'] },
   'imaging.bridgeJobs.reconcile': { scope: 'imaging.write', principals: ['human'] },
   'imaging.bridge.worklist': { scope: 'imaging.read', principals: ['human', 'service'] },
+  // I9 imaging export: a tenant-wide human administrator only (sensitive-read logged), like S17.
+  'imaging.export': { scope: 'admin.configure', principals: ['human'] },
+  'imaging.export.blobs': { scope: 'admin.configure', principals: ['human'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

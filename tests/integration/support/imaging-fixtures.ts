@@ -150,6 +150,8 @@ export interface ImagingStack {
   readonly app: FastifyInstance;
   readonly store: ObjectStorePort;
   readonly storeRoot: string;
+  /** The MCP endpoint (for raw-credential negatives). */
+  readonly mcpUrl: string;
   readonly scanner: FakeScanner;
   readonly logLines: string[];
   readonly rest: Record<Who, string>;
@@ -185,18 +187,30 @@ export async function startImagingStack(
   opts: {
     limits?: ImagingLimits;
     withStore?: boolean;
+    /** I9 restore drill: run over an existing (restored) database and store root, without seeding. */
+    database?: TestDatabase;
+    storeRoot?: string;
+    seed?: boolean;
     /** Test-only: wraps the per-run store (for example to pause inside a port call). */
     wrapStore?: (store: ObjectStorePort) => ObjectStorePort;
   } = {},
 ): Promise<ImagingStack> {
-  const db = await openTestDatabase(label);
-  await seedTenancy(db.admin);
-  await seedPatientScopes(db.admin);
-  await seedImagingScopes(db.admin);
+  const db = opts.database ?? (await openTestDatabase(label));
+  if (opts.seed !== false) {
+    await seedTenancy(db.admin);
+    await seedPatientScopes(db.admin);
+    await seedImagingScopes(db.admin);
+  }
   const issuer = await createTestTokenIssuer();
   const logLines: string[] = [];
   const stream = { write: (l: string) => logLines.push(l) };
-  const temp = tempObjectStore();
+  const temp = opts.storeRoot
+    ? {
+        root: opts.storeRoot,
+        store: createLocalObjectStore({ root: opts.storeRoot, env: 'synthetic-test' }),
+        cleanup: () => undefined,
+      }
+    : tempObjectStore();
   const scanner = createFakeScanner();
   const membership = createMembershipSource(db.app);
   const attempts = createSecurityAttemptSink(db.sink);
@@ -281,6 +295,7 @@ export async function startImagingStack(
     app,
     store: temp.store,
     storeRoot: temp.root,
+    mcpUrl,
     scanner,
     logLines,
     rest,

@@ -2298,6 +2298,115 @@
         }
       }
     },
+    "ImagingExportDocument": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["format", "exportedAt", "tables", "blobs"],
+      "properties": {
+        "format": {
+          "const": "cuspatlas-imaging-export/1"
+        },
+        "exportedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "tables": {
+          "type": "object",
+          "description": "Rows per exported table in foreign-key order, tenant column removed (raw column names).",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "blobs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["digestSha256", "byteLength"],
+            "properties": {
+              "digestSha256": {
+                "$ref": "#/$defs/Sha256"
+              },
+              "byteLength": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          },
+          "description": "Content-addressed manifest of the bytes of every available object."
+        }
+      },
+      "description": "I9 versioned imaging export (synthetic round trip; M owns the full migration contract)."
+    },
+    "ImagingExportRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/ImagingExportDocument"
+        }
+      }
+    },
+    "ImagingExportBlobsQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "after": {
+          "$ref": "#/$defs/Sha256"
+        }
+      }
+    },
+    "ImagingBlobBundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["format", "blobs", "next"],
+          "properties": {
+            "format": {
+              "const": "cuspatlas-imaging-blobs/1"
+            },
+            "blobs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["digestSha256", "byteLength", "contentBase64"],
+                "properties": {
+                  "digestSha256": {
+                    "$ref": "#/$defs/Sha256"
+                  },
+                  "byteLength": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "contentBase64": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "next": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Sha256"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
     "ContainerInspection": {
       "type": "object",
       "additionalProperties": false,

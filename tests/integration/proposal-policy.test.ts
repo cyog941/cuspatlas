@@ -1486,3 +1486,63 @@ describe('privacy', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------------------------
+
+describe('Task 7a hardening (independent review of 6540a56)', () => {
+  it('approve rechecks the live task version: a moved task rejects the proposal with stale_version (REST and MCP)', async () => {
+    for (const via of [viaRest, viaMcp]) {
+      const p = await prepared(ctx.svcA1());
+      const taskRef = String(p.payload.taskRef);
+      await db.admin.query('UPDATE cuspatlas.synthetic_tasks SET version = 2 WHERE id = $1', [taskRef]);
+      const outboxBefore = await count('SELECT count(*)::int AS n FROM cuspatlas.outbox_events');
+      const out = await via('approve', via === viaRest ? tokens.a1.rest : tokens.a1.mcp, {
+        proposalRef: p.ref,
+        payloadDigest: p.digest,
+      });
+      expect([out.status, out.code]).toStrictEqual([409, 'stale_version']);
+      expect(await proposalRow(p.ref)).toMatchObject({
+        state: 'rejected',
+        disposition_reason: 'stale_version',
+        approver_id: null,
+      });
+      const { rows } = await db.admin.query(
+        'SELECT step, reason FROM cuspatlas.action_proposal_provenance WHERE proposal_id = $1 ORDER BY occurred_at',
+        [p.ref],
+      );
+      expect(rows).toStrictEqual([
+        { step: 'prepared', reason: null },
+        { step: 'rejected', reason: 'stale_version' },
+      ]);
+      expect(await count('SELECT count(*)::int AS n FROM cuspatlas.outbox_events')).toBe(outboxBefore);
+      expect((await taskRow(taskRef)).version).toBe(2);
+    }
+  });
+
+  it('the database refuses a raw approval written by a service principal (approver must be human)', async () => {
+    const p = await prepared(ctx.a1());
+    const c = await db.app.connect();
+    let code = 'ok';
+    try {
+      await c.query('BEGIN');
+      await c.query(
+        `SELECT set_config('cuspatlas.tenant_id', $1, true), set_config('cuspatlas.actor_id', $2, true)`,
+        [T_ALPHA, SVC_A1],
+      );
+      await c.query(
+        `UPDATE cuspatlas.action_proposals SET state = 'approved', version = version + 1,
+           approver_id = cuspatlas.current_actor_id(), approver_kind = 'human', approved_at = now(),
+           approval_policy_version = policy_version, approval_digest = payload_digest, execution = 'manual'
+         WHERE id = $1`,
+        [p.ref],
+      );
+    } catch (e) {
+      code = (e as { code?: string }).code ?? 'error';
+    } finally {
+      await c.query('ROLLBACK').catch(() => undefined);
+      c.release();
+    }
+    expect(code).toBe('42501');
+    expect((await proposalRow(p.ref)).state).toBe('prepared');
+  });
+});

@@ -586,6 +586,17 @@ export function createProposalService(deps: ProposalDeps) {
           // The approver must have reviewed exactly the bound payload.
           if (body.payloadDigest !== p.payload_digest) throw new RefusalError({ code: 'payload_mismatch' });
           if (p.policy_version !== policyVersion) return close(tx, p, 'rejected', 'policy_changed');
+          // Hardening (review of 6540a56): never approve a relabel whose target already moved. This
+          // read takes no lock; the commit path still locks the task and rechecks the version, which
+          // remains the authoritative guard against a change between approval and commit.
+          if (p.operation === 'syntheticTasks.relabel') {
+            const live = await tx.query<{ version: number }>(
+              'SELECT version FROM cuspatlas.synthetic_tasks WHERE id = $1',
+              [p.resource_ref],
+            );
+            const current = live.rows[0]?.version;
+            if (current !== p.resource_version) return close(tx, p, 'rejected', 'stale_version', current);
+          }
 
           return execute<ProposalSummary>(
             ctx,

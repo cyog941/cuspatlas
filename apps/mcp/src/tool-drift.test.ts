@@ -97,3 +97,63 @@ describe('REST/MCP contract drift (synthetic tasks and proposals)', () => {
     for (const [name, def] of Object.entries(local)) expect(def).toStrictEqual(defs[name]);
   });
 });
+
+/**
+ * Hardening (review of 6540a56): tools with `onInvalid: 'domain'` run their handler before the MCP
+ * schema verdict is applied, so a tool schema stricter than the domain validator could let the domain
+ * execute a call that MCP then reports as `invalid_request`. Their input schema must therefore be
+ * exactly the domain's sub-schema plus transport-only properties validated by the same definitions.
+ */
+const DOMAIN_VALIDATED: Record<string, { body: string; transport: Record<string, Schema> }> = {
+  'syntheticTasks.proposals.prepare': {
+    body: 'ProposalPrepare',
+    transport: { idempotencyKey: TASK_DEFS.IdempotencyKey as Schema },
+  },
+  'syntheticTasks.proposals.approve': {
+    body: 'ProposalApprove',
+    transport: { proposalRef: PROPOSAL_DEFS.ProposalRef as Schema },
+  },
+  'syntheticTasks.proposals.commit': {
+    body: 'ProposalCommit',
+    transport: { proposalRef: PROPOSAL_DEFS.ProposalRef as Schema },
+  },
+};
+
+describe('domain-validated MCP tools are never stricter than the domain validator', () => {
+  const domainTools = TOOLS.filter((t) => t.onInvalid === 'domain');
+
+  it('exactly the three mutating proposal tools validate in the domain', () => {
+    expect(domainTools.map((t) => t.operationId).sort()).toStrictEqual(Object.keys(DOMAIN_VALIDATED).sort());
+  });
+
+  it.each(domainTools.map((t) => [t.name, t] as const))('%s equals the domain sub-schema', (_n, tool) => {
+    const spec = DOMAIN_VALIDATED[tool.operationId];
+    expect(spec).toBeDefined();
+    if (!spec) return;
+    const body = PROPOSAL_DEFS[spec.body] as {
+      properties: Schema;
+      required: string[];
+      additionalProperties: unknown;
+    };
+    const local = tool.inputSchema.$defs as Record<string, Schema>;
+    const expected = resolve(
+      {
+        type: 'object',
+        additionalProperties: body.additionalProperties,
+        required: [...body.required, ...Object.keys(spec.transport)].sort(),
+        properties: { ...body.properties, ...spec.transport },
+      },
+      { ...PROPOSAL_DEFS, ...TASK_DEFS },
+    );
+    const actual = resolve(
+      {
+        type: tool.inputSchema.type,
+        additionalProperties: tool.inputSchema.additionalProperties,
+        required: [...tool.inputSchema.required].sort(),
+        properties: tool.inputSchema.properties,
+      },
+      local,
+    );
+    expect(actual).toStrictEqual(expected);
+  });
+});

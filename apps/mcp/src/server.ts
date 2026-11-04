@@ -232,6 +232,12 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
       const result = await registered.tool.run(toolDeps, actor, args, valid, violations);
       if (!valid) {
         // Defense in depth: an input rejected by the tool schema can never succeed.
+        // Invariant for `onInvalid: 'domain'` tools (propose, approve, commit): their handler has
+        // already run here, so it must have refused anything this schema rejects. That holds because
+        // their input schema is exactly the domain validator's sub-schema plus transport properties
+        // validated by the same definitions (asserted in tool-drift.test.ts, "domain-validated MCP
+        // tools are never stricter than the domain validator"). Never make such a tool's schema
+        // stricter than the domain, or a call could execute and still be reported as invalid.
         throw new RefusalError({ code: 'invalid_request', detail: { violations } });
       }
       return {

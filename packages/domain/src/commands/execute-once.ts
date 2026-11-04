@@ -51,6 +51,10 @@ interface ReservationRow extends Record<string, unknown> {
   expired: boolean;
 }
 
+/** SQLSTATE 55P03: the db layer's transaction-local lock_timeout expired while waiting. */
+const isLockTimeout = (err: unknown) =>
+  typeof err === 'object' && err !== null && (err as { code?: unknown }).code === '55P03';
+
 const SCOPE = `tenant_id = cuspatlas.current_tenant_id() AND principal_id = cuspatlas.current_actor_id()
   AND operation = $1 AND key_digest = $2`;
 
@@ -76,7 +80,9 @@ function refusalFrom(result: Record<string, unknown>): RefusalError {
  * inside the caller's tenant transaction, after authorization, so every replay is reauthorized:
  *
  * 1. Reserve `(tenant, principal, operation, sha256(key))` with `INSERT .. ON CONFLICT DO NOTHING`.
- *    A concurrent duplicate blocks on the uncommitted unique entry until the first transaction ends.
+ *    A concurrent duplicate blocks on the uncommitted unique entry until the first transaction ends,
+ *    bounded by the tenant transaction's `lock_timeout` (10 s): on expiry it gets a retryable 409
+ *    `conflict` and its transaction rolls back, so the caller retries instead of hanging.
  * 2. If a row exists, lock it (`FOR UPDATE`). Expired, or `pending` older than the in-flight timeout
  *    with the same digest: take it over. Different payload digest: 409 `idempotency_conflict`.
  *    `committed`: replay the stored result. `failed`: replay the stored refusal. Fresh `pending`
@@ -140,7 +146,13 @@ export function createExecuteOnce(options: ExecuteOnceOptions): CommandExecutor 
     const keyDigest = idempotencyKeyDigest(envelope.idempotencyKey);
     const digest = payloadDigest(envelope.payload);
 
-    const existing = await reserve(tx, envelope.operation, keyDigest, digest, ctx.correlationId);
+    let existing: ReservationRow | null;
+    try {
+      existing = await reserve(tx, envelope.operation, keyDigest, digest, ctx.correlationId);
+    } catch (err) {
+      if (isLockTimeout(err)) throw new RefusalError({ code: 'conflict', retryable: true });
+      throw err;
+    }
     if (existing) {
       if (existing.payload_digest !== digest) throw new RefusalError({ code: 'idempotency_conflict' });
       if (existing.state === 'pending') throw new RefusalError({ code: 'conflict', retryable: true });

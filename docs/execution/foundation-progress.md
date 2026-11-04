@@ -142,3 +142,21 @@ Concurrency loop results (each case 5 iterations, 10 parallel identical requests
 - `corepack pnpm audit` → no known vulnerabilities
 
 Decisions and refinements (key stored as digest, reference-only stored results with replay codecs, terminal-refusal set, `CommitThenRefuse` + savepoint, takeover and in-flight rules, owner-role maintenance) are in foundation-contract-decisions.md ("Task record: F Task 5"). Unresolved: the digest unit test was written alongside the implementation, not red-first; the maintenance role under FORCE RLS for a non-superuser owner is deferred to ADR 0002; Linux CI and Supabase advisors not run.
+
+### E3 hardening (independent review of 473a748..088d9d3)
+
+Base 088d9d3; this entry is committed as "Harden E3 after independent review". Status: verified (commands below).
+
+| Finding | Fix | Test (tests/integration/idempotency.test.ts, "E3 hardening") |
+|---|---|---|
+| a. Purge under FORCE RLS silently deletes 0 rows for a non-superuser, non-BYPASSRLS owner; the check only refused the name `cuspatlas_app` | `purgeExpiredCommandIdempotency` checks positively that `current_user` is superuser or BYPASSRLS (`pg_roles`) and throws otherwise | a NOLOGIN, NOSUPERUSER, NOBYPASSRLS role with SELECT/DELETE (via `SET ROLE`) gets a thrown error, the expired row survives, then the superuser purge removes it; the existing `cuspatlas_app` refusal still holds |
+| b. A duplicate blocked on an uncommitted reservation waited without bound | transaction-local `lock_timeout` (default 10 s, `createTenantTransactionRunner(pool, { lockTimeoutMs })`) set by the db layer in its existing parameterized `set_config` statement (statement guard unchanged); SQLSTATE 55P03 mapped to retryable 409 `conflict` in `executeOnce` (reservation) and `withTenantTransaction` (any other wait) | default inside a tenant transaction is `10s` and the released connection is back to `0`; a reservation held open by another transaction makes a duplicate return 409 `{code: conflict, retryable: true}` in < 5 s (bound 400 ms in the test) with nothing created, and the same key succeeds once the holder rolls back |
+| c. Migration comment claims the audit trigger blocks the owner | task record corrected in foundation-contract-decisions.md (Task 4 record); the `COMMENT ON TRIGGER` correction ships in the Task 6 migration (applied migrations are immutable) | n/a (documentation) |
+| d. Missing test: different keys, same `expectedVersion` | none needed (relabel locks the task row before the reservation) | 5 iterations of two concurrent relabels with different keys: exactly one 200 and one 409 `stale_version` with `currentVersion: 2`, final version 2, exactly one relabel audit row |
+
+- Red: `corepack pnpm test:integration -- idempotency` before the fixes → exit 1, 3 failed / 19 passed of 22 (purge returned without error; lock_timeout was `0`; the held-reservation duplicate hung until the 30 s test timeout). Case d passed on the red run (regression guard, never red).
+- Green: `corepack pnpm test:integration -- idempotency` → exit 0, 22 tests
+- `corepack pnpm typecheck` → 0; `corepack pnpm lint` → 0; `corepack pnpm contract:check` → 0
+- `corepack pnpm test` → exit 0, 11 files, 107 tests; `corepack pnpm test:integration` → exit 0, 7 files, 92 tests
+
+Unresolved: the concrete maintenance role outside tests (BYPASSRLS role vs. dedicated maintenance policy) remains an ADR 0002 decision; the check only guarantees a loud failure.

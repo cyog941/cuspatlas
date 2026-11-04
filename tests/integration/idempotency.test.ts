@@ -611,3 +611,120 @@ describe('concurrent duplicates', () => {
     }
   });
 });
+
+describe('E3 hardening (independent review)', () => {
+  it('the purge refuses, loudly, a role that cannot see the rows under FORCE RLS (never a silent 0)', async () => {
+    const { purgeExpiredCommandIdempotency } = await import('@cuspatlas/db');
+    const key = randomUUID();
+    await post(app, '/v1/synthetic-tasks', tokens.a1, { label: 'purge-visibility' }, key);
+    await db.admin.query(
+      `UPDATE cuspatlas.command_idempotency SET reserved_at = now() - interval '8 days',
+         expires_at = now() - interval '1 day' WHERE key_digest = $1`,
+      [sha256(key)],
+    );
+    // Owner-like maintenance role: table privileges for the purge, but no SUPERUSER or BYPASSRLS.
+    const role = `cuspatlas_maint_${randomUUID().replaceAll('-', '').slice(0, 12)}`;
+    const owner = await db.admin.connect();
+    try {
+      await owner.query(`CREATE ROLE ${role} NOLOGIN NOSUPERUSER NOBYPASSRLS`);
+      await owner.query(`GRANT USAGE ON SCHEMA cuspatlas TO ${role}`);
+      await owner.query(`GRANT SELECT, DELETE ON cuspatlas.command_idempotency TO ${role}`);
+      await owner.query(`SET ROLE ${role}`);
+      await expect(purgeExpiredCommandIdempotency(owner)).rejects.toThrow(/row level security/);
+      await owner.query('RESET ROLE');
+      expect(await count('command_idempotency', 'key_digest = $1', [sha256(key)])).toBe(1);
+      expect(await purgeExpiredCommandIdempotency(owner)).toBeGreaterThanOrEqual(1);
+      expect(await count('command_idempotency', 'key_digest = $1', [sha256(key)])).toBe(0);
+    } finally {
+      await owner.query('RESET ROLE').catch(() => undefined);
+      await owner.query(`DROP OWNED BY ${role}`).catch(() => undefined);
+      await owner.query(`DROP ROLE IF EXISTS ${role}`).catch(() => undefined);
+      owner.release();
+    }
+  });
+
+  it('tenant transactions run with a transaction-local 10 s lock_timeout by default', async () => {
+    const runner = createTenantTransactionRunner(db.app);
+    const ctx = {
+      tenantId: T_ALPHA,
+      actorId: USER_A1,
+      principal: 'human' as const,
+      sessionId: randomUUID(),
+      scopes: ['syntheticTasks.read'],
+      correlationId: randomUUID(),
+    };
+    const inside = await runner(ctx, async (tx) => {
+      const { rows } = await tx.query<{ t: string }>(`SELECT current_setting('lock_timeout') AS t`);
+      return rows[0]?.t;
+    });
+    expect(inside).toBe('10s');
+    const outside = await db.app.query<{ t: string }>(`SELECT current_setting('lock_timeout') AS t`);
+    expect(outside.rows[0]?.t).toBe('0');
+  });
+
+  it('a duplicate blocked on an uncommitted reservation gets a retryable 409 conflict within the bound', async () => {
+    const key = randomUUID();
+    const body = { label: 'held open' };
+    const target = await appWith({
+      tenantTransactions: createTenantTransactionRunner(db.app, { lockTimeoutMs: 400 }),
+    });
+    const holder = await db.admin.connect();
+    const before = await count('synthetic_tasks');
+    try {
+      await holder.query('BEGIN');
+      await holder.query(
+        `INSERT INTO cuspatlas.command_idempotency (tenant_id, principal_id, operation, key_digest,
+           payload_digest, state, correlation_id, reserved_at, expires_at)
+         VALUES ($1, $2, 'syntheticTasks.create', $3, $4, 'pending', gen_random_uuid(), now(),
+           now() + interval '7 days')`,
+        [T_ALPHA, USER_A1, sha256(key), sha256(canonical(body))],
+      );
+      const started = Date.now();
+      const res = await post(target, '/v1/synthetic-tasks', tokens.a1, body, key);
+      const elapsed = Date.now() - started;
+      expect([res.statusCode, sansCorrelation(res)]).toStrictEqual([
+        409,
+        { code: 'conflict', retryable: true },
+      ]);
+      expect(elapsed).toBeLessThan(5_000);
+    } finally {
+      await holder.query('ROLLBACK').catch(() => undefined);
+      holder.release();
+    }
+    expect(await count('synthetic_tasks')).toBe(before);
+    // Once the holder is gone the same key proceeds normally.
+    const after = await post(target, '/v1/synthetic-tasks', tokens.a1, body, key);
+    expect([after.statusCode, after.json().replayed]).toStrictEqual([201, false]);
+  });
+
+  it('two different keys with the same expectedVersion race: one 200, one 409 stale_version (x5)', async () => {
+    const pool = db.appPool(6);
+    const target = await appWith({ pool });
+    for (let i = 0; i < 5; i += 1) {
+      const ref = (
+        await post(target, '/v1/synthetic-tasks', tokens.a1, { label: `race-${i}` }, randomUUID())
+      ).json().data.taskRef;
+      const res = await Promise.all(
+        ['a', 'b'].map((s) =>
+          post(
+            target,
+            `/v1/synthetic-tasks/${ref}/relabel`,
+            tokens.a1,
+            { label: `race-${i}-${s}`, expectedVersion: 1 },
+            randomUUID(),
+          ),
+        ),
+      );
+      expect(res.map((r) => r.statusCode).sort()).toStrictEqual([200, 409]);
+      const loser = res.find((r) => r.statusCode === 409);
+      expect(loser?.json()).toMatchObject({ code: 'stale_version', detail: { currentVersion: 2 } });
+      expect(
+        (await db.admin.query('SELECT version FROM cuspatlas.synthetic_tasks WHERE id = $1', [ref])).rows[0]
+          .version,
+      ).toBe(2);
+      expect(
+        await count('audit_events', `resource_ref = $1 AND operation = 'syntheticTasks.relabel'`, [ref]),
+      ).toBe(1);
+    }
+  });
+});

@@ -312,6 +312,17 @@ Tests: `tests/integration/rcm-claims.test.ts` (8). Red first with the implementa
 - Appeals (CL-07): drafts tied to a recorded denial (one per basis, 409 `duplicate_appeal`), sent only after another human (billing.correct, never the drafter: domain and trigger) approves.
 - Worklist (CL-08): validation issues by owner, submit, reconcile unknown, correct and replace, review denial, review appeal draft, and follow-up 30 days after transmission without adjudication; each with owner, reason, due time and source.
 
+### B7 (remittance ingestion and reconciliation; fake clearinghouse only)
+
+Tests: `tests/integration/rcm-remittance.test.ts` (3). Red first with the implementation stashed: exit 1, 3 failed. Green: exit 0, 3 passed. Migration `20261120090000_rcm_remittance.sql`.
+
+- Synthetic ERA-like advice (not X12) fetched from the fake clearinghouse by reference; idempotent per reference (a duplicate ERA returns `duplicate` and posts nothing); a total that does not equal its lines is refused (`partial_parse`), a foreign currency is `currency_mismatch`.
+- Each line matches exactly one transmitted claim line of the tenant (another tenant's claim is invisible, so unmatched). Routed to review instead of posting: `unmatched_claim`, `amount_mismatch` (paid + contractual + patient responsibility differs from billed), `underpayment` (paid + patient responsibility below the allowance), `insurer_balance_mismatch`. A denial line is recorded with its synthetic code and posts nothing.
+- Posting (balanced entries tagged with the remittance): insurer payment = Dr `insurer_clearing` / Cr insurer receivable (an ERA is never cash); contractual adjustment (B-D2, posted directly); patient responsibility = responsibility transfer back to the patient.
+- Settlement (EFT/check) is a separate fact: Dr `insurer_cash` / Cr `insurer_clearing`, only for exactly the open clearing balance (`settlement_mismatch` otherwise, never posted).
+- Corrections: `rcm.remittances.reverse` (human `billing.correct`) reverses every posting newest first, settlement included; nothing is edited.
+- Not built (pending): a review-resolution command for review lines (they stay visible on the remittance); secondary-claim chaining (B8).
+
 ## Seams for later tasks
 
 - C14: drive `billing.charges.post` as a service principal with the rendered-procedure reference in place of `syn-proc-...` (a new `source` value) and the procedure code once B-S4 settles; one original charge per procedure is already enforced.
@@ -336,7 +347,11 @@ Tests: `tests/integration/rcm-claims.test.ts` (8). Red first with the implementa
 - B8 (secondary/COB): prepare a secondary claim from the same procedures with the secondary coverage after the primary adjudication; the event and remittance facts are per claim.
 - CL workflow: the claim worklist items are the owned exceptions; a durable workflow engine can drive validate/submit/poll under a standing policy.
 
+- B8: a remittance line with patient responsibility after a primary adjudication is where a secondary claim starts; B10 adds the parity/negative matrix rows for the BILLING_OPS operations (today covered by their own suites).
+
 ## Unresolved
+
+- B6/B7/B9: claims and remittance are fake-clearinghouse only (B-S2 blocked); fee content and code sets synthetic (B-S4); review lines of a remittance have no resolution command yet; the BILLING_OPS operations are not yet rows of the shared negative harness (their suites test cross-tenant, role, revoked and service-kind denials directly).
 
 - B5: no carrier catalog (unknown payer aliases are just synthetic references); eligibility freshness uses UTC dates; per-group provenance is per record (a later partial record does not merge groups); the overlap rule is domain-only.
 
@@ -352,3 +367,4 @@ Tests: `tests/integration/rcm-claims.test.ts` (8). Red first with the implementa
 
 - `corepack pnpm run ci` after B2 (uncommitted tree): first run exit 1, 758 passed and 1 failed: `restore-smoke` (e) failed in cleanup with `EBUSY: resource busy or locked, rmdir ...\cuspatlas-backup-cluster2-...\data` (a Windows file lock on the second embedded cluster data directory; no billing code involved; sibling workers were running test suites on the same host). Immediate rerun: exit 0, 37 files, 759 tests, privacy scan, SBOM, evidence and evidence-verify ok. Recorded as an environmental flake, not fixed here.
 - `corepack pnpm run ci` after batch 2 and the hardening (uncommitted hardening tree on top of 6ca38d9): exit 0, 41 files, 863 tests, privacy scan, SBOM, evidence and evidence-verify ok (controls unreviewed, not certified).
+- `corepack pnpm run ci` after B6/B7/B9 and the B3-B5 hardening (uncommitted B7 tree on top of ee3afea): exit 0, 71 files, 1685 tests passed (13 todo), privacy scan, SBOM, evidence and evidence-verify ok (controls unreviewed, not certified).

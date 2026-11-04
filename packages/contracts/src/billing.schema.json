@@ -4206,6 +4206,188 @@
           "type": "boolean"
         }
       }
+    },
+    "RemittanceRef": {
+      "$ref": "#/$defs/Uuid"
+    },
+    "RemittanceLineNo": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]{0,2}$"
+    },
+    "RemittanceIngest": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Ingest one synthetic ERA-like remittance from the fake clearinghouse by its reference (idempotent per reference: a duplicate changes nothing).",
+      "required": ["remittanceRef"],
+      "properties": {
+        "remittanceRef": {
+          "type": "string",
+          "pattern": "^syn-era-[a-z0-9-]{1,60}$"
+        }
+      }
+    },
+    "RemittanceSettle": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Record the EFT/check settlement of a remittance (a separate fact; an ERA alone is never cash). The amount must equal the open clearing balance.",
+      "required": ["settlementRef", "amount"],
+      "properties": {
+        "settlementRef": {
+          "type": "string",
+          "pattern": "^syn-(eft|chk)-[a-z0-9-]{1,60}$"
+        },
+        "amount": {
+          "$ref": "#/$defs/PositiveMoney"
+        }
+      }
+    },
+    "RemittanceReverse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasonCode"],
+      "properties": {
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "RemittanceCommandData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["remittanceRef", "outcome", "posted", "review", "denied"],
+      "properties": {
+        "remittanceRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "outcome": {
+          "enum": ["ingested", "duplicate", "settled", "reversed"]
+        },
+        "posted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "review": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "denied": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "RemittanceView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "remittanceRef",
+        "externalRef",
+        "payerRef",
+        "totalPaid",
+        "clearing",
+        "settled",
+        "reversed",
+        "lines"
+      ],
+      "properties": {
+        "remittanceRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "externalRef": {
+          "type": "string"
+        },
+        "payerRef": {
+          "type": "string"
+        },
+        "totalPaid": {
+          "$ref": "#/$defs/Money"
+        },
+        "clearing": {
+          "$ref": "#/$defs/Money"
+        },
+        "settled": {
+          "$ref": "#/$defs/Money"
+        },
+        "reversed": {
+          "type": "boolean"
+        },
+        "lines": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["lineNo", "claimRef", "status", "reviewReason", "denialCode"],
+            "properties": {
+              "lineNo": {
+                "type": "integer"
+              },
+              "claimRef": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/$defs/Uuid"
+                  }
+                ]
+              },
+              "status": {
+                "enum": ["posted", "denied", "review"]
+              },
+              "reviewReason": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "denialCode": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "RemittanceCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/RemittanceCommandData"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "RemittanceReadResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/RemittanceView"
+        }
+      }
     }
   }
 }

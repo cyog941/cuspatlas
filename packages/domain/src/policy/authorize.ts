@@ -157,6 +157,12 @@ export const ACTION_POLICIES = {
   'rcm.appeals.review': { scope: 'billing.correct', principals: ['human'] },
   'rcm.submissionPolicies.create': { scope: 'billing.correct', principals: ['human'] },
   'rcm.submissionPolicies.revoke': { scope: 'billing.correct', principals: ['human'] },
+  // B7 remittance: ingestion and settlement are billing.write (a service may ingest); reversal is a
+  // human-only correction; reads need paymentDistribution.read.
+  'rcm.remittances.ingest': { scope: 'billing.write', principals: ['human', 'service'] },
+  'rcm.remittances.settle': { scope: 'billing.write', principals: ['human', 'service'] },
+  'rcm.remittances.reverse': { scope: 'billing.correct', principals: ['human'] },
+  'rcm.remittances.read': { scope: 'paymentDistribution.read', principals: ['human', 'service'] },
   // C5 encounters and clinical authorship (recommended-pending-clinical-approval). Clinical
   // mutations are human-only: a model or integration is never a clinical author. Every mutation
   // additionally needs a resolvable clinical author profile (clinical/authorship.ts). Reads are

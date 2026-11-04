@@ -269,6 +269,59 @@ export const BILLING_OPS: BillingOp[] = [
     invoke: (svc, actor, i) =>
       svc.revokeSubmissionPolicy(actor, param(i, 'policyRef'), env('rcm.submissionPolicies.revoke', i)),
   },
+  {
+    method: 'post',
+    path: '/v1/rcm/remittances',
+    operationId: 'rcm.remittances.ingest',
+    protected: true,
+    requestBody: B('RemittanceIngest'),
+    success: { status: '201', schema: B('RemittanceCommandResult') },
+    refusals: COMMAND,
+    tool: 'rcm_remittances_ingest',
+    description:
+      'B7: ingest a synthetic ERA-like remittance from the fake clearinghouse (idempotent per reference). Matched lines post insurer payment to clearing, contractual adjustment and patient responsibility; unmatched, mismatched or underpaid lines go to review; an ERA is never cash.',
+    invoke: (svc, actor, i) => svc.ingestRemittance(actor, env('rcm.remittances.ingest', i)),
+  },
+  {
+    method: 'get',
+    path: '/v1/rcm/remittances/{remittanceRef}',
+    operationId: 'rcm.remittances.read',
+    protected: true,
+    success: { status: '200', schema: B('RemittanceReadResult') },
+    refusals: BILLING_READ_REFUSALS,
+    tool: 'rcm_remittances_get',
+    description:
+      'B7: one remittance with its line statuses, the clearing balance (reported, not received) and the settled cash.',
+    invoke: (svc, actor, i) => data(svc.getRemittance(actor, param(i, 'remittanceRef'))),
+  },
+  {
+    method: 'post',
+    path: '/v1/rcm/remittances/{remittanceRef}/settlements',
+    operationId: 'rcm.remittances.settle',
+    protected: true,
+    requestBody: B('RemittanceSettle'),
+    success: { status: '201', schema: B('RemittanceCommandResult') },
+    refusals: COMMAND,
+    tool: 'rcm_remittances_settle',
+    description:
+      'B7: record the EFT/check settlement of a remittance (a separate fact). An amount that differs from the open clearing balance is 409 settlement_mismatch, never posted.',
+    invoke: (svc, actor, i) =>
+      svc.settleRemittance(actor, param(i, 'remittanceRef'), env('rcm.remittances.settle', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/rcm/remittances/{remittanceRef}/reversal',
+    operationId: 'rcm.remittances.reverse',
+    protected: true,
+    requestBody: B('RemittanceReverse'),
+    success: { status: '201', schema: B('RemittanceCommandResult') },
+    refusals: COMMAND,
+    tool: 'rcm_remittances_reverse',
+    description:
+      'B7: correct a remittance by reversing every posting it made (newest first, settlement included); nothing is edited. Human-only billing.correct.',
+    invoke: (svc, actor, i) =>
+      svc.reverseRemittance(actor, param(i, 'remittanceRef'), env('rcm.remittances.reverse', i)),
+  },
 ];
 
 export const BILLING_OP_ROUTES = (): readonly RouteContract[] =>

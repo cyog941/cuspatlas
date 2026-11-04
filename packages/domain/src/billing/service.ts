@@ -1,6 +1,7 @@
 import { createClaimOperations } from '../rcm/claims';
 import { createFakeClearinghouse } from '../rcm/clearinghouse';
 import { createCoverageOperations } from '../rcm/coverage';
+import { createRemittanceOperations } from '../rcm/remittance';
 import { createAdjustmentOperations } from './adjustments';
 import { createAllocationOperations } from './allocations';
 import { type BillingDeps, createBillingBase } from './base';
@@ -37,6 +38,7 @@ export function createBillingService(deps: BillingDeps) {
     ...createProcedureConsumer(base),
     ...createAdjustmentOperations(base),
     ...createClaimOperations(base, partner),
+    ...createRemittanceOperations(base, partner),
   };
 }
 

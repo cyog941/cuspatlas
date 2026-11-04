@@ -185,3 +185,15 @@ export const validateAppealReview = billingDef('AppealReview');
 export const validateSubmissionPolicyCreate = billingDef('SubmissionPolicyCreate');
 export const validateSubmissionPolicyRevoke = billingDef('SubmissionPolicyRevoke');
 export const validateClaimReadResult = billingDef('ClaimReadResult');
+
+// ---- B7 remittance (synthetic ERA-like structure, fake clearinghouse only).
+export interface RemittanceCommandData {
+  readonly remittanceRef: string;
+  readonly outcome: 'ingested' | 'duplicate' | 'settled' | 'reversed';
+  readonly posted: number;
+  readonly review: number;
+  readonly denied: number;
+}
+export const validateRemittanceIngest = billingDef('RemittanceIngest');
+export const validateRemittanceSettle = billingDef('RemittanceSettle');
+export const validateRemittanceReverse = billingDef('RemittanceReverse');

@@ -236,6 +236,9 @@ export const BILLING_FLAT_OPERATIONS: readonly string[] = [
   'rcm.appeals.review',
   'rcm.submissionPolicies.create',
   'rcm.submissionPolicies.revoke',
+  'rcm.remittances.ingest',
+  'rcm.remittances.settle',
+  'rcm.remittances.reverse',
 ];
 
 /** Every billing operation that runs through executeOnce (B1 and B2). */

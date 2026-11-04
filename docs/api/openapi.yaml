@@ -5981,6 +5981,149 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/rcm/remittances:
+    post:
+      operationId: rcm.remittances.ingest
+      description: >-
+        B7: ingest a synthetic ERA-like remittance from the fake clearinghouse (idempotent per reference).
+        Matched lines post insurer payment to clearing, contractual adjustment and patient responsibility;
+        unmatched, mismatched or underpaid lines go to review; an ERA is never cash.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/RemittanceIngest'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/RemittanceCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/remittances/{remittanceRef}:
+    get:
+      operationId: rcm.remittances.read
+      description: >-
+        B7: one remittance with its line statuses, the clearing balance (reported, not received) and the
+        settled cash.
+      parameters:
+        - name: remittanceRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/RemittanceRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/RemittanceReadResult'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/remittances/{remittanceRef}/settlements:
+    post:
+      operationId: rcm.remittances.settle
+      description: >-
+        B7: record the EFT/check settlement of a remittance (a separate fact). An amount that differs from
+        the open clearing balance is 409 settlement_mismatch, never posted.
+      parameters:
+        - name: remittanceRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/RemittanceRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/RemittanceSettle'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/RemittanceCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/remittances/{remittanceRef}/reversal:
+    post:
+      operationId: rcm.remittances.reverse
+      description: >-
+        B7: correct a remittance by reversing every posting it made (newest first, settlement included);
+        nothing is edited. Human-only billing.correct.
+      parameters:
+        - name: remittanceRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/RemittanceRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/RemittanceReverse'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/RemittanceCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   # END generated: BILLING_OPS
 components:
   securitySchemes:

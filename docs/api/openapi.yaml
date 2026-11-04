@@ -1238,6 +1238,229 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/scheduling/appointments:
+    post:
+      operationId: scheduling.appointments.book
+      description: >-
+        Book an appointment (S10), directly, from a hold (holdRef, converted in the same transaction) or from a request (requestRef, linked on both records). Success is BookingResult outcome booked. Conflicts are 409 conflict with detail.reason booking_conflict and detail.conflicts (kinds resource_overlap, provider_assignment, outside_availability, insufficient_duration, patient_unavailable, patient_inactive, policy_override_required); the blocking record is named only to callers holding scheduling.read and nothing is written. The location row is taken FOR SHARE and the occupancy exclusion constraint decides concurrent attempts. An override (scheduling.override, human) clears overrideable kinds only and is audited. Hidden or missing patient, provider, operatory, hold or request is 404. Requires scheduling.write.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/BookingCreate'
+      responses:
+        '201':
+          description: Booked (BookingResult outcome booked, version 1).
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/BookingCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/appointments/{appointmentRef}:
+    get:
+      operationId: scheduling.appointments.read
+      description: >-
+        One appointment with its resources (released flags), overrides and lifecycle events. Attendance, clinical completion and billing are separate facts. Requires scheduling.read.
+      parameters:
+        - $ref: '#/components/parameters/AppointmentRef'
+      responses:
+        '200':
+          description: The appointment.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/AppointmentRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/appointments/{appointmentRef}/reschedule:
+    post:
+      operationId: scheduling.appointments.reschedule
+      description: >-
+        Book a new window for the booking and record the original as rescheduled with links both ways, releasing its occupancy in the same transaction. A stale expectedVersion is 409 stale_version with detail.currentVersion; conflicts as for booking. Requires scheduling.write.
+      parameters:
+        - $ref: '#/components/parameters/AppointmentRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/AppointmentReschedule'
+      responses:
+        '200':
+          description: The new booking (BookingResult outcome booked).
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/BookingCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/appointments/{appointmentRef}/cancel:
+    post:
+      operationId: scheduling.appointments.cancel
+      description: >-
+        Cancel a booking with a reason: status, reason and instant are recorded, occupancy is released and an outbox event carries the notification intent. The appointment is never deleted. Requires scheduling.write.
+      parameters:
+        - $ref: '#/components/parameters/AppointmentRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/AppointmentCancel'
+      responses:
+        '200':
+          description: Cancelled.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/AppointmentCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/holds:
+    post:
+      operationId: scheduling.holds.create
+      description: >-
+        Hold resources for a window until an expiry (ttlMinutes, else the tenant hold TTL, synthetic default 15). An expired hold stops blocking at once and is released by the next booking of the range or by reconciliation. Overlap is a 409 conflict. Requires scheduling.write.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/HoldCreate'
+      responses:
+        '201':
+          description: Held (BookingResult outcome held).
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/BookingCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/holds/{holdRef}/release:
+    post:
+      operationId: scheduling.holds.release
+      description: >-
+        Release an active hold with a reason (409 hold_not_active otherwise). Requires scheduling.write.
+      parameters:
+        - $ref: '#/components/parameters/HoldRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/HoldRelease'
+      responses:
+        '200':
+          description: Released.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/HoldCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/holds/reconcile:
+    post:
+      operationId: scheduling.holds.reconcile
+      description: >-
+        Release every expired hold in the caller's locations (the reconciliation path for holds that outlive their TTL). Requires scheduling.write.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/HoldReconcile'
+      responses:
+        '200':
+          description: Number of holds released.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/HoldReconcileResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
 components:
   securitySchemes:
     bearer:
@@ -1281,6 +1504,18 @@ components:
       required: true
       schema:
         $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/RequestRef'
+    AppointmentRef:
+      name: appointmentRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/AppointmentRef'
+    HoldRef:
+      name: holdRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/HoldRef'
     IdempotencyKey:
       name: Idempotency-Key
       in: header

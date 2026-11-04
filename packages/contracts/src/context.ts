@@ -143,6 +143,9 @@ export const SECURITY_REASON_CODES = [
   // S6: merge confirmation and reversal policy.
   'merge_confirmation_invalid',
   'unmerge_review_required',
+  // S10: every booking, hold, reschedule and cancel refusal leaves an attempt row with its reason.
+  'booking_conflict',
+  'booking_refused',
 ] as const;
 export type SecurityReasonCode = (typeof SECURITY_REASON_CODES)[number];
 

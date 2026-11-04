@@ -238,3 +238,35 @@ Negative harness: 8 rows (create, list, read, updatePreferences, review, close, 
 Deviations: S8, S10 and S11 definitions live in `scheduling.schema.json` (one `scheduling:` drift prefix) instead of separate `appointment-request|booking|attendance.schema.json` files. `linkRequestToBooking` and close-as-`scheduled` need a booking, so they are completed in S10 (until then a named appointment is 404). Operation names are `scheduling.requests.*`. `origin` is a server parameter of `createRequest` (staff routes pass `staff`), never a body field. Other-location requests are 404 for location-restricted readers (the S7 resources returned 403; see the review hardening task).
 
 Unresolved: request reads are not written to the sensitive-read log (no scheduling read-audit decision exists); the request note is free text up to 500 characters with no classification beyond "never copied out of the request row"; there is no automatic expiry job (expiry is an explicit command under the configured policy, as the plan requires).
+
+### S10 booking, holds and the inspectable conflict result
+
+Files: `supabase/migrations/20261106010000_appointment_booking.sql`, `packages/domain/src/scheduling/booking.ts` (plus the link hook in `appointments.ts` and the booking-path attempt recorder in `appointment-base.ts`), S10 definitions in `scheduling.schema.json`, booking routes and MCP tools, `tests/integration/booking-conflicts.test.ts`.
+
+Acceptance cases (`booking-conflicts.test.ts`):
+
+1. two concurrent identical bookings: one 201 `booked`, one 409 `conflict` (`booking_conflict`) listing `resource_overlap` on the provider and the operatory with `existingRef` = the winner (the caller may read bookings); one appointment row;
+2. a conflicting booking leaves appointment, occupancy, outbox and audit counts unchanged and exactly one attempt row (`scheduling.appointments.book`, `booking_conflict`);
+3. another tenant's patient, provider or operatory: 404 with the same body as a random reference; neither foreign reference appears in the response;
+4. outside availability: two overrideable `outside_availability` conflicts; with an override, a caller without `scheduling.override` is 403; a1 with `provider_approved` + reason books, the override row records code, reason, kinds and actor, and audit has the booking and the override record in the same correlation; the same window again with an override is still refused (`resource_overlap` is never overrideable);
+5. a hold blocks a booking (conflict names the hold to a reader); after expiry (test-only clock shift on the synthetic hold row) the same slot books without staff action and the hold is `released` with reason `expired`; booking from a hold converts it (hold `converted`, hold occupancy released, appointment occupancy live); a booking longer than its hold is `insufficient_duration`;
+6. reschedule with a stale version is 409 `stale_version` with `currentVersion` 1; with the right version the original becomes `rescheduled` (version 2, `rescheduledTo`), the new booking has `rescheduledFrom`, and the original slot is bookable again;
+7. cancel records status and reason, releases occupancy, writes the outbox event `{changedFields: [status, notificationIntent]}` and keeps the row; a second cancel is 409 `appointment_not_booked`; the slot books again.
+
+Also: no operatory requires a typed reason (422 `/noOperatoryReason` `required`, and `onlyWithoutOperatory` when both are given) and is stored as `operatory: null`; an inactive patient is a `patient_inactive` conflict; a booking from a request links both records and a reopen is refused (`booking_still_active`) until the booking is cancelled; close-as-`scheduled` links an existing booking (forward and backward link checked in the database); a writer without `scheduling.read` sees `resourceRef` but no `existingRef` and never the winner's reference; a merge re-points a booking; the marker in an invalid body never reaches logs, audit, outbox, attempts or idempotency.
+
+S9 seam (observable condition): for one synthetic day, search returns N windows; booking the first leaves exactly N-1 and excludes it; rebooking it is a conflict; the next window still offered books.
+
+Failure cases: (1) retry under the same key returns the recorded booking (`replayed: true`); (3) two overlapping holds: 201 and 409 `resource_overlap`; reconciliation releases an expired hold (`released` >= 1, reason `expired`); an explicit release records its reason and a second release is 409 `hold_not_active`; (4) a resource deactivated between search and commit is a conflict naming it (`outside_availability`, "The resource is inactive.", not overrideable). Failure case (2) (deadlock retried within a bounded budget): the occupancy insert maps 40P01/40001 to a retryable 409 and never commits a partial booking; a reproducing deadlock test is not included (lock order is deterministic: location, then resources by id, then occupancy rows by resource id), see Unresolved.
+
+Concurrency loop (10 parallel attempts per slot, 5 slots, REST and MCP alternating, runtime role, pool of 12), three repeated runs, each: `[{"loop":0..4,"booked":1,"conflicts":9,"audits":1}]` with 9 `booking_conflict` attempt rows per loop; every conflict named the blocking provider/operatory and the winner. No double booking observed.
+
+Negative harness: 7 rows (book, read, reschedule, cancel, holds create/release/reconcile); the state snapshot covers appointments, holds, live occupancy, overrides and lifecycle events.
+
+- Red: `corepack pnpm test -- tests/integration/booking-conflicts.test.ts` before implementation: exit 1, 19 failed / 1 passed.
+- Green: same command exit 0, 20 passed; concurrency case re-run 3 times, exit 0 each. `typecheck`, `lint`, `contract:check` exit 0; `corepack pnpm test` exit 0, 29 files / 612 tests.
+- Fixed during green: two audit rows for one resource version (override now audited as its own `appointmentOverride` record); hold conversion released the hold range after inserting the booking (now before); `restore-smoke` found a foreign-key cycle (back-links lost their foreign keys, documented in the migration).
+
+Deviations: the cancel notification intent is the outbox event (no `NotificationIntent` record or `channel: 'none'` row until S14/E exist); conflicts on inactive non-provider resources use `outside_availability` (no dedicated kind exists); booking-from-request links inside the booking transaction (no separate link route; close-as-`scheduled` is the explicit link command); conflict detail uses the shared `Conflict` shape rather than a separate `Denial` object (denials are 403/404 refusals with an attempt row carrying the reason).
+
+Unresolved: no deadlock-reproduction test; override, cancellation and appointment-type vocabularies are proposals; holds carry no patient (S15 offers will reference the hold); appointment reads are not sensitive-read logged.

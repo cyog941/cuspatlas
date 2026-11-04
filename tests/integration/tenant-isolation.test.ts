@@ -102,8 +102,11 @@ describe('runtime database role', () => {
     expect(rows.map((r) => r.relname)).toStrictEqual([
       'action_proposal_provenance',
       'action_proposals',
+      'appointment_lifecycle_events',
+      'appointment_overrides',
       'appointment_request_transitions',
       'appointment_requests',
+      'appointments',
       'audit_events',
       'command_idempotency',
       'delivery_receipts',
@@ -118,6 +121,7 @@ describe('runtime database role', () => {
       'patients',
       'principals',
       'scheduling_availability_versions',
+      'scheduling_holds',
       'scheduling_locations',
       'scheduling_occupancy',
       'scheduling_policy_settings',
@@ -161,6 +165,10 @@ describe('runtime database role', () => {
       'scheduling_policy_settings',
       'appointment_requests',
       'appointment_request_transitions',
+      'appointments',
+      'scheduling_holds',
+      'appointment_overrides',
+      'appointment_lifecycle_events',
     ]) {
       const { rows } = await db.app.query(`SELECT count(*)::int AS n FROM cuspatlas.${t}`);
       expect([t, rows[0].n]).toStrictEqual([t, 0]);

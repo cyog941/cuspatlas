@@ -155,7 +155,13 @@ export async function linkRequestToBookingIn(
   tx: TenantTransaction,
   operation: string,
   request: RequestRow,
-  appointment: { id: string; subject_patient_id: string; location_id: string; status: string },
+  appointment: {
+    id: string;
+    subject_patient_id: string;
+    location_id: string;
+    status: string;
+    request_id: string | null;
+  },
   reasonCode: string,
 ): Promise<number> {
   if (TERMINAL.has(request.state)) throw requestConflict('request_closed');
@@ -163,12 +169,16 @@ export async function linkRequestToBookingIn(
   if (appointment.subject_patient_id !== request.subject_patient_id)
     throw failedAt('/appointmentRef', 'patientMismatch');
   if (appointment.location_id !== request.location_id) throw failedAt('/appointmentRef', 'locationMismatch');
-  const linked = await tx.query(
-    `UPDATE cuspatlas.appointments SET request_id = $1, version = version + 1, updated_at = now()
-     WHERE id = $2 AND request_id IS NULL`,
-    [request.id, appointment.id],
-  );
-  if (linked.rowCount !== 1) throw requestConflict('appointment_already_linked');
+  // A booking made from the request already carries the link; an existing booking gains it here.
+  if (appointment.request_id !== request.id) {
+    if (appointment.request_id !== null) throw requestConflict('appointment_already_linked');
+    const linked = await tx.query(
+      `UPDATE cuspatlas.appointments SET request_id = $1, version = version + 1, updated_at = now()
+       WHERE id = $2 AND request_id IS NULL`,
+      [request.id, appointment.id],
+    );
+    if (linked.rowCount !== 1) throw requestConflict('appointment_already_linked');
+  }
   const { rows } = await tx.query<{ version: number }>(
     `UPDATE cuspatlas.appointment_requests SET state = 'scheduled', state_reason = $1, appointment_id = $2,
        closed_at = now(), version = version + 1, updated_at = now()

@@ -72,6 +72,8 @@ One scope registry, published with the workflow and role matrix. Scope names are
 
 Registered by workstream S (2026-11-04, synthetic implementation; decisions pending approval in ADR 0003): `patients.read`, `patients.write`, `patients.merge` (human only: merge, unmerge inside the window, duplicate review) and `patients.mergeReconcile` (human only: unmerge outside the window or after new clinical/financial facts, with a reconciliation review reference).
 
+Registered by workstream S scheduling (2026-11-05, synthetic implementation; decisions pending approval in ADR 0009): `scheduling.read` (every scheduling read, availability search, and seeing which booking or hold blocks a slot) and `scheduling.override` (human only: an audited override of overrideable booking conflicts; resource overlap is never overrideable). `scheduling.write` covers requests, holds, booking, rescheduling and cancellation.
+
 Camel-case scope names (`receivables.read` written as `receivablesRead`) are a defect. A scope used in any plan must appear in the registry; a plan that needs a new scope adds it there first.
 
 ### Relationship scopes

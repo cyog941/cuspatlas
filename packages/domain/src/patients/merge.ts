@@ -44,7 +44,7 @@ export const MERGE_POLICY_VERSION = 'patient-merge.pending-approval.1';
  */
 export interface MergeRecordClass {
   readonly recordClass: string;
-  readonly table: 'patient_relationships' | 'appointment_requests';
+  readonly table: 'patient_relationships' | 'appointment_requests' | 'appointments';
   readonly column: 'subject_patient_id' | 'counterparty_patient_id';
   /** Public name of the reference in the record's contract. */
   readonly referenceField: string;
@@ -105,6 +105,25 @@ export const MERGE_RECORD_CLASSES: readonly MergeRecordClass[] = [
     referenceField: 'patientRef',
     factKind: 'administrative',
     digestExclude: REQUEST_DIGEST_EXCLUDE,
+  },
+  // S10: a booking follows its patient. The window, resources, creator and creation are covered by
+  // the digest; lifecycle columns (status, cancellation, reschedule and request links) are not.
+  {
+    recordClass: 'appointment',
+    table: 'appointments',
+    column: 'subject_patient_id',
+    referenceField: 'patientRef',
+    factKind: 'administrative',
+    digestExclude: [
+      'subject_patient_id',
+      'status',
+      'cancel_reason',
+      'cancelled_at',
+      'rescheduled_to_id',
+      'request_id',
+      'version',
+      'updated_at',
+    ],
   },
 ];
 

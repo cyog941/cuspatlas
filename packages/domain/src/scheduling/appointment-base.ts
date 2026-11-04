@@ -1,5 +1,11 @@
-import { type ActorContext, RefusalError } from '@cuspatlas/contracts';
-import { type AttemptRecordingDeps, withAttemptRecording, withRefusalRecording } from '../commands/boundary';
+import {
+  type ActorContext,
+  isRefusalError,
+  type RefusalCode,
+  RefusalError,
+  type SecurityReasonCode,
+} from '@cuspatlas/contracts';
+import { type AttemptRecordingDeps, withAttemptRecording } from '../commands/boundary';
 import { executeOnce } from '../commands/execute-once';
 import type { CommandExecutor } from '../commands/executor';
 import type { ActionName, AuthorizationDecision } from '../policy/authorize';
@@ -23,6 +29,18 @@ export interface AppointmentBase {
   can(ctx: ActorContext, action: ActionName): Promise<boolean>;
 }
 
+/** Attempt reason of a booking-path refusal that carries no explicit internal reason. */
+const BOOKING_REASON: Partial<Record<RefusalCode, SecurityReasonCode>> = {
+  unauthenticated: 'token_invalid',
+  forbidden: 'scope_missing',
+  not_found: 'resource_hidden_or_missing',
+  conflict: 'booking_conflict',
+  stale_version: 'stale_version',
+  invalid_request: 'request_invalid',
+  validation_failed: 'request_invalid',
+  idempotency_conflict: 'idempotency_conflict',
+};
+
 export function createAppointmentBase(deps: SchedulingDeps): AppointmentBase {
   const who = (ctx: ActorContext, operation: string) => ({
     correlationId: ctx.correlationId,
@@ -38,7 +56,26 @@ export function createAppointmentBase(deps: SchedulingDeps): AppointmentBase {
     execute: deps.execute ?? executeOnce,
     cursors: deps.cursors ?? createSchedulingCursorCodec(),
     guarded: (ctx, operation, work) => withAttemptRecording(recording, who(ctx, operation), work),
-    recorded: (ctx, operation, work) => withRefusalRecording(recording, who(ctx, operation), work),
+    async recorded(ctx, operation, work) {
+      try {
+        return await work();
+      } catch (err) {
+        if (!isRefusalError(err) || err.attemptRecorded || err.code === 'service_unavailable') throw err;
+        try {
+          await recording.sink.record({
+            ...who(ctx, operation),
+            reasonCode: err.reasonCode ?? BOOKING_REASON[err.code] ?? 'booking_refused',
+          });
+          err.attemptRecorded = true;
+        } catch {
+          recording.alert('security_attempt_sink_unavailable');
+          const unavailable = new RefusalError({ code: 'service_unavailable', retryable: true });
+          unavailable.attemptRecorded = true;
+          throw unavailable;
+        }
+        throw err;
+      }
+    },
     authorize,
     async can(ctx, action) {
       try {

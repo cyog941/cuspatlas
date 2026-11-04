@@ -1,17 +1,29 @@
 import { randomUUID } from 'node:crypto';
 import { buildApp } from '@cuspatlas/api';
+import { REFUSAL_HTTP_STATUS, type RefusalCode } from '@cuspatlas/contracts';
 import {
   createMembershipSource,
   createSecurityAttemptSink,
   createTenantTransactionRunner,
 } from '@cuspatlas/db';
+import { buildMcpServer, type McpServerHandle } from '@cuspatlas/mcp';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { expect } from 'vitest';
 import type { TestDatabase } from './db';
 import { SVC_A1, seedTenancy, T_ALPHA, T_BETA, USER_A1, USER_A3, USER_A4, USER_B1 } from './fixtures';
 import { patientBody, seedPatientScopes } from './patient-fixtures';
 import { seedSchedulingScopes } from './scheduling-fixtures';
-import { createTestTokenIssuer, type TestTokenIssuer } from './test-token-issuer';
+import { createTestTokenIssuer, TEST_AUDIENCE, type TestTokenIssuer } from './test-token-issuer';
+
+const MCP_AUDIENCE = 'urn:cuspatlas:mcp:synthetic';
+
+export interface McpOutcome {
+  readonly status: number;
+  readonly code: string | null;
+  readonly body: Record<string, unknown>;
+}
 
 /**
  * Shared setup for the S8, S10 and S11 integration files: tenancy, patient and scheduling scopes,
@@ -33,22 +45,78 @@ export interface AppointmentHarness {
     key?: string | null,
   ): Promise<LightMyRequestResponse>;
   ok<T = Record<string, unknown>>(res: LightMyRequestResponse, status?: number): T;
+  /** Calls an MCP tool as `who` (only when opened with `mcp: true`). */
+  mcp(who: Who, tool: string, args: Record<string, unknown>, okStatus?: number): Promise<McpOutcome>;
+  close(): Promise<void>;
 }
 
-export async function openAppointmentHarness(db: TestDatabase): Promise<AppointmentHarness> {
+export async function openAppointmentHarness(
+  db: TestDatabase,
+  opts: { pool?: number; mcp?: boolean } = {},
+): Promise<AppointmentHarness> {
   await seedTenancy(db.admin);
   await seedPatientScopes(db.admin);
   await seedSchedulingScopes(db.admin);
   const issuer = await createTestTokenIssuer();
   const logLines: string[] = [];
+  const pool = opts.pool === undefined ? db.app : db.appPool(opts.pool);
+  const tenantTransactions = createTenantTransactionRunner(pool);
+  const membership = createMembershipSource(db.app);
+  const attempts = createSecurityAttemptSink(db.sink);
   const app = await buildApp({
     env: 'synthetic-test',
     logger: { level: 'info', stream: { write: (l: string) => logLines.push(l) } },
     identity: issuer.verifierConfig,
-    membership: createMembershipSource(db.app),
-    attempts: createSecurityAttemptSink(db.sink),
-    tenantTransactions: createTenantTransactionRunner(db.app),
+    membership,
+    attempts,
+    tenantTransactions,
   });
+  let server: McpServerHandle | null = null;
+  let mcpUrl = '';
+  if (opts.mcp) {
+    server = buildMcpServer({
+      env: 'synthetic-test',
+      identity: { ...issuer.verifierConfig, audience: MCP_AUDIENCE },
+      restAudience: TEST_AUDIENCE,
+      membership,
+      attempts,
+      tenantTransactions,
+      logger: { stream: { write: (l: string) => logLines.push(l) } },
+    });
+    mcpUrl = (await server.listen({ host: '127.0.0.1', port: 0 })).url;
+  }
+  const subjects: Record<Who, [string, string]> = {
+    a1: [USER_A1, T_ALPHA],
+    a3: [USER_A3, T_ALPHA],
+    a4: [USER_A4, T_ALPHA],
+    svcA1: [SVC_A1, T_ALPHA],
+    b1: [USER_B1, T_BETA],
+  };
+  const mcpTokens: Partial<Record<Who, string>> = {};
+  const mcp: AppointmentHarness['mcp'] = async (who, tool, args, okStatus = 200) => {
+    if (!server) throw new Error('harness opened without mcp');
+    const [sub, tid] = subjects[who];
+    mcpTokens[who] ??= await issuer.issue({ sub, tid, audience: MCP_AUDIENCE });
+    const transport = new StreamableHTTPClientTransport(new URL(mcpUrl), {
+      requestInit: { headers: { authorization: `Bearer ${mcpTokens[who]}` } },
+    });
+    const client = new Client({ name: 'synthetic-appointments', version: '0.0.0' });
+    try {
+      await client.connect(transport);
+      const result = await client.callTool({ name: tool, arguments: args });
+      const body = result.structuredContent as Record<string, unknown>;
+      if (result.isError === true) {
+        return { status: REFUSAL_HTTP_STATUS[body.code as RefusalCode], code: body.code as string, body };
+      }
+      return { status: okStatus, code: null, body };
+    } finally {
+      await client.close().catch(() => undefined);
+    }
+  };
+  const close = async () => {
+    await server?.close();
+    await app.close();
+  };
   const tokens: Record<string, string> = {
     a1: await issuer.issue({ sub: USER_A1, tid: T_ALPHA }),
     a3: await issuer.issue({ sub: USER_A3, tid: T_ALPHA }),
@@ -71,7 +139,7 @@ export async function openAppointmentHarness(db: TestDatabase): Promise<Appointm
     expect([res.statusCode, res.body]).toStrictEqual([status, res.body]);
     return res.json() as T;
   };
-  return { app, issuer, logLines, tokens, call, ok };
+  return { app, issuer, logLines, tokens, call, ok, mcp, close };
 }
 
 /** Creates a synthetic location with one provider and one operatory, each with weekly hours. */

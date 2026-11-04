@@ -73,6 +73,16 @@ export const ACTION_POLICIES = {
   'scheduling.requests.read': { scope: 'scheduling.read', principals: ['human', 'service'] },
   'scheduling.requests.list': { scope: 'scheduling.read', principals: ['human', 'service'] },
   'scheduling.requests.unbookedReport': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  // S10 booking and holds. Reading a booking (and seeing a blocking booking named in a conflict)
+  // needs scheduling.read; an override is an additional, human-only capability of the booking caller.
+  'scheduling.appointments.book': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.appointments.reschedule': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.appointments.cancel': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.appointments.read': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  'scheduling.appointments.override': { scope: 'scheduling.override', principals: ['human'] },
+  'scheduling.holds.create': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.holds.release': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.holds.reconcile': { scope: 'scheduling.write', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

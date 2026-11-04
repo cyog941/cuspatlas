@@ -67,3 +67,53 @@ export function registerAppointmentRoutes(
     data: await a.unbookedRequests(requireActor(r)),
   }));
 }
+
+/** S10 booking and holds: refusals (conflict 409, denied 403/404) are thrown and mapped centrally. */
+export function registerBookingRoutes(
+  app: FastifyInstance,
+  deps: { authenticator: Authenticator; appointments: AppointmentService },
+): void {
+  const a = deps.appointments;
+  const on = (operationId: string) => ({ onRequest: authenticateOnRequest(deps.authenticator, operationId) });
+  const env = (operation: string, request: FastifyRequest) => ({
+    operation,
+    idempotencyKey: key(request),
+    payload: request.body,
+  });
+  const param = (request: FastifyRequest, name: string) =>
+    (request.params as Record<string, string>)[name] ?? '';
+  const post = (operationId: string, run: (r: FastifyRequest) => Promise<unknown>) => {
+    const r = routeFor(operationId);
+    app.post(r.fastifyPath, on(operationId), async (request, reply) =>
+      reply.code(Number(r.success.status)).send(await run(request)),
+    );
+  };
+  post('scheduling.appointments.book', (r) =>
+    a.bookAppointment(requireActor(r), env('scheduling.appointments.book', r)),
+  );
+  const read = routeFor('scheduling.appointments.read');
+  app.get(read.fastifyPath, on(read.operationId), async (r) => ({
+    data: await a.getAppointment(requireActor(r), param(r, 'appointmentRef')),
+  }));
+  post('scheduling.appointments.reschedule', (r) =>
+    a.rescheduleAppointment(
+      requireActor(r),
+      param(r, 'appointmentRef'),
+      env('scheduling.appointments.reschedule', r),
+    ),
+  );
+  post('scheduling.appointments.cancel', (r) =>
+    a.cancelAppointment(
+      requireActor(r),
+      param(r, 'appointmentRef'),
+      env('scheduling.appointments.cancel', r),
+    ),
+  );
+  post('scheduling.holds.create', (r) => a.holdSlot(requireActor(r), env('scheduling.holds.create', r)));
+  post('scheduling.holds.release', (r) =>
+    a.releaseHold(requireActor(r), param(r, 'holdRef'), env('scheduling.holds.release', r)),
+  );
+  post('scheduling.holds.reconcile', (r) =>
+    a.reconcileHolds(requireActor(r), env('scheduling.holds.reconcile', r)),
+  );
+}

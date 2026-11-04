@@ -144,6 +144,92 @@ const SPECS: readonly Spec[] = [
       return { data: await d.appointments.unbookedRequests(actor) };
     },
   },
+  {
+    name: 'scheduling_appointments_book',
+    operationId: 'scheduling.appointments.book',
+    description:
+      'Book an appointment (directly or from a hold or request). Conflicts are a typed refusal with an inspectable, visibility-filtered conflict list; nothing is written.',
+    body: 'BookingCreate',
+    transport: ['idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.appointments.bookAppointment(actor, envelope('scheduling.appointments.book', args)),
+  },
+  {
+    name: 'scheduling_appointments_get',
+    operationId: 'scheduling.appointments.read',
+    description:
+      'Read one appointment with its resources, overrides and lifecycle. Hidden and missing are identical.',
+    body: null,
+    transport: ['appointmentRef'],
+    readOnly: true,
+    async run(d, actor, args) {
+      return { data: await d.appointments.getAppointment(actor, args.appointmentRef as string) };
+    },
+  },
+  {
+    name: 'scheduling_appointments_reschedule',
+    operationId: 'scheduling.appointments.reschedule',
+    description:
+      'Move a booking: books the new window and records the original as rescheduled, linked both ways.',
+    body: 'AppointmentReschedule',
+    transport: ['appointmentRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.appointments.rescheduleAppointment(
+        actor,
+        args.appointmentRef as string,
+        envelope('scheduling.appointments.reschedule', args, 'appointmentRef'),
+      ),
+  },
+  {
+    name: 'scheduling_appointments_cancel',
+    operationId: 'scheduling.appointments.cancel',
+    description: 'Cancel a booking with a reason (a recorded fact; the appointment is never deleted).',
+    body: 'AppointmentCancel',
+    transport: ['appointmentRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.appointments.cancelAppointment(
+        actor,
+        args.appointmentRef as string,
+        envelope('scheduling.appointments.cancel', args, 'appointmentRef'),
+      ),
+  },
+  {
+    name: 'scheduling_holds_create',
+    operationId: 'scheduling.holds.create',
+    description:
+      'Hold resources for a window until an expiry. An expired hold stops blocking without staff action.',
+    body: 'HoldCreate',
+    transport: ['idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) => d.appointments.holdSlot(actor, envelope('scheduling.holds.create', args)),
+  },
+  {
+    name: 'scheduling_holds_release',
+    operationId: 'scheduling.holds.release',
+    description: 'Release an active hold with a reason.',
+    body: 'HoldRelease',
+    transport: ['holdRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.appointments.releaseHold(
+        actor,
+        args.holdRef as string,
+        envelope('scheduling.holds.release', args, 'holdRef'),
+      ),
+  },
+  {
+    name: 'scheduling_holds_reconcile',
+    operationId: 'scheduling.holds.reconcile',
+    description: 'Release every expired hold in the caller locations (reconciliation path).',
+    body: 'HoldReconcile',
+    transport: ['idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.appointments.reconcileHolds(actor, envelope('scheduling.holds.reconcile', args)),
+  },
 ];
 
 /**

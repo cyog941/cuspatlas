@@ -1,6 +1,7 @@
 export * from './appointment-base';
 export * from './appointments';
 export * from './availability';
+export * from './booking';
 export * from './codecs';
 export * from './cursor';
 export * from './requests';

@@ -1103,6 +1103,587 @@
           }
         }
       }
+    },
+    "HoldRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque hold reference."
+    },
+    "ProviderRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "resourceRef"],
+      "properties": {
+        "kind": {
+          "const": "provider"
+        },
+        "resourceRef": {
+          "$ref": "#/$defs/ResourceRefId"
+        }
+      }
+    },
+    "AdditionalResources": {
+      "description": "Equipment or staff the appointment also occupies (provider and operatory are separate fields).",
+      "type": "array",
+      "maxItems": 6,
+      "items": {
+        "$ref": "#/$defs/ResourceRef"
+      }
+    },
+    "OverrideCode": {
+      "description": "Proposed override vocabulary (not a practice decision).",
+      "enum": ["provider_approved", "practice_policy", "emergency"]
+    },
+    "BookingOverride": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "reasonCode"],
+      "description": "Authorized override of overrideable conflicts only (policy booking-override.pending-approval.1: outside_availability). Needs scheduling.override; resource overlap is never overrideable.",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/OverrideCode"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "CancelReason": {
+      "description": "Proposed cancellation vocabulary (not a practice decision).",
+      "enum": [
+        "patient_request",
+        "practice_request",
+        "provider_unavailable",
+        "weather",
+        "duplicate_booking",
+        "other"
+      ]
+    },
+    "BookingCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "S10 booking. Success is BookingResult outcome booked (201); conflicts are 409 with detail.conflicts filtered by visibility; denials are 403/404.",
+      "required": ["patientRef", "locationRef", "startsAt", "endsAt", "timeZone", "provider", "operatory"],
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "startsAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "endsAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "timeZone": {
+          "$ref": "#/$defs/TimeZone"
+        },
+        "provider": {
+          "$ref": "#/$defs/ProviderRef"
+        },
+        "operatory": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OperatoryRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "noOperatoryReason": {
+          "$ref": "#/$defs/NoOperatoryReason"
+        },
+        "resources": {
+          "$ref": "#/$defs/AdditionalResources"
+        },
+        "override": {
+          "$ref": "#/$defs/BookingOverride"
+        },
+        "appointmentTypeCode": {
+          "$ref": "#/$defs/AppointmentTypeCode"
+        },
+        "holdRef": {
+          "$ref": "#/$defs/HoldRef"
+        },
+        "requestRef": {
+          "$ref": "#/$defs/RequestRef"
+        }
+      }
+    },
+    "AppointmentReschedule": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Books the new window and records the original as rescheduled with links both ways, in one transaction.",
+      "required": [
+        "expectedVersion",
+        "startsAt",
+        "endsAt",
+        "timeZone",
+        "provider",
+        "operatory",
+        "reasonCode"
+      ],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "startsAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "endsAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "timeZone": {
+          "$ref": "#/$defs/TimeZone"
+        },
+        "provider": {
+          "$ref": "#/$defs/ProviderRef"
+        },
+        "operatory": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OperatoryRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "noOperatoryReason": {
+          "$ref": "#/$defs/NoOperatoryReason"
+        },
+        "resources": {
+          "$ref": "#/$defs/AdditionalResources"
+        },
+        "override": {
+          "$ref": "#/$defs/BookingOverride"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "AppointmentCancel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "reasonCode"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/CancelReason"
+        }
+      }
+    },
+    "HoldCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locationRef", "startsAt", "endsAt", "resources"],
+      "properties": {
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "startsAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "endsAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "resources": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": {
+            "$ref": "#/$defs/ResourceRef"
+          }
+        },
+        "ttlMinutes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1440
+        }
+      }
+    },
+    "HoldRelease": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasonCode"],
+      "properties": {
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "HoldReconcile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "BookingResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The successful BookingResult outcomes. conflict and denied are typed refusals (Refusal schema, 409/403/404), never 2xx.",
+      "required": ["outcome", "conflicts"],
+      "properties": {
+        "outcome": {
+          "enum": ["booked", "held"]
+        },
+        "appointmentRef": {
+          "$ref": "#/$defs/AppointmentRef"
+        },
+        "holdRef": {
+          "$ref": "#/$defs/HoldRef"
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "conflicts": {
+          "type": "array",
+          "maxItems": 0
+        }
+      }
+    },
+    "BookingCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/BookingResult"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "HoldCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["holdRef", "state"],
+          "properties": {
+            "holdRef": {
+              "$ref": "#/$defs/HoldRef"
+            },
+            "state": {
+              "enum": ["released"]
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "HoldReconcileResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["released"],
+          "properties": {
+            "released": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "AppointmentCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["appointmentRef", "status"],
+          "properties": {
+            "appointmentRef": {
+              "$ref": "#/$defs/AppointmentRef"
+            },
+            "status": {
+              "$ref": "#/$defs/AppointmentStatus"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "AppointmentStatus": {
+      "description": "Booking lifecycle only. Attendance, clinical completion and billing are separate facts.",
+      "enum": ["booked", "cancelled", "rescheduled"]
+    },
+    "Appointment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "appointmentRef",
+        "patientRef",
+        "locationRef",
+        "startsAt",
+        "endsAt",
+        "durationMinutes",
+        "timeZone",
+        "provider",
+        "operatory",
+        "noOperatoryReason",
+        "resources",
+        "appointmentTypeCode",
+        "requestRef",
+        "status",
+        "cancelReason",
+        "rescheduledFrom",
+        "rescheduledTo",
+        "overrides",
+        "lifecycle",
+        "version",
+        "createdAt"
+      ],
+      "properties": {
+        "appointmentRef": {
+          "$ref": "#/$defs/AppointmentRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "startsAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "endsAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "durationMinutes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "timeZone": {
+          "$ref": "#/$defs/TimeZone"
+        },
+        "provider": {
+          "$ref": "#/$defs/ProviderRef"
+        },
+        "operatory": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OperatoryRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "noOperatoryReason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NoOperatoryReason"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resources": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["resourceRef", "released"],
+            "properties": {
+              "resourceRef": {
+                "$ref": "#/$defs/ResourceRef"
+              },
+              "released": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "appointmentTypeCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AppointmentTypeCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "requestRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RequestRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "$ref": "#/$defs/AppointmentStatus"
+        },
+        "cancelReason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rescheduledFrom": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AppointmentRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rescheduledTo": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AppointmentRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "overrides": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["code", "reasonCode", "kinds", "actorRef"],
+            "properties": {
+              "code": {
+                "$ref": "#/$defs/OverrideCode"
+              },
+              "reasonCode": {
+                "$ref": "#/$defs/ReasonCode"
+              },
+              "kinds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "actorRef": {
+                "$ref": "#/$defs/EntityRef"
+              }
+            }
+          }
+        },
+        "lifecycle": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "reasonCode", "relatedAppointmentRef", "occurredAt", "version"],
+            "properties": {
+              "kind": {
+                "enum": ["booked", "cancelled", "rescheduled_out", "rescheduled_in", "request_linked"]
+              },
+              "reasonCode": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ReasonCode"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "relatedAppointmentRef": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/AppointmentRef"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "occurredAt": {
+                "$ref": "#/$defs/Instant"
+              },
+              "version": {
+                "$ref": "#/$defs/Version"
+              }
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "AppointmentRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/Appointment"
+        }
+      }
     }
   }
 }

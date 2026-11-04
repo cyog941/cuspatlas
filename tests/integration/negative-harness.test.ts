@@ -573,8 +573,125 @@ export const COMMANDS: HarnessCommand[] = [
     }),
     mcpArgs: () => ({}),
   },
+  // S10 booking and holds.
+  {
+    operation: 'scheduling.appointments.book',
+    tool: 'scheduling_appointments_book',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({ method: 'POST', url: APPT, body: bookingBody(f), keyed: true, status: 201 }),
+    mcpArgs: (f) => ({ ...bookingBody(f), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'scheduling.appointments.read',
+    tool: 'scheduling_appointments_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({ method: 'GET', url: `${APPT}/${f.alphaAppointment}`, keyed: false, status: 200 }),
+    mcpArgs: (f) => ({ appointmentRef: f.alphaAppointment }),
+  },
+  {
+    operation: 'scheduling.appointments.reschedule',
+    tool: 'scheduling_appointments_reschedule',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `${APPT}/${f.alphaAppointment}/reschedule`,
+      body: rescheduleBody(f),
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({
+      ...rescheduleBody(f),
+      appointmentRef: f.alphaAppointment,
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'scheduling.appointments.cancel',
+    tool: 'scheduling_appointments_cancel',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `${APPT}/${f.alphaAppointment}/cancel`,
+      body: { expectedVersion: 1, reasonCode: 'patient_request' },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({
+      appointmentRef: f.alphaAppointment,
+      expectedVersion: 1,
+      reasonCode: 'patient_request',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'scheduling.holds.create',
+    tool: 'scheduling_holds_create',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({ method: 'POST', url: HOLDS, body: holdBody(f), keyed: true, status: 201 }),
+    mcpArgs: (f) => ({ ...holdBody(f), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'scheduling.holds.release',
+    tool: 'scheduling_holds_release',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `${HOLDS}/${f.alphaHold}/release`,
+      body: { reasonCode: 'offer_declined' },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ holdRef: f.alphaHold, reasonCode: 'offer_declined', idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'scheduling.holds.reconcile',
+    tool: 'scheduling_holds_reconcile',
+    crossTenant: 'tenant_own_data',
+    downgradedTo: 'readOnly',
+    rest: () => ({ method: 'POST', url: `${HOLDS}/reconcile`, body: {}, keyed: true, status: 200 }),
+    mcpArgs: () => ({ idempotencyKey: randomUUID() }),
+  },
 ];
 
+const APPT = '/v1/scheduling/appointments';
+const HOLDS = '/v1/scheduling/holds';
+function windowOf(f: HarnessFixture, startsAt: string, endsAt: string) {
+  return {
+    startsAt,
+    endsAt,
+    timeZone: 'America/New_York',
+    provider: { kind: 'provider', resourceRef: f.alphaProvider },
+    operatory: { kind: 'operatory', resourceRef: f.alphaResource },
+  };
+}
+function bookingBody(f: HarnessFixture) {
+  return {
+    patientRef: f.alphaPatient,
+    locationRef: f.alphaLocation,
+    ...windowOf(f, '2030-01-07T16:00:00Z', '2030-01-07T17:00:00Z'),
+  };
+}
+function rescheduleBody(f: HarnessFixture) {
+  return {
+    expectedVersion: 1,
+    reasonCode: 'patient_request',
+    ...windowOf(f, '2030-01-07T18:00:00Z', '2030-01-07T19:00:00Z'),
+  };
+}
+function holdBody(f: HarnessFixture) {
+  return {
+    locationRef: f.alphaLocation,
+    startsAt: '2030-01-07T20:00:00Z',
+    endsAt: '2030-01-07T21:00:00Z',
+    resources: [{ kind: 'operatory', resourceRef: f.alphaResource }],
+  };
+}
 const REQ = '/v1/scheduling/appointment-requests';
 function requestBody(f: HarnessFixture) {
   return {
@@ -748,7 +865,47 @@ beforeAll(async () => {
       })
     ).statusCode,
   ).toBe(200);
+  // S10: a provider with Monday hours, one booking and one active hold at the alpha location.
+  const providerRes = await owner('/v1/scheduling/resources', {
+    kind: 'provider',
+    locationRef: alphaLocation,
+    displayLabel: 'Synthetic Provider',
+  });
+  expect(providerRes.statusCode).toBe(201);
+  const alphaProvider = providerRes.json().data.resourceRef as string;
+  expect(
+    (
+      await owner(`/v1/scheduling/resources/${alphaProvider}/availability`, {
+        effectiveFrom: '2030-01-07',
+        weekly: [{ weekday: 1, start: '08:00', end: '17:00' }],
+      })
+    ).statusCode,
+  ).toBe(201);
+  const slot = (startsAt: string, endsAt: string) => ({
+    startsAt,
+    endsAt,
+    timeZone: 'America/New_York',
+    provider: { kind: 'provider', resourceRef: alphaProvider },
+    operatory: { kind: 'operatory', resourceRef: alphaResource },
+  });
+  const appointment = await owner('/v1/scheduling/appointments', {
+    patientRef: alphaPatient,
+    locationRef: alphaLocation,
+    ...slot('2030-01-07T14:00:00Z', '2030-01-07T15:00:00Z'),
+  });
+  expect(appointment.statusCode).toBe(201);
+  const hold = await owner('/v1/scheduling/holds', {
+    locationRef: alphaLocation,
+    startsAt: '2030-01-07T15:00:00Z',
+    endsAt: '2030-01-07T16:00:00Z',
+    resources: [{ kind: 'operatory', resourceRef: alphaResource }],
+    ttlMinutes: 1440,
+  });
+  expect(hold.statusCode).toBe(201);
   fixture = {
+    alphaProvider,
+    alphaAppointment: appointment.json().data.appointmentRef,
+    alphaHold: hold.json().data.holdRef,
     alphaRequest: openRequest.json().data.requestRef,
     alphaClosedRequest: closedRequest,
     alphaLocation,
@@ -863,6 +1020,11 @@ async function state(): Promise<string> {
     await q('SELECT count(*)::int AS n FROM cuspatlas.scheduling_occupancy'),
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.appointment_requests'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.appointment_request_transitions'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.appointments'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.scheduling_holds'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.scheduling_occupancy WHERE released_at IS NULL'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.appointment_overrides'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.appointment_lifecycle_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.audit_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.outbox_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.command_idempotency'),

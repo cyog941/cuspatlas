@@ -321,3 +321,109 @@ export const validateAppointmentRequestClose = def('AppointmentRequestClose');
 export const validateAppointmentRequestReopen = def('AppointmentRequestReopen');
 export const validateAppointmentRequestListQuery = def('AppointmentRequestListQuery');
 export const validateSchedulingEntityRef = def('EntityRef');
+
+/** S10 booking, holds and the inspectable conflict result. */
+export type AppointmentStatus = 'booked' | 'cancelled' | 'rescheduled';
+export type OverrideCode = 'provider_approved' | 'practice_policy' | 'emergency';
+export interface BookingOverride {
+  readonly code: OverrideCode;
+  readonly reasonCode: string;
+}
+export interface BookingWindowInput {
+  readonly startsAt: string;
+  readonly endsAt: string;
+  readonly timeZone: string;
+  readonly provider: { readonly kind: 'provider'; readonly resourceRef: string };
+  readonly operatory: { readonly kind: 'operatory'; readonly resourceRef: string } | null;
+  readonly noOperatoryReason?: NoOperatoryReason;
+  readonly resources?: readonly ResourceRef[];
+  readonly override?: BookingOverride;
+}
+export interface BookingCreate extends BookingWindowInput {
+  readonly patientRef: string;
+  readonly locationRef: string;
+  readonly appointmentTypeCode?: string;
+  readonly holdRef?: string;
+  readonly requestRef?: string;
+}
+export interface AppointmentReschedule extends BookingWindowInput {
+  readonly expectedVersion: number;
+  readonly reasonCode: string;
+}
+export interface AppointmentCancel {
+  readonly expectedVersion: number;
+  readonly reasonCode: string;
+}
+export interface HoldCreate {
+  readonly locationRef: string;
+  readonly startsAt: string;
+  readonly endsAt: string;
+  readonly resources: readonly ResourceRef[];
+  readonly ttlMinutes?: number;
+}
+export interface HoldRelease {
+  readonly reasonCode: string;
+}
+/**
+ * The one booking result type. Only `booked` and `held` are successful outcomes; `conflict` and
+ * `denied` travel as typed refusals (RefusalError with detail.conflicts, or forbidden/not_found).
+ */
+export interface BookingResult {
+  readonly outcome: 'booked' | 'held';
+  readonly appointmentRef?: string;
+  readonly holdRef?: string;
+  readonly expiresAt?: string;
+  readonly conflicts: readonly [];
+}
+export interface HoldCommandData {
+  readonly holdRef: string;
+  readonly state: 'released';
+}
+export interface HoldReconcileData {
+  readonly released: number;
+}
+export interface AppointmentCommandData {
+  readonly appointmentRef: string;
+  readonly status: AppointmentStatus;
+}
+export interface AppointmentRecord {
+  readonly appointmentRef: string;
+  readonly patientRef: string;
+  readonly locationRef: string;
+  readonly startsAt: string;
+  readonly endsAt: string;
+  readonly durationMinutes: number;
+  readonly timeZone: string;
+  readonly provider: { readonly kind: 'provider'; readonly resourceRef: string };
+  readonly operatory: { readonly kind: 'operatory'; readonly resourceRef: string } | null;
+  readonly noOperatoryReason: NoOperatoryReason | null;
+  readonly resources: readonly { readonly resourceRef: ResourceRef; readonly released: boolean }[];
+  readonly appointmentTypeCode: string | null;
+  readonly requestRef: string | null;
+  readonly status: AppointmentStatus;
+  readonly cancelReason: string | null;
+  readonly rescheduledFrom: string | null;
+  readonly rescheduledTo: string | null;
+  readonly overrides: readonly {
+    readonly code: OverrideCode;
+    readonly reasonCode: string;
+    readonly kinds: readonly string[];
+    readonly actorRef: string;
+  }[];
+  readonly lifecycle: readonly {
+    readonly kind: 'booked' | 'cancelled' | 'rescheduled_out' | 'rescheduled_in' | 'request_linked';
+    readonly reasonCode: string | null;
+    readonly relatedAppointmentRef: string | null;
+    readonly occurredAt: string;
+    readonly version: number;
+  }[];
+  readonly version: number;
+  readonly createdAt: string;
+}
+
+export const validateBookingCreate = def('BookingCreate');
+export const validateAppointmentReschedule = def('AppointmentReschedule');
+export const validateAppointmentCancel = def('AppointmentCancel');
+export const validateHoldCreate = def('HoldCreate');
+export const validateHoldRelease = def('HoldRelease');
+export const validateHoldReconcile = def('HoldReconcile');

@@ -83,6 +83,14 @@ const TOOL_NAMES = [
   'scheduling_requests_review',
   'scheduling_requests_unbooked_report',
   'scheduling_requests_update_preferences',
+  // S10 booking and hold tools (parity in booking-conflicts and negative-harness tests).
+  'scheduling_appointments_book',
+  'scheduling_appointments_cancel',
+  'scheduling_appointments_get',
+  'scheduling_appointments_reschedule',
+  'scheduling_holds_create',
+  'scheduling_holds_reconcile',
+  'scheduling_holds_release',
 ].sort();
 
 let db: TestDatabase;

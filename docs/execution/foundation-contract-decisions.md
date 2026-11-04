@@ -308,4 +308,4 @@ Additions to shared contracts and policy tables; no frozen row relaxed. Details 
 - Digests: every E digest (contact verification, caller) is HMAC-SHA-256 under the S4 match-key pepper, tenant and purpose bound; `digest_scheme` 2 is the keyed scheme and scheme 1 rows never match.
 - Shared vocabulary: `ConsentPurpose` no longer contains `treatment` (C13); the SQL CHECK agrees.
 - Ports: `AttachmentRefResolver` (E-owned port, implemented by I) gates every message attachment; S4's `updatePatientDemographics` accepts an optional open transaction so E can apply a reviewed answer and resolve its item atomically.
-- Migration `20261111000000_review_hardening_e2.sql`: digest scheme columns, caller match keys, `total_count`, closed-thread guard, principal-kind agreement triggers, consent purpose CHECK, review item to submission patient key.
+- Migration `20261110090000_review_hardening_e2.sql`: digest scheme columns, caller match keys, `total_count`, closed-thread guard, principal-kind agreement triggers, consent purpose CHECK, review item to submission patient key.

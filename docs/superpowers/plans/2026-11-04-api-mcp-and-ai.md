@@ -121,6 +121,8 @@ Proposed contract definitions to create during execution, not code already prese
 
 ### A2: Versioned REST surface with honest status, conflict and pagination semantics
 
+Use the authoritative REST/MCP mapping and two audit paths in [shared contracts](../../SHARED-CONTRACTS.md). Test that typed policy denials normalize correctly, domain refusals never become HTTP 2xx, MCP tool refusals carry `isError: true`, and saved results are reauthorized before replay. Audit a refused attempt independently from any rolled-back mutation.
+
 **Dependencies:** A1; foundation Task 3. **Status:** implementation.
 **Files (proposed):** `packages/domain/src/operations/refusals.ts`, `apps/api/src/routes/` transport helpers, `apps/api/src/errors.ts` extensions, `tests/integration/api-surface.test.ts`.
 **Contract:** the mapping from `Refusal` to a response with an honest status class, a stable `reasonCode`, a correlation identifier and safe field detail; a conflict response carrying reconciliation guidance but no competing record content; cursor pagination with a bounded lifetime; caller-selected projection limited to fields the caller's scopes permit; per-principal rate limits.

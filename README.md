@@ -60,7 +60,7 @@ A plan existing is not a plan approved. Every plan carries open decisions and bl
 
 Web-first TypeScript application and API, PostgreSQL transactional core, Supabase services with a self-hosting path, and an optional native device companion. Rust is a candidate for the companion; actual vendor SDK requirements determine adapters. This is an engineering recommendation, not a benchmark result or an implemented architecture.
 
-UI design is intentionally deferred to the final planning stage. Application implementation requires a later explicit start instruction.
+Broad incumbent research is closed. UI design remains deferred until separately requested and does not block synthetic backend foundation work. Application implementation requires a separate explicit start instruction; module qualification and clinical validation remain required.
 
 ## License
 

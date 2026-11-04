@@ -40,7 +40,7 @@ All monetary fields in every contract use `Money`. Scalar `amountMinor` and `cur
 
 One scheme: an entity reference is an opaque string named `<entity>Ref` — `patientRef`, `appointmentRef`, `claimRef`, `imageRef`, `planVersionRef`. Bare `patientId` / `patient_id` in a contract is a defect.
 
-Tenant is never embedded in a record shape; it is derived from the authenticated context, consistent with the platform foundation's tenancy model. A contract that needs to name a tenant takes it from context, not from a field.
+Caller input never establishes tenant authority: transport inputs derive tenant from authenticated context. Persisted records, trusted internal context and audit/outbox envelopes retain tenant keys for RLS, constraints and isolation; omitting tenant from caller input does not remove it from storage.
 
 Identifiers are opaque. No consumer parses one to learn anything.
 
@@ -48,11 +48,23 @@ Identifiers are opaque. No consumer parses one to learn anything.
 
 One result type, `BookingResult`, with `outcome` in `booked | held | conflict | denied`.
 
-- `conflict` is a **successful** command result with a non-empty list of conflicts, each naming the blocking resource and whether an authorized override exists.
-- `denied` is a successful command result too — it is a policy refusal (authorization, tenant, entitlement), carrying the reason code and the actor. A thrown error is reserved for faults, not for refusals staff must read.
+- `conflict` and `denied` are typed domain refusals, never successful business operations. Conflict details are filtered by resource visibility; unauthorized callers never receive blocking record identities or another actor's identity.
+- Internal policy may throw a typed denial. The command boundary normalizes it to the shared refusal contract; it must not become a generic 500 or an HTTP success. Unexpected faults remain faults.
 - `BookingOutcome` does not exist.
 
 The same shape applies to any command that can legitimately refuse: attempt, refusal, reason. This is why the platform foundation's idempotency and audit record the attempt either way.
+
+### Transport mapping and replay
+
+REST maps successful creation to 201, other successful results to the documented 2xx; invalid input to 400 (schema) or 422 (domain validation), unauthenticated to 401, authorized-context permission denial to 403, hidden cross-tenant/missing resources identically to 404, conflict/stale version to 409, rate or usage-budget refusal to 429, and unexpected faults to safe 5xx. Never return 200 with a failed business outcome. MCP tools return the same safe reason code, retryability and correlation identifier as a structured tool error with `isError: true`; authentication/protocol failures use their protocol mechanisms. MCP does not pretend to use HTTP business status codes internally.
+
+Idempotency records may retain a terminal refusal without recording a successful mutation. Replays must reauthorize before returning any saved result. Retrying a corrected request uses a new key; changing payload under the original key conflicts. Transient or unknown external outcomes follow the reconciliation policy, never a fabricated terminal success.
+
+### Two audit paths
+
+Successful domain changes, committed-change audit and outbox commit atomically. Rollback removes all three. Denials and failed attempts instead produce a minimized security-attempt event through an independent durable transaction/sink after rollback, with its own unique attempt identifier, correlation ID, authenticated actor/tenant when known, safe operation and reason code. Never trust caller-supplied tenant context or persist raw input/PHI in these events. Repeated attempts are distinguishable and deduplicated only by attempt ID, not by the business idempotency key.
+
+If attempt-audit persistence is unavailable, deny the operation anyway, emit a safe operational alert and return a safe service failure when possible; never permit the action to compensate. Document crash-window limits. Do not claim every received network attempt is durably captured before acknowledgement unless a durable ingress design proves it. Test failure, retry and recovery of both paths independently.
 
 ## Roles and scopes
 
@@ -100,4 +112,4 @@ Transition sets are required for appointment, appointment request, claim, paymen
 
 ## What this page does not do
 
-It does not decide clinical policy, payer behaviour, device support or pricing. Those remain open decisions in the plans and gates in the qualification matrix. It also does not claim any plan already conforms; conformance is what the correction pass establishes.
+It does not decide clinical policy, payer behaviour, device support or pricing. Those remain open decisions in the plans and gates in the qualification matrix. The 2026-11-03 correction pass aligns the reviewed refusal and audit contracts; implementation tests must prove conformance. Unique planned ADR identities are reserved in [ADR-REGISTRY](ADR-REGISTRY.md).

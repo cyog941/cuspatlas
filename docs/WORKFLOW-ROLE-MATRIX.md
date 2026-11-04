@@ -1,6 +1,6 @@
 # Workflow, state and role matrix
 
-Status: planning artifact, 2026-11-03. Derived from the read-only authenticated observation of the incumbent on 2026-11-03 evening ET, plus proposals owned by the seven implementation plans. Nothing here is implemented, tested or authorized. No patient, staff, provider, carrier or location names, balances, tokens or record values appear; entity, state and control labels only.
+Status: planning artifact, 2026-11-03. Derived from the read-only authenticated observation of the incumbent on 2026-11-03 evening ET, plus proposals owned by the workstream plans. Nothing here is implemented, tested or authorized. No patient, staff, provider, carrier or location names, balances, tokens or record values appear; entity, state and control labels only.
 
 This is the consolidated matrix the handoff's "Required final package" asks for. No existing document provides it: [CAPABILITIES.md](CAPABILITIES.md) defines scope, [TAB32-ANALYSIS-COVERAGE.md](TAB32-ANALYSIS-COVERAGE.md) defines evidence, [ROADMAP.md](ROADMAP.md) defines sequence and the plans define tasks, but nothing joins a workflow to its owner, its states and its permission defaults. This file does that and does not change any of them.
 
@@ -374,6 +374,6 @@ Two rules govern every row in Parts 1 to 3.
 
 - No transition, guard, role or permission in this document was executed, observed or tested. The incumbent's transitions, guards, role enforcement and error semantics remain unobserved.
 - A label is not a rule. The observed status list, worklists, report names and access rows establish vocabulary and surface shape only.
-- Plan ownership is a proposal, not a commitment. The seven plans are reviewed proposals and nothing here authorizes implementation.
+- Plan ownership is a proposal, not a commitment. The nine workstream plans are planning proposals and nothing here authorizes implementation.
 - The gap list at the end of Part 1 is not a decision record. Each gap needs an owning task before the P2 exit condition in [ROADMAP.md](ROADMAP.md) can be claimed.
 - Passing tests against synthetic data would not establish clinical safety, financial correctness against a payer, or production readiness.

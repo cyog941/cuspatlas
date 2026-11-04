@@ -1,5 +1,7 @@
 ﻿# Research ledger and evidence limits
 
+Current disposition (2026-11-03): broad incumbent research is closed by user direction. Remaining unobserved behavior is retained as a limitation, not an instruction to resume REA/Craft. Targeted clinical, vendor, device and migration qualification remains gated to the affected module or release. Closure does not mean exhaustive reverse engineering or production validation.
+
 Research date: 2026-11-03. No patient records or credentials are included here. Raw captures, both public-page and authenticated, are retained locally under ignored `.research-local/`; the repository contains original requirements and summaries only.
 
 ## Direct live observations

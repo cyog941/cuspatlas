@@ -64,7 +64,7 @@ Proposed definitions to create during authorized execution, extending the founda
 - Identifiers are opaque `<entity>Ref` strings throughout, and tenant is derived from context rather than stored on a shape. `ResourceRef` is the only composite reference, and its inner identifier is itself a ref.
 - `ResourceRef = { kind: 'provider' | 'operatory' | 'equipment' | 'staff'; resourceRef: string }`.
 - `BookingWindow = { startsAt: string; endsAt: string; timeZone: string }` with instants in UTC and duration derived, never a floating local time.
-- `BookingResult = { outcome: 'booked' | 'held' | 'conflict' | 'denied'; appointmentRef?: string; holdRef?: string; conflicts: readonly Conflict[]; denial?: Denial }`. `conflict` and `denied` are both **successful** command results. A conflict carries a non-empty conflict list; a denial carries the policy reason code and the actor. A thrown error is reserved for faults, never for a refusal staff must read. `BookingOutcome` and `ConflictResult` do not exist.
+- `BookingResult = { outcome: 'booked' | 'held' | 'conflict' | 'denied'; appointmentRef?: string; holdRef?: string; conflicts: readonly Conflict[]; denial?: Denial }`. `conflict` and `denied` are typed domain refusals, not successful operations; map them using SHARED-CONTRACTS transport rules. A conflict carries a non-empty conflict list; a denial carries the policy reason code and the actor. Typed policy exceptions are normalized at the command boundary; unexpected faults remain faults. Refusal details are filtered to the caller's authorized visibility. `BookingOutcome` and `ConflictResult` do not exist.
 - `Denial = { outcome: 'denied'; reasonCode: string; actorRef: string; detailRef?: string }` is the attempt/refusal/reason shape used by every command in this plan that can legitimately refuse, so a refusal is recorded and auditable rather than thrown.
 - `Conflict = { kind: 'resource_overlap' | 'provider_assignment' | 'outside_availability' | 'insufficient_duration' | 'patient_unavailable' | 'patient_inactive' | 'policy_override_required'; resourceRef?: ResourceRef; existingRef?: string; explanation: string; overrideable: boolean }`.
 - `AppointmentRequestRecord` and `AppointmentRecord` are distinct aggregates with distinct states; a request holds no resource and blocks nothing.
@@ -106,7 +106,7 @@ Consumes: the communications capability row. Produces: a per-channel qualificati
 
 Dependencies: none technical. Blocks S9, S13, S15 and S16.
 
-Files (proposed): `docs/adr/0004-scheduling-policy.md`.
+Files (proposed): `docs/adr/0009-scheduling-policy.md`.
 
 Consumes: the observed recurrence label, scheduler tool inventory and the recall capability row. Produces: recorded answers for the recurrence cap and continuation behaviour (S-D1), waitlist offer and expiry semantics (S-D6), recall interval basis and exclusion rules (S-D7), and the documented rule for month-end and daylight-saving occurrences. Whether a due patient may be contacted is not decided here; it is E's suppression decision.
 
@@ -369,7 +369,7 @@ Consumes: `authorize`, `executeOnce`, `recordCommand`, `withTenantTransaction`. 
 
 Contract (proposed):
 
-- `bookAppointment(ctx, envelope: CommandEnvelope<BookingInput>): Promise<CommandResult<BookingResult>>` returns `booked` with the appointment reference, `held` with a hold reference, `conflict` with a non-empty conflict list, or `denied` with a reason code and actor. All four are successful command results; a conflict or a denial writes no appointment, no occupancy and no success audit, but both are recorded and auditable.
+- `bookAppointment(ctx, envelope: CommandEnvelope<BookingInput>): Promise<CommandResult<BookingResult>>` returns `booked` with the appointment reference, `held` with a hold reference, `conflict` with a non-empty conflict list, or `denied` with a reason code and actor. Only booked and held are successful operations; conflict and denied use the shared refusal transport and durable attempt-audit paths; a conflict or a denial writes no appointment, no occupancy and no success audit, but both are recorded and auditable.
 - `holdSlot`, `releaseHold`, `rescheduleAppointment` and `cancelAppointment` use the same attempt/refusal shape and never throw for a refusal.
 - Conflict kinds are enumerated in Shared interfaces. Each names the blocking resource or the existing record and states whether an authorized override is possible.
 - Occupancy is enforced by a database constraint per reserved resource and time range, including holds, plus domain validation for the remaining rules. A constraint violation maps to a conflict result, never an unhandled error.

@@ -24,7 +24,7 @@
 
 Apply the [hardware and claims qualification gates](../../HARDWARE-AND-CLAIMS-QUALIFICATION.md) to follow-on I/B plans. Foundation adapters must support protected external references, versioned payload digests, partial/unknown outcomes, deduplicated receipts and reconciliation. Task 6's fake-provider tests must include timeout after acceptance and duplicate/out-of-order delivery. Do not infer clearinghouse or device readiness from foundation tests. H1/H2/C1/C2/R1 can be researched before implementation; actual integrations need their own reviewed plans and build authorization.
 
-Consult [Tab32 analysis coverage](../../TAB32-ANALYSIS-COVERAGE.md). The authenticated REA/Craft analysis is incomplete; do not represent this plan as validated against every Tab32 workflow. Complete supported tool attachment and bounded capture, then inspect clinical workflows using a clearly synthetic demo record if needed. Do not sign notes, post money, submit claims or send messages in production to test behavior. Capture those transitions in a vendor sandbox or staff-validated scenarios.
+Broad incumbent research is closed by user direction on 2026-11-03. DSH records authenticated REA/Craft attachment; repeated attachment or exhaustive Tab32 exploration is not a foundation prerequisite. See [analysis coverage](../../TAB32-ANALYSIS-COVERAGE.md) for retained limitations. Foundation execution uses synthetic data after explicit build authorization, with UI deferred. Unresolved clinical semantics, partner behavior and hardware compatibility gate their affected module tasks and release, not this synthetic foundation.
 
 Translate the observed workflow states into synthetic acceptance cases: payment-plan missing signature/default/void versus collection, statement generation versus delivery/freshness, claims assignment versus appeal status, and audit search versus restoration. Test authorization separately for each operation across UI/API/MCP/jobs. Record unresolved vendor behavior explicitly and obtain clinical/financial validation before replacement release.
 
@@ -86,7 +86,7 @@ Consumes: Task 2 policy/transaction. Produces: `createSyntheticTask(ctx, envelop
 - [ ] Write tests for schema rejection, unknown properties, bounded label length (1–120), location denial, forged tenant, safe pagination and no sensitive error echo.
 - [ ] Run `pnpm test:integration -- transport-policy`; confirm unimplemented behavior fails.
 - [ ] Implement JSON Schema validation and minimal protected domain route; derive tenant from context. Publish matching OpenAPI and generated types.
-- [ ] Run schema/contract drift checks plus test suite; expect documented errors and policy parity. Commit.
+- [ ] Run schema/contract drift checks plus test suite; expect documented errors and policy parity. Verify shared HTTP refusal mapping, hidden-resource non-disclosure, and fresh authorization before replay. Commit.
 
 ### Task 4: Atomic audit and outbox
 
@@ -94,9 +94,9 @@ Files: `packages/domain/src/events/record-command.ts`, `packages/db/src/outbox.t
 
 Consumes: TenantTransaction, AuditEvent, OutboxEvent. Produces: `recordCommand(tx, audit, event): Promise<void>` with append-only audit permissions and transactional outbox insert.
 
-- [ ] Write tests that command failure rolls back domain change/audit/outbox together; successful commit records all three; app role cannot update/delete audit; ordinary logs exclude payloads.
+- [ ] Write tests that command failure rolls back domain change/committed-change audit/outbox together; successful commit records all three; app role cannot update/delete audit; ordinary logs exclude payloads. Separately prove denied and failed attempts survive rollback through the independent durable security-attempt path in SHARED-CONTRACTS. Test unknown actor, forged tenant, duplicate attempt ID, separate retry attempts, sink outage and recovery; audit failure never permits a denied operation.
 - [ ] Run `pnpm test:integration -- atomic-events`; confirm failure.
-- [ ] Implement atomic recording, event version, trace IDs and protected audit access. Document independent production audit retention as a later deployment gate.
+- [ ] Implement atomic committed-change recording plus independent minimized attempt recording after rollback, with event version, trace IDs and protected access. Document crash-window limits, safe alerts and fail-closed sink-outage handling. Production audit retention remains a later deployment gate.
 - [ ] Run suite and security advisors; expect pass; commit.
 
 ### Task 5: Idempotency and concurrent updates
@@ -134,7 +134,7 @@ Consumes: published contracts, authorize and executeOnce. Produces: bounded list
 
 ### Task 7a: Synthetic proposal and approval boundary
 
-Files: `packages/contracts/src/action-proposal.schema.json`, `packages/domain/src/commands/proposals.ts`, `tests/integration/proposal-policy.test.ts`, `docs/adr/0003-automation-policy.md`. Create only during authorized execution.
+Files: `packages/contracts/src/action-proposal.schema.json`, `packages/domain/src/commands/proposals.ts`, `tests/integration/proposal-policy.test.ts`, `docs/adr/0010-automation-policy.md`. Create only during authorized execution.
 
 Consumes: Tasks 2–7. Produces: prepare/approve/commit behavior over the non-clinical synthetic task domain, with no live AI provider or outbound side effects.
 

@@ -1,5 +1,7 @@
 ﻿# Tab32 analysis coverage
 
+Current disposition (2026-11-03): broad incumbent research is closed by user direction. Remaining unobserved behavior is retained as a limitation, not an instruction to resume REA/Craft. Targeted clinical, vendor, device and migration qualification remains gated to the affected module or release. Closure does not mean exhaustive reverse engineering or production validation.
+
 Status: incomplete. This ledger distinguishes visible workflow inspection from instrumented analysis and from behavioral verification. No production transactions are permitted merely to test behavior. UI design and product implementation remain deferred.
 
 The table reflects the authenticated read-only pass of 2026-11-03 evening ET, together with the earlier read-only browser inspection of the same day. Every row states what was seen, and never what the incumbent does under a real transaction. Status values seen in a selector do not establish permitted transitions, and a menu label does not establish behavior.

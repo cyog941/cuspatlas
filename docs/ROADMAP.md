@@ -8,13 +8,13 @@ The [practice coverage strategy](PRACTICE-COVERAGE-STRATEGY.md) adds a user-dire
 
 | Stage | Output | Exit condition |
 |---|---|---|
-| P0: foundation and research | Repository, original scope/design, evidence ledger, backlog, development provisioning record | Documents reviewed; cloud project verified; authenticated REA/Craft attachment remains unresolved |
+| P0: foundation and research | Repository, original scope/design, evidence ledger, backlog, development provisioning record | Broad research closed by user direction; DSH attachment evidence recorded; residual qualifications tracked per module |
 | P1: workflow and integration qualification | Pilot workflow inventory, device/partner matrix, licensed-data assessment, migration sample contract | Clinical, billing and reception representatives validate the supported workflow and exception inventory |
 | P2: domain and security contracts | Schema design, state machines, role matrix, API/MCP schemas, threat model, recovery plan | Cross-tenant and high-impact action cases have explicit expected outcomes |
 | P3: synthetic acceptance and operational design | Scenario packs, financial reconciliation oracle, import/restore criteria, operator ownership | Every P1 capability has a measurable acceptance case and an owner |
 | P4: UI/UX design — deferred | Workflow navigation, accessibility, interaction design, usability validation | Separate user instruction; no mockups or UI code before then |
 
-UI is the final **planning** stage, not the last coding task after backend lock-in. Usability findings may revise contracts before implementation begins. This prevents premature backend assumptions from forcing unsafe clinical interactions.
+User sequencing clarification, 2026-11-03: broad incumbent research is closed. UI remains deferred and is not required now or before separately authorized synthetic backend foundation work. P1/P2/P3 module-specific qualification continues only where needed for the affected task. Later UI/workflow validation may revise contracts; do not freeze clinical interactions or claim user-facing readiness before that review.
 
 ## Implementation sequence after explicit authorization
 
@@ -46,7 +46,7 @@ Executable plans now exist for every workstream. Shared types, identifiers, mone
 | M: migration and operations | [migration and operations](superpowers/plans/2026-11-04-migration-and-operations.md) |
 | R: supported release | [supported release](superpowers/plans/2026-11-04-supported-release.md) |
 
-A plan existing is not a plan being approved, funded or sequenced. Each carries open decisions and blocked-on-discovery items that must be settled before implementation, and inventing payer or clinical contracts today would not make the project more ready.
+A plan existing is not a plan being approved, funded or sequenced. Each carries open decisions and qualification items that must be settled before the affected task executes, and inventing payer or clinical contracts today would not make the project more ready.
 
 ## AI delivery within the existing workstreams
 

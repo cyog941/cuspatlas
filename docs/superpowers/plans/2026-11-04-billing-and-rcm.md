@@ -87,7 +87,7 @@ Proposed contract definitions to create during execution, not code already prese
 ### B1: Money type and append-only journal invariants
 
 **Dependencies:** F1–F5. **Status:** implementation.
-**Files (proposed):** `packages/contracts/src/money.ts`, `packages/domain/src/billing/journal.ts`, `apps/api/src/routes/billing/journal.ts`, migration via `supabase migration new billing_journal`, `tests/integration/billing-journal.test.ts`, `docs/adr/0003-money.md`.
+**Files (proposed):** `packages/contracts/src/money.ts`, `packages/domain/src/billing/journal.ts`, `apps/api/src/routes/billing/journal.ts`, migration via `supabase migration new billing_journal`, `tests/integration/billing-journal.test.ts`, `docs/adr/0008-money.md`.
 **Contract:** `postJournalEntry(ctx, envelope: CommandEnvelope<JournalEntryInput>): Promise<CommandResult<{ entryRef: string }>>`; `reverseJournalEntry(ctx, envelope: CommandEnvelope<{ entryRef: string; reason: string }>): Promise<CommandResult<{ entryRef: string }>>`; `readPatientBalance(ctx, { patientRef, currency }): Promise<{ balance: Money; asOf: string }>`.
 **Refusals:** `unbalanced_entry`, `currency_mismatch`, `already_reversed`, `entry_not_found`, `tenant_mismatch`, `stale_version`.
 
@@ -269,7 +269,7 @@ Proposed contract definitions to create during execution, not code already prese
 |---|---|---|---|
 | B-D1 Card data handling | Store card data; store provider tokens only | Provider tokens only, no card data in our systems | Provider contract and PCI obligations reviewed (B-S1) |
 | B-D2 Draft vs posted adjustments | Auto-post contractual adjustments; require review | Post insurer contractual adjustments from remittance, require review for patient-facing adjustments | Billing reviewer sign-off |
-| B-D3 Rounding of a residual minor unit | Assign to largest line; fixed order; refuse | Deterministic largest-remainder with a documented tie-break, recorded on the allocation | Billing reviewer sign-off; recorded in ADR 0003 |
+| B-D3 Rounding of a residual minor unit | Assign to largest line; fixed order; refuse | Deterministic largest-remainder with a documented tie-break, recorded on the allocation | Billing reviewer sign-off; recorded in ADR 0008 |
 | B-D4 Undistributed funds policy | Hold indefinitely; age and escalate; refund | Hold with age basis and an escalation worklist; refund only by explicit command | Practice financial policy |
 | B-D5 Statement delivery | Portal only; printed in practice; mail vendor | Portal plus recorded manual print at pilot; no mail vendor before a qualified partner exists | Operator decision at pilot |
 | B-D6 Historical financial detail | Import as posted transactions; opening balances plus archive | Opening balances plus an integrity-checked read-only archive, never fabricated postings | Design review already recommends this; confirms at migration sign-off |

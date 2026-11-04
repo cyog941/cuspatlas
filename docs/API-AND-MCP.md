@@ -35,6 +35,8 @@ Names are proposals, not implemented endpoints. All other matrix operations requ
 
 ## Execution guarantees
 
+The [shared contracts](SHARED-CONTRACTS.md#transport-mapping-and-replay) define authoritative REST/MCP refusal mapping and replay authorization. Typed domain refusals are not successful operations. Successful-change audit commits with the mutation/outbox; denied and failed attempts use the independent minimized security-attempt path so rollback does not erase them. Follow the shared audit outage and crash-window rules.
+
 Every mutation receives an idempotency key and request correlation ID; store actor, tenant, operation, payload digest, result and bounded retry retention. Reusing a key with different content fails. Use expected record version/ETag; conflict returns a structured 409 with safe reconciliation guidance. Client-supplied tenant values never establish authority.
 
 High-impact tools support prepare/commit: a server-created proposal binds operation, payload digest, actor, affected records and versions, expiry, policy version and approval identity. Commit rechecks permissions and versions. A stale proposal fails. Read-only discovery must not enqueue actions. Bulk operations expose count, scope, per-item outcome and bounded batches; a partial failure is not atomic success.

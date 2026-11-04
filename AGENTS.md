@@ -2,7 +2,7 @@
 
 ## Current boundary
 
-This repository is in planning/foundation mode. The user authorized research, a GitHub repository, Supabase setup, specifications, and a build plan. Do not write product code, install application dependencies, create clinical schemas/migrations, deploy, or design UI until separately requested. UI design is the last planning stage and is deferred.
+This repository is in planning/foundation mode. The user authorized research, a GitHub repository, Supabase setup, specifications, and a build plan. Do not write product code, install application dependencies, create clinical schemas/migrations, deploy, or design UI until separately requested. Broad incumbent research is closed by user direction. UI design remains deferred until separately requested; it is not a prerequisite for separately authorized synthetic backend foundation work. Domain/workflow validation still gates affected clinical modules and user-facing release.
 
 ## Product commitments
 

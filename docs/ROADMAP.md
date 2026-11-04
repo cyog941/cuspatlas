@@ -22,6 +22,8 @@ Follow [AS-01 through AS-12](ASSURANCE-AND-CERTIFICATION.md): F establishes evid
 
 ## Implementation sequence after explicit authorization
 
+The [foundation execution runbook](superpowers/plans/2026-11-03-foundation-execution-runbook.md) defines E0–E6 batches, environment selection, task dependencies, test/commit checkpoints and stopping conditions for workstream F. It is an execution companion, not a tenth workstream. All batches are not started.
+
 Integration qualification runs during P1/P2 using the [hardware and claims backlog](HARDWARE-AND-CLAIMS-QUALIFICATION.md): H1/H2 establish pilot configurations and vendor interface rights; C1/C2 establish clearinghouse access, payer coverage, costs and enrollment; R1 establishes regulatory responsibilities. H3/C3 supply reviewed contracts. H4/C4 require real device and partner qualification during implementation. Synthetic foundation work can proceed after authorization, but workstreams I/B and release R cannot claim production support from mocked adapters. Vendor outreach drafts are prepared, not sent.
 
 | Workstream | Depends on | Independently verifiable result |

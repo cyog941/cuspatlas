@@ -10,6 +10,8 @@
 
 **Spec:** [Product design](../specs/2026-11-03-dental-pms-design.md), [API contract](../../API-AND-MCP.md), [security gates](../../SECURITY-AND-READINESS.md).
 
+Execution order, environment prerequisites and batch gates: [foundation execution runbook](2026-11-03-foundation-execution-runbook.md). All execution batches remain not started.
+
 ## Global Constraints
 
 - US general dentistry first.
@@ -51,7 +53,7 @@ These are proposed contract definitions to create in Task 1, not code already pr
 - `withTenantTransaction<T>(ctx: ActorContext, work: (tx: TenantTransaction) => Promise<T>): Promise<T>` validates context and guarantees transaction-local database state and cleanup.
 - `CommandEnvelope<T> = { operation: string; idempotencyKey: string; expectedVersion?: number; payload: T }`.
 - `CommandResult<T> = { data: T; version: number; correlationId: string; replayed: boolean }`.
-- `AuditEvent = { tenantId: string; actorId: string; operation: string; resourceId: string; correlationId: string; outcome: 'allowed' | 'denied' | 'committed'; occurredAt: string }`; no PHI body.
+- `AuditEvent` records committed changes using authenticated tenant/actor, safe resource reference, operation, correlation and timestamp. `SecurityAttemptEvent` separately records denied/failed attempts with a unique attempt reference and optional authenticated tenant/actor; unauthenticated requests never fabricate identity. Define their runtime schemas in Task 1; persist them through the two paths in SHARED-CONTRACTS. Neither carries a PHI body.
 - `OutboxEvent = { id: string; tenantId: string; actorId: string; operation: string; aggregateId: string; aggregateVersion: number; occurredAt: string; payload: unknown }`; payload classified and minimized, never logged automatically.
 
 ### Task 1: Reproducible synthetic-only service boundary
@@ -81,7 +83,7 @@ Consumes: ActorContext. Produces: `authorize`, `withTenantTransaction`, TenantTr
 
 Files: `packages/contracts/src/synthetic-task.schema.json`, `packages/domain/src/synthetic-tasks.ts`, `apps/api/src/routes/synthetic-tasks.ts`, `tests/integration/transport-policy.test.ts`, `docs/api/openapi.yaml`.
 
-Consumes: Task 2 policy/transaction. Produces: `createSyntheticTask(ctx, envelope): Promise<CommandResult<{id:string; label:string}>>` as a non-clinical test domain used only in synthetic environments.
+Consumes: Task 2 policy/transaction. Produces: `createSyntheticTask(ctx, envelope): Promise<CommandResult<{taskRef:string; label:string}>>` as a non-clinical test domain used only in synthetic environments.
 
 - [ ] Write tests for schema rejection, unknown properties, bounded label length (1–120), location denial, forged tenant, safe pagination and no sensitive error echo.
 - [ ] Run `pnpm test:integration -- transport-policy`; confirm unimplemented behavior fails.

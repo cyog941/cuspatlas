@@ -40,6 +40,8 @@ Read-only observation of Tab32 through an authenticated session. Structure and v
 
 ### Implementation plans
 
+Start execution planning with the [synthetic foundation runbook](docs/superpowers/plans/2026-11-03-foundation-execution-runbook.md), which sequences F without adding a new workstream.
+
 One per roadmap workstream, all conforming to [shared contracts](docs/SHARED-CONTRACTS.md):
 
 | Workstream | Plan |

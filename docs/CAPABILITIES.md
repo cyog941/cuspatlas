@@ -30,6 +30,10 @@ Status: requirements, not implemented features. Initial market: US general denti
 | Specialty breadth | Ortho installments/progress, advanced surgery/endodontics, specialty templates, richer inventory/timekeeping | Separate clinical and workflow validation per specialty; no universal-parity claim | P2 |
 | International | Country packs for terminology, tax, payers, prescribing, language and residency | US assumptions are not hardcoded into identity, currency or tooth numbering | P2 |
 
+## Deployment and ownership capability
+
+The [open-platform onboarding contract](OPEN-PLATFORM-AND-ONBOARDING.md) adds supported database/service onboarding, secure connector administration, complete recovery and service exit as required platform capabilities. All software functionality is free/open; paid tiers only cover setup, hosting/managed operation and support. Tests must cover interrupted onboarding, revocation and continuity after support ends.
+
 ## Follow-up workflow requirements from authenticated observation
 
 These are original proposed acceptance requirements prompted by visible Tab32 controls, not claims about Tab32's backend implementation.

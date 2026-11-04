@@ -16,6 +16,10 @@
 
 Consume [PT-01–06 and UX-01–03](../../PRACTICE-TIME-AND-AUTOMATION.md) in the owning tasks: reuse authoritative data, expose current state/next owner, distinguish unavailable from empty, and automate eligible routine steps under explicit policy. Clinical and imaging tasks provide correctly linked evidence for CL-04; scheduling/engagement tasks coordinate cancellation recovery, recall and treatment follow-up with consent and race-safe booking. Preserve human clinical judgment and signatures. Add exception, retry, revocation and provenance cases before implementing these extensions; UI design stays deferred.
 
+## Provider onboarding acceptance
+
+Apply [CN-01–05](../../OPEN-PLATFORM-AND-ONBOARDING.md) to this workstream's provider adapters: guided protected credentials, sandbox/live distinction, required enrollment/verification, explicit capabilities/costs, health, rotation/revocation and recoverable failures. Test interrupted onboarding, failed verification, unsafe live test actions, duplicate callbacks and expired credentials. Provider connection does not establish clinical or production qualification. No CuspAtlas paid tier may gate this adapter; third-party contracts and costs remain explicit.
+
 ## Global Constraints
 
 - The [platform foundation](2026-11-03-platform-foundation.md) is a prerequisite for this plan; this plan adds no platform guarantee of its own and does not restate the foundation's synthetic-data, provenance or tenancy rules. Tenant and actor are always derived from context.

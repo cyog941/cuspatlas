@@ -7,7 +7,7 @@ This repository is in planning/foundation mode. The user authorized research, a 
 ## Product commitments
 
 - US general dentistry first; internationalization and specialties are extensibility requirements, not launch promises.
-- Core PMS functionality, documented API, MCP, export, and self-hosting must not require proprietary feature keys.
+- All CuspAtlas software features remain free and open source, including connectors, AI, security, deployment tooling, API/MCP, migration and export. No proprietary feature keys or paid software tiers. Paid offerings cover setup, hosting/managed operation and support only; third-party usage costs remain separate.
 - No real patient records, production exports, cookies, tokens, private account URLs, screenshots of patient charts, or licensed terminology datasets in Git, issues, logs, demos, or fixtures.
 - Use synthetic data for development; free development hosting is not authorization for PHI.
 - Copy workflow requirements, not a vendor's code, branding, imagery, or screen design.

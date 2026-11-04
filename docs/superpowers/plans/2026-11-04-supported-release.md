@@ -22,6 +22,10 @@ Register the applicable [AS-01 through AS-12 requirements](../../ASSURANCE-AND-C
 
 Use [UX-01–03, CL-01–12, PT-01–06 and MG-01–05](../../PRACTICE-TIME-AND-AUTOMATION.md) in R3 staff validation and the release evidence register. Assess complete workflows, active staff handling time, duplicate entry, corrections, intervention reasons, migration effort and unresolved accounts. Agree baselines and task-specific targets before sessions. An automated error is not time saved; show failure/correction rates. Claims of reduced effort, improved collections or easy migration require measured evidence. UI design is deferred; these requirements specify later acceptance, not screens.
 
+## Open-product and onboarding release checks
+
+Register [BY/CN/ON requirements](../../OPEN-PLATFORM-AND-ONBOARDING.md). Verify feature parity across supported deployment modes without CuspAtlas license keys, repeatable installation/upgrade/complete restore, secrets excluded from exports/logs, temporary support access and exit after paid-service cancellation. Third-party fees, enrollment and capabilities must be disclosed. Measure setup success/time/support burden in later usability testing; no production readiness follows from a successful connection ping.
+
 ## Global Constraints
 
 - This is a reviewed proposal. Nothing here is implemented, tested, validated, certified, approved or authorized.

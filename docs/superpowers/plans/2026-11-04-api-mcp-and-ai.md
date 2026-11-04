@@ -22,6 +22,10 @@ Apply [AS-07 through AS-11](../../ASSURANCE-AND-CERTIFICATION.md) to AI onboardi
 
 Apply the [practice time and automation contract](../../PRACTICE-TIME-AND-AUTOMATION.md). Extend the shared operation catalog with eligible automation mode, standing-policy prerequisites, limits, expiration/review and exception destination. Durable workflows retain source versions, step outcomes and authority receipts; connectors never bypass owning domain commands. Add parity tests for policy revocation mid-job, scope/limit breach, stale payload, duplicate/out-of-order events, human exception and owner departure. Initial AI stays read/draft; enabling rule-authorized execution is a reviewed per-operation capability, not blanket model autonomy. Measure resolved work and interventions, not just tool calls.
 
+## Open connector administration requirements
+
+Apply [CN-01–05 and ON-03–04](../../OPEN-PLATFORM-AND-ONBOARDING.md) to A1/A3/A8/A14/A17/A19. Define registry, configure/authorize, test, qualify, health, rotate and revoke operations through shared policy. Store only secret references in general configuration; never return raw credentials to models or configuration exports. Add negative tests for cross-tenant connector references, revoked admins, unsafe endpoint/redirects, unintended live test effects, callback replay and rotation during delivery. A19 must verify all software operations remain usable without a paid feature key or commercial control plane.
+
 ## Global Constraints
 
 - This is a reviewed proposal. Nothing here is implemented, tested, validated or authorized.

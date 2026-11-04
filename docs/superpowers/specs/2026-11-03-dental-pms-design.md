@@ -243,6 +243,8 @@ Provisional operational targets for pilot planning: RPO <=15 minutes, RTO <=4 ho
 
 ## Open-source and operating model
 
+User-directed commercial contract: **all software features are free and open source; paid offerings cover setup, hosting/managed operation and support only**. The [open-platform onboarding contract](../../OPEN-PLATFORM-AND-ONBOARDING.md) defines supported bring-your-own PostgreSQL/Supabase, service connections, guided setup, protected secrets, qualification states, temporary support access and paid-service exit. Self-managed, practice-owned managed and vendor-hosted modes share feature contracts; certification and operational responsibility do not automatically transfer. No paid control plane or feature key is required for self-hosted operation.
+
 Recommend AGPL-3.0-or-later for the core to preserve access to modifications used as a network service; evaluate permissive SDK licensing separately. This is a product recommendation, not legal advice. Preserve third-party notices, contributor provenance and DCO sign-off. No contribution terms that silently transfer ownership. Governance and release stewardship must outlive one founder.
 
 Core, security controls, API, MCP, import/export and self-hosting remain free software. Optional managed hosting, migration, support and vendor usage can fund maintenance. Publish costs and dependencies; do not promise unlimited free cloud hosting or payer connectivity. Review terminology rights before distributing CDT or other licensed datasets. Use synthetic placeholder procedures in fixtures until licensed content is explicitly authorized.

@@ -8,6 +8,8 @@ CuspAtlas is a working name: a tooth's cusp + an atlas of practice operations. T
 
 ## Purpose
 
+All software features remain free and open source. Paid offerings cover setup, hosting/managed operation and support only. Practices can bring supported infrastructure and service accounts through the [open-platform onboarding contract](docs/OPEN-PLATFORM-AND-ONBOARDING.md); third-party costs and qualification remain separate.
+
 Ease of use, staff time returned, closed-loop claims automation and practical migration are core product pillars. See [practice time and automation requirements](docs/PRACTICE-TIME-AND-AUTOMATION.md); these are requirements, not shipped features.
 
 Give dental practices ownership of their data and software, complete practice workflows, and secure programmatic access without a software-license paywall. Self-hosting is a first-class objective. Hosting, hardware, support, communications, payer connections, prescribing, and model inference still have real costs.

@@ -22,6 +22,8 @@ Follow [AS-01 through AS-12](ASSURANCE-AND-CERTIFICATION.md): F establishes evid
 
 ## Implementation sequence after explicit authorization
 
+[Open-platform onboarding](OPEN-PLATFORM-AND-ONBOARDING.md) is mandatory scope across F/A/M/B/E/I/R: all features open/free, paid services only, qualified bring-your-own infrastructure, guided connector setup and verifiable exit. Design the configuration contracts alongside backend modules; visual onboarding remains deferred.
+
 [Practice time and automation](PRACTICE-TIME-AND-AUTOMATION.md) is an acceptance requirement across B/A/S/E/C/I/M/R. Prioritize the closed-loop claims workflow and exception ownership, then cancellation recovery and treatment follow-up. Measure staff effort and resolved outcomes. This is a cross-workstream sequence, not a claim that the current synthetic foundation implements it; UI remains deferred.
 
 The [foundation execution runbook](superpowers/plans/2026-11-03-foundation-execution-runbook.md) defines E0–E6 batches, environment selection, task dependencies, test/commit checkpoints and stopping conditions for workstream F. It is an execution companion, not a tenth workstream. All batches are not started.

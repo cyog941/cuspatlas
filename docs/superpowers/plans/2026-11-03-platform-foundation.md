@@ -30,6 +30,10 @@ Broad incumbent research is closed by user direction on 2026-11-03. DSH records 
 
 Translate the observed workflow states into synthetic acceptance cases: payment-plan missing signature/default/void versus collection, statement generation versus delivery/freshness, claims assignment versus appeal status, and audit search versus restoration. Test authorization separately for each operation across UI/API/MCP/jobs. Record unresolved vendor behavior explicitly and obtain clinical/financial validation before replacement release.
 
+## Open-platform foundation requirements
+
+Consume [BY-01–05 and CN-05](../../OPEN-PLATFORM-AND-ONBOARDING.md): separate bootstrap/migration and runtime credentials, model environment/target identity and secret-store interfaces, and test configuration without exposing secrets. Do not provision cloud services or implement a license gate. The existing synthetic environment remains the initial test target; complete operator onboarding belongs to M/A.
+
 ## Implementation review focus
 
 The [AI PMS architecture contract](../../AI-PMS-ARCHITECTURE.md) is an input to this plan. Foundation work must support controlled proposals and accountable automation without implementing clinical assistants or connecting live models. Subsequent module plans must inherit its capability dependencies and evaluation gates.

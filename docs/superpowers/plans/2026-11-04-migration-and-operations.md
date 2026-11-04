@@ -51,6 +51,10 @@ Apply [MG-01–05 and UX-01–03](../../PRACTICE-TIME-AND-AUTOMATION.md). M2 add
 
 Acceptance includes repeated import after interruption, source-schema drift, ambiguous patient, unmapped clinical semantics, incorrect opening balance, unavailable archive, and post-cutover rollback reconciliation. Measure practice/operator effort and downtime using synthetic rehearsals; no automatic mapping may fabricate clinical or financial meaning. Visual onboarding design is still deferred.
 
+## Bring-your-own deployment and service handover
+
+Apply [BY-01–05 and ON-01–04](../../OPEN-PLATFORM-AND-ONBOARDING.md). Extend M9 with versioned deployment templates, database preflight, separate setup/runtime authority, resumable migration and upgrade health checks. M8 must restore database plus objects and validate key custody. M1/M6/M10 must prove redacted configuration export, credential reauthorization, complete data transfer and continued practice-owned operation after support revocation. Record supported runtime/database/auth/storage combinations; arbitrary existing databases are not supported by default. Test interrupted setup, unrelated existing data, incorrect target, failed restore, support expiry and hosted-service handover. Onboarding visual design stays deferred.
+
 ## Implementation review focus
 
 - Running an import twice must produce the same target state and no duplicates; M3 must prove it against every entity class, not just patients.

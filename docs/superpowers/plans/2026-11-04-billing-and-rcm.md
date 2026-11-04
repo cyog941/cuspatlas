@@ -12,6 +12,10 @@
 
 **Task numbering:** this plan's prefix is `B`. Implementation tasks are `B1`–`B10`, discovery spikes are `B-S1`–`B-S4`, and open decisions are `B-D1`–`B-D8`. A cross-workstream reference names the fully qualified task: `F` is [platform foundation](2026-11-03-platform-foundation.md), `S` is [patients and scheduling](2026-11-04-scheduling-and-patients.md), `C` is [clinical record](2026-11-04-clinical-record.md), `I` imaging, `E` portal, `M` migration. Spikes have owners, sit in the dependency graph and can block a task. `Blocks` is derived from `Dependencies` and is never maintained as a second list.
 
+## Provider onboarding acceptance
+
+Apply [CN-01–05](../../OPEN-PLATFORM-AND-ONBOARDING.md) to this workstream's provider adapters: guided protected credentials, sandbox/live distinction, required enrollment/verification, explicit capabilities/costs, health, rotation/revocation and recoverable failures. Test interrupted onboarding, failed verification, unsafe live test actions, duplicate callbacks and expired credentials. Provider connection does not establish clinical or production qualification. No CuspAtlas paid tier may gate this adapter; third-party contracts and costs remain explicit.
+
 ## Global Constraints
 
 - The [platform foundation](2026-11-03-platform-foundation.md) is a prerequisite for this plan; this plan adds no platform guarantee of its own and does not restate the foundation's synthetic-data, provenance or export rules.

@@ -98,6 +98,19 @@ export const ACTION_POLICIES = {
   'billing.entries.reverse': { scope: 'billing.correct', principals: ['human'] },
   'billing.ledger.list': { scope: 'ledger.read', principals: ['human', 'service'] },
   'billing.balances.read': { scope: 'ledger.read', principals: ['human', 'service'] },
+  // B2 payments and allocations. Recording, settling, reconciling and allocating are billing.write
+  // (a deterministic rule may post them as a service). Refunds and transfers of funds between
+  // patients are corrections: human-only billing.correct. Payment reads need paymentDistribution.read
+  // and the undistributed-funds worklist undistributedFunds.read (registry report scopes).
+  'billing.payments.record': { scope: 'billing.write', principals: ['human', 'service'] },
+  'billing.payments.read': { scope: 'paymentDistribution.read', principals: ['human', 'service'] },
+  'billing.payments.settle': { scope: 'billing.write', principals: ['human', 'service'] },
+  'billing.payments.reconcile': { scope: 'billing.write', principals: ['human', 'service'] },
+  'billing.payments.allocate': { scope: 'billing.write', principals: ['human', 'service'] },
+  'billing.payments.refund': { scope: 'billing.correct', principals: ['human'] },
+  'billing.funds.transfer': { scope: 'billing.correct', principals: ['human'] },
+  'billing.responsibility.transfer': { scope: 'billing.write', principals: ['human', 'service'] },
+  'billing.worklist.list': { scope: 'undistributedFunds.read', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

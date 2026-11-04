@@ -778,7 +778,149 @@ export const COMMANDS: HarnessCommand[] = [
     rest: (f) => ({ method: 'GET', url: `/v1/billing/patients/${P(f)}/balance`, keyed: false, status: 200 }),
     mcpArgs: (f) => ({ patientRef: P(f) }),
   },
+  // B2 payments, allocations and the undistributed-funds worklist. Refunds and transfers between
+  // patients are human-only corrections (billing.correct).
+  {
+    operation: 'billing.payments.record',
+    tool: 'billing_payments_record',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({ method: 'POST', url: PAYMENTS, body: paymentBody(f), keyed: true, status: 201 }),
+    mcpArgs: (f) => ({ ...paymentBody(f), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'billing.payments.read',
+    tool: 'billing_payments_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({ method: 'GET', url: `${PAYMENTS}/${f.alphaPayment}`, keyed: false, status: 200 }),
+    mcpArgs: (f) => ({ paymentRef: f.alphaPayment }),
+  },
+  {
+    operation: 'billing.payments.settle',
+    tool: 'billing_payments_settle',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `${PAYMENTS}/${f.alphaPayment}/settle`,
+      body: { settlementRef: 'syn-deposit-harness' },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      paymentRef: f.alphaPayment,
+      settlementRef: 'syn-deposit-harness',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'billing.payments.allocate',
+    tool: 'billing_payments_allocate',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `${PAYMENTS}/${f.alphaPayment}/allocations`,
+      body: allocationBody(f),
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({ paymentRef: f.alphaPayment, ...allocationBody(f), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'billing.payments.refund',
+    tool: 'billing_payments_refund',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `${PAYMENTS}/${f.alphaPayment}/refunds`,
+      body: { amount: { currency: 'USD', minor: 100 }, reasonCode: 'overpayment' },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      paymentRef: f.alphaPayment,
+      amount: { currency: 'USD', minor: 100 },
+      reasonCode: 'overpayment',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'billing.funds.transfer',
+    tool: 'billing_funds_transfer',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `${PAYMENTS}/${f.alphaPayment}/transfers`,
+      body: transferBody(f),
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({ paymentRef: f.alphaPayment, ...transferBody(f), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'billing.responsibility.transfer',
+    tool: 'billing_responsibility_transfer',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/billing/charges/${f.alphaCharge}/responsibility`,
+      body: responsibilityBody(),
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({ chargeRef: f.alphaCharge, ...responsibilityBody(), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'billing.payments.reconcile',
+    tool: 'billing_payments_reconcile',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/billing/payment-attempts/${f.alphaAttempt}/reconcile`,
+      body: {},
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ attemptRef: f.alphaAttempt, idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'billing.worklist.list',
+    tool: 'billing_worklist_list',
+    crossTenant: 'empty_page',
+    downgradedTo: 'noPatientScopes',
+    rest: () => ({ method: 'GET', url: '/v1/billing/worklist', keyed: false, status: 200 }),
+    mcpArgs: () => ({}),
+  },
 ];
+
+const PAYMENTS = '/v1/billing/payments';
+function paymentBody(f: HarnessFixture) {
+  return { patientRef: P(f), amount: { currency: 'USD', minor: 2500 }, method: 'cash' };
+}
+function allocationBody(f: HarnessFixture) {
+  return { allocations: [{ chargeRef: f.alphaCharge, amount: { currency: 'USD', minor: 100 } }] };
+}
+function transferBody(f: HarnessFixture) {
+  return {
+    toPatientRef: f.alphaCounterparty,
+    amount: { currency: 'USD', minor: 100 },
+    reasonCode: 'family_account',
+  };
+}
+function responsibilityBody() {
+  return {
+    direction: 'to_insurer',
+    payerRef: 'syn-payer-harness',
+    amount: { currency: 'USD', minor: 100 },
+    reasonCode: 'coverage_expected',
+  };
+}
 
 /** B1 charge body: a fresh synthetic procedure per call so a success could never collide. */
 function chargeBody(f: HarnessFixture) {
@@ -1037,7 +1179,18 @@ beforeAll(async () => {
   // B1: one posted charge for the alpha patient.
   const charge = await owner('/v1/billing/charges', chargeBody({ alphaPatient } as HarnessFixture));
   expect(charge.statusCode).toBe(201);
+  // B2: one cash payment and one unknown-outcome provider attempt for the alpha patient.
+  const cashPayment = await owner('/v1/billing/payments', paymentBody({ alphaPatient } as HarnessFixture));
+  expect(cashPayment.statusCode).toBe(201);
+  const attempt = await owner('/v1/billing/payments', {
+    ...paymentBody({ alphaPatient } as HarnessFixture),
+    method: 'card_synthetic',
+    instrumentRef: 'syn-card-timeout-pending',
+  });
+  expect(attempt.json().data.outcome).toBe('unknown');
   fixture = {
+    alphaPayment: cashPayment.json().data.paymentRef,
+    alphaAttempt: attempt.json().data.attemptRef,
     alphaCharge: charge.json().data.chargeRef,
     alphaEntry: charge.json().data.entryRef,
     alphaProvider,
@@ -1166,6 +1319,8 @@ async function state(): Promise<string> {
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.billing_charges'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.billing_journal_entries'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.billing_journal_lines'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.billing_payments'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.billing_payment_attempts'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.audit_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.outbox_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.command_idempotency'),

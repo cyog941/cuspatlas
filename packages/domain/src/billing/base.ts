@@ -17,6 +17,7 @@ import { executeOnce } from '../commands/execute-once';
 import type { CommandExecutor } from '../commands/executor';
 import type { ActionName, Authorize } from '../policy/authorize';
 import { createSchedulingCursorCodec, type SchedulingCursorCodec } from '../scheduling/cursor';
+import type { PaymentProviderPort } from './payment-port';
 
 export interface BillingDeps {
   readonly authorize: Authorize;
@@ -26,6 +27,8 @@ export interface BillingDeps {
   readonly execute?: CommandExecutor;
   /** Defaults to a per-process random HMAC key (cursor construction shared with scheduling). */
   readonly cursors?: SchedulingCursorCodec;
+  /** Payment provider port (B2). Defaults to the in-process synthetic provider (B-S1 open). */
+  readonly payments?: PaymentProviderPort;
 }
 
 export interface BillingBase {

@@ -1,0 +1,683 @@
+import {
+  type ActorContext,
+  type AllocationView,
+  type AttemptReconcile,
+  type CommandEnvelope,
+  type CommandResult,
+  type EntryCommandData,
+  type FundsTransfer,
+  type HolderAmount,
+  type Money,
+  moneyFromMinorText,
+  negateMoney,
+  type PaymentCommandData,
+  type PaymentMethod,
+  type PaymentRecord,
+  type PaymentRefund,
+  type PaymentSettle,
+  type PaymentView,
+  type ReconcileCommandData,
+  RefusalError,
+  type TenantTransaction,
+  validateAttemptReconcile,
+  validateFundsTransfer,
+  validatePaymentRecord,
+  validatePaymentRefund,
+  validatePaymentSettle,
+} from '@cuspatlas/contracts';
+import { idempotencyKeyDigest, sha256Hex } from '../commands/digest';
+import { recordCommand } from '../events/record-command';
+import { recordSensitiveRead } from '../events/record-sensitive-read';
+import {
+  assertNotMerged,
+  assertRef,
+  type BillingBase,
+  checkEnvelope,
+  conflict,
+  failed,
+  inTenantCurrency,
+  isPgError,
+  loadPatient,
+  loadSettings,
+  notFound,
+  type PatientRow,
+  validate,
+} from './base';
+import { bumpAggregates, lockAggregates, PAYMENT_RESOURCE } from './entries';
+import { dimensionBalance, type LineInput, postEntry, SignViolation } from './journal';
+import { createSyntheticPaymentProvider, type PaymentProviderPort } from './payment-port';
+
+export const ATTEMPT_RESOURCE = 'billingPaymentAttempt';
+
+export interface PaymentRow extends Record<string, unknown> {
+  id: string;
+  patient_id: string;
+  guarantor_id: string | null;
+  method: PaymentMethod;
+  amount: string;
+  currency: string;
+  external_ref: string | null;
+  attempt_id: string | null;
+  received_at: Date;
+  version: number;
+  entry_id: string;
+  reversal_id: string | null;
+}
+
+const PAYMENT_COLUMNS = `p.id, p.patient_id, p.guarantor_id, p.method, p.amount_minor::text AS amount, p.currency,
+  p.external_ref, p.attempt_id, p.received_at, p.version,
+  (SELECT e.id FROM cuspatlas.billing_journal_entries e WHERE e.payment_id = p.id AND e.kind = 'patientPayment'
+     AND e.reverses_entry_id IS NULL) AS entry_id,
+  (SELECT r.id FROM cuspatlas.billing_journal_entries r JOIN cuspatlas.billing_journal_entries e
+     ON r.reverses_entry_id = e.id WHERE e.payment_id = p.id AND e.kind = 'patientPayment') AS reversal_id`;
+
+export async function loadPayment(tx: TenantTransaction, paymentRef: string): Promise<PaymentRow> {
+  assertRef(paymentRef);
+  const { rows } = await tx.query<PaymentRow>(
+    `SELECT ${PAYMENT_COLUMNS} FROM cuspatlas.billing_payments p WHERE p.id = $1`,
+    [paymentRef],
+  );
+  const row = rows[0];
+  if (!row) throw notFound();
+  return row;
+}
+
+export function assertPaymentActive(row: PaymentRow): void {
+  if (row.reversal_id !== null)
+    throw conflict('payment_reversed', [{ kind: 'journalEntry', ref: row.reversal_id }]);
+}
+
+/** Unapplied funds of one payment per holding patient (positive amounts, patient-reference order). */
+export async function unappliedHolders(
+  tx: TenantTransaction,
+  paymentId: string,
+  currency: string,
+): Promise<HolderAmount[]> {
+  const { rows } = await tx.query<{ patient_id: string; s: string }>(
+    `SELECT patient_id, (-sum(amount_minor))::text AS s FROM cuspatlas.billing_journal_lines
+     WHERE payment_id = $1 AND account = 'unapplied_credit'
+     GROUP BY patient_id HAVING sum(amount_minor) <> 0 ORDER BY patient_id`,
+    [paymentId],
+  );
+  return rows.map((r) => ({ patientRef: r.patient_id, amount: moneyFromMinorText(currency, r.s) }));
+}
+
+const cashOf = (
+  tx: TenantTransaction,
+  paymentId: string,
+  currency: string,
+  account: 'undeposited_funds' | 'settled_cash',
+) =>
+  dimensionBalance(tx, currency, { account, charge: null, payer: null, payment: paymentId, patient: null });
+
+/** The lines of a received payment: cash in hand (not settled) against the patient's unapplied credit. */
+const receivedLines = (amount: Money, patientId: string, paymentId: string): LineInput[] => [
+  { account: 'undeposited_funds', amount, patientId, paymentId },
+  { account: 'unapplied_credit', amount: negateMoney(amount), patientId, paymentId },
+];
+
+/** A guarantor must be the patient's current, unrevoked guarantor (S5 relationship). */
+async function assertGuarantor(
+  tx: TenantTransaction,
+  patient: PatientRow,
+  guarantor: PatientRow,
+): Promise<void> {
+  const { rows } = await tx.query<{ ok: number }>(
+    `SELECT 1 AS ok FROM cuspatlas.patient_relationships
+     WHERE subject_patient_id = $1 AND counterparty_patient_id = $2 AND kind = 'guarantor' AND revoked_at IS NULL
+       AND effective_from <= now() AND (effective_until IS NULL OR effective_until > now())`,
+    [patient.id, guarantor.id],
+  );
+  if (rows.length === 0) throw failed('guarantor_unresolved');
+}
+
+/**
+ * B2 payment facts: recording (manual or through the synthetic provider port), settlement,
+ * reconciliation of unknown provider outcomes, refunds and transfers of unapplied funds. Every money
+ * movement is a journal entry; nothing is edited.
+ */
+export function createPaymentOperations(
+  base: BillingBase,
+  provider: PaymentProviderPort = createSyntheticPaymentProvider(),
+) {
+  const { deps, execute } = base;
+
+  async function insertPayment(
+    tx: TenantTransaction,
+    o: {
+      patientId: string;
+      guarantorId: string | null;
+      method: PaymentMethod;
+      amount: Money;
+      externalRef: string | null;
+      attemptId: string | null;
+      receivedAt: string | null;
+    },
+  ): Promise<{ paymentId: string; entryRef: string }> {
+    let paymentId: string;
+    try {
+      const { rows } = await tx.query<{ id: string }>(
+        `INSERT INTO cuspatlas.billing_payments (tenant_id, patient_id, guarantor_id, method, amount_minor, currency,
+           external_ref, attempt_id, received_at, created_by)
+         VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6, $7, coalesce($8::timestamptz, now()),
+           cuspatlas.current_actor_id())
+         RETURNING id`,
+        [
+          o.patientId,
+          o.guarantorId,
+          o.method,
+          String(o.amount.minor),
+          o.amount.currency,
+          o.externalRef,
+          o.attemptId,
+          o.receivedAt,
+        ],
+      );
+      paymentId = rows[0]?.id as string;
+    } catch (err) {
+      if (isPgError(err, '23505')) throw conflict('duplicate_receipt');
+      throw err;
+    }
+    const entryRef = await postEntry(tx, {
+      kind: 'patientPayment',
+      currency: o.amount.currency,
+      paymentId,
+      externalRef: o.externalRef,
+      lines: receivedLines(o.amount, o.patientId, paymentId),
+    });
+    return { paymentId, entryRef };
+  }
+
+  /** Common shape of a command on one payment: authorize, validate, lock the payment, run once. */
+  function onPayment<P, T>(
+    ctx: ActorContext,
+    op: 'billing.payments.settle' | 'billing.payments.refund' | 'billing.funds.transfer',
+    paymentRef: string,
+    envelope: CommandEnvelope<unknown>,
+    check: (p: unknown) => asserts p is P,
+    work: (tx: TenantTransaction, row: PaymentRow, p: P) => Promise<{ data: T; changed: string }>,
+    before?: (tx: TenantTransaction, p: P) => Promise<void>,
+  ): Promise<CommandResult<T>> {
+    return base.guarded(ctx, op, async () => {
+      await base.authorize(ctx, op);
+      checkEnvelope(envelope, op);
+      const p = envelope.payload;
+      check(p);
+      assertRef(paymentRef);
+      return deps.withTenantTransaction(ctx, async (tx) => {
+        const row = await loadPayment(tx, paymentRef);
+        if (before) await before(tx, p);
+        await lockAggregates(tx, { payments: [row.id], charges: [] });
+        return execute<T>(ctx, { ...envelope, payload: { paymentRef, ...(p as object) } }, tx, async () => {
+          const current = await loadPayment(tx, paymentRef);
+          assertPaymentActive(current);
+          const out = await work(tx, current, p);
+          const version = (await bumpAggregates(tx, { payments: [row.id], charges: [] })).get(row.id) ?? 1;
+          await recordCommand(
+            tx,
+            { operation: op, resourceType: PAYMENT_RESOURCE, resourceRef: row.id, resourceVersion: version },
+            { changedFields: [out.changed] },
+          );
+          return { data: out.data, version };
+        });
+      });
+    });
+  }
+
+  return {
+    /** recordPaymentIntent (B2 contract): records the fact, or the provider attempt and its outcome. */
+    recordPayment(
+      ctx: ActorContext,
+      envelope: CommandEnvelope<unknown>,
+    ): Promise<CommandResult<PaymentCommandData>> {
+      const op = 'billing.payments.record';
+      return base.guarded(ctx, op, async () => {
+        await base.authorize(ctx, op);
+        checkEnvelope(envelope, op);
+        const p = envelope.payload;
+        validate<PaymentRecord>(validatePaymentRecord, p);
+        return deps.withTenantTransaction(ctx, async (tx) => {
+          const patient = await loadPatient(tx, p.patientRef, 'FOR SHARE');
+          const guarantor =
+            p.guarantorRef === undefined ? null : await loadPatient(tx, p.guarantorRef, 'FOR SHARE');
+          return execute<PaymentCommandData>(ctx, envelope, tx, async () => {
+            const settings = await loadSettings(tx);
+            const amount = inTenantCurrency(settings, p.amount);
+            const card = p.method === 'card_synthetic';
+            if (card && p.instrumentRef === undefined) throw failed('instrument_required');
+            if (!card && p.instrumentRef !== undefined) throw failed('instrument_not_allowed');
+            if (card && p.externalRef !== undefined) throw failed('external_ref_not_allowed');
+            if (p.receivedAt !== undefined) {
+              const { rows } = await tx.query<{ future: boolean }>(
+                `SELECT ($1::timestamptz > now() + interval '5 minutes') AS future`,
+                [p.receivedAt],
+              );
+              if (rows[0]?.future === true) throw failed('received_in_future');
+            }
+            assertNotMerged(patient);
+            if (guarantor) {
+              assertNotMerged(guarantor);
+              await assertGuarantor(tx, patient, guarantor);
+            }
+            if (!card && p.externalRef !== undefined) {
+              const dup = await tx.query<{ id: string }>(
+                'SELECT id FROM cuspatlas.billing_payments WHERE method = $1 AND external_ref = $2',
+                [p.method, p.externalRef],
+              );
+              const id = dup.rows[0]?.id;
+              if (id) throw conflict('duplicate_receipt', [{ kind: 'billingPayment', ref: id }]);
+            }
+            let attemptId: string | null = null;
+            let externalRef = p.externalRef ?? null;
+            if (card) {
+              // The provider key is stable for every retry of this caller request (same scope as the
+              // idempotency reservation), so a retry after a lost commit cannot charge twice.
+              const providerKey = sha256Hex(
+                `billing-provider:${ctx.tenantId}:${ctx.actorId}:${op}:${idempotencyKeyDigest(envelope.idempotencyKey)}`,
+              );
+              const answer = await provider.capture({
+                providerKey,
+                amount,
+                instrumentRef: p.instrumentRef as string,
+              });
+              const confirmed = answer.outcome === 'confirmed' && answer.receiptId !== undefined;
+              const outcome = confirmed
+                ? 'confirmed'
+                : answer.outcome === 'declined'
+                  ? 'declined'
+                  : 'unknown';
+              const { rows } = await tx.query<{ id: string }>(
+                `INSERT INTO cuspatlas.billing_payment_attempts (tenant_id, patient_id, guarantor_id, method, instrument_ref,
+                   provider_key, amount_minor, currency, outcome, provider_receipt, created_by)
+                 VALUES (cuspatlas.current_tenant_id(), $1, $2, 'card_synthetic', $3, $4, $5, $6, $7, $8,
+                   cuspatlas.current_actor_id())
+                 RETURNING id`,
+                [
+                  patient.id,
+                  guarantor?.id ?? null,
+                  p.instrumentRef,
+                  providerKey,
+                  String(amount.minor),
+                  amount.currency,
+                  outcome,
+                  confirmed ? answer.receiptId : null,
+                ],
+              );
+              attemptId = rows[0]?.id as string;
+              if (!confirmed) {
+                // Declined: a recorded fact, nothing collected. Unknown: an open reconciliation item,
+                // never posted as collected and never retried automatically.
+                await recordCommand(
+                  tx,
+                  {
+                    operation: op,
+                    resourceType: ATTEMPT_RESOURCE,
+                    resourceRef: attemptId,
+                    resourceVersion: 1,
+                  },
+                  { changedFields: ['attempt'] },
+                );
+                return {
+                  data: { outcome, paymentRef: null, attemptRef: attemptId, entryRef: null },
+                  version: 1,
+                };
+              }
+              externalRef = answer.receiptId as string;
+            }
+            const posted = await insertPayment(tx, {
+              patientId: patient.id,
+              guarantorId: guarantor?.id ?? null,
+              method: p.method,
+              amount,
+              externalRef,
+              attemptId,
+              receivedAt: p.receivedAt ?? null,
+            });
+            await recordCommand(
+              tx,
+              {
+                operation: op,
+                resourceType: PAYMENT_RESOURCE,
+                resourceRef: posted.paymentId,
+                resourceVersion: 1,
+              },
+              { changedFields: ['payment'] },
+            );
+            return {
+              data: {
+                outcome: 'confirmed',
+                paymentRef: posted.paymentId,
+                attemptRef: attemptId,
+                entryRef: posted.entryRef,
+              },
+              version: 1,
+            };
+          });
+        });
+      });
+    },
+
+    getPayment(ctx: ActorContext, paymentRef: string): Promise<PaymentView> {
+      const op = 'billing.payments.read';
+      return base.guarded(ctx, op, async () => {
+        await base.authorize(ctx, op);
+        assertRef(paymentRef);
+        return deps.withTenantTransaction(ctx, async (tx) => {
+          const row = await loadPayment(tx, paymentRef);
+          const m = (s: string) => moneyFromMinorText(row.currency, s);
+          const { rows } = await tx.query<{ account: string; kind: string; s: string }>(
+            `SELECT l.account, e.kind, sum(l.amount_minor)::text AS s FROM cuspatlas.billing_journal_lines l
+             JOIN cuspatlas.billing_journal_entries e ON e.id = l.entry_id AND e.tenant_id = l.tenant_id
+             WHERE l.payment_id = $1 GROUP BY l.account, e.kind`,
+            [row.id],
+          );
+          const sum = (pred: (r: { account: string; kind: string }) => boolean) =>
+            rows.filter(pred).reduce((s, r) => s + BigInt(r.s), BigInt(0));
+          const holders = await unappliedHolders(tx, row.id, row.currency);
+          const unapplied = -sum((r) => r.account === 'unapplied_credit');
+          const allocated = -sum((r) => r.account === 'patient_receivable');
+          const refunded = sum((r) => r.account === 'unapplied_credit' && r.kind === 'refund');
+          const settled = sum((r) => r.account === 'settled_cash');
+          const unsettled = sum((r) => r.account === 'undeposited_funds');
+          const allocs = await tx.query<{
+            id: string;
+            charge_id: string;
+            patient_id: string;
+            s: string;
+            posted_at: Date;
+            reversed_by: string | null;
+          }>(
+            `SELECT e.id, e.charge_id, l.patient_id, (-l.amount_minor)::text AS s, e.posted_at,
+               (SELECT r.id FROM cuspatlas.billing_journal_entries r WHERE r.reverses_entry_id = e.id) AS reversed_by
+             FROM cuspatlas.billing_journal_entries e
+             JOIN cuspatlas.billing_journal_lines l ON l.entry_id = e.id AND l.tenant_id = e.tenant_id
+               AND l.account = 'patient_receivable'
+             WHERE e.payment_id = $1 AND e.kind = 'allocation' AND e.reverses_entry_id IS NULL
+             ORDER BY e.posted_at, e.id LIMIT 100`,
+            [row.id],
+          );
+          const allocations: AllocationView[] = allocs.rows.map((a) => ({
+            allocationRef: a.id,
+            chargeRef: a.charge_id,
+            patientRef: a.patient_id,
+            amount: m(a.s),
+            allocatedAt: a.posted_at.toISOString(),
+            reversedByEntryRef: a.reversed_by,
+          }));
+          await recordSensitiveRead(tx, {
+            operation: op,
+            resourceType: PAYMENT_RESOURCE,
+            resourceRefs: [row.id],
+            queryFields: [],
+          });
+          return {
+            paymentRef: row.id,
+            patientRef: row.patient_id,
+            guarantorRef: row.guarantor_id,
+            method: row.method,
+            amount: m(row.amount),
+            externalRef: row.external_ref,
+            attemptRef: row.attempt_id,
+            receivedAt: row.received_at.toISOString(),
+            entryRef: row.entry_id,
+            state: row.reversal_id === null ? 'received' : 'reversed',
+            settlement: {
+              state:
+                settled === BigInt(0)
+                  ? 'received'
+                  : unsettled === BigInt(0)
+                    ? 'settled'
+                    : 'partially_settled',
+              settled: m(settled.toString()),
+              unsettled: m(unsettled.toString()),
+            },
+            allocated: m(allocated.toString()),
+            refunded: m(refunded.toString()),
+            unapplied: m(unapplied.toString()),
+            unappliedByPatient: holders,
+            allocations,
+            version: row.version,
+          };
+        });
+      });
+    },
+
+    /** Settlement (M-8): moves the payment's unsettled cash to settled cash. Received is not settled. */
+    settlePayment(ctx: ActorContext, paymentRef: string, envelope: CommandEnvelope<unknown>) {
+      return onPayment<PaymentSettle, EntryCommandData>(
+        ctx,
+        'billing.payments.settle',
+        paymentRef,
+        envelope,
+        (p): asserts p is PaymentSettle => validate<PaymentSettle>(validatePaymentSettle, p),
+        async (tx, row, p) => {
+          const unsettled = await cashOf(tx, row.id, row.currency, 'undeposited_funds');
+          if (unsettled.minor <= 0) throw conflict('nothing_to_settle');
+          const entryRef = await postEntry(tx, {
+            kind: 'settlement',
+            currency: row.currency,
+            paymentId: row.id,
+            externalRef: p.settlementRef,
+            reasonCode: p.reasonCode ?? null,
+            lines: [
+              { account: 'settled_cash', amount: unsettled, patientId: row.patient_id, paymentId: row.id },
+              {
+                account: 'undeposited_funds',
+                amount: negateMoney(unsettled),
+                patientId: row.patient_id,
+                paymentId: row.id,
+              },
+            ],
+          });
+          return { data: { entryRef }, changed: 'settlement' };
+        },
+      );
+    },
+
+    /** A refund returns the original payer's unapplied money: unsettled cash first, then settled cash. */
+    refundPayment(ctx: ActorContext, paymentRef: string, envelope: CommandEnvelope<unknown>) {
+      return onPayment<PaymentRefund, EntryCommandData>(
+        ctx,
+        'billing.payments.refund',
+        paymentRef,
+        envelope,
+        (p): asserts p is PaymentRefund => validate<PaymentRefund>(validatePaymentRefund, p),
+        async (tx, row, p) => {
+          const settings = await loadSettings(tx);
+          const amount = inTenantCurrency(settings, p.amount);
+          const holders = await unappliedHolders(tx, row.id, row.currency);
+          const own = holders.find((x) => x.patientRef === row.patient_id)?.amount.minor ?? 0;
+          if (own < amount.minor) throw conflict('refund_exceeds_funds');
+          const unsettled = (await cashOf(tx, row.id, row.currency, 'undeposited_funds')).minor;
+          const fromUnsettled = Math.min(unsettled, amount.minor);
+          const fromSettled = amount.minor - fromUnsettled;
+          const lines: LineInput[] = [
+            { account: 'unapplied_credit', amount, patientId: row.patient_id, paymentId: row.id },
+          ];
+          if (fromUnsettled > 0) {
+            lines.push({
+              account: 'undeposited_funds',
+              amount: moneyFromMinorText(row.currency, String(-fromUnsettled)),
+              patientId: row.patient_id,
+              paymentId: row.id,
+            });
+          }
+          if (fromSettled > 0) {
+            lines.push({
+              account: 'settled_cash',
+              amount: moneyFromMinorText(row.currency, String(-fromSettled)),
+              patientId: row.patient_id,
+              paymentId: row.id,
+            });
+          }
+          try {
+            const entryRef = await postEntry(tx, {
+              kind: 'refund',
+              currency: row.currency,
+              paymentId: row.id,
+              externalRef: p.refundRef ?? null,
+              reasonCode: p.reasonCode,
+              lines,
+            });
+            return { data: { entryRef }, changed: 'refund' };
+          } catch (err) {
+            if (err instanceof SignViolation) throw conflict('refund_exceeds_funds');
+            throw err;
+          }
+        },
+      );
+    },
+
+    /** moveUnappliedFunds (B2 contract): moves one payment's unapplied money to another patient. */
+    transferFunds(ctx: ActorContext, paymentRef: string, envelope: CommandEnvelope<unknown>) {
+      let to: PatientRow | null = null;
+      let from: PatientRow | null = null;
+      return onPayment<FundsTransfer, EntryCommandData>(
+        ctx,
+        'billing.funds.transfer',
+        paymentRef,
+        envelope,
+        (p): asserts p is FundsTransfer => validate<FundsTransfer>(validateFundsTransfer, p),
+        async (tx, row, p) => {
+          if (!to || !from) throw new Error('transfer parties not loaded');
+          const settings = await loadSettings(tx);
+          const amount = inTenantCurrency(settings, p.amount);
+          if (from.id === to.id) throw failed('same_patient');
+          assertNotMerged(to);
+          const holders = await unappliedHolders(tx, row.id, row.currency);
+          const fromId = from.id;
+          const available = holders.find((x) => x.patientRef === fromId)?.amount.minor ?? 0;
+          if (available < amount.minor) throw conflict('insufficient_funds');
+          try {
+            const entryRef = await postEntry(tx, {
+              kind: 'transfer',
+              currency: row.currency,
+              paymentId: row.id,
+              reasonCode: p.reasonCode,
+              lines: [
+                { account: 'unapplied_credit', amount, patientId: from.id, paymentId: row.id },
+                {
+                  account: 'unapplied_credit',
+                  amount: negateMoney(amount),
+                  patientId: to.id,
+                  paymentId: row.id,
+                },
+              ],
+            });
+            return { data: { entryRef }, changed: 'unappliedFunds' };
+          } catch (err) {
+            if (err instanceof SignViolation) throw conflict('insufficient_funds');
+            throw err;
+          }
+        },
+        async (tx, p) => {
+          // Both parties must be visible patients of this tenant (404 otherwise), loaded before the lock.
+          to = await loadPatient(tx, p.toPatientRef, 'FOR SHARE');
+          const payment = await loadPayment(tx, paymentRef);
+          from = await loadPatient(tx, p.fromPatientRef ?? payment.patient_id, 'FOR SHARE');
+        },
+      );
+    },
+
+    /** Resolves an unknown provider outcome by lookup with the original key; never a new capture. */
+    reconcileAttempt(
+      ctx: ActorContext,
+      attemptRef: string,
+      envelope: CommandEnvelope<unknown>,
+    ): Promise<CommandResult<ReconcileCommandData>> {
+      const op = 'billing.payments.reconcile';
+      return base.guarded(ctx, op, async () => {
+        await base.authorize(ctx, op);
+        checkEnvelope(envelope, op);
+        const p = envelope.payload;
+        validate<AttemptReconcile>(validateAttemptReconcile, p);
+        assertRef(attemptRef);
+        return deps.withTenantTransaction(ctx, async (tx) => {
+          const { rows } = await tx.query<{
+            id: string;
+            patient_id: string;
+            guarantor_id: string | null;
+            instrument_ref: string;
+            provider_key: string;
+            amount: string;
+            currency: string;
+            outcome: string;
+            resolution: string | null;
+            created_at: Date;
+          }>(
+            `SELECT id, patient_id, guarantor_id, instrument_ref, provider_key, amount_minor::text AS amount, currency,
+               outcome, resolution, created_at
+             FROM cuspatlas.billing_payment_attempts WHERE id = $1 FOR UPDATE`,
+            [attemptRef],
+          );
+          const a = rows[0];
+          if (!a) throw notFound();
+          return execute<ReconcileCommandData>(
+            ctx,
+            { ...envelope, payload: { attemptRef, ...(p as object) } },
+            tx,
+            async () => {
+              if (a.outcome !== 'unknown') throw conflict('not_reconcilable');
+              if (a.resolution !== null) throw conflict('already_resolved');
+              const answer = await provider.lookup({
+                providerKey: a.provider_key,
+                instrumentRef: a.instrument_ref,
+              });
+              const captured = answer.outcome === 'confirmed' && answer.receiptId !== undefined;
+              if (!captured && answer.outcome !== 'declined') {
+                throw new RefusalError({
+                  code: 'conflict',
+                  retryable: true,
+                  detail: { reason: 'outcome_still_unknown' },
+                });
+              }
+              const { rows: upd } = await tx.query<{ version: number }>(
+                `UPDATE cuspatlas.billing_payment_attempts SET resolution = $1, resolved_at = now(),
+                   resolved_by = cuspatlas.current_actor_id(), provider_receipt = $2, version = version + 1,
+                   updated_at = now()
+                 WHERE id = $3 AND resolution IS NULL RETURNING version`,
+                [captured ? 'captured' : 'not_captured', captured ? answer.receiptId : null, a.id],
+              );
+              const version = upd[0]?.version;
+              if (version === undefined) throw conflict('already_resolved');
+              let paymentRef: string | null = null;
+              let entryRef: string | null = null;
+              if (captured) {
+                const posted = await insertPayment(tx, {
+                  patientId: a.patient_id,
+                  guarantorId: a.guarantor_id,
+                  method: 'card_synthetic',
+                  amount: moneyFromMinorText(a.currency, a.amount),
+                  externalRef: answer.receiptId as string,
+                  attemptId: a.id,
+                  receivedAt: a.created_at.toISOString(),
+                });
+                paymentRef = posted.paymentId;
+                entryRef = posted.entryRef;
+              }
+              await recordCommand(
+                tx,
+                {
+                  operation: op,
+                  resourceType: ATTEMPT_RESOURCE,
+                  resourceRef: a.id,
+                  resourceVersion: version,
+                },
+                { changedFields: ['resolution'] },
+              );
+              return {
+                data: {
+                  attemptRef: a.id,
+                  outcome: captured ? 'confirmed' : 'declined',
+                  paymentRef,
+                  entryRef,
+                },
+                version,
+              };
+            },
+          );
+        });
+      });
+    },
+  };
+}

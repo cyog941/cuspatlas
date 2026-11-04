@@ -104,6 +104,16 @@ const TOOL_NAMES = [
   'billing_entries_get',
   'billing_entries_reverse',
   'billing_ledger_list',
+  // B2 payment, allocation and worklist tools.
+  'billing_funds_transfer',
+  'billing_payments_allocate',
+  'billing_payments_get',
+  'billing_payments_reconcile',
+  'billing_payments_record',
+  'billing_payments_refund',
+  'billing_payments_settle',
+  'billing_responsibility_transfer',
+  'billing_worklist_list',
 ].sort();
 
 let db: TestDatabase;

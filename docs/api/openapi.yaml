@@ -1729,6 +1729,291 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/billing/payments:
+    post:
+      operationId: billing.payments.record
+      description: >-
+        recordPaymentIntent (B2): records patient money as a received fact (Dr undeposited_funds, Cr unapplied_credit) for cash or check, or calls the synthetic provider port for card_synthetic with a stable key derived from the idempotency scope. A declined attempt is recorded with no entry; an unknown outcome (timeout) is an open reconciliation item, never posted as collected and never retried automatically. A duplicate receipt is 409 duplicate_receipt; a guarantor must be the recorded guarantor (422 guarantor_unresolved). No card data, PAN or provider token is accepted (B-S1 blocked-on-discovery). Requires billing.write.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PaymentRecord'
+      responses:
+        '201':
+          description: The payment (outcome confirmed) or the provider attempt (declined, or unknown with a reconciliation item) is recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PaymentCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/payments/{paymentRef}:
+    get:
+      operationId: billing.payments.read
+      description: >-
+        Read one payment: allocations (with reversal links), unapplied funds per holding patient, refunded amount, and received versus settled cash, all derived from journal lines. Requires paymentDistribution.read.
+      parameters:
+        - $ref: '#/components/parameters/PaymentRef'
+      responses:
+        '200':
+          description: The payment with derived allocated, refunded, unapplied and settlement amounts.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PaymentRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/payments/{paymentRef}/settle:
+    post:
+      operationId: billing.payments.settle
+      description: >-
+        Record settlement of the payment's unsettled cash (Dr settled_cash, Cr undeposited_funds) with a synthetic deposit reference. Received is not settled (CL-10). 409 nothing_to_settle or payment_reversed. Requires billing.write.
+      parameters:
+        - $ref: '#/components/parameters/PaymentRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PaymentSettle'
+      responses:
+        '201':
+          description: Settlement entry posted.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/EntryCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/payments/{paymentRef}/allocations:
+    post:
+      operationId: billing.payments.allocate
+      description: >-
+        allocatePayment (B2): moves unapplied credit onto charges, in the caller's order, all or nothing. Concurrent allocations serialize on the payment and charge rows: 409 insufficient_funds or charge_overallocated for the loser, never an over-allocation. A charge of an unrelated account is 422 patient_mismatch; a charge of another tenant is 404. Requires billing.write.
+      parameters:
+        - $ref: '#/components/parameters/PaymentRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PaymentAllocate'
+      responses:
+        '201':
+          description: One allocation entry per charge, all or nothing.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/AllocationCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/payments/{paymentRef}/refunds:
+    post:
+      operationId: billing.payments.refund
+      description: >-
+        Record a refund of the original payer's unapplied money (unsettled cash first, then settled cash). A refund larger than collected and unapplied funds is 409 refund_exceeds_funds. Provider refund execution is blocked-on-discovery (B-S1). Requires billing.correct (human only).
+      parameters:
+        - $ref: '#/components/parameters/PaymentRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PaymentRefund'
+      responses:
+        '201':
+          description: Refund entry posted.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/EntryCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/payments/{paymentRef}/transfers:
+    post:
+      operationId: billing.funds.transfer
+      description: >-
+        moveUnappliedFunds (B2): moves part of a payment's unapplied money from one patient to another with a required reason; audited. 409 insufficient_funds, 422 same_patient, 404 for a patient of another tenant. Requires billing.correct (human only).
+      parameters:
+        - $ref: '#/components/parameters/PaymentRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/FundsTransfer'
+      responses:
+        '201':
+          description: Transfer entry posted.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/EntryCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/charges/{chargeRef}/responsibility:
+    post:
+      operationId: billing.responsibility.transfer
+      description: >-
+        Move open responsibility for a charge between the patient and a synthetic payer reference (until B5 coverage exists). Never beyond what is open: 409 responsibility_exceeded or charge_reversed. Requires billing.write.
+      parameters:
+        - $ref: '#/components/parameters/ChargeRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ResponsibilityTransfer'
+      responses:
+        '201':
+          description: Responsibility transfer entry posted.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/EntryCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/payment-attempts/{attemptRef}/reconcile:
+    post:
+      operationId: billing.payments.reconcile
+      description: >-
+        Resolve an unknown provider outcome by looking it up with the original key; never a new capture. Still unknown is a retryable 409 outcome_still_unknown; 409 already_resolved or not_reconcilable. Requires billing.write.
+      parameters:
+        - $ref: '#/components/parameters/AttemptRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/AttemptReconcile'
+      responses:
+        '200':
+          description: The unknown outcome is resolved (captured posts the payment; declined posts nothing).
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ReconcileCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/worklist:
+    get:
+      operationId: billing.worklist.list
+      description: >-
+        Exception-first worklist (B-D4): undistributed (unapplied) funds per payment and holder, and unknown provider outcomes awaiting reconciliation, each with owner, queue, reason, age basis, due time and suggested action. Derived, never stored; a bounded page states its total and whether it was truncated. Requires undistributedFunds.read.
+      parameters:
+        - $ref: '#/components/parameters/BillingWorklistKind'
+        - $ref: '#/components/parameters/BillingWorklistLimit'
+      responses:
+        '200':
+          description: Owned billing work items, ordered by due time, with total and truncation.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Worklist'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
 components:
   securitySchemes:
     bearer:
@@ -1866,6 +2151,32 @@ components:
       required: false
       schema:
         $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Instant'
+    PaymentRef:
+      name: paymentRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PaymentRef'
+    AttemptRef:
+      name: attemptRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/billing.schema.json#/$defs/AttemptRef'
+    BillingWorklistKind:
+      name: kind
+      in: query
+      required: false
+      schema:
+        $ref: '../../packages/contracts/src/billing.schema.json#/$defs/WorklistKind'
+    BillingWorklistLimit:
+      name: limit
+      in: query
+      required: false
+      description: Page size 1-100 (default 50). Larger values are refused, not clamped.
+      schema:
+        type: string
+        pattern: '^([1-9]|[1-9][0-9]|100)$'
   responses:
     Refusal:
       description: Typed refusal (code, retryable, correlationId, optional safe detail).

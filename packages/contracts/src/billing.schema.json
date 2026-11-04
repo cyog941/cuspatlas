@@ -658,6 +658,589 @@
           "$ref": "#/$defs/Balance"
         }
       }
+    },
+    "AttemptRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "InstrumentRef": {
+      "type": "string",
+      "description": "Synthetic opaque instrument for the synthetic provider only (B-S1 blocked-on-discovery). Never card data or a provider token.",
+      "pattern": "^syn-card-[a-z0-9-]{1,40}$"
+    },
+    "PaymentMethod": {
+      "enum": ["cash", "check", "card_synthetic"]
+    },
+    "PaymentOutcome": {
+      "enum": ["confirmed", "declined", "unknown"]
+    },
+    "PaymentRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Records patient money as a received fact (Dr undeposited_funds / Cr unapplied_credit). card_synthetic needs instrumentRef and calls the synthetic provider; cash and check must not carry one.",
+      "required": ["patientRef", "amount", "method"],
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "amount": {
+          "$ref": "#/$defs/PositiveMoney"
+        },
+        "method": {
+          "$ref": "#/$defs/PaymentMethod"
+        },
+        "externalRef": {
+          "$ref": "#/$defs/SyntheticRef"
+        },
+        "instrumentRef": {
+          "$ref": "#/$defs/InstrumentRef"
+        },
+        "guarantorRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "receivedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "PaymentSettle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["settlementRef"],
+      "properties": {
+        "settlementRef": {
+          "$ref": "#/$defs/SyntheticRef"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "AllocationLine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["chargeRef", "amount"],
+      "properties": {
+        "chargeRef": {
+          "$ref": "#/$defs/ChargeRef"
+        },
+        "amount": {
+          "$ref": "#/$defs/PositiveMoney"
+        }
+      }
+    },
+    "PaymentAllocate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allocations"],
+      "properties": {
+        "allocations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/$defs/AllocationLine"
+          }
+        }
+      }
+    },
+    "PaymentRefund": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["amount", "reasonCode"],
+      "properties": {
+        "amount": {
+          "$ref": "#/$defs/PositiveMoney"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "refundRef": {
+          "$ref": "#/$defs/SyntheticRef"
+        }
+      }
+    },
+    "FundsTransfer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["toPatientRef", "amount", "reasonCode"],
+      "properties": {
+        "fromPatientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "toPatientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "amount": {
+          "$ref": "#/$defs/PositiveMoney"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "ResponsibilityTransfer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["direction", "payerRef", "amount", "reasonCode"],
+      "properties": {
+        "direction": {
+          "enum": ["to_insurer", "to_patient"]
+        },
+        "payerRef": {
+          "$ref": "#/$defs/PayerRef"
+        },
+        "amount": {
+          "$ref": "#/$defs/PositiveMoney"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "AttemptReconcile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "WorklistKind": {
+      "enum": ["unapplied_funds", "unknown_payment_outcome"]
+    },
+    "WorklistQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/WorklistKind"
+        },
+        "limit": {
+          "type": "string",
+          "pattern": "^([1-9]|[1-9][0-9]|100)$"
+        }
+      }
+    },
+    "PaymentCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["outcome", "paymentRef", "attemptRef", "entryRef"],
+          "properties": {
+            "outcome": {
+              "$ref": "#/$defs/PaymentOutcome"
+            },
+            "paymentRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/PaymentRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "attemptRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AttemptRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "entryRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/EntryRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "EntryCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["entryRef"],
+          "properties": {
+            "entryRef": {
+              "$ref": "#/$defs/EntryRef"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "AllocationCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["allocationRefs"],
+          "properties": {
+            "allocationRefs": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 20,
+              "items": {
+                "$ref": "#/$defs/EntryRef"
+              }
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "Allocation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allocationRef", "chargeRef", "patientRef", "amount", "allocatedAt", "reversedByEntryRef"],
+      "properties": {
+        "allocationRef": {
+          "$ref": "#/$defs/EntryRef"
+        },
+        "chargeRef": {
+          "$ref": "#/$defs/ChargeRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "amount": {
+          "$ref": "#/$defs/Money"
+        },
+        "allocatedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "reversedByEntryRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EntryRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "HolderAmount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["patientRef", "amount"],
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "amount": {
+          "$ref": "#/$defs/Money"
+        }
+      }
+    },
+    "Payment": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Allocated, refunded, unapplied and settlement amounts are derived from journal lines. Received is not settled; settlement is its own entry.",
+      "required": [
+        "paymentRef",
+        "patientRef",
+        "guarantorRef",
+        "method",
+        "amount",
+        "externalRef",
+        "attemptRef",
+        "receivedAt",
+        "entryRef",
+        "state",
+        "settlement",
+        "allocated",
+        "refunded",
+        "unapplied",
+        "unappliedByPatient",
+        "allocations",
+        "version"
+      ],
+      "properties": {
+        "paymentRef": {
+          "$ref": "#/$defs/PaymentRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "guarantorRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PatientRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "method": {
+          "$ref": "#/$defs/PaymentMethod"
+        },
+        "amount": {
+          "$ref": "#/$defs/Money"
+        },
+        "externalRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SyntheticRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "attemptRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AttemptRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "receivedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "entryRef": {
+          "$ref": "#/$defs/EntryRef"
+        },
+        "state": {
+          "enum": ["received", "reversed"]
+        },
+        "settlement": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["state", "settled", "unsettled"],
+          "properties": {
+            "state": {
+              "enum": ["received", "partially_settled", "settled"]
+            },
+            "settled": {
+              "$ref": "#/$defs/Money"
+            },
+            "unsettled": {
+              "$ref": "#/$defs/Money"
+            }
+          }
+        },
+        "allocated": {
+          "$ref": "#/$defs/Money"
+        },
+        "refunded": {
+          "$ref": "#/$defs/Money"
+        },
+        "unapplied": {
+          "$ref": "#/$defs/Money"
+        },
+        "unappliedByPatient": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/HolderAmount"
+          }
+        },
+        "allocations": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/Allocation"
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "PaymentRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/Payment"
+        }
+      }
+    },
+    "ReconcileCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["attemptRef", "outcome", "paymentRef", "entryRef"],
+          "properties": {
+            "attemptRef": {
+              "$ref": "#/$defs/AttemptRef"
+            },
+            "outcome": {
+              "enum": ["confirmed", "declined"]
+            },
+            "paymentRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/PaymentRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "entryRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/EntryRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "WorkItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "subjectRef",
+        "patientRef",
+        "amount",
+        "ageBasis",
+        "owner",
+        "queue",
+        "reasonCode",
+        "dueAt",
+        "overdue",
+        "suggestedAction"
+      ],
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/WorklistKind"
+        },
+        "subjectRef": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "amount": {
+          "$ref": "#/$defs/Money"
+        },
+        "ageBasis": {
+          "$ref": "#/$defs/Instant"
+        },
+        "owner": {
+          "enum": ["practice"]
+        },
+        "queue": {
+          "enum": ["billing"]
+        },
+        "reasonCode": {
+          "enum": ["unapplied_funds", "provider_outcome_unknown"]
+        },
+        "dueAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "overdue": {
+          "type": "boolean"
+        },
+        "suggestedAction": {
+          "enum": ["allocate_or_refund", "reconcile_attempt"]
+        }
+      }
+    },
+    "Worklist": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "totalCount", "truncated", "checkedAt"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/WorkItem"
+          }
+        },
+        "totalCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "checkedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
     }
   }
 }

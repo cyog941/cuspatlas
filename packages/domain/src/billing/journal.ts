@@ -58,11 +58,12 @@ const SIGN: Readonly<
 
 /** A posting would break an account's sign rule; the command maps it to its own reason. */
 export class SignViolation extends Error {
-  readonly account: LedgerAccount;
-  constructor(account: LedgerAccount) {
+  /** Every account whose rule the posting would break (all dimensions are checked first). */
+  readonly accounts: readonly LedgerAccount[];
+  constructor(accounts: readonly LedgerAccount[]) {
     super('sign_violation');
     this.name = 'SignViolation';
-    this.account = account;
+    this.accounts = accounts;
   }
 }
 
@@ -125,10 +126,12 @@ async function assertSigns(tx: TenantTransaction, input: EntryInput): Promise<vo
     cur.delta += BigInt(l.amount.minor);
     seen.set(key, cur);
   }
+  const broken: LedgerAccount[] = [];
   for (const { d, delta } of seen.values()) {
     const after = BigInt((await dimensionBalance(tx, input.currency, d)).minor) + delta;
-    if (SIGN[d.account].nonNegative ? after < 0n : after > 0n) throw new SignViolation(d.account);
+    if (SIGN[d.account].nonNegative ? after < 0n : after > 0n) broken.push(d.account);
   }
+  if (broken.length > 0) throw new SignViolation(broken);
 }
 
 /**

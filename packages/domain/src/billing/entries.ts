@@ -90,10 +90,16 @@ export async function bumpAggregates(
 }
 
 /** The refusal a reversal gives when it would break a sign rule, by the original's kind. */
-function reversalRefusal(row: EntryRow, account: LedgerAccount, blocking: { kind: string; ref: string }[]) {
+function reversalRefusal(
+  row: EntryRow,
+  accounts: readonly LedgerAccount[],
+  blocking: { kind: string; ref: string }[],
+) {
+  // A payment whose money was used (allocated, transferred or refunded) needs those entries reversed
+  // first; one whose cash was settled needs the settlement reversed first.
   if (row.kind === 'patientPayment') {
     return conflict(
-      account === 'unapplied_credit' ? 'allocation_reversal_required' : 'settlement_reversal_required',
+      accounts.includes('unapplied_credit') ? 'allocation_reversal_required' : 'settlement_reversal_required',
       blocking,
     );
   }
@@ -148,7 +154,7 @@ export function createEntryOperations(base: BillingBase) {
                   chargeId: row.kind === 'charge' ? row.charge_id : null,
                   paymentId: row.payment_id,
                 });
-                throw reversalRefusal(row, err.account, blocking);
+                throw reversalRefusal(row, err.accounts, blocking);
               }
               if (isPgError(err, '23505')) throw conflict('already_reversed');
               throw err;

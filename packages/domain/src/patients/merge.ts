@@ -154,6 +154,19 @@ export const MERGE_EXCLUDED_REFERENCES: readonly { table: string; column: string
   // at read time (billing mergeSet) and BILLING_POST_MERGE_PROBE gates the unmerge.
   { table: 'billing_charges', column: 'patient_id', why: 'posted financial facts are never relinked' },
   { table: 'billing_journal_lines', column: 'patient_id', why: 'posted financial facts are never relinked' },
+  // B2: payment and attempt facts keep the identity that tendered them; the account follows the merge.
+  { table: 'billing_payments', column: 'patient_id', why: 'posted financial facts are never relinked' },
+  { table: 'billing_payments', column: 'guarantor_id', why: 'posted financial facts are never relinked' },
+  {
+    table: 'billing_payment_attempts',
+    column: 'patient_id',
+    why: 'posted financial facts are never relinked',
+  },
+  {
+    table: 'billing_payment_attempts',
+    column: 'guarantor_id',
+    why: 'posted financial facts are never relinked',
+  },
 ];
 
 /**

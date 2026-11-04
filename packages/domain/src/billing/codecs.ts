@@ -1,4 +1,11 @@
-import type { ChargeCommandData, ReversalCommandData } from '@cuspatlas/contracts';
+import type {
+  AllocationCommandData,
+  ChargeCommandData,
+  EntryCommandData,
+  PaymentCommandData,
+  ReconcileCommandData,
+  ReversalCommandData,
+} from '@cuspatlas/contracts';
 import type { ReplayCodec, StoredResult } from '../commands/execute-once';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -34,7 +41,77 @@ const reversal: ReplayCodec<ReversalCommandData> = {
   },
 };
 
+// ---- B2.
+const payment: ReplayCodec<PaymentCommandData> = {
+  persist: (d): StoredResult => ({
+    kind: 'success',
+    outcome: d.outcome,
+    paymentRef: d.paymentRef,
+    attemptRef: d.attemptRef,
+    entryRef: d.entryRef,
+  }),
+  restore(stored) {
+    success(stored);
+    const outcome = stored.outcome;
+    if (outcome !== 'confirmed' && outcome !== 'declined' && outcome !== 'unknown') throw malformed();
+    return {
+      outcome,
+      paymentRef: storedRefOrNull(stored.paymentRef),
+      attemptRef: storedRefOrNull(stored.attemptRef),
+      entryRef: storedRefOrNull(stored.entryRef),
+    };
+  },
+};
+
+const entry: ReplayCodec<EntryCommandData> = {
+  persist: (d): StoredResult => ({ kind: 'success', entryRef: d.entryRef }),
+  restore(stored) {
+    success(stored);
+    return { entryRef: storedRef(stored.entryRef) };
+  },
+};
+
+const allocation: ReplayCodec<AllocationCommandData> = {
+  persist: (d): StoredResult => ({ kind: 'success', allocationRefs: d.allocationRefs.join(',') }),
+  restore(stored) {
+    success(stored);
+    if (typeof stored.allocationRefs !== 'string') throw malformed();
+    return { allocationRefs: stored.allocationRefs.split(',').map(storedRef) };
+  },
+};
+
+const reconcile: ReplayCodec<ReconcileCommandData> = {
+  persist: (d): StoredResult => ({
+    kind: 'success',
+    outcome: d.outcome,
+    paymentRef: d.paymentRef,
+    entryRef: d.entryRef,
+  }),
+  restore(stored, payload) {
+    success(stored);
+    if (stored.outcome !== 'confirmed' && stored.outcome !== 'declined') throw malformed();
+    return {
+      attemptRef: storedRef((payload as { attemptRef?: unknown } | null)?.attemptRef),
+      outcome: stored.outcome,
+      paymentRef: storedRefOrNull(stored.paymentRef),
+      entryRef: storedRefOrNull(stored.entryRef),
+    };
+  },
+};
+
+export const BILLING_PAYMENT_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<unknown>>> = {
+  'billing.payments.record': payment as ReplayCodec<unknown>,
+  'billing.payments.settle': entry as ReplayCodec<unknown>,
+  'billing.payments.refund': entry as ReplayCodec<unknown>,
+  'billing.funds.transfer': entry as ReplayCodec<unknown>,
+  'billing.responsibility.transfer': entry as ReplayCodec<unknown>,
+  'billing.payments.allocate': allocation as ReplayCodec<unknown>,
+  'billing.payments.reconcile': reconcile as ReplayCodec<unknown>,
+};
+
+/** Every billing operation that runs through executeOnce (B1 and B2). */
 export const BILLING_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<unknown>>> = {
   'billing.charges.post': charge as ReplayCodec<unknown>,
   'billing.entries.reverse': reversal as ReplayCodec<unknown>,
+  ...BILLING_PAYMENT_REPLAY_CODECS,
 };

@@ -127,6 +127,16 @@ export const BILLING_BODIES = [
   'EntryReverse',
   'LedgerQuery',
   'BalanceQuery',
+  // B2.
+  'PaymentRecord',
+  'PaymentSettle',
+  'AllocationLine',
+  'PaymentAllocate',
+  'PaymentRefund',
+  'FundsTransfer',
+  'ResponsibilityTransfer',
+  'AttemptReconcile',
+  'WorklistQuery',
 ] as const;
 
 /** Definitions the proposal contract copies from the task contract; they must stay byte-identical. */

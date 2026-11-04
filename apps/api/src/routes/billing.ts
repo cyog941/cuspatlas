@@ -53,4 +53,32 @@ export function registerBillingRoutes(
   get('billing.balances.read', async (r) => ({
     data: await b.readBalance(requireActor(r), param(r, 'patientRef'), query(r)),
   }));
+  // B2.
+  post('billing.payments.record', (r) => b.recordPayment(requireActor(r), env('billing.payments.record', r)));
+  get('billing.payments.read', async (r) => ({
+    data: await b.getPayment(requireActor(r), param(r, 'paymentRef')),
+  }));
+  post('billing.payments.settle', (r) =>
+    b.settlePayment(requireActor(r), param(r, 'paymentRef'), env('billing.payments.settle', r)),
+  );
+  post('billing.payments.allocate', (r) =>
+    b.allocatePayment(requireActor(r), param(r, 'paymentRef'), env('billing.payments.allocate', r)),
+  );
+  post('billing.payments.refund', (r) =>
+    b.refundPayment(requireActor(r), param(r, 'paymentRef'), env('billing.payments.refund', r)),
+  );
+  post('billing.funds.transfer', (r) =>
+    b.transferFunds(requireActor(r), param(r, 'paymentRef'), env('billing.funds.transfer', r)),
+  );
+  post('billing.responsibility.transfer', (r) =>
+    b.transferResponsibility(
+      requireActor(r),
+      param(r, 'chargeRef'),
+      env('billing.responsibility.transfer', r),
+    ),
+  );
+  post('billing.payments.reconcile', (r) =>
+    b.reconcileAttempt(requireActor(r), param(r, 'attemptRef'), env('billing.payments.reconcile', r)),
+  );
+  get('billing.worklist.list', (r) => b.listWorklist(requireActor(r), query(r)));
 }

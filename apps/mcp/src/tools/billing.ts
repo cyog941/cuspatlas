@@ -113,6 +113,124 @@ export const BILLING_SPECS: BillingSpec[] = [
       return { data: await d.billing.readBalance(actor, s(args, 'patientRef'), without(args, 'patientRef')) };
     },
   },
+  // B2 payments, allocations and the worklist.
+  {
+    name: 'billing_payments_record',
+    operationId: 'billing.payments.record',
+    description:
+      'Record patient money as a received fact (cash, check) or through the synthetic card provider; an unknown outcome becomes a reconciliation item.',
+    body: 'PaymentRecord',
+    transport: ['idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) => d.billing.recordPayment(actor, billingEnvelope('billing.payments.record', args)),
+  },
+  {
+    name: 'billing_payments_get',
+    operationId: 'billing.payments.read',
+    description:
+      'Read one payment with its allocations, unapplied funds per patient, refunds and settlement.',
+    body: null,
+    transport: ['paymentRef'],
+    readOnly: true,
+    async run(d, actor, args) {
+      return { data: await d.billing.getPayment(actor, s(args, 'paymentRef')) };
+    },
+  },
+  {
+    name: 'billing_payments_settle',
+    operationId: 'billing.payments.settle',
+    description: 'Record settlement of the unsettled cash of a payment (received is not settled).',
+    body: 'PaymentSettle',
+    transport: ['paymentRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.billing.settlePayment(
+        actor,
+        s(args, 'paymentRef'),
+        billingEnvelope('billing.payments.settle', args, 'paymentRef'),
+      ),
+  },
+  {
+    name: 'billing_payments_allocate',
+    operationId: 'billing.payments.allocate',
+    description:
+      'Allocate unapplied payment funds to charges, all or nothing, never beyond funds or open responsibility.',
+    body: 'PaymentAllocate',
+    transport: ['paymentRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.billing.allocatePayment(
+        actor,
+        s(args, 'paymentRef'),
+        billingEnvelope('billing.payments.allocate', args, 'paymentRef'),
+      ),
+  },
+  {
+    name: 'billing_payments_refund',
+    operationId: 'billing.payments.refund',
+    description: 'Record a refund of unapplied money to the original payer (human only, reason required).',
+    body: 'PaymentRefund',
+    transport: ['paymentRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.billing.refundPayment(
+        actor,
+        s(args, 'paymentRef'),
+        billingEnvelope('billing.payments.refund', args, 'paymentRef'),
+      ),
+  },
+  {
+    name: 'billing_funds_transfer',
+    operationId: 'billing.funds.transfer',
+    description:
+      'Move unapplied payment funds from one patient to another (human only, reason required, audited).',
+    body: 'FundsTransfer',
+    transport: ['paymentRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.billing.transferFunds(
+        actor,
+        s(args, 'paymentRef'),
+        billingEnvelope('billing.funds.transfer', args, 'paymentRef'),
+      ),
+  },
+  {
+    name: 'billing_responsibility_transfer',
+    operationId: 'billing.responsibility.transfer',
+    description: 'Move open responsibility for a charge between the patient and a synthetic payer.',
+    body: 'ResponsibilityTransfer',
+    transport: ['chargeRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.billing.transferResponsibility(
+        actor,
+        s(args, 'chargeRef'),
+        billingEnvelope('billing.responsibility.transfer', args, 'chargeRef'),
+      ),
+  },
+  {
+    name: 'billing_payments_reconcile',
+    operationId: 'billing.payments.reconcile',
+    description: 'Resolve an unknown provider outcome by lookup with the original key; never a new capture.',
+    body: 'AttemptReconcile',
+    transport: ['attemptRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.billing.reconcileAttempt(
+        actor,
+        s(args, 'attemptRef'),
+        billingEnvelope('billing.payments.reconcile', args, 'attemptRef'),
+      ),
+  },
+  {
+    name: 'billing_worklist_list',
+    operationId: 'billing.worklist.list',
+    description: 'Owned billing work items: undistributed funds and unknown provider outcomes, by due time.',
+    body: 'WorklistQuery',
+    transport: [],
+    readOnly: true,
+    run: (d, actor, args) => d.billing.listWorklist(actor, { ...args }),
+  },
 ];
 
 /**

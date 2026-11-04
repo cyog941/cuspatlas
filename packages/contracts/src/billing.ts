@@ -130,3 +130,129 @@ export const validateChargePost = def('ChargePost');
 export const validateEntryReverse = def('EntryReverse');
 export const validateLedgerQuery = def('LedgerQuery');
 export const validateBalanceQuery = def('BalanceQuery');
+
+// ---- B2 payments, allocations and undistributed funds.
+export type PaymentMethod = 'cash' | 'check' | 'card_synthetic';
+export type PaymentOutcome = 'confirmed' | 'declined' | 'unknown';
+export interface PaymentRecord {
+  readonly patientRef: string;
+  readonly amount: Money;
+  readonly method: PaymentMethod;
+  readonly externalRef?: string;
+  readonly instrumentRef?: string;
+  readonly guarantorRef?: string;
+  readonly receivedAt?: string;
+}
+export interface PaymentSettle {
+  readonly settlementRef: string;
+  readonly reasonCode?: string;
+}
+export interface PaymentAllocate {
+  readonly allocations: readonly { readonly chargeRef: string; readonly amount: Money }[];
+}
+export interface PaymentRefund {
+  readonly amount: Money;
+  readonly reasonCode: string;
+  readonly refundRef?: string;
+}
+export interface FundsTransfer {
+  readonly fromPatientRef?: string;
+  readonly toPatientRef: string;
+  readonly amount: Money;
+  readonly reasonCode: string;
+}
+export interface ResponsibilityTransfer {
+  readonly direction: 'to_insurer' | 'to_patient';
+  readonly payerRef: string;
+  readonly amount: Money;
+  readonly reasonCode: string;
+}
+export interface AttemptReconcile {
+  readonly reasonCode?: string;
+}
+export type BillingWorklistKind = 'unapplied_funds' | 'unknown_payment_outcome';
+export interface BillingWorklistQuery {
+  readonly kind?: BillingWorklistKind;
+  readonly limit?: string;
+}
+export interface PaymentCommandData {
+  readonly outcome: PaymentOutcome;
+  readonly paymentRef: string | null;
+  readonly attemptRef: string | null;
+  readonly entryRef: string | null;
+}
+export interface EntryCommandData {
+  readonly entryRef: string;
+}
+export interface AllocationCommandData {
+  readonly allocationRefs: readonly string[];
+}
+export interface ReconcileCommandData {
+  readonly attemptRef: string;
+  readonly outcome: 'confirmed' | 'declined';
+  readonly paymentRef: string | null;
+  readonly entryRef: string | null;
+}
+export interface AllocationView {
+  readonly allocationRef: string;
+  readonly chargeRef: string;
+  readonly patientRef: string;
+  readonly amount: Money;
+  readonly allocatedAt: string;
+  readonly reversedByEntryRef: string | null;
+}
+export interface HolderAmount {
+  readonly patientRef: string;
+  readonly amount: Money;
+}
+export interface PaymentView {
+  readonly paymentRef: string;
+  readonly patientRef: string;
+  readonly guarantorRef: string | null;
+  readonly method: PaymentMethod;
+  readonly amount: Money;
+  readonly externalRef: string | null;
+  readonly attemptRef: string | null;
+  readonly receivedAt: string;
+  readonly entryRef: string;
+  readonly state: 'received' | 'reversed';
+  readonly settlement: {
+    readonly state: 'received' | 'partially_settled' | 'settled';
+    readonly settled: Money;
+    readonly unsettled: Money;
+  };
+  readonly allocated: Money;
+  readonly refunded: Money;
+  readonly unapplied: Money;
+  readonly unappliedByPatient: readonly HolderAmount[];
+  readonly allocations: readonly AllocationView[];
+  readonly version: number;
+}
+export interface BillingWorkItem {
+  readonly kind: BillingWorklistKind;
+  readonly subjectRef: string;
+  readonly patientRef: string;
+  readonly amount: Money;
+  readonly ageBasis: string;
+  readonly owner: 'practice';
+  readonly queue: 'billing';
+  readonly reasonCode: 'unapplied_funds' | 'provider_outcome_unknown';
+  readonly dueAt: string;
+  readonly overdue: boolean;
+  readonly suggestedAction: 'allocate_or_refund' | 'reconcile_attempt';
+}
+export interface BillingWorklist {
+  readonly data: readonly BillingWorkItem[];
+  readonly totalCount: number;
+  readonly truncated: boolean;
+  readonly checkedAt: string;
+}
+
+export const validatePaymentRecord = def('PaymentRecord');
+export const validatePaymentSettle = def('PaymentSettle');
+export const validatePaymentAllocate = def('PaymentAllocate');
+export const validatePaymentRefund = def('PaymentRefund');
+export const validateFundsTransfer = def('FundsTransfer');
+export const validateResponsibilityTransfer = def('ResponsibilityTransfer');
+export const validateAttemptReconcile = def('AttemptReconcile');
+export const validateBillingWorklistQuery = def('WorklistQuery');

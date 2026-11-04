@@ -169,6 +169,14 @@ const TOOL_NAMES = [
   'imaging_deletions_evaluate',
   'imaging_deletions_execute',
   'imaging_containers_inspect',
+  'imaging_devices_register',
+  'imaging_devices_list',
+  'imaging_devices_get',
+  'imaging_devices_issue_pairing_code',
+  'imaging_devices_set_capabilities',
+  'imaging_devices_revoke',
+  'imaging_bridge_jobs_enqueue',
+  'imaging_bridge_jobs_get',
 ].sort();
 
 let db: TestDatabase;

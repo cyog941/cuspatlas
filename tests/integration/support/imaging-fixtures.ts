@@ -5,12 +5,13 @@ import { join } from 'node:path';
 import { buildApp } from '@cuspatlas/api';
 import type { ObjectStorePort } from '@cuspatlas/contracts';
 import {
+  createDeviceCredentialSource,
   createLocalObjectStore,
   createMembershipSource,
   createSecurityAttemptSink,
   createTenantTransactionRunner,
 } from '@cuspatlas/db';
-import { encodePng, type ImagingLimits, syntheticRaster } from '@cuspatlas/domain';
+import { encodePng, type ImagingLimits, resolveBridgeSigningKey, syntheticRaster } from '@cuspatlas/domain';
 import { buildMcpServer, type McpServerHandle } from '@cuspatlas/mcp';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -215,6 +216,9 @@ export async function startImagingStack(
     ...shared,
     logger: { level: 'info', stream },
     identity: issuer.verifierConfig,
+    // I6 bridge audience: device credentials and an ephemeral synthetic-test job-signing key.
+    deviceCredentials: createDeviceCredentialSource(db.app),
+    bridgeSigningKey: resolveBridgeSigningKey('synthetic-test', undefined),
   });
   const mcp: McpServerHandle = buildMcpServer({
     ...shared,

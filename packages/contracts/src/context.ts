@@ -4,7 +4,11 @@
  * server-derived context and server-produced records only.
  */
 
-export type PrincipalKind = 'human' | 'service';
+/**
+ * `device` (I6): a paired imaging bridge authenticated by its own Ed25519 key on the bridge audience.
+ * It never holds a staff membership (the database refuses one) and no staff action policy admits it.
+ */
+export type PrincipalKind = 'human' | 'service' | 'device';
 
 /** Built server-side from a verified token plus a live membership row. Never from caller input. */
 export interface ActorContext {
@@ -151,6 +155,14 @@ export const SECURITY_REASON_CODES = [
   'object_token_invalid',
   'object_integrity_failed',
   'upload_gated',
+  // I6: device principals (their own audience and kind; never staff). Pairing failures carry no tenant.
+  'device_pairing_invalid',
+  'device_pairing_expired',
+  'device_pairing_used',
+  'device_assertion_invalid',
+  'device_assertion_replayed',
+  'device_revoked',
+  'device_signature_invalid',
 ] as const;
 export type SecurityReasonCode = (typeof SECURITY_REASON_CODES)[number];
 
@@ -304,7 +316,7 @@ export const auditEventSchema = {
     eventRef: { type: 'string', pattern: UUID_PATTERN },
     tenantId: { type: 'string', pattern: UUID_PATTERN },
     actorId: { type: 'string', pattern: UUID_PATTERN },
-    principal: { enum: ['human', 'service'] },
+    principal: { enum: ['human', 'service', 'device'] },
     operation: { type: 'string', pattern: OPERATION_PATTERN },
     resourceType: { type: 'string', pattern: '^[a-z][A-Za-z]{0,63}$' },
     resourceRef: { type: 'string', pattern: UUID_PATTERN },

@@ -1288,6 +1288,751 @@
         }
       }
     },
+    "BridgeDeviceRef": {
+      "$ref": "#/$defs/EntityRef",
+      "description": "Opaque device (bridge) principal reference."
+    },
+    "JobRef": {
+      "$ref": "#/$defs/EntityRef",
+      "description": "Opaque bridge job reference."
+    },
+    "BridgeJobKind": {
+      "enum": ["acquire", "import", "probe"]
+    },
+    "BridgePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240,
+      "description": "Relative bridge path resolved by the bridge inside its own import root. The server refuses traversal, absolute, drive, backslash and control-character paths (422 path_traversal) and paths outside the device allowlist (409 path_outside_import_root)."
+    },
+    "DeviceLabel": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9 ._-]{1,64}$"
+    },
+    "DeviceRegister": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "allowedJobKinds", "allowedPathPrefixes"],
+      "properties": {
+        "label": {
+          "$ref": "#/$defs/DeviceLabel"
+        },
+        "allowedJobKinds": {
+          "type": "array",
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/BridgeJobKind"
+          }
+        },
+        "allowedPathPrefixes": {
+          "type": "array",
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/BridgePath"
+          }
+        }
+      }
+    },
+    "DeviceCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["deviceRef", "state", "version"],
+          "properties": {
+            "deviceRef": {
+              "$ref": "#/$defs/BridgeDeviceRef"
+            },
+            "state": {
+              "enum": ["pending", "active", "revoked"]
+            },
+            "version": {
+              "$ref": "#/$defs/Version"
+            },
+            "deniedJobs": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "PairingCodeIssue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "ttlSeconds": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 3600
+        }
+      }
+    },
+    "PairingCodeResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["deviceRef", "pairingRef", "pairingCode", "expiresAt"],
+          "properties": {
+            "deviceRef": {
+              "$ref": "#/$defs/BridgeDeviceRef"
+            },
+            "pairingRef": {
+              "$ref": "#/$defs/EntityRef"
+            },
+            "pairingCode": {
+              "type": "string",
+              "maxLength": 200,
+              "description": "One-time pairing code, shown once; only its SHA-256 is stored. Never logged."
+            },
+            "expiresAt": {
+              "$ref": "#/$defs/Instant"
+            }
+          }
+        }
+      }
+    },
+    "DeviceCapabilitiesSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "allowedJobKinds", "allowedPathPrefixes"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "allowedJobKinds": {
+          "type": "array",
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/BridgeJobKind"
+          }
+        },
+        "allowedPathPrefixes": {
+          "type": "array",
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/BridgePath"
+          }
+        }
+      }
+    },
+    "DeviceRevoke": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasonCode"],
+      "properties": {
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "DeviceAvailability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "asOf", "lastHeartbeatAt", "jobsVisible"],
+      "properties": {
+        "state": {
+          "enum": ["available", "stale", "offline", "unpaired", "revoked"]
+        },
+        "asOf": {
+          "$ref": "#/$defs/Instant"
+        },
+        "lastHeartbeatAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "jobsVisible": {
+          "enum": ["complete", "unknown_since_last_heartbeat"],
+          "description": "Unavailable is not empty: for a device that is not available the job picture is unknown."
+        }
+      }
+    },
+    "DeviceView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "deviceRef",
+        "label",
+        "state",
+        "allowedJobKinds",
+        "allowedPathPrefixes",
+        "keyVersion",
+        "availability",
+        "revokedAt",
+        "revokeReason",
+        "version",
+        "createdAt"
+      ],
+      "properties": {
+        "deviceRef": {
+          "$ref": "#/$defs/BridgeDeviceRef"
+        },
+        "label": {
+          "$ref": "#/$defs/DeviceLabel"
+        },
+        "state": {
+          "enum": ["pending", "active", "revoked"]
+        },
+        "allowedJobKinds": {
+          "type": "array",
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/BridgeJobKind"
+          }
+        },
+        "allowedPathPrefixes": {
+          "type": "array",
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/BridgePath"
+          }
+        },
+        "keyVersion": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "availability": {
+          "$ref": "#/$defs/DeviceAvailability"
+        },
+        "revokedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "revokeReason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "DeviceRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/DeviceView"
+        }
+      }
+    },
+    "DeviceList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/DeviceView"
+          }
+        }
+      }
+    },
+    "BridgeJobEnqueue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["deviceRef", "kind"],
+      "properties": {
+        "deviceRef": {
+          "$ref": "#/$defs/BridgeDeviceRef"
+        },
+        "kind": {
+          "$ref": "#/$defs/BridgeJobKind"
+        },
+        "importPath": {
+          "$ref": "#/$defs/BridgePath"
+        },
+        "intendedPatientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "expiresInSeconds": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 86400
+        }
+      }
+    },
+    "BridgeJobCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["jobRef", "state", "expiresAt"],
+          "properties": {
+            "jobRef": {
+              "$ref": "#/$defs/JobRef"
+            },
+            "state": {
+              "enum": ["queued"]
+            },
+            "expiresAt": {
+              "$ref": "#/$defs/Instant"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "BridgeJobState": {
+      "enum": [
+        "queued",
+        "claimed",
+        "transferring",
+        "completed",
+        "failed",
+        "expired",
+        "denied",
+        "outcome_unknown",
+        "cancelled"
+      ]
+    },
+    "BridgeJobView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "jobRef",
+        "deviceRef",
+        "kind",
+        "scopePath",
+        "intendedPatientRef",
+        "state",
+        "attempts",
+        "maxAttempts",
+        "leaseExpiresAt",
+        "nextAttemptAt",
+        "expiresAt",
+        "objectRef",
+        "failureReason",
+        "duplicateReports",
+        "lateReportAt",
+        "deferralRef",
+        "version",
+        "createdAt"
+      ],
+      "properties": {
+        "jobRef": {
+          "$ref": "#/$defs/JobRef"
+        },
+        "deviceRef": {
+          "$ref": "#/$defs/BridgeDeviceRef"
+        },
+        "kind": {
+          "$ref": "#/$defs/BridgeJobKind"
+        },
+        "scopePath": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BridgePath"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "intendedPatientRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PatientRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "$ref": "#/$defs/BridgeJobState"
+        },
+        "attempts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxAttempts": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "leaseExpiresAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "nextAttemptAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "objectRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ObjectRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "failureReason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "duplicateReports": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "lateReportAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "deferralRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EntityRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "BridgeJobRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/BridgeJobView"
+        }
+      }
+    },
+    "BridgePair": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pairingCode", "publicKey", "proof"],
+      "properties": {
+        "pairingCode": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "publicKey": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "proof": {
+          "type": "string",
+          "maxLength": 128
+        }
+      }
+    },
+    "BridgePairResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "deviceRef",
+            "keyVersion",
+            "audience",
+            "jobSigningKey",
+            "jobSigningKeyId",
+            "assertionMaxSeconds",
+            "version"
+          ],
+          "properties": {
+            "deviceRef": {
+              "$ref": "#/$defs/BridgeDeviceRef"
+            },
+            "keyVersion": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "audience": {
+              "const": "urn:cuspatlas:bridge:v1"
+            },
+            "jobSigningKey": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{43}$"
+            },
+            "jobSigningKeyId": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            },
+            "assertionMaxSeconds": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "version": {
+              "$ref": "#/$defs/Version"
+            }
+          }
+        }
+      }
+    },
+    "BridgeClaim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {}
+    },
+    "BridgeClaimResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["envelope", "jobRef"],
+          "properties": {
+            "envelope": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 8192,
+                  "description": "Compact JWS (EdDSA, typ cuspatlas-bridge-job+jws) signed by the server bridge key."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "jobRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/JobRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "BridgeContentResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["jobRef", "state", "observedDigest", "byteLength"],
+          "properties": {
+            "jobRef": {
+              "$ref": "#/$defs/JobRef"
+            },
+            "state": {
+              "enum": ["transferring"]
+            },
+            "observedDigest": {
+              "$ref": "#/$defs/Sha256"
+            },
+            "byteLength": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        }
+      }
+    },
+    "BridgeResultReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["result"],
+      "properties": {
+        "result": {
+          "type": "string",
+          "maxLength": 8192,
+          "description": "Compact JWS (EdDSA, typ cuspatlas-bridge-result+jws) signed by the device key."
+        }
+      }
+    },
+    "BridgeResultAck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["jobRef", "state", "objectRef", "deduplicated"],
+          "properties": {
+            "jobRef": {
+              "$ref": "#/$defs/JobRef"
+            },
+            "state": {
+              "$ref": "#/$defs/BridgeJobState"
+            },
+            "objectRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ObjectRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "deduplicated": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "BridgeHeartbeat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {}
+    },
+    "BridgeHeartbeatResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["deviceRef", "at"],
+          "properties": {
+            "deviceRef": {
+              "$ref": "#/$defs/BridgeDeviceRef"
+            },
+            "at": {
+              "$ref": "#/$defs/Instant"
+            }
+          }
+        }
+      }
+    },
+    "BridgeKeyRotate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["publicKey", "proof"],
+      "properties": {
+        "publicKey": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "proof": {
+          "type": "string",
+          "maxLength": 128
+        }
+      }
+    },
+    "BridgeKeyRotateResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["deviceRef", "keyVersion", "version"],
+          "properties": {
+            "deviceRef": {
+              "$ref": "#/$defs/BridgeDeviceRef"
+            },
+            "keyVersion": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "version": {
+              "$ref": "#/$defs/Version"
+            }
+          }
+        }
+      }
+    },
     "ContainerInspection": {
       "type": "object",
       "additionalProperties": false,

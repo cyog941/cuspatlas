@@ -185,6 +185,11 @@ export const MERGE_EXCLUDED_REFERENCES: readonly { table: string; column: string
   },
   { table: 'patients', column: 'merged_into', why: 'the merge link itself' },
   {
+    table: 'imaging_bridge_jobs',
+    column: 'intended_patient_id',
+    why: 'I6: the patient named when the bridge job was queued (becomes the ingress dedupe scope, never an association)',
+  },
+  {
     table: 'imaging_ingress_sessions',
     column: 'intended_patient_id',
     why: 'I2: what the uploader named at upload time (a match candidate, never an association); the association decision is the record that follows the patient',

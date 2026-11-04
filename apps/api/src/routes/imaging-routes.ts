@@ -2,6 +2,7 @@ import type { ObjectContent } from '@cuspatlas/contracts';
 import type { ImagingService } from '@cuspatlas/domain';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { type Authenticator, authenticateOnRequest, requireActor } from '../auth';
+import { authenticateDeviceOnRequest, type DeviceAuthenticator } from '../device-auth';
 import { IMAGING_OPS } from './imaging-ops';
 import { routeFor } from './manifest';
 import { pathParamsOf } from './scheduling-ops';
@@ -17,7 +18,13 @@ export const OBJECT_TOKEN_HEADER = 'x-object-read-token';
  */
 export function registerImagingRoutes(
   app: FastifyInstance,
-  deps: { authenticator: Authenticator; imaging: ImagingService; maxObjectBytes: number },
+  deps: {
+    authenticator: Authenticator;
+    imaging: ImagingService;
+    maxObjectBytes: number;
+    /** I6 bridge audience; bridge routes are registered only when it is configured. */
+    deviceAuthenticator?: DeviceAuthenticator;
+  },
 ): void {
   app.register(async (scope) => {
     scope.addContentTypeParser(
@@ -26,6 +33,7 @@ export function registerImagingRoutes(
       (_req, body, done) => done(null, body),
     );
     for (const op of IMAGING_OPS) {
+      if (op.transport !== undefined && !deps.deviceAuthenticator) continue;
       const r = routeFor(op.operationId);
       const names = pathParamsOf(op.path);
       const input = (request: FastifyRequest) => {
@@ -39,8 +47,20 @@ export function registerImagingRoutes(
           ...(typeof token === 'string' ? { token } : {}),
         };
       };
+      if (op.transport === 'pairing') {
+        // The one anonymous bridge route: the one-time code in the body authenticates it.
+        scope.post(r.fastifyPath, async (request, reply) =>
+          reply
+            .code(Number(op.success.status))
+            .send(await op.invokeAnonymous?.(deps.imaging, input(request), request.id)),
+        );
+        continue;
+      }
       const opts = {
-        onRequest: authenticateOnRequest(deps.authenticator, op.operationId),
+        onRequest:
+          op.transport === 'device' && deps.deviceAuthenticator
+            ? authenticateDeviceOnRequest(deps.deviceAuthenticator, op.operationId)
+            : authenticateOnRequest(deps.authenticator, op.operationId),
         ...(op.requestMedia ? { bodyLimit: deps.maxObjectBytes } : {}),
       };
       if (op.method === 'get' && op.success.media === 'application/octet-stream') {

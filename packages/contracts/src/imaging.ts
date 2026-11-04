@@ -306,3 +306,61 @@ export const validateLegalHoldPlace = def('LegalHoldPlace');
 export const validateLegalHoldRelease = def('LegalHoldRelease');
 export const validateDeletionRequestCreate = def('DeletionRequestCreate');
 export const validateDeletionExecute = def('DeletionExecute');
+
+// I6 device bridge (server side only; I-S1/I-S3 blocked-on-discovery; no bridge is built).
+export type BridgeJobKind = 'acquire' | 'import' | 'probe';
+export interface DeviceRegister {
+  readonly label: string;
+  readonly allowedJobKinds: readonly BridgeJobKind[];
+  readonly allowedPathPrefixes: readonly string[];
+}
+export interface PairingCodeIssue {
+  readonly ttlSeconds?: number;
+}
+export interface DeviceCapabilitiesSet {
+  readonly expectedVersion: number;
+  readonly allowedJobKinds: readonly BridgeJobKind[];
+  readonly allowedPathPrefixes: readonly string[];
+}
+export interface DeviceRevoke {
+  readonly reasonCode: string;
+}
+export interface BridgeJobEnqueue {
+  readonly deviceRef: string;
+  readonly kind: BridgeJobKind;
+  readonly importPath?: string;
+  readonly intendedPatientRef?: string;
+  readonly expiresInSeconds?: number;
+}
+export interface BridgePair {
+  readonly pairingCode: string;
+  readonly publicKey: string;
+  readonly proof: string;
+}
+export interface BridgeKeyRotate {
+  readonly publicKey: string;
+  readonly proof: string;
+}
+/** Live device row for a device assertion whose signature is being verified (before any tenant context). */
+export interface DeviceCredentialRecord {
+  readonly deviceRef: string;
+  readonly tenantId: string;
+  readonly state: 'pending' | 'active' | 'revoked';
+  readonly keys: readonly { readonly keyVersion: number; readonly publicKey: string }[];
+}
+export interface DeviceCredentialSource {
+  /** Active keys and state of a device; null when no such device exists. */
+  load(deviceRef: string): Promise<DeviceCredentialRecord | null>;
+  /** Records a single-use assertion identifier; false when it was already used. */
+  consumeNonce(record: DeviceCredentialRecord, nonce: string, expiresAt: Date): Promise<boolean>;
+}
+export const validateDeviceRegister = def('DeviceRegister');
+export const validatePairingCodeIssue = def('PairingCodeIssue');
+export const validateDeviceCapabilitiesSet = def('DeviceCapabilitiesSet');
+export const validateDeviceRevoke = def('DeviceRevoke');
+export const validateBridgeJobEnqueue = def('BridgeJobEnqueue');
+export const validateBridgePair = def('BridgePair');
+export const validateBridgeClaim = def('BridgeClaim');
+export const validateBridgeResultReport = def('BridgeResultReport');
+export const validateBridgeHeartbeat = def('BridgeHeartbeat');
+export const validateBridgeKeyRotate = def('BridgeKeyRotate');

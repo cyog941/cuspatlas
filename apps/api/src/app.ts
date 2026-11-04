@@ -1,5 +1,6 @@
-import { randomUUID } from 'node:crypto';
+import { type KeyObject, randomUUID } from 'node:crypto';
 import type {
+  DeviceCredentialSource,
   MalwareScannerPort,
   MembershipSource,
   ObjectStorePort,
@@ -29,6 +30,7 @@ import Fastify, {
   LogController,
 } from 'fastify';
 import { createAuthenticator, type IdentityVerifierConfig, isConfiguredIdentity, isTestIssuer } from './auth';
+import { createDeviceAuthenticator } from './device-auth';
 import { mapErrorToRefusal, safeErrorKind } from './errors';
 import {
   registerAppointmentRoutes,
@@ -76,6 +78,13 @@ export interface AppDeps {
   /** I1 read-grant secret (CUSPATLAS_IMAGING_TOKEN_SECRET); optional only under synthetic-test. */
   readonly imagingTokenSecret?: Uint8Array;
   readonly imagingLimits?: ImagingLimits;
+  /**
+   * I6 bridge audience: live device credentials on the runtime-role pool. Bridge routes are registered
+   * only when this is configured.
+   */
+  readonly deviceCredentials?: DeviceCredentialSource;
+  /** I6 server job-signing key (Ed25519 private key); see resolveBridgeSigningKey. */
+  readonly bridgeSigningKey?: KeyObject | null;
 }
 
 function sendRefusal(request: FastifyRequest, reply: FastifyReply, err: unknown): FastifyReply {
@@ -215,12 +224,16 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         ...(deps.objectStore ? { objectStore: deps.objectStore } : {}),
         ...(deps.scanner ? { scanner: deps.scanner } : {}),
         ...(deps.imagingLimits ? { limits: deps.imagingLimits } : {}),
+        bridgeSigningKey: deps.bridgeSigningKey ?? null,
         alert: (code) => app.log.error({ alert: code }, 'imaging alert'),
       });
       registerImagingRoutes(app, {
         authenticator,
         imaging,
         maxObjectBytes: deps.imagingLimits?.maxObjectBytes ?? 32 * 1024 * 1024,
+        ...(deps.deviceCredentials
+          ? { deviceAuthenticator: createDeviceAuthenticator(deps.deviceCredentials, recording) }
+          : {}),
       });
     }
   }

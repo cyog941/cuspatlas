@@ -14,6 +14,7 @@ import {
 } from './support/imaging-fixtures';
 import { MARKER } from './support/marker';
 import { patientBody } from './support/patient-fixtures';
+import { SyntheticBridge } from './support/synthetic-bridge';
 
 /**
  * Imaging negative harness (Global Constraints of the imaging plan): every imaging command is
@@ -485,6 +486,108 @@ export const ROWS: ImagingHarnessRow[] = [
     }),
     mcpArgs: (x) => ({ objectRef: x.object }),
   },
+  // I6 device bridge, staff side (bridge-facing device routes have their own matrix: imaging-negative-matrix).
+  {
+    operation: 'imaging.devices.register',
+    crossTenant: 'own_tenant_only',
+    downgradedTo: 'writer',
+    rest: () => ({
+      method: 'POST',
+      url: '/v1/imaging/devices',
+      body: { label: 'Harness Bridge', allowedJobKinds: ['import'], allowedPathPrefixes: ['exports'] },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: () => ({
+      ...{ label: 'Harness Bridge', allowedJobKinds: ['import'], allowedPathPrefixes: ['exports'] },
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'imaging.devices.list',
+    // The register row's cross-tenant case creates a beta device: the list is beta's own only.
+    crossTenant: 'own_tenant_only',
+    downgradedTo: 'noImagingScopes',
+    rest: () => ({ method: 'GET', url: '/v1/imaging/devices', keyed: false, status: 200 }),
+    mcpArgs: () => ({}),
+  },
+  {
+    operation: 'imaging.devices.read',
+    crossTenant: 'not_found',
+    downgradedTo: 'noImagingScopes',
+    rest: (x) => ({ method: 'GET', url: `/v1/imaging/devices/${x.device}`, keyed: false, status: 200 }),
+    mcpArgs: (x) => ({ deviceRef: x.device }),
+  },
+  {
+    operation: 'imaging.devices.issuePairingCode',
+    crossTenant: 'not_found',
+    downgradedTo: 'writer',
+    rest: (x) => ({
+      method: 'POST',
+      url: `/v1/imaging/devices/${x.pendingDevice}/pairing-codes`,
+      body: {},
+      keyed: false,
+      status: 201,
+    }),
+    mcpArgs: (x) => ({ deviceRef: x.pendingDevice }),
+  },
+  {
+    operation: 'imaging.devices.setCapabilities',
+    crossTenant: 'not_found',
+    downgradedTo: 'writer',
+    rest: (x) => ({
+      method: 'POST',
+      url: `/v1/imaging/devices/${x.device}/capabilities`,
+      body: { expectedVersion: 2, allowedJobKinds: ['import'], allowedPathPrefixes: ['exports'] },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (x) => ({
+      deviceRef: x.device,
+      expectedVersion: 2,
+      allowedJobKinds: ['import'],
+      allowedPathPrefixes: ['exports'],
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'imaging.devices.revoke',
+    crossTenant: 'not_found',
+    downgradedTo: 'writer',
+    rest: (x) => ({
+      method: 'POST',
+      url: `/v1/imaging/devices/${x.device}/revoke`,
+      body: { reasonCode: 'device_lost' },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (x) => ({ deviceRef: x.device, reasonCode: 'device_lost', idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'imaging.bridgeJobs.enqueue',
+    crossTenant: 'not_found',
+    downgradedTo: 'imagingReadOnly',
+    rest: (x) => ({
+      method: 'POST',
+      url: '/v1/imaging/bridge-jobs',
+      body: { deviceRef: x.device, kind: 'import', importPath: 'exports/a.png' },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (x) => ({
+      deviceRef: x.device,
+      kind: 'import',
+      importPath: 'exports/a.png',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'imaging.bridgeJobs.read',
+    crossTenant: 'not_found',
+    downgradedTo: 'noImagingScopes',
+    rest: (x) => ({ method: 'GET', url: `/v1/imaging/bridge-jobs/${x.job}`, keyed: false, status: 200 }),
+    mcpArgs: (x) => ({ jobRef: x.job }),
+  },
 ];
 
 beforeAll(async () => {
@@ -556,7 +659,35 @@ beforeAll(async () => {
     reasonCode: 'requested_by_practice',
   });
   expect(del.status).toBe(201);
+  // I6: one paired device with a queued job and one pending device (synthetic bridge client).
+  const reg = async () =>
+    (
+      (
+        await post('/v1/imaging/devices', {
+          label: 'Harness Bridge',
+          allowedJobKinds: ['import'],
+          allowedPathPrefixes: ['exports'],
+        })
+      ).json.data as {
+        deviceRef: string;
+      }
+    ).deviceRef;
+  const device = await reg();
+  const pendingDevice = await reg();
+  const code = (await s.inject('owner', 'POST', `/v1/imaging/devices/${device}/pairing-codes`, {})).json
+    .data as { pairingCode: string };
+  const bridge = new SyntheticBridge(s.app);
+  expect((await bridge.pair(code.pairingCode)).status).toBe(201);
+  const jobRes = await post('/v1/imaging/bridge-jobs', {
+    deviceRef: device,
+    kind: 'import',
+    importPath: 'exports/a.png',
+  });
+  expect(jobRes.status).toBe(201);
   f = {
+    device,
+    pendingDevice,
+    job: (jobRes.json.data as { jobRef: string }).jobRef,
     object,
     grant: grant.grantRef,
     token: grant.token,
@@ -690,9 +821,15 @@ describe('imaging negative harness: every imaging command, every dimension, REST
   });
 
   it('every imaging operation has a harness row; byte transports have no MCP tool', async () => {
-    expect(ROWS.map((r) => r.operation).sort()).toStrictEqual(IMAGING_OPS.map((o) => o.operationId).sort());
+    const STAFF = IMAGING_OPS.filter((o) => o.transport === undefined);
+    expect(ROWS.map((r) => r.operation).sort()).toStrictEqual(STAFF.map((o) => o.operationId).sort());
     const names = await s.mcpToolNames('owner');
-    for (const op of IMAGING_OPS) {
+    for (const op of IMAGING_OPS)
+      expect([op.operationId, op.transport !== undefined && names.includes(op.tool)]).toStrictEqual([
+        op.operationId,
+        false,
+      ]);
+    for (const op of STAFF) {
       expect([op.operationId, names.includes(op.tool)]).toStrictEqual([op.operationId, op.restOnly !== true]);
       expect([
         op.operationId,

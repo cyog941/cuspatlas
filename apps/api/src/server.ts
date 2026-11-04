@@ -1,10 +1,12 @@
 import {
   assertSyntheticDatabaseName,
+  createDeviceCredentialSource,
   createLocalObjectStore,
   createMembershipSource,
   createSecurityAttemptSink,
   createTenantTransactionRunner,
 } from '@cuspatlas/db';
+import { resolveBridgeSigningKey } from '@cuspatlas/domain';
 import type { FastifyInstance } from 'fastify';
 import pg from 'pg';
 import { buildApp, resolveRuntimeEnv } from './app';
@@ -45,6 +47,10 @@ export async function startServer(env: NodeJS.ProcessEnv): Promise<FastifyInstan
     ...(env.CUSPATLAS_OBJECT_STORE_DIR
       ? { objectStore: createLocalObjectStore({ root: env.CUSPATLAS_OBJECT_STORE_DIR, env: runtimeEnv }) }
       : {}),
+    // I6 bridge audience (server side only; no bridge is built). Without a configured Ed25519 key outside
+    // synthetic-test, claims are a typed 503 with an alert.
+    deviceCredentials: createDeviceCredentialSource(appPool),
+    bridgeSigningKey: resolveBridgeSigningKey(runtimeEnv, env.CUSPATLAS_BRIDGE_SIGNING_KEY_PEM),
   });
   app.addHook('onClose', async () => {
     await Promise.all([appPool.end(), attemptPool.end()]);

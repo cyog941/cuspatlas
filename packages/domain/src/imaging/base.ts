@@ -1,3 +1,4 @@
+import type { KeyObject } from 'node:crypto';
 import {
   type ActorContext,
   assertValid,
@@ -23,13 +24,21 @@ import type { ActionName, AuthorizationDecision, Authorize } from '../policy/aut
 export type ImagingAlert =
   | 'imaging_object_integrity_failed'
   | 'imaging_object_store_unavailable'
-  | 'imaging_token_secret_missing';
+  | 'imaging_token_secret_missing'
+  | 'imaging_bridge_signing_key_missing';
 
 export interface ImagingLimits {
   /** Largest accepted object in bytes (default 32 MiB). */
   readonly maxObjectBytes?: number;
   /** I-D8 (pending approval): an unmatched object escalates after this many hours (default 48). */
   readonly unmatchedEscalationHours?: number;
+  /** I6: lease of a claimed bridge job in seconds (default 300). */
+  readonly bridgeLeaseSeconds?: number;
+  /** I7: a device without a heartbeat for this long is stale (default 120 s), then offline (default 600 s). */
+  readonly bridgeStaleSeconds?: number;
+  readonly bridgeOfflineSeconds?: number;
+  /** I7: most deferred acquisitions a tenant may hold (default 25). */
+  readonly maxDeferredAcquisitions?: number;
 }
 
 export interface ImagingDeps {
@@ -47,6 +56,11 @@ export interface ImagingDeps {
   /** Tenant-bound match-key pepper shared with S (CUSPATLAS_MATCH_KEY_PEPPER). */
   readonly matchKeyPepper: Uint8Array;
   readonly limits?: ImagingLimits;
+  /**
+   * I6 server bridge signing key (Ed25519 private key) for job envelopes; null disables claims (503).
+   * See resolveBridgeSigningKey.
+   */
+  readonly bridgeSigningKey?: KeyObject | null;
   /** Emits a fixed alert line (integrity failure, store outage). */
   readonly alert?: (code: ImagingAlert) => void;
 }

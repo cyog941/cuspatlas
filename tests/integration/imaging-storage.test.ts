@@ -233,7 +233,9 @@ describe('I1 metadata, grants and verified content reads', () => {
     // Missing, tampered and forged (wrong secret) tokens.
     for (const t of [
       undefined,
-      `${token.slice(0, -2)}AA`,
+      // Tampered MAC: one character in the middle changed (and a non-canonical last character).
+      `${token.slice(0, -10)}${token.at(-10) === 'A' ? 'B' : 'A'}${token.slice(-9)}`,
+      `${token.slice(0, -1)}${token.at(-1) === 'A' ? 'B' : String.fromCharCode((token.at(-1) as string).charCodeAt(0) ^ 1)}`,
       signGrantToken(
         new Uint8Array(32),
         {

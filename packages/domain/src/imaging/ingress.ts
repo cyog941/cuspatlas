@@ -30,7 +30,7 @@ export const INGRESS_ABANDON_HOURS = 24;
 
 type IngressState = 'awaiting_bytes' | 'staged' | 'accepted' | 'quarantined' | 'abandoned';
 
-interface SessionRow extends Record<string, unknown> {
+export interface SessionRow extends Record<string, unknown> {
   id: string;
   state: IngressState;
   declared_content_type: ImagingContentType;
@@ -134,6 +134,169 @@ async function gate(
   if (sniffed === null) return { reason: 'content_type_unrecognized', verdict };
   if (sniffed !== row.declared_content_type) return { reason: 'content_type_mismatch', verdict };
   return null;
+}
+
+/**
+ * Runs the gates over a staged session. An undecided scan commits a visible staged hold (retryable
+ * `scan_pending`); any other failure moves the bytes to quarantine with the reason. The caller commits
+ * the returned refusal (CommitThenRefuse). Null when every gate passed. Shared by the I2 completion
+ * and the I6 bridge result.
+ */
+export async function gateSession(
+  base: ImagingBase,
+  tx: TenantTransaction,
+  ctx: ActorContext,
+  op: string,
+  row: SessionRow,
+  observedByCaller: string,
+): Promise<{ refusal: RefusalError; reason: string; held: boolean } | null> {
+  const store = base.store();
+  const bytes = await store.readStaged(ctx.tenantId, row.staging_key as string);
+  const failure = await gate(base, row, observedByCaller, bytes);
+  if (failure?.reason === 'scan_pending') {
+    await bumpSession(tx, op, row, { scan_verdict: 'unknown' });
+    return {
+      reason: 'scan_pending',
+      held: true,
+      refusal: refused(
+        'scan_pending',
+        { blockingRefs: ingressRef(row.id) },
+        { retryable: true, reasonCode: 'upload_gated' },
+      ),
+    };
+  }
+  if (failure) {
+    const q = await store.quarantineStaged(ctx.tenantId, row.staging_key as string);
+    await bumpSession(tx, op, row, {
+      state: 'quarantined',
+      quarantine_reason: failure.reason,
+      quarantine_key: q.quarantineKey,
+      staging_key: null,
+      scan_verdict: failure.verdict,
+    });
+    return {
+      reason: failure.reason,
+      held: false,
+      refusal: refused(failure.reason, { blockingRefs: ingressRef(row.id) }, { reasonCode: 'upload_gated' }),
+    };
+  }
+  return null;
+}
+
+/**
+ * Promotes a fully gated session: content lock, promotion, patient-scoped dedupe (an unscoped upload
+ * never deduplicates into an associated object), object row, one provenance row, session accepted.
+ */
+export async function acceptSession(
+  base: ImagingBase,
+  tx: TenantTransaction,
+  ctx: ActorContext,
+  op: string,
+  row: SessionRow,
+): Promise<{ objectRef: string; deduplicated: boolean; provenanceRef: string; version: number }> {
+  const store = base.store();
+  // Serializes with byte removal of a deleted object sharing this content (review hardening).
+  await tx.query('SELECT cuspatlas.imaging_lock_content(cuspatlas.current_tenant_id(), $1)', [
+    row.declared_digest,
+  ]);
+  const { storageKey } = await store.promote(ctx.tenantId, row.staging_key as string, row.declared_digest);
+  const scope = row.intended_patient_id;
+  // An unscoped upload deduplicates only into an unscoped object never associated with anyone;
+  // otherwise it is a separate object sharing the content-addressed bytes (review hardening).
+  const existing = await tx.query<{ id: string }>(
+    `SELECT o.id FROM cuspatlas.imaging_objects o WHERE o.kind = 'original' AND o.state = 'available'
+           AND o.digest_sha256 = $1 AND o.dedupe_patient_id IS NOT DISTINCT FROM $2
+           AND ($2::uuid IS NOT NULL OR NOT EXISTS (
+             SELECT 1 FROM cuspatlas.imaging_match_decisions d WHERE d.object_id = o.id))
+         ORDER BY o.created_at, o.id LIMIT 1 FOR UPDATE OF o`,
+    [row.declared_digest, scope],
+  );
+  let objectId = existing.rows[0]?.id;
+  const deduplicated = objectId !== undefined;
+  if (!objectId) {
+    const inserted = await tx.query<{ id: string }>(
+      `INSERT INTO cuspatlas.imaging_objects (tenant_id, kind, state, content_type, byte_length, digest_sha256,
+             storage_key, dedupe_patient_id, created_by)
+           VALUES (cuspatlas.current_tenant_id(), 'original', 'available', $1, $2, $3, $4, $5,
+             cuspatlas.current_actor_id())
+           RETURNING id`,
+      [row.declared_content_type, Number(row.declared_byte_length), row.declared_digest, storageKey, scope],
+    );
+    objectId = inserted.rows[0]?.id as string;
+    await recordCommand(
+      tx,
+      { operation: op, resourceType: OBJECT_RESOURCE, resourceRef: objectId, resourceVersion: 1 },
+      { changedFields: ['state', 'digest', 'provenance'] },
+    );
+  }
+  const prov = await tx.query<{ id: string }>(
+    `INSERT INTO cuspatlas.imaging_object_provenance (tenant_id, object_id, ingress_id, source, operator_id,
+           device_ref, capture_software, original_filename, acquired_at, acquired_time_zone)
+         VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, cuspatlas.current_actor_id(), $4, $5, $6, $7, $8)
+         RETURNING id`,
+    [
+      objectId,
+      row.id,
+      row.source,
+      row.device_ref,
+      row.capture_software,
+      row.original_filename,
+      row.acquired_at,
+      row.acquired_time_zone,
+    ],
+  );
+  const next = await bumpSession(tx, op, row, {
+    state: 'accepted',
+    object_id: objectId,
+    staging_key: null,
+    scan_verdict: 'clean',
+  });
+  return {
+    objectRef: objectId,
+    deduplicated,
+    provenanceRef: prov.rows[0]?.id as string,
+    version: next.version,
+  };
+}
+
+/**
+ * I6: the ingress record of a bridge job, created when its signed result arrives. Declared values come
+ * from the signed artifact; the bytes were staged by the job's content upload. Provenance is
+ * `bridgeImport` with the device reference; the device principal is the creator.
+ */
+export async function insertBridgeSession(
+  tx: TenantTransaction,
+  op: string,
+  _ctx: ActorContext,
+  s: {
+    contentType: ImagingContentType;
+    byteLength: number;
+    digest: string;
+    intendedPatientRef: string | null;
+    deviceRef: string;
+    captureSoftware: string | null;
+    stagingKey: string;
+  },
+): Promise<SessionRow> {
+  const { rows } = await tx.query<SessionRow>(
+    `INSERT INTO cuspatlas.imaging_ingress_sessions (tenant_id, declared_content_type, declared_byte_length,
+       declared_digest, intended_patient_id, source, device_ref, capture_software, created_by)
+     VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, 'bridgeImport', $5, $6, cuspatlas.current_actor_id())
+     RETURNING ${SESSION_COLUMNS}`,
+    [s.contentType, s.byteLength, s.digest, s.intendedPatientRef, s.deviceRef, s.captureSoftware],
+  );
+  const row = rows[0] as SessionRow;
+  await recordCommand(
+    tx,
+    { operation: op, resourceType: INGRESS_RESOURCE, resourceRef: row.id, resourceVersion: 1 },
+    { changedFields: ['state', 'declaredDigest', 'provenance'] },
+  );
+  return bumpSession(tx, op, row, {
+    state: 'staged',
+    staging_key: s.stagingKey,
+    observed_digest: s.digest,
+    observed_byte_length: s.byteLength,
+  });
 }
 
 /** I2: staging, gating, verification and patient-scoped dedupe. */
@@ -271,7 +434,7 @@ export function createIngressOperations(base: ImagingBase) {
         checkRef(ref);
         assertValid<IngressComplete>(validateIngressComplete, envelope.payload, IMAGING_PROPERTIES);
         const p = envelope.payload as IngressComplete;
-        const store = base.store();
+        base.store();
         const env = { ...envelope, payload: { ingressRef: ref, observedDigest: p.observedDigest } };
         return deps.withTenantTransaction(ctx, async (tx) => {
           const row = await ownSession(tx, ref);
@@ -291,107 +454,19 @@ export function createIngressOperations(base: ImagingBase) {
             );
           if (row.state === 'awaiting_bytes') throw refused('bytes_not_received', {}, { replayable: false });
           if (row.state !== 'staged' || row.staging_key === null) throw refused('ingress_not_open');
-          const bytes = await store.readStaged(ctx.tenantId, row.staging_key);
-          const failure = await gate(base, row, p.observedDigest, bytes);
-          if (failure?.reason === 'scan_pending') {
-            await bumpSession(tx, op, row, { scan_verdict: 'unknown' });
-            throw new CommitThenRefuse(
-              refused(
-                'scan_pending',
-                { blockingRefs: ingressRef(row.id) },
-                { retryable: true, reasonCode: 'upload_gated' },
-              ),
-            );
-          }
-          if (failure) {
-            const q = await store.quarantineStaged(ctx.tenantId, row.staging_key);
-            await bumpSession(tx, op, row, {
-              state: 'quarantined',
-              quarantine_reason: failure.reason,
-              quarantine_key: q.quarantineKey,
-              staging_key: null,
-              scan_verdict: failure.verdict,
-            });
-            throw new CommitThenRefuse(
-              refused(failure.reason, { blockingRefs: ingressRef(row.id) }, { reasonCode: 'upload_gated' }),
-            );
-          }
+          const gated = await gateSession(base, tx, ctx, op, row, p.observedDigest);
+          if (gated) throw new CommitThenRefuse(gated.refusal);
           return execute(ctx, env, tx, async () => {
-            // Serializes with byte removal of a deleted object sharing this content (review hardening).
-            await tx.query('SELECT cuspatlas.imaging_lock_content(cuspatlas.current_tenant_id(), $1)', [
-              row.declared_digest,
-            ]);
-            const { storageKey } = await store.promote(
-              ctx.tenantId,
-              row.staging_key as string,
-              row.declared_digest,
-            );
-            const scope = row.intended_patient_id;
-            // An unscoped upload deduplicates only into an unscoped object never associated with anyone;
-            // otherwise it is a separate object sharing the content-addressed bytes (review hardening).
-            const existing = await tx.query<{ id: string }>(
-              `SELECT o.id FROM cuspatlas.imaging_objects o WHERE o.kind = 'original' AND o.state = 'available'
-                 AND o.digest_sha256 = $1 AND o.dedupe_patient_id IS NOT DISTINCT FROM $2
-                 AND ($2::uuid IS NOT NULL OR NOT EXISTS (
-                   SELECT 1 FROM cuspatlas.imaging_match_decisions d WHERE d.object_id = o.id))
-               ORDER BY o.created_at, o.id LIMIT 1 FOR UPDATE OF o`,
-              [row.declared_digest, scope],
-            );
-            let objectId = existing.rows[0]?.id;
-            const deduplicated = objectId !== undefined;
-            if (!objectId) {
-              const inserted = await tx.query<{ id: string }>(
-                `INSERT INTO cuspatlas.imaging_objects (tenant_id, kind, state, content_type, byte_length, digest_sha256,
-                   storage_key, dedupe_patient_id, created_by)
-                 VALUES (cuspatlas.current_tenant_id(), 'original', 'available', $1, $2, $3, $4, $5,
-                   cuspatlas.current_actor_id())
-                 RETURNING id`,
-                [
-                  row.declared_content_type,
-                  Number(row.declared_byte_length),
-                  row.declared_digest,
-                  storageKey,
-                  scope,
-                ],
-              );
-              objectId = inserted.rows[0]?.id as string;
-              await recordCommand(
-                tx,
-                { operation: op, resourceType: OBJECT_RESOURCE, resourceRef: objectId, resourceVersion: 1 },
-                { changedFields: ['state', 'digest', 'provenance'] },
-              );
-            }
-            const prov = await tx.query<{ id: string }>(
-              `INSERT INTO cuspatlas.imaging_object_provenance (tenant_id, object_id, ingress_id, source, operator_id,
-                 device_ref, capture_software, original_filename, acquired_at, acquired_time_zone)
-               VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, cuspatlas.current_actor_id(), $4, $5, $6, $7, $8)
-               RETURNING id`,
-              [
-                objectId,
-                row.id,
-                row.source,
-                row.device_ref,
-                row.capture_software,
-                row.original_filename,
-                row.acquired_at,
-                row.acquired_time_zone,
-              ],
-            );
-            const next = await bumpSession(tx, op, row, {
-              state: 'accepted',
-              object_id: objectId,
-              staging_key: null,
-              scan_verdict: 'clean',
-            });
+            const a = await acceptSession(base, tx, ctx, op, row);
             return {
               data: {
                 ingressRef: row.id,
-                objectRef: objectId,
+                objectRef: a.objectRef,
                 state: 'available',
-                deduplicated,
-                provenanceRef: prov.rows[0]?.id as string,
+                deduplicated: a.deduplicated,
+                provenanceRef: a.provenanceRef,
               },
-              version: next.version,
+              version: a.version,
             };
           });
         });

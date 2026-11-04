@@ -170,6 +170,9 @@ const REF_PARAMS = [
   'annotationRef',
   'legalHoldRef',
   'deletionRef',
+  // I6/I7 bridge path parameters.
+  'deviceRef',
+  'jobRef',
 ] as const;
 const PLACEHOLDER_REF = '00000000-0000-4000-8000-000000000000';
 

@@ -71,6 +71,10 @@ export const IMAGING_OPERATIONS: readonly string[] = [
   'imaging.legalHolds.release',
   'imaging.deletions.request',
   'imaging.deletions.execute',
+  'imaging.devices.register',
+  'imaging.devices.setCapabilities',
+  'imaging.devices.revoke',
+  'imaging.bridgeJobs.enqueue',
 ];
 
 export const IMAGING_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<unknown>>> = Object.fromEntries(

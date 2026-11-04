@@ -20,6 +20,8 @@ const PARAM_DEF: Record<string, string> = {
   annotationRef: 'AnnotationRef',
   legalHoldRef: 'LegalHoldRef',
   deletionRef: 'DeletionRef',
+  deviceRef: 'BridgeDeviceRef',
+  jobRef: 'JobRef',
 };
 const defs = imagingSchema.$defs as Record<
   string,
@@ -52,6 +54,9 @@ for (const [path, ops] of byPath) {
       '      description: >-',
       wrap(op.description, '        '),
     );
+    // I6: bridge routes use the device assertion (never the staff bearer); pairing is anonymous.
+    if (op.transport === 'pairing') out.push('      security: []');
+    if (op.transport === 'device') out.push('      security:', '        - deviceAssertion: []');
     const params: string[] = [];
     for (const p of pathParamsOf(op.path)) {
       params.push(

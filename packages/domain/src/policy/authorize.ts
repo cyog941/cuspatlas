@@ -186,6 +186,24 @@ export const ACTION_POLICIES = {
   'imaging.deletions.execute': { scope: 'imaging.delete', principals: ['human'] },
   // I5 DICOM boundary: recognition and the pinned parsing refusal (I-S2 blocked); a metadata read.
   'imaging.containers.inspect': { scope: 'imaging.read', principals: ['human', 'service'] },
+  // I6 device bridge (server side; I-S1/I-S3 blocked). Registering, pairing, allowlist edits and
+  // revocation are human practice administration (admin.configure); jobs are imaging work.
+  'imaging.devices.register': { scope: 'admin.configure', principals: ['human'] },
+  'imaging.devices.issuePairingCode': { scope: 'admin.configure', principals: ['human'] },
+  'imaging.devices.setCapabilities': { scope: 'admin.configure', principals: ['human'] },
+  'imaging.devices.revoke': { scope: 'admin.configure', principals: ['human'] },
+  'imaging.devices.list': { scope: 'imaging.read', principals: ['human', 'service'] },
+  'imaging.devices.read': { scope: 'imaging.read', principals: ['human', 'service'] },
+  'imaging.bridgeJobs.enqueue': { scope: 'imaging.write', principals: ['human', 'service'] },
+  'imaging.bridgeJobs.read': { scope: 'imaging.read', principals: ['human', 'service'] },
+  // Bridge-facing operations: device principals only, authorized by the live device row and its
+  // allowlist inside the transaction (never by a staff membership; `authorize` never admits them).
+  'imaging.bridge.pair': { scope: null, principals: ['device'] },
+  'imaging.bridge.claim': { scope: null, principals: ['device'] },
+  'imaging.bridge.content': { scope: null, principals: ['device'] },
+  'imaging.bridge.result': { scope: null, principals: ['device'] },
+  'imaging.bridge.heartbeat': { scope: null, principals: ['device'] },
+  'imaging.bridge.rotateKey': { scope: null, principals: ['device'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

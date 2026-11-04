@@ -30,6 +30,13 @@ export interface ImagingOp extends RouteContract {
   readonly unkeyed?: boolean;
   /** Byte transport: never exposed as an MCP tool. */
   readonly restOnly?: boolean;
+  /**
+   * I6: `device` routes authenticate a device assertion on the bridge audience (never a staff token);
+   * `pairing` is the one anonymous bridge route (the one-time code authenticates it). Default: staff.
+   */
+  readonly transport?: 'device' | 'pairing';
+  /** I6 pairing only: the call made without an authenticated actor. */
+  invokeAnonymous?(svc: ImagingService, input: ImagingOpInput, correlationId: string): Promise<unknown>;
   invoke(svc: ImagingService, actor: ActorContext, input: ImagingOpInput): Promise<unknown>;
 }
 
@@ -479,6 +486,206 @@ export const IMAGING_OPS: readonly ImagingOp[] = [
     description:
       'Container inspection of an available object: whether its verified bytes carry the DICOM marker. Parsing is refused (I-S2 conformance and parser licensing are blocked-on-discovery): no summary, identifier or element is ever extracted and the original is stored opaquely.',
     invoke: (svc, actor, i) => data(svc.inspectContainer(actor, param(i, 'objectRef'))),
+  },
+  // I6 device bridge, staff side (server contracts only; I-S1/I-S3 blocked-on-discovery).
+  {
+    method: 'post',
+    path: '/v1/imaging/devices',
+    operationId: 'imaging.devices.register',
+    protected: true,
+    requestBody: I('DeviceRegister'),
+    success: { status: '201', schema: I('DeviceCommandResult') },
+    refusals: COMMAND,
+    tool: 'imaging_devices_register',
+    description:
+      'Register a bridge device (pending until it pairs) with its capability allowlist: allowed job kinds and allowed relative path prefixes. Human practice administration (admin.configure).',
+    invoke: (svc, actor, i) => svc.registerDevice(actor, env('imaging.devices.register', i)),
+  },
+  {
+    method: 'get',
+    path: '/v1/imaging/devices',
+    operationId: 'imaging.devices.list',
+    protected: true,
+    success: { status: '200', schema: I('DeviceList') },
+    refusals: ['401', '403', '503'],
+    tool: 'imaging_devices_list',
+    description:
+      'Bridge devices with state, allowlist, key version and heartbeat-derived availability (unavailable is not empty).',
+    invoke: (svc, actor) => data(svc.listDevices(actor)),
+  },
+  {
+    method: 'get',
+    path: '/v1/imaging/devices/{deviceRef}',
+    operationId: 'imaging.devices.read',
+    protected: true,
+    success: { status: '200', schema: I('DeviceRead') },
+    refusals: READ,
+    tool: 'imaging_devices_get',
+    description: 'One bridge device. Never a key, code or secret.',
+    invoke: (svc, actor, i) => data(svc.readDevice(actor, param(i, 'deviceRef'))),
+  },
+  {
+    method: 'post',
+    path: '/v1/imaging/devices/{deviceRef}/pairing-codes',
+    operationId: 'imaging.devices.issuePairingCode',
+    protected: true,
+    requestBody: I('PairingCodeIssue'),
+    success: { status: '201', schema: I('PairingCodeResult') },
+    refusals: COMMAND,
+    unkeyed: true,
+    tool: 'imaging_devices_issue_pairing_code',
+    description:
+      'Issue a one-time pairing code for a pending device (default 10 minutes, at most 1 hour); it supersedes any open code and is shown once (only its SHA-256 is stored).',
+    invoke: (svc, actor, i) => svc.issuePairingCode(actor, param(i, 'deviceRef'), i.body),
+  },
+  {
+    method: 'post',
+    path: '/v1/imaging/devices/{deviceRef}/capabilities',
+    operationId: 'imaging.devices.setCapabilities',
+    protected: true,
+    requestBody: I('DeviceCapabilitiesSet'),
+    success: { status: '200', schema: I('DeviceCommandResult') },
+    refusals: COMMAND,
+    tool: 'imaging_devices_set_capabilities',
+    description:
+      'Replace the allowlist of a device (expected version required). Queued jobs it no longer allows are denied when the device claims them.',
+    invoke: (svc, actor, i) =>
+      svc.setDeviceCapabilities(actor, param(i, 'deviceRef'), env('imaging.devices.setCapabilities', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/imaging/devices/{deviceRef}/revoke',
+    operationId: 'imaging.devices.revoke',
+    protected: true,
+    requestBody: I('DeviceRevoke'),
+    success: { status: '200', schema: I('DeviceCommandResult') },
+    refusals: COMMAND,
+    tool: 'imaging_devices_revoke',
+    description:
+      'Revoke a device (final): its keys stop working at once and every open job, including one already claimed, is denied.',
+    invoke: (svc, actor, i) =>
+      svc.revokeDevice(actor, param(i, 'deviceRef'), env('imaging.devices.revoke', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/imaging/bridge-jobs',
+    operationId: 'imaging.bridgeJobs.enqueue',
+    protected: true,
+    requestBody: I('BridgeJobEnqueue'),
+    success: { status: '201', schema: I('BridgeJobCommandResult') },
+    refusals: COMMAND,
+    tool: 'imaging_bridge_jobs_enqueue',
+    description:
+      "Queue a typed bridge job (acquire, import or probe) for a paired device. Refused when the kind or the relative path is outside the device's allowlist or the path is not a safe relative path.",
+    invoke: (svc, actor, i) => svc.enqueueBridgeJob(actor, env('imaging.bridgeJobs.enqueue', i)),
+  },
+  {
+    method: 'get',
+    path: '/v1/imaging/bridge-jobs/{jobRef}',
+    operationId: 'imaging.bridgeJobs.read',
+    protected: true,
+    success: { status: '200', schema: I('BridgeJobRead') },
+    refusals: READ,
+    tool: 'imaging_bridge_jobs_get',
+    description: 'One bridge job: state, attempts, lease, expiry, outcome and duplicate or late reports.',
+    invoke: (svc, actor, i) => data(svc.readBridgeJob(actor, param(i, 'jobRef'))),
+  },
+  // I6 bridge-facing routes: device principals on the bridge audience only, REST only (no MCP tool).
+  {
+    method: 'post',
+    path: '/v1/bridge/pair',
+    operationId: 'imaging.bridge.pair',
+    protected: false,
+    transport: 'pairing',
+    requestBody: I('BridgePair'),
+    success: { status: '201', schema: I('BridgePairResult') },
+    refusals: ['400', '401', '503'],
+    restOnly: true,
+    unkeyed: true,
+    tool: 'imaging_bridge_pair',
+    description:
+      'Bridge pairing: a one-time code plus a new Ed25519 public key and a proof of possession. Returns the device reference and the server job-signing public key. Every failure is the same 401.',
+    invoke: () => Promise.reject(new Error('pairing is anonymous')),
+    invokeAnonymous: (svc, i, correlationId) => svc.pairDevice(correlationId, i.body),
+  },
+  {
+    method: 'post',
+    path: '/v1/bridge/jobs/claim',
+    operationId: 'imaging.bridge.claim',
+    protected: true,
+    transport: 'device',
+    requestBody: I('BridgeClaim'),
+    success: { status: '200', schema: I('BridgeClaimResult') },
+    refusals: ['400', '401', '403', '503'],
+    restOnly: true,
+    unkeyed: true,
+    tool: 'imaging_bridge_claim',
+    description:
+      'Claim the next ready job as a server-signed envelope (or an explicit null). The allowlist is rechecked at claim time.',
+    invoke: (svc, actor) => svc.claimJob(actor),
+  },
+  {
+    method: 'post',
+    path: '/v1/bridge/jobs/{jobRef}/content',
+    operationId: 'imaging.bridge.content',
+    protected: true,
+    transport: 'device',
+    requestBody: I('ObjectBytes'),
+    requestMedia: 'application/octet-stream',
+    success: { status: '200', schema: I('BridgeContentResult') },
+    refusals: ['400', '401', '403', '404', '409', '422', '503'],
+    restOnly: true,
+    unkeyed: true,
+    tool: 'imaging_bridge_content',
+    description: 'Stage the bytes of a claimed acquire or import job (application/octet-stream).',
+    invoke: (svc, actor, i) => svc.uploadJobContent(actor, param(i, 'jobRef'), i.body),
+  },
+  {
+    method: 'post',
+    path: '/v1/bridge/jobs/{jobRef}/result',
+    operationId: 'imaging.bridge.result',
+    protected: true,
+    transport: 'device',
+    requestBody: I('BridgeResultReport'),
+    success: { status: '200', schema: I('BridgeResultAck') },
+    refusals: ['400', '401', '403', '404', '409', '422', '503'],
+    restOnly: true,
+    unkeyed: true,
+    tool: 'imaging_bridge_result',
+    description:
+      'Report a device-signed job result. The signed artifact digest must equal the staged bytes; the I2 gates then run. A replayed result is a recorded duplicate (409), never a second object.',
+    invoke: (svc, actor, i) => svc.reportJobResult(actor, param(i, 'jobRef'), i.body),
+  },
+  {
+    method: 'post',
+    path: '/v1/bridge/heartbeat',
+    operationId: 'imaging.bridge.heartbeat',
+    protected: true,
+    transport: 'device',
+    requestBody: I('BridgeHeartbeat'),
+    success: { status: '200', schema: I('BridgeHeartbeatResult') },
+    refusals: ['400', '401', '403', '503'],
+    restOnly: true,
+    unkeyed: true,
+    tool: 'imaging_bridge_heartbeat',
+    description: 'Device heartbeat; availability is derived from it.',
+    invoke: (svc, actor) => svc.heartbeat(actor),
+  },
+  {
+    method: 'post',
+    path: '/v1/bridge/keys/rotate',
+    operationId: 'imaging.bridge.rotateKey',
+    protected: true,
+    transport: 'device',
+    requestBody: I('BridgeKeyRotate'),
+    success: { status: '200', schema: I('BridgeKeyRotateResult') },
+    refusals: ['400', '401', '403', '422', '503'],
+    restOnly: true,
+    unkeyed: true,
+    tool: 'imaging_bridge_rotate_key',
+    description:
+      'Rotate the device key: asserted with the current key, proven by the new key. The old key stops working at once.',
+    invoke: (svc, actor, i) => svc.rotateKey(actor, i.body),
   },
 ];
 

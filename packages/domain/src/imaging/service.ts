@@ -1,5 +1,6 @@
 import { associationExtension, createAssociationOperations } from './association';
 import { createImagingBase, type ImagingDeps } from './base';
+import { createBridgeOperations } from './bridge';
 import {
   compositionExtension,
   createCompositionOperations,
@@ -28,6 +29,12 @@ export function createImagingService(deps: ImagingDeps) {
     ...createCompositionOperations(base),
     ...createRetentionOperations(base),
     ...createDicomOperations(base),
+    ...createBridgeOperations(base, {
+      leaseSeconds: deps.limits?.bridgeLeaseSeconds ?? 300,
+      resultSkewSeconds: 300,
+      staleSeconds: deps.limits?.bridgeStaleSeconds ?? 120,
+      offlineSeconds: deps.limits?.bridgeOfflineSeconds ?? 600,
+    }),
   };
 }
 

@@ -43,6 +43,9 @@ export function verifyGrantToken(
   const grantRef = m[1] as string;
   const expires = Number(m[2]);
   const given = Buffer.from(m[3] as string, 'base64url');
+  // Canonical encoding only: base64url decoding ignores the unused low bits of the last character, so
+  // a token whose last character was altered could otherwise still decode to the same MAC.
+  if (given.toString('base64url') !== m[3]) return null;
   const want = mac(secret, b, grantRef, expires);
   if (given.length !== want.length || !timingSafeEqual(given, want)) return null;
   return { grantRef, expiresEpochSeconds: expires };

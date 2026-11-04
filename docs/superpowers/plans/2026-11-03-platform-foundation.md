@@ -28,6 +28,8 @@ Translate the observed workflow states into synthetic acceptance cases: payment-
 
 ## Implementation review focus
 
+The [AI PMS architecture contract](../../AI-PMS-ARCHITECTURE.md) is an input to this plan. Foundation work must support controlled proposals and accountable automation without implementing clinical assistants or connecting live models. Subsequent module plans must inherit its capability dependencies and evaluation gates.
+
 - Reused pool connection retains another tenant's context: Task 2 must reject leakage across sequential and concurrent transactions.
 - Membership revoked after token issuance or job enqueue: Tasks 2 and 6 must deny execution using fresh authorization.
 - Same idempotency key with altered payload: Task 5 returns conflict, never previous unrelated result.
@@ -128,13 +130,26 @@ Consumes: published contracts, authorize and executeOnce. Produces: bounded list
 - [ ] Implement adapter and supported MCP authorization revision; log actor/tool/correlation only. Keep all inputs schema-validated outside the model.
 - [ ] Run protocol and parity suite with a local synthetic client; expect pass. Commit.
 
+### Task 7a: Synthetic proposal and approval boundary
+
+Files: `packages/contracts/src/action-proposal.schema.json`, `packages/domain/src/commands/proposals.ts`, `tests/integration/proposal-policy.test.ts`, `docs/adr/0003-automation-policy.md`. Create only during authorized execution.
+
+Consumes: Tasks 2–7. Produces: prepare/approve/commit behavior over the non-clinical synthetic task domain, with no live AI provider or outbound side effects.
+
+- [ ] Define proposal states and actor/approver policy; bind tenant, operation, canonical payload digest, source/resource versions, policy version and expiry. Store protected provenance separately from ordinary logs.
+- [ ] Write failing cases for altered payload, expired proposal, stale resource, cross-tenant approval, forged approval, agent self-approval of an elevated action, revoked approver/executor and policy change between approval and commit.
+- [ ] Implement server-owned proposals and approval records; reauthorize at commit; connect the existing command/idempotency/audit boundary. A committed proposal cannot execute twice, even under concurrent retries.
+- [ ] Run the same allow/deny cases through REST, MCP and deferred worker execution. Verify read/prepare never causes the synthetic mutation, unauthorized callers cannot read proposal contents, and a valid approved execution creates one result and audit trail.
+- [ ] Record the synthetic evidence and future operation-specific policy requirements. Live models, clinical signing, financial posting and messaging remain outside this foundation task. Commit after review.
+
 ### Task 8: Foundation release and recovery proof
 
 Files: `tests/integration/restore-smoke.test.ts`, `tests/integration/privacy-log.test.ts`, CI workflows, `docs/runbooks/development.md`, `docs/runbooks/restore.md`, `docs/adr/0002-deployment.md`.
 
-Consumes: Tasks 1–7. Produces: repeatable synthetic deployment/test/backup/restore instructions and CI evidence; no PHI-ready release claim.
+Consumes: Tasks 1–7a. Produces: repeatable synthetic deployment/test/backup/restore instructions and CI evidence; no PHI-ready release claim.
 
 - [ ] Write restore checks: tenant counts, synthetic record versions, audit/outbox invariants and denied cross-tenant access survive restore; forbidden marker absent in ordinary logs/artifacts.
+- [ ] Include protected proposal/approval state in restore and privacy checks; restored stale/expired proposals fail closed and completed proposals cannot replay their mutation.
 - [ ] Run tests and verify they detect deliberately incomplete synthetic backups and unsafe logging.
 - [ ] Implement versioned backup/restore procedure, local environment verification, CI least permissions and dependency/license/security checks. Use no production secrets in pull-request jobs.
 - [ ] Run all scripts, isolated restore and secret scan; record versions and results. Commit and obtain review before any domain expansion.

@@ -92,6 +92,10 @@ Recommended SQL boundary: private domain schemas; Data API exposure disabled for
 
 ## AI and full programmatic control
 
+The [AI PMS architecture contract](../../AI-PMS-ARCHITECTURE.md) extends this design with eight proposed capability families: huddle preparation, clinical draft documentation, scheduling assistance, revenue-cycle assistance, treatment follow-up, financial explanations, analytics and workflow automation. Its module dependencies, protected proposal lifecycle, provider controls and evaluation gates are requirements for follow-on plans. They are proposed CuspAtlas behavior, not verified Tab32 behavior.
+
+AI orchestration, authorized retrieval, proposal storage and provider adapters remain logical boundaries within the modular service/worker architecture. Deterministic domain services own calculations and mutations. Default action progression is read, recommend, draft, approve and execute; initial AI remains read/draft only. AI outages must leave ordinary care workflows usable.
+
 Every supported business operation must have a documented API equivalent. MCP calls the same application command and query handlers. Parity does not grant all callers every permission, nor make clinical sign-off automatic. Separate read, draft, commit, clinical sign and financial execution scopes. Prescribing, payments, access administration and bulk outbound communication retain policy-controlled approval or staff roles.
 
 Start AI with administrative explanations, source-linked summaries and draft notes/claim narratives. Untrusted notes/documents cannot instruct the agent to widen access or change a tool destination. AI output is labeled and records evidence/model/version; sensitive drafts require review before signing/submission. No autonomous diagnosis or radiograph interpretation at launch. AI is optional and basic care continues when it is unavailable.

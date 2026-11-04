@@ -15,6 +15,7 @@ Give dental practices ownership of their data and software, complete practice wo
 - [Product and architecture design](docs/superpowers/specs/2026-11-03-dental-pms-design.md)
 - [End-to-end capability and acceptance matrix](docs/CAPABILITIES.md)
 - [API, MCP, and automation contract](docs/API-AND-MCP.md)
+- [AI PMS architecture, capability contracts and delivery gates](docs/AI-PMS-ARCHITECTURE.md)
 - [Security and clinical-readiness gates](docs/SECURITY-AND-READINESS.md)
 - [Research evidence and its limits](docs/RESEARCH.md)
 - [Authenticated Tab32 surface map](docs/TAB32-AUTHENTICATED-MAP.md)

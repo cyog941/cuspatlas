@@ -30,7 +30,15 @@ UI is the final **planning** stage, not the last coding task after backend lock-
 
 Detailed phase-F plan: [platform foundation](superpowers/plans/2026-11-03-platform-foundation.md). Each later workstream must receive its own reviewed technical spec and executable plan after P1/P2 resolve its material unknowns. Inventing payer/clinical contracts today would not make the project more ready.
 
-## Staffing and effort assumptions
+## AI delivery within the existing workstreams
+
+The [AI PMS architecture contract](AI-PMS-ARCHITECTURE.md) is part of the roadmap. F establishes authorization, provenance and synthetic proposal/approval guarantees. S/C/B/I/E provide the authoritative data and business operations. A delivers API/MCP parity continuously; its AI releases follow their actual module dependencies rather than preceding them.
+
+- A1: sourced summaries, huddle preparation, clinical note drafts and claim-readiness assistance. Require source freshness, reviewed synthetic evaluations and the relevant clinical/billing modules; read/draft only.
+- A2: scheduling recovery, recall, denial follow-up and multi-step automation. Require separately reviewed execution policies, current consent/access checks, durable step history, idempotency and external-outcome reconciliation.
+- Every capability plan names its owner, prerequisite contracts, synthetic scenarios, domain reviewers, quantitative acceptance thresholds and disable/recovery procedure. A model or prompt change triggers relevant regression evaluation.
+
+This adds architecture and future implementation requirements only. It neither authorizes coding nor moves UI design ahead of the remaining planning gates. Release R still requires the full replacement contract even if individual AI capabilities are ready earlier.
 
 This is a clinical/financial product program, not a weekend app. At minimum identify product ownership, clinical and billing reviewers, backend/data engineering, frontend/UX, and security/operations ownership; a person can hold multiple roles, but the responsibilities remain. Do not publish a calendar estimate until pilot scope, integration access, available people and migration samples are known. Workstream acceptance gates determine progress.
 

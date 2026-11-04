@@ -43,6 +43,8 @@ Responses include stable error code, retryability, correlation ID and safe field
 
 ## AI boundaries
 
+The [AI PMS architecture contract](AI-PMS-ARCHITECTURE.md) defines capability dependencies and release evidence. Every AI capability consumes these same domain contracts; no separate privileged agent implementation is allowed. Protected proposals retain source versions and final disposition. Changes to approved payloads invalidate approval; automation cannot approve its own elevated actions. Deterministic services supply balances, availability and other authoritative calculations.
+
 No arbitrary SQL, shell, general file reader, unrestricted HTTP proxy or impersonation tool. Allowlist external connector hosts and block private-network/metadata SSRF destinations. Treat imported records, images, OCR and retrieved text as data, never instructions. Enforce authorization outside the model. Tenant-specific retrieval and embeddings must obey retention and deletion rules.
 
 Default AI workload is draft-only. Practices choose providers and policies; PHI is sent only to approved services with appropriate contractual and technical controls. Disable training/retention where the selected service contract supports it and verify the actual configuration. Track model/prompt version, sources, actor, review and final disposition without copying PHI into operational logs.

@@ -10,4 +10,6 @@ export * from './recurrence';
 export * from './requests';
 export * from './resources';
 export * from './visit-context';
+export * from './waitlist';
+export * from './waitlist-offers';
 export * from './zoned-time';

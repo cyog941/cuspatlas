@@ -46,6 +46,7 @@ import {
   notFound,
   type ResourceRow,
 } from './resources';
+import { assertHoldNotOffered, expireOfferOfHold } from './waitlist-offers';
 import { addDays, formatLocal, isKnownTimeZone, isoWeekday, localToInstant, minutesOf } from './zoned-time';
 
 export const APPOINTMENT_RESOURCE = 'appointment';
@@ -286,6 +287,8 @@ export async function expireHolds(tx: TenantTransaction, holdIds: readonly strin
       },
       { changedFields: ['state'] },
     );
+    // S15: an offer made on this hold expires with it (no staff action); its entry is open again.
+    await expireOfferOfHold(tx, h.id);
   }
   return locked.rows.length;
 }
@@ -561,6 +564,105 @@ export async function insertBookingIn(
   return id;
 }
 
+/**
+ * Creates a hold (an occupancy of kind `hold` with an expiry) after the inactive-resource and busy
+ * checks; the exclusion constraint is the authority. Shared by S10 holds and S15 waitlist offers.
+ */
+export async function createHoldIn(
+  tx: TenantTransaction,
+  operation: string,
+  location: LocationRow,
+  resources: readonly ResourceRow[],
+  w: Window,
+  ttlMinutes: number,
+  canReadBookings: boolean,
+  extraConflicts: readonly Conflict[] = [],
+): Promise<{ id: string; expires_at: Date }> {
+  const ids = resources.map((r) => r.id);
+  await releaseExpiredHolds(tx, ids, w);
+  const conflicts = [
+    ...extraConflicts,
+    ...resources
+      .filter((r) => r.status !== 'active')
+      .map(
+        (r): Conflict => ({
+          kind: 'outside_availability',
+          resourceRef: refOf(r),
+          explanation: 'The resource is inactive.',
+          overrideable: false,
+        }),
+      ),
+    ...(await busyConflicts(tx, location, ids, w, [], canReadBookings)),
+  ];
+  if (conflicts.length > 0) throw bookingConflict(conflicts);
+  const { rows } = await tx.query<{ id: string; expires_at: Date }>(
+    `INSERT INTO cuspatlas.scheduling_holds (tenant_id, location_id, starts_at, ends_at, expires_at, created_by)
+     VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, now() + make_interval(mins => $4), cuspatlas.current_actor_id())
+     RETURNING id, expires_at`,
+    [location.id, new Date(w.s), new Date(w.e), ttlMinutes],
+  );
+  const hold = rows[0];
+  if (!hold) throw new Error('insert returned no row');
+  await occupy(tx, 'hold', hold.id, location, resources.map(refOf), w, () =>
+    busyConflicts(tx, location, ids, w, [hold.id], canReadBookings),
+  );
+  await recordCommand(
+    tx,
+    { operation, resourceType: HOLD_RESOURCE, resourceRef: hold.id, resourceVersion: 1 },
+    { changedFields: ['window', 'resources', 'expiresAt'] },
+  );
+  return hold;
+}
+
+/** Marks an active hold converted into a booking (same transaction as the booking insert). */
+export async function convertHoldIn(
+  tx: TenantTransaction,
+  holdId: string,
+  holdVersion: number,
+  appointmentId: string,
+): Promise<void> {
+  await tx.query(
+    `UPDATE cuspatlas.scheduling_holds SET state = 'converted', appointment_id = $1, version = version + 1,
+       updated_at = now() WHERE id = $2`,
+    [appointmentId, holdId],
+  );
+  await recordCommand(
+    tx,
+    {
+      operation: 'scheduling.holds.convert',
+      resourceType: HOLD_RESOURCE,
+      resourceRef: holdId,
+      resourceVersion: holdVersion + 1,
+    },
+    { changedFields: ['state', 'appointmentRef'] },
+  );
+}
+
+/** Releases an active hold with a reason (explicit release, offer decline or withdrawal). */
+export async function releaseHoldIn(
+  tx: TenantTransaction,
+  operation: string,
+  holdId: string,
+  holdVersion: number,
+  reason: string,
+): Promise<void> {
+  await tx.query(
+    `UPDATE cuspatlas.scheduling_occupancy SET released_at = now()
+     WHERE source_kind = 'hold' AND source_id = $1 AND released_at IS NULL`,
+    [holdId],
+  );
+  await tx.query(
+    `UPDATE cuspatlas.scheduling_holds SET state = 'released', release_reason = $1, released_at = now(),
+       version = version + 1, updated_at = now() WHERE id = $2`,
+    [reason, holdId],
+  );
+  await recordCommand(
+    tx,
+    { operation, resourceType: HOLD_RESOURCE, resourceRef: holdId, resourceVersion: holdVersion + 1 },
+    { changedFields: ['state'] },
+  );
+}
+
 /** S10 commands and queries: holds, booking, reschedule, cancel and the appointment read. */
 export function createBookingOperations(base: AppointmentBase) {
   const { deps, execute } = base;
@@ -609,6 +711,8 @@ export function createBookingOperations(base: AppointmentBase) {
             if (hold) {
               if (hold.state !== 'active') throw stateConflict('hold_not_active');
               if (hold.expired) throw stateConflict('hold_expired');
+              // A waitlist offer's hold books only through the offer's explicit acceptance (S15).
+              await assertHoldNotOffered(tx, hold.id);
               if (hold.location_id !== location.id) throw failedAt('/holdRef', 'locationMismatch');
               const heldIds = new Set(hold.resource_ids);
               if (!prepared.resources.every((r) => heldIds.has(r.id)))
@@ -700,42 +804,11 @@ export function createBookingOperations(base: AppointmentBase) {
           return execute<BookingResult>(ctx, envelope, tx, async () => {
             const w = checkWindow(p.startsAt, p.endsAt);
             if (location.status !== 'active') throw failedAt('/locationRef', 'locationInactive');
-            const ids = resources.map((r) => r.id);
-            await releaseExpiredHolds(tx, ids, w);
-            const conflicts = [
-              ...resources
-                .filter((r) => r.status !== 'active')
-                .map(
-                  (r): Conflict => ({
-                    kind: 'outside_availability',
-                    resourceRef: refOf(r),
-                    explanation: 'The resource is inactive.',
-                    overrideable: false,
-                  }),
-                ),
-              ...(await busyConflicts(tx, location, ids, w, [], canReadBookings)),
-            ];
-            if (conflicts.length > 0) throw bookingConflict(conflicts);
             const settings = await tx.query<{ ttl: number }>(
               'SELECT hold_ttl_minutes AS ttl FROM cuspatlas.scheduling_policy_settings',
             );
             const ttl = p.ttlMinutes ?? settings.rows[0]?.ttl ?? 15;
-            const { rows } = await tx.query<{ id: string; expires_at: Date }>(
-              `INSERT INTO cuspatlas.scheduling_holds (tenant_id, location_id, starts_at, ends_at, expires_at, created_by)
-               VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, now() + make_interval(mins => $4), cuspatlas.current_actor_id())
-               RETURNING id, expires_at`,
-              [location.id, new Date(w.s), new Date(w.e), ttl],
-            );
-            const hold = rows[0];
-            if (!hold) throw new Error('insert returned no row');
-            await occupy(tx, 'hold', hold.id, location, resources.map(refOf), w, () =>
-              busyConflicts(tx, location, ids, w, [hold.id], canReadBookings),
-            );
-            await recordCommand(
-              tx,
-              { operation: op, resourceType: HOLD_RESOURCE, resourceRef: hold.id, resourceVersion: 1 },
-              { changedFields: ['window', 'resources', 'expiresAt'] },
-            );
+            const hold = await createHoldIn(tx, op, location, resources, w, ttl, canReadBookings);
             return {
               data: {
                 outcome: 'held',
@@ -765,6 +838,7 @@ export function createBookingOperations(base: AppointmentBase) {
           const hold = await loadHold(tx, decision, holdRef, 'FOR UPDATE OF h');
           return execute<HoldCommandData>(ctx, { ...envelope, payload: { holdRef, ...p } }, tx, async () => {
             if (hold.state !== 'active') throw stateConflict('hold_not_active');
+            await assertHoldNotOffered(tx, hold.id);
             await releaseOccupancy(tx, 'hold', hold.id);
             const reason = hold.expired ? 'expired' : p.reasonCode;
             await tx.query(
@@ -983,7 +1057,7 @@ export function createBookingOperations(base: AppointmentBase) {
   };
 }
 
-interface HoldRow extends Record<string, unknown> {
+export interface HoldRow extends Record<string, unknown> {
   id: string;
   location_id: string;
   location_ref: string;
@@ -995,7 +1069,7 @@ interface HoldRow extends Record<string, unknown> {
   resource_ids: string[];
 }
 
-async function loadHold(
+export async function loadHold(
   tx: TenantTransaction,
   decision: AuthorizationDecision,
   holdRef: string,

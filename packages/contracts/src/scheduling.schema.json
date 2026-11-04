@@ -3432,6 +3432,882 @@
           }
         }
       }
+    },
+    "EntryRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque waitlist entry reference."
+    },
+    "OfferRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque waitlist offer reference."
+    },
+    "RecoveryRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque cancellation recovery reference."
+    },
+    "StandingPolicyRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque standing policy reference."
+    },
+    "WaitlistState": {
+      "enum": ["active", "offered", "booked", "removed"]
+    },
+    "OfferOutcome": {
+      "enum": ["accepted", "declined", "expired", "withdrawn"]
+    },
+    "RequestedChannel": {
+      "enum": ["none", "sms", "email", "voice", "portal"],
+      "description": "Stated preference only; whether contact is allowed is the E6 decision."
+    },
+    "WaitlistAdd": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "S15 waitlist entry. Creates no appointment, hold or occupancy.",
+      "required": ["patientRef", "locationRef", "durationMinutes", "desiredFrom", "desiredUntil"],
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "durationMinutes": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 480
+        },
+        "desiredFrom": {
+          "$ref": "#/$defs/Instant"
+        },
+        "desiredUntil": {
+          "$ref": "#/$defs/Instant"
+        },
+        "providerPreference": {
+          "$ref": "#/$defs/ProviderRef"
+        },
+        "appointmentTypeCode": {
+          "$ref": "#/$defs/AppointmentTypeCode"
+        },
+        "priority": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5,
+          "description": "1 is offered first (default 3)."
+        },
+        "requestedChannel": {
+          "$ref": "#/$defs/RequestedChannel"
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "WaitlistRemove": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "reasonCode"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "WaitlistListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "state": {
+          "$ref": "#/$defs/WaitlistState"
+        }
+      }
+    },
+    "WaitlistOffer": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Offer a window to one entry: a short-lived hold (ADR 0009 S-D6 pending) and a waitlist_offer intent with channel none. Never books.",
+      "required": ["startsAt", "endsAt", "provider", "operatory"],
+      "properties": {
+        "startsAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "endsAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "provider": {
+          "$ref": "#/$defs/ProviderRef"
+        },
+        "operatory": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OperatoryRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "noOperatoryReason": {
+          "$ref": "#/$defs/NoOperatoryReason"
+        }
+      }
+    },
+    "OfferRespond": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The explicit acceptance (books through the S10 insert path from the hold) or decline/withdrawal (releases the hold).",
+      "required": ["expectedVersion", "outcome"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "outcome": {
+          "enum": ["accepted", "declined", "withdrawn"]
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "OfferReconcile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {}
+    },
+    "RecoveryListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        }
+      }
+    },
+    "RecoveryExecute": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Offer the freed slot to the named entry, or to the first prepared candidate. A service principal needs a live standing policy.",
+      "required": ["expectedVersion"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "entryRef": {
+          "$ref": "#/$defs/EntryRef"
+        }
+      }
+    },
+    "StandingPolicyGrant": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Explicit, revocable standing authorization for one service principal to execute cancellation recovery offers in the named locations, within limits, until expiry (at most 90 days).",
+      "required": ["operation", "granteeRef", "locationRefs", "maxOffersPerRecovery", "expiresAt"],
+      "properties": {
+        "operation": {
+          "const": "scheduling.recovery.execute"
+        },
+        "granteeRef": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "locationRefs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/LocationRef"
+          }
+        },
+        "maxOffersPerRecovery": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "StandingPolicyRevoke": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "reasonCode"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "WaitlistEntryCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["entryRef", "state"],
+          "properties": {
+            "entryRef": {
+              "$ref": "#/$defs/EntryRef"
+            },
+            "state": {
+              "$ref": "#/$defs/WaitlistState"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "WaitlistEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entryRef",
+        "patientRef",
+        "locationRef",
+        "durationMinutes",
+        "desiredFrom",
+        "desiredUntil",
+        "providerPreference",
+        "appointmentTypeCode",
+        "priority",
+        "requestedChannel",
+        "expiresAt",
+        "state",
+        "stateReason",
+        "appointmentRef",
+        "version",
+        "createdAt"
+      ],
+      "properties": {
+        "entryRef": {
+          "$ref": "#/$defs/EntryRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "durationMinutes": {
+          "type": "integer"
+        },
+        "desiredFrom": {
+          "$ref": "#/$defs/Instant"
+        },
+        "desiredUntil": {
+          "$ref": "#/$defs/Instant"
+        },
+        "providerPreference": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProviderRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "appointmentTypeCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AppointmentTypeCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "priority": {
+          "type": "integer"
+        },
+        "requestedChannel": {
+          "$ref": "#/$defs/RequestedChannel"
+        },
+        "expiresAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "$ref": "#/$defs/WaitlistState"
+        },
+        "stateReason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "appointmentRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AppointmentRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "WaitlistEntryList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/WaitlistEntry"
+          }
+        }
+      }
+    },
+    "OfferCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "offerRef",
+            "holdRef",
+            "entryRef",
+            "recoveryRef",
+            "expiresAt",
+            "intentRef",
+            "standingPolicyRef",
+            "standingPolicyVersion"
+          ],
+          "properties": {
+            "offerRef": {
+              "$ref": "#/$defs/OfferRef"
+            },
+            "holdRef": {
+              "$ref": "#/$defs/HoldRef"
+            },
+            "entryRef": {
+              "$ref": "#/$defs/EntryRef"
+            },
+            "recoveryRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/RecoveryRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "expiresAt": {
+              "$ref": "#/$defs/Instant"
+            },
+            "intentRef": {
+              "$ref": "#/$defs/IntentRef"
+            },
+            "standingPolicyRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/StandingPolicyRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "standingPolicyVersion": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "OfferRespondResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["offerRef", "entryRef", "outcome", "appointmentRef"],
+          "properties": {
+            "offerRef": {
+              "$ref": "#/$defs/OfferRef"
+            },
+            "entryRef": {
+              "$ref": "#/$defs/EntryRef"
+            },
+            "outcome": {
+              "$ref": "#/$defs/OfferOutcome"
+            },
+            "appointmentRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AppointmentRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "OfferRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "offerRef",
+            "entryRef",
+            "holdRef",
+            "recoveryRef",
+            "startsAt",
+            "endsAt",
+            "expiresAt",
+            "outcome",
+            "outcomeReason",
+            "appointmentRef",
+            "standingPolicyRef",
+            "standingPolicyVersion",
+            "version"
+          ],
+          "properties": {
+            "offerRef": {
+              "$ref": "#/$defs/OfferRef"
+            },
+            "entryRef": {
+              "$ref": "#/$defs/EntryRef"
+            },
+            "holdRef": {
+              "$ref": "#/$defs/HoldRef"
+            },
+            "recoveryRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/RecoveryRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "startsAt": {
+              "$ref": "#/$defs/Instant"
+            },
+            "endsAt": {
+              "$ref": "#/$defs/Instant"
+            },
+            "expiresAt": {
+              "$ref": "#/$defs/Instant"
+            },
+            "outcome": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/OfferOutcome"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "outcomeReason": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ReasonCode"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "appointmentRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AppointmentRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "standingPolicyRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/StandingPolicyRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "standingPolicyVersion": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "version": {
+              "$ref": "#/$defs/Version"
+            }
+          }
+        }
+      }
+    },
+    "OfferReconcileResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["expired"],
+          "properties": {
+            "expired": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "RecoveryRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "recoveryRef",
+            "appointmentRef",
+            "locationRef",
+            "startsAt",
+            "endsAt",
+            "provider",
+            "state",
+            "version",
+            "automation",
+            "candidates",
+            "excluded",
+            "offers"
+          ],
+          "properties": {
+            "recoveryRef": {
+              "$ref": "#/$defs/RecoveryRef"
+            },
+            "appointmentRef": {
+              "$ref": "#/$defs/AppointmentRef"
+            },
+            "locationRef": {
+              "$ref": "#/$defs/LocationRef"
+            },
+            "startsAt": {
+              "$ref": "#/$defs/Instant"
+            },
+            "endsAt": {
+              "$ref": "#/$defs/Instant"
+            },
+            "provider": {
+              "$ref": "#/$defs/ProviderRef"
+            },
+            "state": {
+              "enum": ["open", "filled", "closed"]
+            },
+            "version": {
+              "$ref": "#/$defs/Version"
+            },
+            "automation": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["mode", "standingPolicyRef"],
+              "properties": {
+                "mode": {
+                  "enum": ["prepare_for_approval", "policy_authorized"]
+                },
+                "standingPolicyRef": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/StandingPolicyRef"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            },
+            "candidates": {
+              "type": "array",
+              "maxItems": 50,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["entryRef", "patientRef", "rank", "priority", "consent"],
+                "properties": {
+                  "entryRef": {
+                    "$ref": "#/$defs/EntryRef"
+                  },
+                  "patientRef": {
+                    "$ref": "#/$defs/PatientRef"
+                  },
+                  "rank": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "priority": {
+                    "type": "integer"
+                  },
+                  "consent": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "Whether the patient may be contacted is the E6 decision; referenced, never evaluated here.",
+                    "required": ["owner", "state"],
+                    "properties": {
+                      "owner": {
+                        "const": "E6"
+                      },
+                      "state": {
+                        "const": "undecided"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "excluded": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["entryRef", "reason"],
+                "properties": {
+                  "entryRef": {
+                    "$ref": "#/$defs/EntryRef"
+                  },
+                  "reason": {
+                    "$ref": "#/$defs/ReasonCode"
+                  }
+                }
+              }
+            },
+            "offers": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["offerRef", "outcome"],
+                "properties": {
+                  "offerRef": {
+                    "$ref": "#/$defs/OfferRef"
+                  },
+                  "outcome": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/OfferOutcome"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "StandingPolicyCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["policyRef", "state"],
+          "properties": {
+            "policyRef": {
+              "$ref": "#/$defs/StandingPolicyRef"
+            },
+            "state": {
+              "enum": ["active", "revoked"]
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "StandingPolicyList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "policyRef",
+              "operation",
+              "ownerRef",
+              "granteeRef",
+              "locationRefs",
+              "maxOffersPerRecovery",
+              "expiresAt",
+              "state",
+              "version",
+              "createdAt"
+            ],
+            "properties": {
+              "policyRef": {
+                "$ref": "#/$defs/StandingPolicyRef"
+              },
+              "operation": {
+                "const": "scheduling.recovery.execute"
+              },
+              "ownerRef": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "granteeRef": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "locationRefs": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/LocationRef"
+                }
+              },
+              "maxOffersPerRecovery": {
+                "type": "integer"
+              },
+              "expiresAt": {
+                "$ref": "#/$defs/Instant"
+              },
+              "state": {
+                "enum": ["active", "revoked", "expired"]
+              },
+              "version": {
+                "$ref": "#/$defs/Version"
+              },
+              "createdAt": {
+                "$ref": "#/$defs/Instant"
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

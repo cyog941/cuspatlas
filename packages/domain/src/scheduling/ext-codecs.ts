@@ -72,6 +72,14 @@ export const EXTENDED_SCHEDULING_OPERATIONS: readonly string[] = [
   'scheduling.series.create',
   'scheduling.series.extend',
   'scheduling.series.end',
+  'scheduling.waitlist.add',
+  'scheduling.waitlist.remove',
+  'scheduling.waitlist.offer',
+  'scheduling.waitlist.respond',
+  'scheduling.waitlist.reconcileOffers',
+  'scheduling.recovery.execute',
+  'scheduling.standingPolicies.grant',
+  'scheduling.standingPolicies.revoke',
 ];
 
 export const EXTENDED_SCHEDULING_CODECS: Readonly<Record<string, ReplayCodec<unknown>>> = Object.fromEntries(

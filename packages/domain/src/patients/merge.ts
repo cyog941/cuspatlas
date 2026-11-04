@@ -44,7 +44,12 @@ export const MERGE_POLICY_VERSION = 'patient-merge.pending-approval.1';
  */
 export interface MergeRecordClass {
   readonly recordClass: string;
-  readonly table: 'patient_relationships' | 'appointment_requests' | 'appointments' | 'appointment_series';
+  readonly table:
+    | 'patient_relationships'
+    | 'appointment_requests'
+    | 'appointments'
+    | 'appointment_series'
+    | 'waitlist_entries';
   readonly column: 'subject_patient_id' | 'counterparty_patient_id';
   /** Public name of the reference in the record's contract. */
   readonly referenceField: string;
@@ -147,6 +152,15 @@ export const MERGE_RECORD_CLASSES: readonly MergeRecordClass[] = [
       'version',
       'updated_at',
     ],
+  },
+  // S15: a waitlist entry follows its patient with its history (offers reference the entry).
+  {
+    recordClass: 'waitlistEntry',
+    table: 'waitlist_entries',
+    column: 'subject_patient_id',
+    referenceField: 'patientRef',
+    factKind: 'administrative',
+    digestExclude: ['subject_patient_id', 'state', 'state_reason', 'appointment_id', 'version', 'updated_at'],
   },
 ];
 

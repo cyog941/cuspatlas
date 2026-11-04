@@ -18,6 +18,10 @@ export const TRANSPORT: Record<string, string> = {
   itemRef: 'VisitItemRef',
   seriesRef: 'SeriesRef',
   intentRef: 'IntentRef',
+  entryRef: 'EntryRef',
+  offerRef: 'OfferRef',
+  recoveryRef: 'RecoveryRef',
+  policyRef: 'StandingPolicyRef',
 };
 
 /**

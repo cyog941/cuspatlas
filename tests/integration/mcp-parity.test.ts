@@ -114,6 +114,20 @@ const TOOL_NAMES = [
   // S14 notification intents.
   'scheduling_notifications_worklist',
   'scheduling_notifications_get',
+  // S15 waitlist and PT-02 cancellation recovery.
+  'scheduling_waitlist_add',
+  'scheduling_waitlist_list',
+  'scheduling_waitlist_remove',
+  'scheduling_waitlist_offer',
+  'scheduling_waitlist_reconcile_offers',
+  'scheduling_waitlist_offer_get',
+  'scheduling_waitlist_respond',
+  'scheduling_recovery_list',
+  'scheduling_recovery_get',
+  'scheduling_recovery_execute',
+  'scheduling_standing_policies_grant',
+  'scheduling_standing_policies_list',
+  'scheduling_standing_policies_revoke',
 ].sort();
 
 let db: TestDatabase;

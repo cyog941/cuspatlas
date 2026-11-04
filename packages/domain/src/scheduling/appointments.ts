@@ -7,6 +7,7 @@ import { createRecurrenceOperations, recordSeriesException } from './recurrence'
 import { createRequestOperations, type LinkHook, linkRequestToBookingIn } from './requests';
 import type { SchedulingDeps } from './resources';
 import { createVisitContextOperations } from './visit-context';
+import { createWaitlistOperations, openRecoveryIn } from './waitlist';
 
 /**
  * The appointment service: S8 requests, S10 booking and S11 attendance. The only
@@ -35,6 +36,7 @@ export function createAppointmentService(deps: SchedulingDeps) {
   const visitContext = createVisitContextOperations(base);
   const recurrence = createRecurrenceOperations(base);
   const notifications = createNotificationOperations(base);
+  const waitlist = createWaitlistOperations(base);
   const bookingStillActive = async (tx: TenantTransaction, appointmentId: string) => {
     const { rows } = await tx.query<{ status: string }>(
       'SELECT status FROM cuspatlas.appointments WHERE id = $1',
@@ -49,6 +51,7 @@ export function createAppointmentService(deps: SchedulingDeps) {
     ...visitContext,
     ...recurrence,
     ...notifications,
+    ...waitlist,
     reopenRequest: (ctx: ActorContext, requestRef: string, envelope: CommandEnvelope<unknown>) =>
       requests.reopenRequest(ctx, requestRef, envelope, bookingStillActive),
     rescheduleAppointment: (ctx: ActorContext, appointmentRef: string, envelope: CommandEnvelope<unknown>) =>
@@ -60,6 +63,8 @@ export function createAppointmentService(deps: SchedulingDeps) {
       booking.cancelAppointment(ctx, appointmentRef, envelope, async (tx, id, reason) => {
         await bookingAttendanceGuard(tx, 'scheduling.appointments.cancel', id, 'cancelled', reason);
         await recordSeriesException(tx, id, 'cancelled', reason);
+        // PT-02: the freed future window opens a cancellation recovery record.
+        await openRecoveryIn(tx, id);
       }),
   };
 }

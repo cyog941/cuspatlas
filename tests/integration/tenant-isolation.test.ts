@@ -112,6 +112,7 @@ describe('runtime database role', () => {
       'appointment_series_occurrences',
       'appointments',
       'audit_events',
+      'cancellation_recoveries',
       'command_idempotency',
       'delivery_receipts',
       'memberships',
@@ -130,14 +131,18 @@ describe('runtime database role', () => {
       'scheduling_holds',
       'scheduling_locations',
       'scheduling_occupancy',
+      'scheduling_offer_policies',
       'scheduling_policy_settings',
       'scheduling_resources',
+      'scheduling_standing_policies',
       'scheduling_time_blocks',
       'security_attempt_events',
       'sensitive_read_events',
       'synthetic_tasks',
       'tenants',
       'visit_context_items',
+      'waitlist_entries',
+      'waitlist_offers',
     ]);
     for (const r of rows)
       expect([r.relname, r.relrowsecurity, r.relforcerowsecurity]).toStrictEqual([r.relname, true, true]);

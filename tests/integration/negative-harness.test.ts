@@ -742,6 +742,8 @@ export const COMMANDS: HarnessCommand[] = [
     rest: () => ({ method: 'GET', url: '/v1/scheduling/notifications/worklist', keyed: false, status: 200 }),
     mcpArgs: () => ({}),
   },
+  // S15 waitlist and PT-02 cancellation recovery with its standing policies.
+  ...waitlistRows(),
 ];
 
 const APPT = '/v1/scheduling/appointments';
@@ -899,6 +901,155 @@ function seriesRows(): HarnessCommand[] {
         idempotencyKey: randomUUID(),
       }),
     },
+  ];
+}
+
+/** S15 and PT-02 rows. */
+function waitlistRows(): HarnessCommand[] {
+  const W = '/v1/scheduling/waitlist';
+  const O = '/v1/scheduling/waitlist-offers';
+  const R = '/v1/scheduling/recoveries';
+  const P = '/v1/scheduling/standing-policies';
+  const write = (
+    operation: string,
+    tool: string,
+    url: (f: HarnessFixture) => string,
+    body: (f: HarnessFixture) => Record<string, unknown>,
+    params: (f: HarnessFixture) => Record<string, unknown>,
+    status: number,
+    crossTenant: HarnessCommand['crossTenant'] = 'not_found',
+  ): HarnessCommand => ({
+    operation,
+    tool,
+    crossTenant,
+    downgradedTo: 'readOnly',
+    rest: (f) => ({ method: 'POST', url: url(f), body: body(f), keyed: true, status }),
+    mcpArgs: (f) => ({ ...params(f), ...body(f), idempotencyKey: randomUUID() }),
+  });
+  const read = (
+    operation: string,
+    tool: string,
+    url: (f: HarnessFixture) => string,
+    params: (f: HarnessFixture) => Record<string, unknown>,
+    crossTenant: HarnessCommand['crossTenant'] = 'not_found',
+  ): HarnessCommand => ({
+    operation,
+    tool,
+    crossTenant,
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({ method: 'GET', url: url(f), keyed: false, status: 200 }),
+    mcpArgs: (f) => params(f),
+  });
+  const none = () => ({});
+  const offerBody = (f: HarnessFixture) => ({
+    startsAt: '2030-02-11T15:00:00Z',
+    endsAt: '2030-02-11T16:00:00Z',
+    provider: { kind: 'provider', resourceRef: f.alphaProvider },
+    operatory: { kind: 'operatory', resourceRef: f.alphaResource },
+  });
+  return [
+    write(
+      'scheduling.waitlist.add',
+      'scheduling_waitlist_add',
+      () => W,
+      (f) => ({
+        patientRef: f.alphaPatient,
+        locationRef: f.alphaLocation,
+        durationMinutes: 60,
+        desiredFrom: '2030-01-01T00:00:00Z',
+        desiredUntil: '2030-12-31T00:00:00Z',
+      }),
+      none,
+      201,
+    ),
+    read('scheduling.waitlist.list', 'scheduling_waitlist_list', () => W, none, 'tenant_own_data'),
+    write(
+      'scheduling.waitlist.remove',
+      'scheduling_waitlist_remove',
+      (f) => `${W}/${f.alphaEntry}/remove`,
+      () => ({ expectedVersion: 1, reasonCode: 'patient_request' }),
+      (f) => ({ entryRef: f.alphaEntry }),
+      200,
+    ),
+    write(
+      'scheduling.waitlist.offer',
+      'scheduling_waitlist_offer',
+      (f) => `${W}/${f.alphaEntry}/offer`,
+      offerBody,
+      (f) => ({ entryRef: f.alphaEntry }),
+      201,
+    ),
+    write(
+      'scheduling.waitlist.reconcileOffers',
+      'scheduling_waitlist_reconcile_offers',
+      () => `${W}/offers/reconcile`,
+      none,
+      none,
+      200,
+      'tenant_own_data',
+    ),
+    read(
+      'scheduling.waitlist.offers.read',
+      'scheduling_waitlist_offer_get',
+      (f) => `${O}/${f.alphaOffer}`,
+      (f) => ({
+        offerRef: f.alphaOffer,
+      }),
+    ),
+    write(
+      'scheduling.waitlist.respond',
+      'scheduling_waitlist_respond',
+      (f) => `${O}/${f.alphaOffer}/respond`,
+      () => ({ expectedVersion: 1, outcome: 'declined', reasonCode: 'patient_declined' }),
+      (f) => ({ offerRef: f.alphaOffer }),
+      200,
+    ),
+    read('scheduling.recovery.list', 'scheduling_recovery_list', () => R, none, 'tenant_own_data'),
+    read(
+      'scheduling.recovery.read',
+      'scheduling_recovery_get',
+      (f) => `${R}/${f.alphaRecovery}`,
+      (f) => ({
+        recoveryRef: f.alphaRecovery,
+      }),
+    ),
+    write(
+      'scheduling.recovery.execute',
+      'scheduling_recovery_execute',
+      (f) => `${R}/${f.alphaRecovery}/execute`,
+      () => ({ expectedVersion: 1 }),
+      (f) => ({ recoveryRef: f.alphaRecovery }),
+      201,
+    ),
+    write(
+      'scheduling.standingPolicies.grant',
+      'scheduling_standing_policies_grant',
+      () => P,
+      (f) => ({
+        operation: 'scheduling.recovery.execute',
+        granteeRef: '30000000-0000-4000-8000-0000000000a1',
+        locationRefs: [f.alphaLocation],
+        maxOffersPerRecovery: 1,
+        expiresAt: SOON,
+      }),
+      none,
+      201,
+    ),
+    read(
+      'scheduling.standingPolicies.list',
+      'scheduling_standing_policies_list',
+      () => P,
+      none,
+      'tenant_own_data',
+    ),
+    write(
+      'scheduling.standingPolicies.revoke',
+      'scheduling_standing_policies_revoke',
+      (f) => `${P}/${f.alphaPolicy}/revoke`,
+      () => ({ expectedVersion: 1, reasonCode: 'practice_request' }),
+      (f) => ({ policyRef: f.alphaPolicy }),
+      200,
+    ),
   ];
 }
 
@@ -1166,7 +1317,70 @@ beforeAll(async () => {
     .data.items.find((i: { evidenceRefs: { ref: string }[] }) =>
       i.evidenceRefs.some((e) => e.ref === appointment.json().data.appointmentRef),
     ).workItemRef as string;
+  // S15/PT-02: an offer policy, one entry with a live offer, a second entry, a cancelled booking's
+  // recovery and a standing policy, all at the alpha location.
+  await db.admin.query(
+    `INSERT INTO cuspatlas.scheduling_offer_policies (tenant_id, location_id, policy_ref, offer_ttl_minutes)
+     SELECT tenant_id, id, 'waitlist-offer-pending-approval-1', 1440 FROM cuspatlas.scheduling_locations
+     WHERE location_ref = $1`,
+    [alphaLocation],
+  );
+  const entryBody = {
+    patientRef: alphaPatient,
+    locationRef: alphaLocation,
+    durationMinutes: 60,
+    desiredFrom: '2030-01-01T00:00:00Z',
+    desiredUntil: '2030-12-31T00:00:00Z',
+  };
+  const offeredEntry = await owner('/v1/scheduling/waitlist', entryBody);
+  expect(offeredEntry.statusCode).toBe(201);
+  const liveOffer = await owner(`/v1/scheduling/waitlist/${offeredEntry.json().data.entryRef}/offer`, {
+    startsAt: '2030-01-21T15:00:00Z',
+    endsAt: '2030-01-21T16:00:00Z',
+    provider: { kind: 'provider', resourceRef: alphaProvider },
+    operatory: { kind: 'operatory', resourceRef: alphaResource },
+  });
+  expect(liveOffer.statusCode).toBe(201);
+  const idleEntry = await owner('/v1/scheduling/waitlist', { ...entryBody, patientRef: alphaCounterparty });
+  expect(idleEntry.statusCode).toBe(201);
+  const toCancel = await owner('/v1/scheduling/appointments', {
+    patientRef: alphaCounterparty,
+    locationRef: alphaLocation,
+    ...slot('2030-01-28T14:00:00Z', '2030-01-28T15:00:00Z'),
+  });
+  expect(toCancel.statusCode).toBe(201);
+  const cancelledRef = toCancel.json().data.appointmentRef as string;
+  expect(
+    (
+      await owner(`/v1/scheduling/appointments/${cancelledRef}/cancel`, {
+        expectedVersion: 1,
+        reasonCode: 'patient_request',
+      })
+    ).statusCode,
+  ).toBe(200);
+  const recoveries = await app.inject({
+    method: 'GET',
+    url: '/v1/scheduling/recoveries',
+    headers: { authorization: `Bearer ${rest.owner}` },
+  });
+  const alphaRecovery = recoveries
+    .json()
+    .data.items.find((i: { evidenceRefs: { ref: string }[] }) =>
+      i.evidenceRefs.some((e) => e.ref === cancelledRef),
+    ).workItemRef as string;
+  const policy = await owner('/v1/scheduling/standing-policies', {
+    operation: 'scheduling.recovery.execute',
+    granteeRef: '30000000-0000-4000-8000-0000000000a1',
+    locationRefs: [alphaLocation],
+    maxOffersPerRecovery: 1,
+    expiresAt: SOON,
+  });
+  expect(policy.statusCode).toBe(201);
   fixture = {
+    alphaEntry: idleEntry.json().data.entryRef,
+    alphaOffer: liveOffer.json().data.offerRef,
+    alphaRecovery,
+    alphaPolicy: policy.json().data.policyRef,
     alphaIntent,
     alphaSeries: series.json().data.seriesRef,
     alphaProvider,
@@ -1297,6 +1511,10 @@ async function state(): Promise<string> {
     await q('SELECT count(*)::int AS n FROM cuspatlas.appointment_series_occurrences'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.appointment_series_exceptions'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.notification_intents'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.waitlist_entries'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.waitlist_offers'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.cancellation_recoveries'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.scheduling_standing_policies'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.audit_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.outbox_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.command_idempotency'),

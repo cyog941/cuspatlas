@@ -112,6 +112,24 @@ export const ACTION_POLICIES = {
   // worklist of intents no channel will deliver. No send operation exists in scheduling.
   'scheduling.notifications.read': { scope: 'scheduling.read', principals: ['human', 'service'] },
   'scheduling.notifications.worklist': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  // S15 waitlist (ADR 0009 S-D6 pending): entries and offers are scheduling work; an offer never
+  // books, acceptance is its own explicit command.
+  'scheduling.waitlist.add': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.waitlist.remove': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.waitlist.list': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  'scheduling.waitlist.offer': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.waitlist.offers.read': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  'scheduling.waitlist.respond': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.waitlist.reconcileOffers': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  // PT-02 cancellation recovery. A service principal may execute only under a live standing policy
+  // (checked in the domain at execution); granting and revoking a standing policy is practice
+  // administration by a person.
+  'scheduling.recovery.list': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  'scheduling.recovery.read': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  'scheduling.recovery.execute': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.standingPolicies.grant': { scope: 'admin.configure', principals: ['human'] },
+  'scheduling.standingPolicies.revoke': { scope: 'admin.configure', principals: ['human'] },
+  'scheduling.standingPolicies.list': { scope: 'scheduling.read', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

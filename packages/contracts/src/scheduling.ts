@@ -778,3 +778,67 @@ export interface NotificationIntentRecord {
   readonly createdAt: string;
 }
 export const validateNotificationWorklistQuery = def('NotificationWorklistQuery');
+
+/** S15 waitlist and PT-02 cancellation recovery inputs (outputs are typed in the domain module). */
+export type WaitlistState = 'active' | 'offered' | 'booked' | 'removed';
+export type OfferOutcome = 'accepted' | 'declined' | 'expired' | 'withdrawn';
+export interface WaitlistAdd {
+  readonly patientRef: string;
+  readonly locationRef: string;
+  readonly durationMinutes: number;
+  readonly desiredFrom: string;
+  readonly desiredUntil: string;
+  readonly providerPreference?: { readonly kind: 'provider'; readonly resourceRef: string };
+  readonly appointmentTypeCode?: string;
+  readonly priority?: number;
+  readonly requestedChannel?: NotificationChannel;
+  readonly expiresAt?: string;
+}
+export interface WaitlistRemove {
+  readonly expectedVersion: number;
+  readonly reasonCode: string;
+}
+export interface WaitlistListQuery {
+  readonly locationRef?: string;
+  readonly state?: WaitlistState;
+}
+export interface WaitlistOffer {
+  readonly startsAt: string;
+  readonly endsAt: string;
+  readonly provider: { readonly kind: 'provider'; readonly resourceRef: string };
+  readonly operatory: { readonly kind: 'operatory'; readonly resourceRef: string } | null;
+  readonly noOperatoryReason?: NoOperatoryReason;
+}
+export interface OfferRespond {
+  readonly expectedVersion: number;
+  readonly outcome: 'accepted' | 'declined' | 'withdrawn';
+  readonly reasonCode?: string;
+}
+export interface RecoveryListQuery {
+  readonly locationRef?: string;
+}
+export interface RecoveryExecute {
+  readonly expectedVersion: number;
+  readonly entryRef?: string;
+}
+export interface StandingPolicyGrant {
+  readonly operation: 'scheduling.recovery.execute';
+  readonly granteeRef: string;
+  readonly locationRefs: readonly string[];
+  readonly maxOffersPerRecovery: number;
+  readonly expiresAt: string;
+}
+export interface StandingPolicyRevoke {
+  readonly expectedVersion: number;
+  readonly reasonCode: string;
+}
+export const validateWaitlistAdd = def('WaitlistAdd');
+export const validateWaitlistRemove = def('WaitlistRemove');
+export const validateWaitlistListQuery = def('WaitlistListQuery');
+export const validateWaitlistOffer = def('WaitlistOffer');
+export const validateOfferRespond = def('OfferRespond');
+export const validateOfferReconcile = def('OfferReconcile');
+export const validateRecoveryListQuery = def('RecoveryListQuery');
+export const validateRecoveryExecute = def('RecoveryExecute');
+export const validateStandingPolicyGrant = def('StandingPolicyGrant');
+export const validateStandingPolicyRevoke = def('StandingPolicyRevoke');

@@ -4,6 +4,7 @@ import { REFUSAL_CODES } from '@cuspatlas/contracts';
 import { parse } from 'yaml';
 import {
   BILLING_SCHEMA_FILE,
+  CLINICAL_SCHEMA_FILE,
   PATIENT_SCHEMA_FILE,
   PROPOSAL_SCHEMA_FILE,
   ROUTES,
@@ -19,6 +20,7 @@ export interface ContractSources {
   readonly patientSchemaText: string;
   readonly schedulingSchemaText: string;
   readonly billingSchemaText: string;
+  readonly clinicalSchemaText: string;
 }
 
 export const OPENAPI_PATH = 'docs/api/openapi.yaml';
@@ -32,6 +34,8 @@ export const SCHEDULING_SCHEMA_PATH = `packages/contracts/src/${SCHEDULING_SCHEM
 const SCHEDULING_REF_PREFIX = `../../${SCHEDULING_SCHEMA_PATH}#`;
 export const BILLING_SCHEMA_PATH = `packages/contracts/src/${BILLING_SCHEMA_FILE}`;
 const BILLING_REF_PREFIX = `../../${BILLING_SCHEMA_PATH}#`;
+export const CLINICAL_SCHEMA_PATH = `packages/contracts/src/${CLINICAL_SCHEMA_FILE}`;
+const CLINICAL_REF_PREFIX = `../../${CLINICAL_SCHEMA_PATH}#`;
 
 export function loadContractSources(root: string): ContractSources {
   return {
@@ -41,6 +45,7 @@ export function loadContractSources(root: string): ContractSources {
     patientSchemaText: readFileSync(resolve(root, PATIENT_SCHEMA_PATH), 'utf8'),
     schedulingSchemaText: readFileSync(resolve(root, SCHEDULING_SCHEMA_PATH), 'utf8'),
     billingSchemaText: readFileSync(resolve(root, BILLING_SCHEMA_PATH), 'utf8'),
+    clinicalSchemaText: readFileSync(resolve(root, CLINICAL_SCHEMA_PATH), 'utf8'),
   };
 }
 
@@ -80,7 +85,9 @@ const schemaRef = (name: string) =>
           ? `${SCHEDULING_REF_PREFIX}/$defs/${name.slice('scheduling:'.length)}`
           : name.startsWith('billing:')
             ? `${BILLING_REF_PREFIX}/$defs/${name.slice('billing:'.length)}`
-            : `${SCHEMA_REF_PREFIX}/$defs/${name}`;
+            : name.startsWith('clinical:')
+              ? `${CLINICAL_REF_PREFIX}/$defs/${name.slice('clinical:'.length)}`
+              : `${SCHEMA_REF_PREFIX}/$defs/${name}`;
 
 /** Definitions the scheduling contract copies from the task contract; they must stay byte-identical. */
 const SCHEDULING_SHARED_DEFS = ['LocationRef', 'Version', 'IdempotencyKey'] as const;
@@ -157,6 +164,75 @@ export const BILLING_BODIES = [
   'CoverageQuery',
 ] as const;
 
+/** Definitions the clinical contract copies from the task contract; they must stay byte-identical. */
+const CLINICAL_SHARED_DEFS = ['LocationRef', 'Version', 'IdempotencyKey', 'Cursor'] as const;
+/** Clinical request bodies, queries and nested inputs (C5, C8): closed objects only. */
+export const CLINICAL_BODIES = [
+  'ClinicalAuthorDefine',
+  'EncounterOpen',
+  'EncounterAssign',
+  'EncounterClose',
+  'EncounterListQuery',
+  'AssignmentInput',
+  'Assignee',
+  'HistoryChangeRecord',
+  'HistoryChangeInput',
+  'HistoryReadQuery',
+  'HistoryVerify',
+  'HistoryReviewAttest',
+  // C6/C7/C11 clinical record bodies, queries and nested inputs.
+  'ChartEntryRecord',
+  'ChartEntryCorrect',
+  'ChartReadQuery',
+  'ToothInput',
+  'PerioExamRecord',
+  'PerioToothInput',
+  'PerioExamCorrect',
+  'PerioCorrectionInput',
+  'PerioCorrectionValue',
+  'PerioDerive',
+  'PerioCompareQuery',
+  'TreatmentPlanCreate',
+  'PlanDetailAdd',
+  'PlanItemAdd',
+  'PlanItemStateSet',
+  'PlanDetailStateSet',
+  'PlanVersionSupersede',
+  // C12 estimates, alternatives and acceptance.
+  'EstimateGenerate',
+  'EstimateLineInput',
+  'EstimateAssumptionInput',
+  'EstimatePresent',
+  'EstimateAccept',
+  'PlanAlternativeCreate',
+  'Money',
+  // C13 consent capture.
+  'ConsentCapture',
+  'ConsentWithdraw',
+  'ConsentListQuery',
+  'ConsentTemplateRegister',
+  'ConsentEvidence',
+  // C14 rendered procedures.
+  'ProcedureRender',
+  'ProcedureCorrect',
+  'ProcedureReplacement',
+  // C9 note templates.
+  'NoteTemplateDefine',
+  'NoteTemplateRevise',
+  'NoteTemplateRetire',
+  'NoteTemplateApplicableQuery',
+  'NoteTemplateSection',
+  // C10 notes.
+  'NoteDraftCreate',
+  'NoteDraftUpdate',
+  'NoteSign',
+  'NoteAmend',
+  'NoteAddendum',
+  'NoteCosign',
+  'NoteContent',
+  'NoteSectionEntry',
+] as const;
+
 /** Definitions the proposal contract copies from the task contract; they must stay byte-identical. */
 const SHARED_DEFS = ['TaskRef', 'LocationRef', 'Label', 'Version', 'IdempotencyKey'] as const;
 /** Definitions the patient contract copies from the task contract (S4); byte-identical too. */
@@ -190,6 +266,7 @@ export function checkContractDrift(src: ContractSources): string[] {
   let patient: Json;
   let scheduling: Json;
   let billing: Json;
+  let clinical: Json;
   try {
     api = parse(src.openapiText) as Json;
     schema = JSON.parse(src.schemaText) as Json;
@@ -197,6 +274,7 @@ export function checkContractDrift(src: ContractSources): string[] {
     patient = JSON.parse(src.patientSchemaText) as Json;
     scheduling = JSON.parse(src.schedulingSchemaText) as Json;
     billing = JSON.parse(src.billingSchemaText) as Json;
+    clinical = JSON.parse(src.clinicalSchemaText) as Json;
   } catch {
     return ['OpenAPI or JSON Schema does not parse'];
   }
@@ -205,6 +283,10 @@ export function checkContractDrift(src: ContractSources): string[] {
     if (ref.startsWith(BILLING_REF_PREFIX)) {
       if (pointer(billing, ref.slice(BILLING_REF_PREFIX.length)) === undefined) {
         problems.push(`OpenAPI $ref does not resolve in ${BILLING_SCHEMA_FILE}: ${ref}`);
+      }
+    } else if (ref.startsWith(CLINICAL_REF_PREFIX)) {
+      if (pointer(clinical, ref.slice(CLINICAL_REF_PREFIX.length)) === undefined) {
+        problems.push(`OpenAPI $ref does not resolve in ${CLINICAL_SCHEMA_FILE}: ${ref}`);
       }
     } else if (ref.startsWith(SCHEDULING_REF_PREFIX)) {
       if (pointer(scheduling, ref.slice(SCHEDULING_REF_PREFIX.length)) === undefined) {
@@ -363,6 +445,20 @@ export function checkContractDrift(src: ContractSources): string[] {
   for (const name of ['MinorUnits', 'PositiveMinorUnits']) {
     if (pointer(bdef(name), '/type') !== 'integer')
       problems.push(`${name} must be an integer (no float money)`);
+  }
+  const cdef = (name: string) => pointer(clinical, `/$defs/${name}`);
+  for (const name of CLINICAL_BODIES) {
+    if (pointer(cdef(name), '/additionalProperties') !== false) {
+      problems.push(`${name} must set additionalProperties: false`);
+    }
+  }
+  for (const name of CLINICAL_SHARED_DEFS) {
+    if (JSON.stringify(cdef(name)) !== JSON.stringify(def(name))) {
+      problems.push(`${CLINICAL_SCHEMA_FILE} ${name} differs from ${SCHEMA_FILE}`);
+    }
+  }
+  if (pointer(cdef('EncounterListQuery'), '/properties/limit/pattern') !== '^([1-9]|[1-9][0-9]|100)$') {
+    problems.push('EncounterListQuery.limit must be bounded to 1..100');
   }
   const codes = pointer(def('Refusal'), '/properties/code/enum');
   if (!Array.isArray(codes) || codes.join(',') !== REFUSAL_CODES.join(',')) {

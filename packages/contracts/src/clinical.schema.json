@@ -1,0 +1,5996 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cuspatlas.invalid/schemas/clinical/v1",
+  "title": "Clinical record contract v1 (C5 encounters and authorship, C6 chart, C7 perio, C8 medical history, C9 note templates, C10 notes, C11 treatment plans, C12 estimates, C13 consent, C14 rendered procedures; synthetic data only; recommended-pending-clinical-approval)",
+  "$defs": {
+    "AcceptanceRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque plan-version acceptance reference (C12; C13 binds consent to it)."
+    },
+    "ActiveAlerts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "patientRef",
+            "computedAt",
+            "allergy",
+            "condition",
+            "medication",
+            "interactionChecking",
+            "decisionSupport"
+          ],
+          "properties": {
+            "patientRef": {
+              "$ref": "#/$defs/PatientRef"
+            },
+            "computedAt": {
+              "$ref": "#/$defs/Instant"
+            },
+            "allergy": {
+              "$ref": "#/$defs/AlertSection"
+            },
+            "condition": {
+              "$ref": "#/$defs/AlertSection"
+            },
+            "medication": {
+              "$ref": "#/$defs/AlertSection"
+            },
+            "interactionChecking": {
+              "$ref": "#/$defs/NotProvided"
+            },
+            "decisionSupport": {
+              "$ref": "#/$defs/NotProvided"
+            }
+          }
+        }
+      }
+    },
+    "ActorRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque principal reference of a tenant member."
+    },
+    "ActorStamp": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actorRef"],
+      "properties": {
+        "actorRef": {
+          "$ref": "#/$defs/ActorRef"
+        }
+      }
+    },
+    "AiRef": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+      "description": "Opaque model or prompt version reference of an AI-assisted draft (provenance only; nothing generates text here)."
+    },
+    "AlertSection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "items", "noneKnown", "lastReview"],
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/AlertStatus"
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "itemRef",
+              "displayText",
+              "codeRef",
+              "detailText",
+              "provenance",
+              "verified",
+              "recordedAt"
+            ],
+            "properties": {
+              "itemRef": {
+                "$ref": "#/$defs/HistoryItemRef"
+              },
+              "displayText": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/HistoryText"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "codeRef": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/SyntheticCodeRef"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "detailText": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/HistoryDetailText"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "provenance": {
+                "$ref": "#/$defs/HistoryProvenance"
+              },
+              "verified": {
+                "type": "boolean"
+              },
+              "recordedAt": {
+                "$ref": "#/$defs/Instant"
+              }
+            }
+          }
+        },
+        "noneKnown": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["itemRef", "provenance", "recordedAt"],
+              "properties": {
+                "itemRef": {
+                  "$ref": "#/$defs/HistoryItemRef"
+                },
+                "provenance": {
+                  "$ref": "#/$defs/HistoryProvenance"
+                },
+                "recordedAt": {
+                  "$ref": "#/$defs/Instant"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lastReview": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["reviewRef", "encounterRef", "outcome", "reviewedBy", "reviewedAt", "stale"],
+              "properties": {
+                "reviewRef": {
+                  "$ref": "#/$defs/HistoryReviewRef"
+                },
+                "encounterRef": {
+                  "$ref": "#/$defs/EncounterRef"
+                },
+                "outcome": {
+                  "$ref": "#/$defs/ReviewOutcome"
+                },
+                "reviewedBy": {
+                  "$ref": "#/$defs/ClinicalAuthor"
+                },
+                "reviewedAt": {
+                  "$ref": "#/$defs/Instant"
+                },
+                "stale": {
+                  "type": "boolean",
+                  "description": "True when an item of this kind was recorded after the review."
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "AlertStatus": {
+      "enum": ["unknown", "none_reported", "reviewed_none", "present"],
+      "description": "unknown: nothing recorded or reviewed (never \"no allergies\"); none_reported: a none-known statement is recorded; reviewed_none: a clinician attested none at an encounter and nothing of the kind was recorded since; present: active items exist."
+    },
+    "ApplicableTemplate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["templateRef", "noteType", "label", "current", "matchedCodeRefs"],
+      "properties": {
+        "templateRef": {
+          "$ref": "#/$defs/NoteTemplateRef"
+        },
+        "noteType": {
+          "$ref": "#/$defs/NoteType"
+        },
+        "label": {
+          "$ref": "#/$defs/NoteTemplateLabel"
+        },
+        "current": {
+          "$ref": "#/$defs/NoteTemplateVersion"
+        },
+        "matchedCodeRefs": {
+          "$ref": "#/$defs/ProcedureCodeRefs"
+        }
+      }
+    },
+    "AppointmentRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque appointment (booking) reference (S10)."
+    },
+    "AppointmentStatus": {
+      "enum": ["booked", "cancelled", "rescheduled"]
+    },
+    "ArtifactDigest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "SHA-256 of an artifact held elsewhere; never the bytes."
+    },
+    "ArtifactRef": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+      "description": "Reference to an evidence artifact held elsewhere (scan, portal record); no bytes or signature image are stored here."
+    },
+    "Assignee": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "resourceRef"],
+      "description": "A scheduling resource of kind provider (provider roles) or staff (the staff role) at the encounter location.",
+      "properties": {
+        "kind": {
+          "enum": ["provider", "staff"]
+        },
+        "resourceRef": {
+          "$ref": "#/$defs/ResourceRefId"
+        }
+      }
+    },
+    "AssignmentInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "assignee"],
+      "properties": {
+        "role": {
+          "$ref": "#/$defs/AssignmentRole"
+        },
+        "assignee": {
+          "$ref": "#/$defs/Assignee"
+        }
+      }
+    },
+    "AssignmentRole": {
+      "enum": [
+        "treating_provider",
+        "secondary_provider",
+        "supervising_provider",
+        "staff",
+        "completing_provider"
+      ],
+      "description": "Encounter role assignments, each independent of the others and of the author."
+    },
+    "AssumptionSourceRef": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+      "description": "Reference to where a staff-entered assumption came from (a B5 eligibility response later); never a value."
+    },
+    "AuthorContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["resolvable", "author", "reason"],
+          "properties": {
+            "resolvable": {
+              "type": "boolean"
+            },
+            "author": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ClinicalAuthor"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reason": {
+              "anyOf": [
+                {
+                  "enum": ["service_principal", "no_profile", "profile_inactive"]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "ChartCorrectionResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/ChartEntry"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ChartDetailText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "description": "Free text as recorded; never interpreted."
+    },
+    "ChartEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entryRef",
+        "chartRef",
+        "patientRef",
+        "sourcePatientRef",
+        "sequence",
+        "tooth",
+        "surfaces",
+        "kind",
+        "findingRef",
+        "state",
+        "recordedState",
+        "detailText",
+        "provenance",
+        "sourceRef",
+        "encounterRef",
+        "recordedBy",
+        "clinicalAuthor",
+        "recordedAt",
+        "supersedesEntryRef",
+        "supersededByEntryRef",
+        "correctionReasonCode",
+        "toothVocabulary"
+      ],
+      "properties": {
+        "entryRef": {
+          "$ref": "#/$defs/ChartEntryRef"
+        },
+        "chartRef": {
+          "$ref": "#/$defs/ChartRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "sourcePatientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "tooth": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToothRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "surfaces": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SurfaceSet"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "$ref": "#/$defs/ChartEntryKind"
+        },
+        "findingRef": {
+          "$ref": "#/$defs/SyntheticCodeRef"
+        },
+        "state": {
+          "$ref": "#/$defs/ChartEntryState"
+        },
+        "recordedState": {
+          "$ref": "#/$defs/ChartRecordedState"
+        },
+        "detailText": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChartDetailText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "provenance": {
+          "$ref": "#/$defs/ChartProvenance"
+        },
+        "sourceRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "encounterRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EncounterRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recordedBy": {
+          "$ref": "#/$defs/ClinicalAuthor"
+        },
+        "clinicalAuthor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ClinicalAuthor"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The clinician the finding is attributed to; null for imported and patient-reported entries (the recorder is recordedBy)."
+        },
+        "recordedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "supersedesEntryRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChartEntryRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "supersededByEntryRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChartEntryRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "correctionReasonCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "toothVocabulary": {
+          "anyOf": [
+            {
+              "const": "cuspatlas-tooth.v1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "ChartEntryCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["outcome", "entry"],
+          "properties": {
+            "outcome": {
+              "enum": ["recorded", "existing"]
+            },
+            "entry": {
+              "$ref": "#/$defs/ChartEntry"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ChartEntryCorrect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasonCode", "state"],
+      "description": "Write a superseding entry for the named entry; unspecified fields carry forward, null clears surfaces or detail text. The prior entry is never changed or deleted.",
+      "properties": {
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "state": {
+          "$ref": "#/$defs/ChartRecordedState"
+        },
+        "encounterRef": {
+          "$ref": "#/$defs/EncounterRef"
+        },
+        "tooth": {
+          "$ref": "#/$defs/ToothInput"
+        },
+        "surfaces": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SurfaceSet"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "$ref": "#/$defs/ChartEntryKind"
+        },
+        "findingRef": {
+          "$ref": "#/$defs/SyntheticCodeRef"
+        },
+        "detailText": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChartDetailText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "ChartEntryKind": {
+      "enum": ["condition", "existing_restoration", "missing", "supernumerary", "implant", "prosthodontic"]
+    },
+    "ChartEntryRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["patientRef", "provenance", "kind", "findingRef"],
+      "description": "Record one chart entry (append-only). A duplicate of an active entry (same tooth, surface set, kind, finding and provenance) returns the existing entry.",
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "encounterRef": {
+          "$ref": "#/$defs/EncounterRef"
+        },
+        "provenance": {
+          "$ref": "#/$defs/ChartProvenance"
+        },
+        "sourceRef": {
+          "$ref": "#/$defs/SourceRef"
+        },
+        "tooth": {
+          "$ref": "#/$defs/ToothInput"
+        },
+        "surfaces": {
+          "$ref": "#/$defs/SurfaceSet"
+        },
+        "kind": {
+          "$ref": "#/$defs/ChartEntryKind"
+        },
+        "findingRef": {
+          "$ref": "#/$defs/SyntheticCodeRef"
+        },
+        "state": {
+          "enum": ["active", "resolved"]
+        },
+        "detailText": {
+          "$ref": "#/$defs/ChartDetailText"
+        }
+      }
+    },
+    "ChartEntryRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque chart entry reference (C6)."
+    },
+    "ChartEntryState": {
+      "enum": ["active", "resolved", "superseded", "entered_in_error"],
+      "description": "State as of the read: superseded when a later correction names this entry."
+    },
+    "ChartProvenance": {
+      "enum": ["recorded", "imported", "patient_reported"]
+    },
+    "ChartRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["patientRef", "asOf", "displaySystem", "recorded", "charts", "entries", "teeth"],
+          "properties": {
+            "patientRef": {
+              "$ref": "#/$defs/PatientRef"
+            },
+            "asOf": {
+              "$ref": "#/$defs/Instant"
+            },
+            "displaySystem": {
+              "$ref": "#/$defs/ToothDisplaySystem"
+            },
+            "recorded": {
+              "type": "boolean",
+              "description": "false: nothing was charted by then (an explicit empty state, not an error)."
+            },
+            "charts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["chartRef", "sourcePatientRef", "version"],
+                "properties": {
+                  "chartRef": {
+                    "$ref": "#/$defs/ChartRef"
+                  },
+                  "sourcePatientRef": {
+                    "$ref": "#/$defs/PatientRef"
+                  },
+                  "version": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              }
+            },
+            "entries": {
+              "type": "array",
+              "maxItems": 2000,
+              "items": {
+                "$ref": "#/$defs/ChartEntry"
+              }
+            },
+            "teeth": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ChartToothState"
+              }
+            }
+          }
+        }
+      }
+    },
+    "ChartReadQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "asOf": {
+          "$ref": "#/$defs/Instant"
+        },
+        "dentition": {
+          "enum": ["permanent", "primary"]
+        },
+        "provenance": {
+          "$ref": "#/$defs/ChartProvenance"
+        },
+        "displaySystem": {
+          "$ref": "#/$defs/ToothDisplaySystem"
+        }
+      }
+    },
+    "ChartRecordedState": {
+      "enum": ["active", "resolved", "entered_in_error"],
+      "description": "The state stated when the entry was written. entered_in_error only by correction."
+    },
+    "ChartRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque chart reference: one per source patient, so merged charts stay distinguishable (C6)."
+    },
+    "ChartToothState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tooth", "status", "activeEntryRefs"],
+      "description": "Chart state reconstructed from active entries. A tooth with no active entry is not listed (not charted is not the same as healthy or missing).",
+      "properties": {
+        "tooth": {
+          "$ref": "#/$defs/ToothRef"
+        },
+        "status": {
+          "enum": ["present", "missing", "implant"]
+        },
+        "activeEntryRefs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ChartEntryRef"
+          }
+        }
+      }
+    },
+    "ClinicalAuthor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actorRef", "role", "credentialRef"],
+      "description": "Who authored a clinical mutation: the authenticated human and the clinical role configured for them at that instant.",
+      "properties": {
+        "actorRef": {
+          "$ref": "#/$defs/ActorRef"
+        },
+        "role": {
+          "$ref": "#/$defs/ClinicalRole"
+        },
+        "credentialRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CredentialRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "ClinicalAuthorCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/ClinicalAuthorProfile"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ClinicalAuthorDefine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actorRef", "role"],
+      "description": "Define (no expectedVersion) or change (with expectedVersion) the clinical author profile of a tenant member. Requires admin.configure.",
+      "properties": {
+        "actorRef": {
+          "$ref": "#/$defs/ActorRef"
+        },
+        "role": {
+          "$ref": "#/$defs/ClinicalRole"
+        },
+        "credentialRef": {
+          "$ref": "#/$defs/CredentialRef"
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "ClinicalAuthorProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actorRef", "role", "credentialRef", "active", "version"],
+      "properties": {
+        "actorRef": {
+          "$ref": "#/$defs/ActorRef"
+        },
+        "role": {
+          "$ref": "#/$defs/ClinicalRole"
+        },
+        "credentialRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CredentialRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "ClinicalRole": {
+      "enum": ["dentist", "hygienist", "assistant", "other_clinical"],
+      "description": "Configured clinical role of an author (recommended-pending-clinical-approval)."
+    },
+    "Consent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "consentRef",
+        "patientRef",
+        "sourcePatientRef",
+        "scope",
+        "planVersionRef",
+        "planItemRef",
+        "acceptanceRef",
+        "method",
+        "templateRef",
+        "templateDigest",
+        "templateStatus",
+        "attestationCode",
+        "evidence",
+        "signer",
+        "witnessRef",
+        "recordedBy",
+        "effectiveAt",
+        "version",
+        "state",
+        "withdrawal"
+      ],
+      "properties": {
+        "consentRef": {
+          "$ref": "#/$defs/ConsentRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "sourcePatientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "scope": {
+          "$ref": "#/$defs/ConsentScope"
+        },
+        "planVersionRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanVersionRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "planItemRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanItemRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "acceptanceRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AcceptanceRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "method": {
+          "$ref": "#/$defs/ConsentMethod"
+        },
+        "templateRef": {
+          "$ref": "#/$defs/ConsentTemplateRef"
+        },
+        "templateDigest": {
+          "$ref": "#/$defs/ArtifactDigest"
+        },
+        "templateStatus": {
+          "type": "string",
+          "enum": ["registered", "unresolved"],
+          "description": "Whether the template digest resolves in the tenant registry now; an unresolved digest is retained and flagged, never cleared."
+        },
+        "attestationCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "evidence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ConsentEvidence"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "signer": {
+          "$ref": "#/$defs/ConsentSignerRecord"
+        },
+        "witnessRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ActorRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recordedBy": {
+          "$ref": "#/$defs/ActorRef"
+        },
+        "effectiveAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "state": {
+          "type": "string",
+          "enum": ["active", "withdrawn"]
+        },
+        "withdrawal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ConsentWithdrawal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "description": "A treatment consent record (C13). State and withdrawal are as of the read instant (or the asOf of a list)."
+    },
+    "ConsentCapture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "patientRef",
+        "scope",
+        "method",
+        "templateRef",
+        "templateDigest",
+        "attestationCode",
+        "signer"
+      ],
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "scope": {
+          "$ref": "#/$defs/ConsentScope"
+        },
+        "planVersionRef": {
+          "$ref": "#/$defs/PlanVersionRef"
+        },
+        "planItemRef": {
+          "$ref": "#/$defs/PlanItemRef"
+        },
+        "method": {
+          "$ref": "#/$defs/ConsentMethod"
+        },
+        "templateRef": {
+          "$ref": "#/$defs/ConsentTemplateRef"
+        },
+        "templateDigest": {
+          "$ref": "#/$defs/ArtifactDigest"
+        },
+        "attestationCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "signer": {
+          "$ref": "#/$defs/ConsentSigner"
+        },
+        "witnessRef": {
+          "$ref": "#/$defs/ActorRef"
+        },
+        "evidence": {
+          "$ref": "#/$defs/ConsentEvidence"
+        }
+      }
+    },
+    "ConsentCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/Consent"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ConsentEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifactRef", "digest"],
+      "properties": {
+        "artifactRef": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "digest": {
+          "$ref": "#/$defs/ArtifactDigest"
+        }
+      }
+    },
+    "ConsentList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "asOf"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "$ref": "#/$defs/Consent"
+          }
+        },
+        "asOf": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "ConsentListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "asOf": {
+          "$ref": "#/$defs/Instant"
+        },
+        "planVersionRef": {
+          "$ref": "#/$defs/PlanVersionRef"
+        }
+      }
+    },
+    "ConsentMethod": {
+      "type": "string",
+      "enum": ["in_person", "portal", "paper", "verbal_attested"]
+    },
+    "ConsentRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/Consent"
+        }
+      }
+    },
+    "ConsentRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque consent record reference (C13)."
+    },
+    "ConsentScope": {
+      "type": "string",
+      "enum": ["treatment_plan", "procedure", "general_treatment"],
+      "description": "What the treatment consent covers. Not E's messaging consent."
+    },
+    "ConsentSigner": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": {
+            "kind": {
+              "const": "patient"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "personRef"],
+          "properties": {
+            "kind": {
+              "const": "related_person"
+            },
+            "personRef": {
+              "$ref": "#/$defs/PatientRef"
+            }
+          }
+        }
+      ],
+      "description": "Who gives or withdraws consent: the patient, or a related person whose authority is evaluated now through S5 (scope consent)."
+    },
+    "ConsentSignerRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "personRef", "basis", "relationshipRefs", "policyVersion", "evaluatedAt"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["patient", "related_person"]
+        },
+        "personRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "basis": {
+          "type": "string",
+          "enum": ["self_adult", "self_age_unknown", "relationship_consent_scope"]
+        },
+        "relationshipRefs": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "policyVersion": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._:-]{1,64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evaluatedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      },
+      "description": "The signer authority as evaluated when this fact was recorded (never re-derived later)."
+    },
+    "ConsentTemplate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["templateRef", "digest", "registeredBy", "registeredAt"],
+      "properties": {
+        "templateRef": {
+          "$ref": "#/$defs/ConsentTemplateRef"
+        },
+        "digest": {
+          "$ref": "#/$defs/ArtifactDigest"
+        },
+        "registeredBy": {
+          "$ref": "#/$defs/ActorRef"
+        },
+        "registeredAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "ConsentTemplateCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/ConsentTemplate"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ConsentTemplateRef": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+      "description": "Reference to a consent text held outside this module; versioned by digest."
+    },
+    "ConsentTemplateRegister": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["templateRef", "digest"],
+      "properties": {
+        "templateRef": {
+          "$ref": "#/$defs/ConsentTemplateRef"
+        },
+        "digest": {
+          "$ref": "#/$defs/ArtifactDigest"
+        }
+      }
+    },
+    "ConsentWithdraw": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "reasonCode", "signer"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "signer": {
+          "$ref": "#/$defs/ConsentSigner"
+        },
+        "evidence": {
+          "$ref": "#/$defs/ConsentEvidence"
+        }
+      }
+    },
+    "ConsentWithdrawal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasonCode", "signer", "evidence", "recordedBy", "effectiveAt"],
+      "properties": {
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "signer": {
+          "$ref": "#/$defs/ConsentSignerRecord"
+        },
+        "evidence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ConsentEvidence"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recordedBy": {
+          "$ref": "#/$defs/ActorRef"
+        },
+        "effectiveAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "ContentDigest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "SHA-256 over the canonical form of a frozen note version (content, references, author, instant)."
+    },
+    "CoverageStatus": {
+      "type": "string",
+      "enum": ["entered", "unknown", "stale"],
+      "description": "Whether a coverage reference was entered and fresh, absent (unknown) or older than the tolerance (stale). Never an eligibility guarantee."
+    },
+    "CredentialRef": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+      "description": "Reference to a credential held by the staff module; the credential detail is not stored here."
+    },
+    "CurrencyCode": {
+      "type": "string",
+      "description": "ISO 4217 alphabetic code; must equal the tenant billing currency (422 currency_mismatch).",
+      "pattern": "^[A-Z]{3}$"
+    },
+    "Cursor": {
+      "type": "string",
+      "description": "Opaque, tenant-bound, HMAC-protected. Never parse it.",
+      "pattern": "^[A-Za-z0-9_-]{1,200}\\.[A-Za-z0-9_-]{22}$"
+    },
+    "DispositionCode": {
+      "type": "string",
+      "pattern": "^[a-z_]{1,64}$",
+      "description": "Tenant-configured encounter disposition code."
+    },
+    "Encounter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "encounterRef",
+        "patientRef",
+        "locationRef",
+        "appointment",
+        "flags",
+        "state",
+        "assignments",
+        "assignmentHistory",
+        "openedBy",
+        "openedAt",
+        "closure",
+        "version"
+      ],
+      "description": "Encounter (C5). Attendance (S11), procedure completion (C14) and billing (B1) are separate facts and never set here.",
+      "properties": {
+        "encounterRef": {
+          "$ref": "#/$defs/EncounterRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "appointment": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["appointmentRef", "statusAtOpen", "currentStatus", "rescheduledToRef"],
+              "properties": {
+                "appointmentRef": {
+                  "$ref": "#/$defs/AppointmentRef"
+                },
+                "statusAtOpen": {
+                  "$ref": "#/$defs/AppointmentStatus"
+                },
+                "currentStatus": {
+                  "$ref": "#/$defs/AppointmentStatus"
+                },
+                "rescheduledToRef": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/AppointmentRef"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "flags": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "$ref": "#/$defs/EncounterFlag"
+          }
+        },
+        "state": {
+          "enum": ["open", "closed"]
+        },
+        "assignments": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "$ref": "#/$defs/EncounterAssignment"
+          }
+        },
+        "assignmentHistory": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "#/$defs/EncounterAssignment"
+          }
+        },
+        "openedBy": {
+          "$ref": "#/$defs/ClinicalAuthor"
+        },
+        "openedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "closure": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["dispositionCode", "closedBy", "closedAt"],
+              "properties": {
+                "dispositionCode": {
+                  "$ref": "#/$defs/DispositionCode"
+                },
+                "closedBy": {
+                  "$ref": "#/$defs/ClinicalAuthor"
+                },
+                "closedAt": {
+                  "$ref": "#/$defs/Instant"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "EncounterAssign": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "role", "assignee"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "role": {
+          "$ref": "#/$defs/AssignmentRole"
+        },
+        "assignee": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Assignee"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "EncounterAssignment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sequence", "role", "assignee", "assignedBy", "assignedAt"],
+      "properties": {
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "role": {
+          "$ref": "#/$defs/AssignmentRole"
+        },
+        "assignee": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Assignee"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "assignedBy": {
+          "$ref": "#/$defs/ClinicalAuthor"
+        },
+        "assignedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "EncounterClose": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "dispositionCode"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "dispositionCode": {
+          "$ref": "#/$defs/DispositionCode"
+        }
+      }
+    },
+    "EncounterCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/Encounter"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "EncounterFlag": {
+      "enum": [
+        "appointment_cancelled_at_open",
+        "appointment_rescheduled_at_open",
+        "appointment_changed_since_open"
+      ]
+    },
+    "EncounterList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "nextCursor"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/Encounter"
+          }
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Cursor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "EncounterListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "limit": {
+          "type": "string",
+          "pattern": "^([1-9]|[1-9][0-9]|100)$"
+        },
+        "cursor": {
+          "$ref": "#/$defs/Cursor"
+        }
+      }
+    },
+    "EncounterOpen": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["patientRef"],
+      "description": "Open an encounter. With an appointment the location is the appointment location; without one, locationRef is required.",
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "appointmentRef": {
+          "$ref": "#/$defs/AppointmentRef"
+        },
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "assignments": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "$ref": "#/$defs/AssignmentInput"
+          }
+        }
+      }
+    },
+    "EncounterOpenResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["outcome", "encounter"],
+          "properties": {
+            "outcome": {
+              "enum": ["opened", "existing"]
+            },
+            "encounter": {
+              "$ref": "#/$defs/Encounter"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "EncounterRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/Encounter"
+        }
+      }
+    },
+    "EncounterRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque encounter reference (C5)."
+    },
+    "Estimate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "estimateRef",
+        "planRef",
+        "planVersionRef",
+        "patientRef",
+        "number",
+        "state",
+        "supersedesRef",
+        "supersededByRef",
+        "feeScheduleVersionRef",
+        "complete",
+        "lines",
+        "itemsWithoutFee",
+        "assumptions",
+        "coverageStatus",
+        "grossAmount",
+        "patientResponsibility",
+        "notAGuarantee",
+        "presentation",
+        "acceptance",
+        "createdBy",
+        "createdAt"
+      ],
+      "properties": {
+        "estimateRef": {
+          "$ref": "#/$defs/EstimateRef"
+        },
+        "planRef": {
+          "$ref": "#/$defs/TreatmentPlanRef"
+        },
+        "planVersionRef": {
+          "$ref": "#/$defs/PlanVersionRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "state": {
+          "type": "string",
+          "enum": ["current", "superseded"]
+        },
+        "supersedesRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EstimateRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "supersededByRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EstimateRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "feeScheduleVersionRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FeeScheduleRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "lines": {
+          "type": "array",
+          "maxItems": 300,
+          "items": {
+            "$ref": "#/$defs/EstimateLine"
+          }
+        },
+        "itemsWithoutFee": {
+          "type": "array",
+          "maxItems": 300,
+          "items": {
+            "$ref": "#/$defs/PlanItemRef"
+          }
+        },
+        "assumptions": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/$defs/EstimateAssumption"
+          }
+        },
+        "coverageStatus": {
+          "$ref": "#/$defs/CoverageStatus"
+        },
+        "grossAmount": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "patientResponsibility": {
+          "$ref": "#/$defs/PatientResponsibility"
+        },
+        "notAGuarantee": {
+          "const": true
+        },
+        "presentation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EstimatePresentation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "acceptance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanAcceptance"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "createdBy": {
+          "$ref": "#/$defs/ActorRef"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      },
+      "description": "An immutable estimate version (C12). Not a coverage guarantee; coverage is unknown until B5 exists."
+    },
+    "EstimateAccept": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedRevision", "scope"],
+      "properties": {
+        "expectedRevision": {
+          "$ref": "#/$defs/Version"
+        },
+        "scope": {
+          "type": "string",
+          "enum": ["full", "phases"]
+        },
+        "phases": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 99
+          }
+        }
+      }
+    },
+    "EstimateAssumption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "sourceRef", "sourceAsOf"],
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/EstimateAssumptionKind"
+        },
+        "sourceRef": {
+          "$ref": "#/$defs/AssumptionSourceRef"
+        },
+        "sourceAsOf": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "EstimateAssumptionInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "sourceRef", "sourceAsOf"],
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/EstimateAssumptionKind"
+        },
+        "sourceRef": {
+          "$ref": "#/$defs/AssumptionSourceRef"
+        },
+        "sourceAsOf": {
+          "$ref": "#/$defs/Instant"
+        }
+      },
+      "description": "A coverage or discount assumption recorded by reference with its source freshness; never applied as a value here."
+    },
+    "EstimateAssumptionKind": {
+      "type": "string",
+      "enum": ["coverage", "discount"]
+    },
+    "EstimateCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/Estimate"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "EstimateConsentBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "consentRefs"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["outstanding", "bound", "withdrawn"]
+        },
+        "consentRefs": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/ConsentRef"
+          }
+        }
+      },
+      "description": "Whether a C13 consent is bound to the accepted plan version. An acceptance without a bound consent is never consented treatment."
+    },
+    "EstimateGenerate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lines"],
+      "properties": {
+        "lines": {
+          "type": "array",
+          "maxItems": 300,
+          "items": {
+            "$ref": "#/$defs/EstimateLineInput"
+          }
+        },
+        "assumptions": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/$defs/EstimateAssumptionInput"
+          }
+        },
+        "feeScheduleVersionRef": {
+          "$ref": "#/$defs/FeeScheduleRef"
+        }
+      }
+    },
+    "EstimateLine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["planItemRef", "feeScheduleRef", "fee"],
+      "properties": {
+        "planItemRef": {
+          "$ref": "#/$defs/PlanItemRef"
+        },
+        "feeScheduleRef": {
+          "$ref": "#/$defs/FeeScheduleRef"
+        },
+        "fee": {
+          "$ref": "#/$defs/Money"
+        }
+      }
+    },
+    "EstimateLineInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["planItemRef", "fee"],
+      "properties": {
+        "planItemRef": {
+          "$ref": "#/$defs/PlanItemRef"
+        },
+        "fee": {
+          "$ref": "#/$defs/Money"
+        }
+      },
+      "description": "A staff-entered per-item fee placeholder for an item that names a fee schedule reference (synthetic; no fee schedule data until B9)."
+    },
+    "EstimateList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "#/$defs/Estimate"
+          }
+        }
+      }
+    },
+    "EstimatePresent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "expectedEstimateNumber": {
+          "$ref": "#/$defs/Version"
+        }
+      },
+      "description": "Present the current estimate; an optional guard naming the estimate number the caller looked at."
+    },
+    "EstimatePresentation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["presentedBy", "presentedAt", "coverageStatus"],
+      "properties": {
+        "presentedBy": {
+          "$ref": "#/$defs/ActorRef"
+        },
+        "presentedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "coverageStatus": {
+          "$ref": "#/$defs/CoverageStatus"
+        }
+      }
+    },
+    "EstimateRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/Estimate"
+        }
+      }
+    },
+    "EstimateRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque estimate version reference (C12); B consumes estimates by this reference."
+    },
+    "FeeScheduleRef": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+      "description": "Reference to a fee schedule entry owned by billing; no amount is stored here."
+    },
+    "HistoryAtSigning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["recorded", "versions"],
+      "properties": {
+        "recorded": {
+          "type": "boolean",
+          "description": "False when no history was recorded at signing: unknown, not empty."
+        },
+        "versions": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["streamRef", "version", "historyVersionRef"],
+            "properties": {
+              "streamRef": {
+                "$ref": "#/$defs/HistoryStreamRef"
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 2147483647
+              },
+              "historyVersionRef": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/HistoryVersionRef"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "HistoryChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "changeRef",
+        "itemSequence",
+        "state",
+        "displayText",
+        "codeRef",
+        "detailText",
+        "effectiveFrom",
+        "effectiveUntil",
+        "reasonCode",
+        "recorded"
+      ],
+      "properties": {
+        "changeRef": {
+          "$ref": "#/$defs/HistoryChangeRef"
+        },
+        "itemSequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "state": {
+          "$ref": "#/$defs/HistoryState"
+        },
+        "displayText": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HistoryText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "codeRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SyntheticCodeRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "detailText": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HistoryDetailText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "effectiveFrom": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalDate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "effectiveUntil": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalDate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reasonCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recorded": {
+          "$ref": "#/$defs/HistoryVersionHeader"
+        }
+      }
+    },
+    "HistoryChangeInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state"],
+      "description": "A new item (kind, no itemRef) or a change of an existing item (itemRef, no kind). Unspecified text and dates carry forward. On an existing item an omitted field carries forward and null clears it (hardening).",
+      "properties": {
+        "itemRef": {
+          "$ref": "#/$defs/HistoryItemRef"
+        },
+        "kind": {
+          "$ref": "#/$defs/HistoryKind"
+        },
+        "entryType": {
+          "$ref": "#/$defs/HistoryEntryType"
+        },
+        "state": {
+          "$ref": "#/$defs/HistoryState"
+        },
+        "displayText": {
+          "$ref": "#/$defs/HistoryText"
+        },
+        "codeRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SyntheticCodeRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "detailText": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HistoryDetailText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "effectiveFrom": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalDate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "effectiveUntil": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalDate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "HistoryChangeRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["patientRef", "provenance", "reportedBy", "changes"],
+      "description": "Record one history version (an append-only change set). Verification is a separate command and cannot be set here.",
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "encounterRef": {
+          "$ref": "#/$defs/EncounterRef"
+        },
+        "provenance": {
+          "$ref": "#/$defs/HistoryProvenance"
+        },
+        "reportedBy": {
+          "$ref": "#/$defs/ReportedBy"
+        },
+        "sourceRef": {
+          "$ref": "#/$defs/SourceRef"
+        },
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "changes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/$defs/HistoryChangeInput"
+          }
+        }
+      }
+    },
+    "HistoryChangeRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque history change reference (C8)."
+    },
+    "HistoryDetailText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "description": "Free-text detail (reaction, dose, notes) as reported."
+    },
+    "HistoryEntryType": {
+      "enum": ["fact", "none_known"],
+      "description": "none_known records an explicit \"none known\" statement for allergy, condition or medication; it is not the same as nothing recorded."
+    },
+    "HistoryItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "itemRef",
+        "kind",
+        "entryType",
+        "streamRef",
+        "sourcePatientRef",
+        "current",
+        "verification",
+        "changes",
+        "verifications"
+      ],
+      "description": "An item as of the read instant: its current change, the verification of that exact change (or null), and every earlier change and verification.",
+      "properties": {
+        "itemRef": {
+          "$ref": "#/$defs/HistoryItemRef"
+        },
+        "kind": {
+          "$ref": "#/$defs/HistoryKind"
+        },
+        "entryType": {
+          "$ref": "#/$defs/HistoryEntryType"
+        },
+        "streamRef": {
+          "$ref": "#/$defs/HistoryStreamRef"
+        },
+        "sourcePatientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "current": {
+          "$ref": "#/$defs/HistoryChange"
+        },
+        "verification": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HistoryVerification"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "changes": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "$ref": "#/$defs/HistoryChange"
+          }
+        },
+        "verifications": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "$ref": "#/$defs/HistoryVerification"
+          }
+        }
+      }
+    },
+    "HistoryItemCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/HistoryItem"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "HistoryItemRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque history item reference (C8)."
+    },
+    "HistoryKind": {
+      "enum": ["condition", "allergy", "medication", "vital", "social"]
+    },
+    "HistoryProvenance": {
+      "enum": ["staff", "patient_reported", "imported"]
+    },
+    "HistoryRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["patientRef", "asOf", "recorded", "streams", "items"],
+          "properties": {
+            "patientRef": {
+              "$ref": "#/$defs/PatientRef"
+            },
+            "asOf": {
+              "$ref": "#/$defs/Instant"
+            },
+            "recorded": {
+              "type": "boolean",
+              "description": "False when nothing was recorded as of the instant: an unknown history, not an empty one."
+            },
+            "streams": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "$ref": "#/$defs/HistoryStream"
+              }
+            },
+            "items": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "$ref": "#/$defs/HistoryItem"
+              }
+            }
+          }
+        }
+      }
+    },
+    "HistoryReadQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "asOf": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "HistoryReview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reviewRef",
+        "encounterRef",
+        "patientRef",
+        "allergy",
+        "condition",
+        "medication",
+        "reviewedBy",
+        "reviewedAt"
+      ],
+      "properties": {
+        "reviewRef": {
+          "$ref": "#/$defs/HistoryReviewRef"
+        },
+        "encounterRef": {
+          "$ref": "#/$defs/EncounterRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "allergy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReviewOutcome"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "condition": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReviewOutcome"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "medication": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReviewOutcome"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reviewedBy": {
+          "$ref": "#/$defs/ClinicalAuthor"
+        },
+        "reviewedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "HistoryReviewAttest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "allergy": {
+          "$ref": "#/$defs/ReviewOutcome"
+        },
+        "condition": {
+          "$ref": "#/$defs/ReviewOutcome"
+        },
+        "medication": {
+          "$ref": "#/$defs/ReviewOutcome"
+        }
+      }
+    },
+    "HistoryReviewCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/HistoryReview"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "HistoryReviewRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque history review attestation reference (C8)."
+    },
+    "HistoryState": {
+      "enum": ["active", "resolved", "discontinued", "entered_in_error"],
+      "description": "Removal is a state change with a reason, never a delete. discontinued applies to medications only."
+    },
+    "HistoryStream": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["streamRef", "sourcePatientRef", "version"],
+      "properties": {
+        "streamRef": {
+          "$ref": "#/$defs/HistoryStreamRef"
+        },
+        "sourcePatientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "HistoryStreamRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque history stream reference: one per source patient (C8)."
+    },
+    "HistoryText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "Free text as reported; never interpreted, never checked against a drug database."
+    },
+    "HistoryVerification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["changeRef", "verifiedBy", "verifiedAt", "encounterRef"],
+      "properties": {
+        "changeRef": {
+          "$ref": "#/$defs/HistoryChangeRef"
+        },
+        "verifiedBy": {
+          "$ref": "#/$defs/ClinicalAuthor"
+        },
+        "verifiedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "encounterRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EncounterRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "HistoryVerify": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedChangeRef"],
+      "properties": {
+        "expectedChangeRef": {
+          "$ref": "#/$defs/HistoryChangeRef"
+        },
+        "encounterRef": {
+          "$ref": "#/$defs/EncounterRef"
+        }
+      }
+    },
+    "HistoryVersionCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/HistoryVersionDetail"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "HistoryVersionDetail": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["header", "changes"],
+      "properties": {
+        "header": {
+          "$ref": "#/$defs/HistoryVersionHeader"
+        },
+        "changes": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["itemRef", "kind", "entryType", "change"],
+            "properties": {
+              "itemRef": {
+                "$ref": "#/$defs/HistoryItemRef"
+              },
+              "kind": {
+                "$ref": "#/$defs/HistoryKind"
+              },
+              "entryType": {
+                "$ref": "#/$defs/HistoryEntryType"
+              },
+              "change": {
+                "$ref": "#/$defs/HistoryChange"
+              }
+            }
+          }
+        }
+      }
+    },
+    "HistoryVersionHeader": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "historyVersionRef",
+        "streamRef",
+        "version",
+        "provenance",
+        "reportedBy",
+        "sourceRef",
+        "encounterRef",
+        "recordedBy",
+        "recordedAt"
+      ],
+      "description": "One recorded history version: who reported it, who recorded it, from which source, when.",
+      "properties": {
+        "historyVersionRef": {
+          "$ref": "#/$defs/HistoryVersionRef"
+        },
+        "streamRef": {
+          "$ref": "#/$defs/HistoryStreamRef"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "provenance": {
+          "$ref": "#/$defs/HistoryProvenance"
+        },
+        "reportedBy": {
+          "$ref": "#/$defs/ReportedBy"
+        },
+        "sourceRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "encounterRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EncounterRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recordedBy": {
+          "$ref": "#/$defs/ClinicalAuthor"
+        },
+        "recordedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "HistoryVersionRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/HistoryVersionDetail"
+        }
+      }
+    },
+    "HistoryVersionRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque history version reference (C8)."
+    },
+    "IdempotencyKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$"
+    },
+    "Instant": {
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 40,
+      "description": "RFC 3339 instant, returned in UTC."
+    },
+    "LocalDate": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
+    },
+    "LocationRef": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,64}$"
+    },
+    "MinorUnits": {
+      "type": "integer",
+      "description": "Signed integer minor units. On journal lines debit is positive and credit negative.",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "Money": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "SHARED-CONTRACTS Money: explicit currency and integer minor units. Never a float.",
+      "required": ["currency", "minor"],
+      "properties": {
+        "currency": {
+          "$ref": "#/$defs/CurrencyCode"
+        },
+        "minor": {
+          "$ref": "#/$defs/MinorUnits"
+        }
+      }
+    },
+    "NotProvided": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provided", "statement"],
+      "properties": {
+        "provided": {
+          "const": false
+        },
+        "statement": {
+          "type": "string"
+        }
+      }
+    },
+    "Note": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "noteRef",
+        "encounterRef",
+        "patientRef",
+        "noteType",
+        "status",
+        "source",
+        "templateVersionRef",
+        "draft",
+        "versions",
+        "createdBy",
+        "createdAt",
+        "version"
+      ],
+      "properties": {
+        "noteRef": {
+          "$ref": "#/$defs/NoteRef"
+        },
+        "encounterRef": {
+          "$ref": "#/$defs/EncounterRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "noteType": {
+          "$ref": "#/$defs/NoteType"
+        },
+        "status": {
+          "enum": ["draft", "signed", "amended"]
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "aiModelRef", "aiPromptVersionRef"],
+          "properties": {
+            "kind": {
+              "$ref": "#/$defs/NoteSourceKind"
+            },
+            "aiModelRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AiRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "aiPromptVersionRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AiRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "templateVersionRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NoteTemplateVersionRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "draft": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NoteDraft"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "versions": {
+          "type": "array",
+          "maxItems": 1000,
+          "items": {
+            "$ref": "#/$defs/NoteVersion"
+          }
+        },
+        "createdBy": {
+          "$ref": "#/$defs/ClinicalAuthor"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "NoteAddendum": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "reasonCode", "text"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "text": {
+          "$ref": "#/$defs/NoteText"
+        }
+      }
+    },
+    "NoteAmend": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "reasonCode", "content"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "content": {
+          "$ref": "#/$defs/NoteContent"
+        }
+      }
+    },
+    "NoteCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/Note"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "NoteContent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sections"],
+      "properties": {
+        "sections": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "$ref": "#/$defs/NoteSectionEntry"
+          }
+        },
+        "procedureCodeRefs": {
+          "$ref": "#/$defs/ProcedureCodeRefs"
+        }
+      }
+    },
+    "NoteContentRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sections", "procedureCodeRefs"],
+      "properties": {
+        "sections": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "$ref": "#/$defs/NoteSectionEntry"
+          }
+        },
+        "procedureCodeRefs": {
+          "$ref": "#/$defs/ProcedureCodeRefs"
+        }
+      }
+    },
+    "NoteCosign": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sequence", "contentDigest"],
+      "properties": {
+        "sequence": {
+          "$ref": "#/$defs/Version"
+        },
+        "contentDigest": {
+          "$ref": "#/$defs/ContentDigest"
+        }
+      }
+    },
+    "NoteCosignature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "supervisingResourceRef", "status", "cosignedBy", "cosignedAt"],
+      "properties": {
+        "required": {
+          "type": "boolean"
+        },
+        "supervisingResourceRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ResourceRefId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "enum": ["not_required", "pending", "cosigned"]
+        },
+        "cosignedBy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ClinicalAuthor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cosignedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "NoteDraft": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["content", "templateCheck", "updatedBy", "updatedAt"],
+      "properties": {
+        "content": {
+          "$ref": "#/$defs/NoteContentRead"
+        },
+        "templateCheck": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TemplateCheck"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "updatedBy": {
+          "$ref": "#/$defs/ClinicalAuthor"
+        },
+        "updatedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "NoteDraftCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["noteType"],
+      "properties": {
+        "noteType": {
+          "$ref": "#/$defs/NoteType"
+        },
+        "templateVersionRef": {
+          "$ref": "#/$defs/NoteTemplateVersionRef"
+        },
+        "source": {
+          "$ref": "#/$defs/NoteSourceKind"
+        },
+        "aiModelRef": {
+          "$ref": "#/$defs/AiRef"
+        },
+        "aiPromptVersionRef": {
+          "$ref": "#/$defs/AiRef"
+        },
+        "content": {
+          "$ref": "#/$defs/NoteContent"
+        }
+      }
+    },
+    "NoteDraftUpdate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "content"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "templateVersionRef": {
+          "$ref": "#/$defs/NoteTemplateVersionRef"
+        },
+        "content": {
+          "$ref": "#/$defs/NoteContent"
+        }
+      }
+    },
+    "NoteList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/Note"
+          }
+        }
+      }
+    },
+    "NoteRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/Note"
+        }
+      }
+    },
+    "NoteRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque clinical note reference (C10)."
+    },
+    "NoteSectionEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sectionKey", "text"],
+      "properties": {
+        "sectionKey": {
+          "$ref": "#/$defs/SectionKey"
+        },
+        "text": {
+          "$ref": "#/$defs/NoteText"
+        }
+      }
+    },
+    "NoteSign": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "NoteSourceKind": {
+      "enum": ["human", "ai_draft"]
+    },
+    "NoteTemplate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "templateRef",
+        "noteType",
+        "label",
+        "state",
+        "retirement",
+        "currentVersion",
+        "versions",
+        "createdBy",
+        "createdAt",
+        "version"
+      ],
+      "properties": {
+        "templateRef": {
+          "$ref": "#/$defs/NoteTemplateRef"
+        },
+        "noteType": {
+          "$ref": "#/$defs/NoteType"
+        },
+        "label": {
+          "$ref": "#/$defs/NoteTemplateLabel"
+        },
+        "state": {
+          "enum": ["active", "retired"]
+        },
+        "retirement": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["reasonCode", "retiredBy", "retiredAt"],
+              "properties": {
+                "reasonCode": {
+                  "$ref": "#/$defs/ReasonCode"
+                },
+                "retiredBy": {
+                  "$ref": "#/$defs/ActorStamp"
+                },
+                "retiredAt": {
+                  "$ref": "#/$defs/Instant"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "currentVersion": {
+          "$ref": "#/$defs/NoteTemplateVersion"
+        },
+        "versions": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 200,
+          "items": {
+            "$ref": "#/$defs/NoteTemplateVersion"
+          }
+        },
+        "createdBy": {
+          "$ref": "#/$defs/ActorStamp"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "NoteTemplateApplicable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["encounterRef", "procedureCodeRefs", "procedureSource", "associated", "general"],
+          "properties": {
+            "encounterRef": {
+              "$ref": "#/$defs/EncounterRef"
+            },
+            "procedureCodeRefs": {
+              "$ref": "#/$defs/ProcedureCodeRefs"
+            },
+            "procedureSource": {
+              "const": "caller_supplied",
+              "description": "Encounter procedures (C11 proposed, C14 rendered) do not exist yet; the caller supplies the codes."
+            },
+            "associated": {
+              "type": "array",
+              "maxItems": 200,
+              "items": {
+                "$ref": "#/$defs/ApplicableTemplate"
+              }
+            },
+            "general": {
+              "type": "array",
+              "maxItems": 200,
+              "items": {
+                "$ref": "#/$defs/ApplicableTemplate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "NoteTemplateApplicableQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "procedureCodeRefs": {
+          "type": "string",
+          "pattern": "^SYN-[A-Z0-9-]{1,40}(,SYN-[A-Z0-9-]{1,40}){0,49}$",
+          "description": "Comma-separated synthetic procedure codes proposed or rendered at the encounter (caller-supplied until C11/C14)."
+        }
+      }
+    },
+    "NoteTemplateCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/NoteTemplate"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "NoteTemplateDefine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["noteType", "label", "enforced", "sections"],
+      "properties": {
+        "noteType": {
+          "$ref": "#/$defs/NoteType"
+        },
+        "label": {
+          "$ref": "#/$defs/NoteTemplateLabel"
+        },
+        "enforced": {
+          "type": "boolean",
+          "description": "C-D4: an enforced template blocks signing (not drafting) until satisfied."
+        },
+        "sections": {
+          "$ref": "#/$defs/NoteTemplateSections"
+        },
+        "procedureCodeRefs": {
+          "$ref": "#/$defs/ProcedureCodeRefs"
+        }
+      }
+    },
+    "NoteTemplateLabel": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "NoteTemplateRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/NoteTemplate"
+        }
+      }
+    },
+    "NoteTemplateRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque note template reference (C9)."
+    },
+    "NoteTemplateRetire": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "reasonCode"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "NoteTemplateRevise": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "enforced", "sections"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "enforced": {
+          "type": "boolean"
+        },
+        "sections": {
+          "$ref": "#/$defs/NoteTemplateSections"
+        },
+        "procedureCodeRefs": {
+          "$ref": "#/$defs/ProcedureCodeRefs"
+        }
+      }
+    },
+    "NoteTemplateSection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sectionKey", "label", "required"],
+      "properties": {
+        "sectionKey": {
+          "$ref": "#/$defs/SectionKey"
+        },
+        "label": {
+          "$ref": "#/$defs/NoteTemplateLabel"
+        },
+        "required": {
+          "type": "boolean"
+        }
+      }
+    },
+    "NoteTemplateSections": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 30,
+      "items": {
+        "$ref": "#/$defs/NoteTemplateSection"
+      }
+    },
+    "NoteTemplateVersion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "templateVersionRef",
+        "templateRef",
+        "sequence",
+        "enforced",
+        "sections",
+        "procedureCodeRefs",
+        "definedBy",
+        "definedAt"
+      ],
+      "properties": {
+        "templateVersionRef": {
+          "$ref": "#/$defs/NoteTemplateVersionRef"
+        },
+        "templateRef": {
+          "$ref": "#/$defs/NoteTemplateRef"
+        },
+        "sequence": {
+          "$ref": "#/$defs/Version"
+        },
+        "enforced": {
+          "type": "boolean"
+        },
+        "sections": {
+          "$ref": "#/$defs/NoteTemplateSections"
+        },
+        "procedureCodeRefs": {
+          "$ref": "#/$defs/ProcedureCodeRefs"
+        },
+        "definedBy": {
+          "$ref": "#/$defs/ActorStamp"
+        },
+        "definedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "NoteTemplateVersionRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/NoteTemplateVersion"
+        }
+      }
+    },
+    "NoteTemplateVersionRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque note template version reference (C9); a signed note pins one."
+    },
+    "NoteText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8000,
+      "description": "Clinical note text as written; never interpreted."
+    },
+    "NoteType": {
+      "type": "string",
+      "pattern": "^[a-z][a-z_]{0,63}$",
+      "description": "Note type key (for example progress). Configuration, not a clinical code."
+    },
+    "NoteVersion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "noteVersionRef",
+        "sequence",
+        "kind",
+        "referencesSequence",
+        "supersededBySequence",
+        "reasonCode",
+        "content",
+        "addendumText",
+        "templateVersionRef",
+        "templateCheck",
+        "historyAtSigning",
+        "authoredBy",
+        "authoredAt",
+        "contentDigest",
+        "digestVerified",
+        "cosignature"
+      ],
+      "properties": {
+        "noteVersionRef": {
+          "$ref": "#/$defs/NoteVersionRef"
+        },
+        "sequence": {
+          "$ref": "#/$defs/Version"
+        },
+        "kind": {
+          "enum": ["original", "amendment", "addendum"]
+        },
+        "referencesSequence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Version"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "supersededBySequence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Version"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reasonCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "content": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NoteContentRead"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "addendumText": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NoteText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "templateVersionRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NoteTemplateVersionRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "templateCheck": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TemplateCheck"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "historyAtSigning": {
+          "$ref": "#/$defs/HistoryAtSigning"
+        },
+        "authoredBy": {
+          "$ref": "#/$defs/ClinicalAuthor"
+        },
+        "authoredAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "contentDigest": {
+          "$ref": "#/$defs/ContentDigest"
+        },
+        "digestVerified": {
+          "type": "boolean",
+          "description": "The stored digest recomputed on read; false means altered content."
+        },
+        "cosignature": {
+          "$ref": "#/$defs/NoteCosignature"
+        }
+      }
+    },
+    "NoteVersionRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque frozen note version reference (C10)."
+    },
+    "PatientRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque patient reference (S4)."
+    },
+    "PatientResponsibility": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "label"],
+          "properties": {
+            "kind": {
+              "const": "unknown"
+            },
+            "label": {
+              "const": "coverage_unknown"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "label"],
+          "properties": {
+            "kind": {
+              "const": "not_available"
+            },
+            "label": {
+              "const": "estimate_incomplete"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "low", "high", "basis"],
+          "properties": {
+            "kind": {
+              "const": "range"
+            },
+            "low": {
+              "$ref": "#/$defs/Money"
+            },
+            "high": {
+              "$ref": "#/$defs/Money"
+            },
+            "basis": {
+              "const": "coverage_not_applied"
+            }
+          }
+        }
+      ],
+      "description": "C-D7: a labelled unknown or a bounded range; never a guaranteed patient-responsibility figure."
+    },
+    "PerioCompareQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseExamRef", "targetExamRef"],
+      "properties": {
+        "baseExamRef": {
+          "$ref": "#/$defs/PerioExamRef"
+        },
+        "targetExamRef": {
+          "$ref": "#/$defs/PerioExamRef"
+        },
+        "formulaRef": {
+          "$ref": "#/$defs/PerioFormulaRef"
+        },
+        "formulaVersion": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,8}$"
+        }
+      }
+    },
+    "PerioComparedSite": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tooth", "site", "measure", "base", "target", "delta", "status"],
+      "properties": {
+        "tooth": {
+          "$ref": "#/$defs/ToothRef"
+        },
+        "site": {
+          "$ref": "#/$defs/PerioSite"
+        },
+        "measure": {
+          "enum": ["probing_depth", "recession", "derived"]
+        },
+        "base": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "delta": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "enum": [
+            "compared",
+            "not_measured_in_base",
+            "not_measured_in_target",
+            "not_measured_in_both",
+            "not_computable_in_base",
+            "not_computable_in_target",
+            "not_computable_in_both",
+            "absent_in_base",
+            "absent_in_target"
+          ],
+          "description": "Only compared sites carry a delta; every other site is listed with the reason, never treated as a change."
+        }
+      }
+    },
+    "PerioComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["patientRef", "baseExamRef", "targetExamRef", "sites", "derived", "formulaVersions"],
+          "properties": {
+            "patientRef": {
+              "$ref": "#/$defs/PatientRef"
+            },
+            "baseExamRef": {
+              "$ref": "#/$defs/PerioExamRef"
+            },
+            "targetExamRef": {
+              "$ref": "#/$defs/PerioExamRef"
+            },
+            "sites": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/PerioComparedSite"
+              }
+            },
+            "derived": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["formulaRef", "approvalStatus", "label", "sites"],
+                  "properties": {
+                    "formulaRef": {
+                      "$ref": "#/$defs/PerioFormulaRef"
+                    },
+                    "approvalStatus": {
+                      "const": "pending"
+                    },
+                    "label": {
+                      "const": "derived_pending_clinical_approval"
+                    },
+                    "sites": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/PerioComparedSite"
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "formulaVersions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["examRef", "formulaRef", "version"],
+                "properties": {
+                  "examRef": {
+                    "$ref": "#/$defs/PerioExamRef"
+                  },
+                  "formulaRef": {
+                    "$ref": "#/$defs/PerioFormulaRef"
+                  },
+                  "version": {
+                    "$ref": "#/$defs/Version"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "PerioCorrectionInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["measurementRef", "value"],
+      "properties": {
+        "measurementRef": {
+          "$ref": "#/$defs/PerioMeasurementRef"
+        },
+        "value": {
+          "$ref": "#/$defs/PerioCorrectionValue"
+        }
+      }
+    },
+    "PerioCorrectionValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "description": "The superseding value: not_measured, or measured with the field the measure takes (mm, present or grade).",
+      "properties": {
+        "status": {
+          "enum": ["measured", "not_measured"]
+        },
+        "mm": {
+          "type": "integer",
+          "minimum": -10,
+          "maximum": 20
+        },
+        "present": {
+          "type": "boolean"
+        },
+        "grade": {
+          "$ref": "#/$defs/PerioGradeCode"
+        }
+      }
+    },
+    "PerioDepthSeries": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 6,
+      "items": {
+        "oneOf": [
+          {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 20
+          },
+          {
+            "const": "not_measured"
+          }
+        ]
+      },
+      "description": "Probing depth per site in the scheme order (db, b, mb, dl, l, ml): whole millimetres within provisional engineering bounds 0..20, or not_measured (never zero)."
+    },
+    "PerioDerivation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["derivationRef", "examRef", "formula", "label", "computedBy", "computedAt", "values"],
+      "properties": {
+        "derivationRef": {
+          "$ref": "#/$defs/PerioDerivationRef"
+        },
+        "examRef": {
+          "$ref": "#/$defs/PerioExamRef"
+        },
+        "formula": {
+          "$ref": "#/$defs/PerioFormula"
+        },
+        "label": {
+          "const": "derived_pending_clinical_approval"
+        },
+        "computedBy": {
+          "$ref": "#/$defs/ClinicalAuthor"
+        },
+        "computedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "values": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["tooth", "site", "status", "value", "missingInputs"],
+            "properties": {
+              "tooth": {
+                "$ref": "#/$defs/ToothRef"
+              },
+              "site": {
+                "$ref": "#/$defs/PerioSite"
+              },
+              "status": {
+                "enum": ["derived", "not_computable"]
+              },
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "missingInputs": {
+                "type": "array",
+                "items": {
+                  "enum": ["probing_depth", "recession"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "PerioDerivationCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/PerioDerivation"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "PerioDerivationRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque derivation reference (C7)."
+    },
+    "PerioDerive": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["formulaRef", "formulaVersion"],
+      "properties": {
+        "formulaRef": {
+          "$ref": "#/$defs/PerioFormulaRef"
+        },
+        "formulaVersion": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "PerioExam": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "examRef",
+        "streamRef",
+        "patientRef",
+        "sourcePatientRef",
+        "sequence",
+        "siteScheme",
+        "examDate",
+        "encounterRef",
+        "toothCount",
+        "recordedBy",
+        "recordedAt",
+        "measurements",
+        "derivations"
+      ],
+      "properties": {
+        "examRef": {
+          "$ref": "#/$defs/PerioExamRef"
+        },
+        "streamRef": {
+          "$ref": "#/$defs/PerioStreamRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "sourcePatientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "siteScheme": {
+          "$ref": "#/$defs/PerioSiteScheme"
+        },
+        "examDate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalDate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "encounterRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EncounterRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "toothCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "recordedBy": {
+          "$ref": "#/$defs/ClinicalAuthor"
+        },
+        "recordedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "measurements": {
+          "type": "array",
+          "maxItems": 5000,
+          "items": {
+            "$ref": "#/$defs/PerioMeasurement"
+          }
+        },
+        "derivations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PerioDerivation"
+          }
+        }
+      }
+    },
+    "PerioExamCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/PerioExam"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "PerioExamCorrect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasonCode", "corrections"],
+      "description": "Supersede named current measurements with a reason; the prior values remain.",
+      "properties": {
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "encounterRef": {
+          "$ref": "#/$defs/EncounterRef"
+        },
+        "corrections": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/PerioCorrectionInput"
+          }
+        }
+      }
+    },
+    "PerioExamHeader": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "examRef",
+        "streamRef",
+        "patientRef",
+        "sourcePatientRef",
+        "sequence",
+        "siteScheme",
+        "examDate",
+        "encounterRef",
+        "toothCount",
+        "recordedBy",
+        "recordedAt"
+      ],
+      "properties": {
+        "examRef": {
+          "$ref": "#/$defs/PerioExamRef"
+        },
+        "streamRef": {
+          "$ref": "#/$defs/PerioStreamRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "sourcePatientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "siteScheme": {
+          "$ref": "#/$defs/PerioSiteScheme"
+        },
+        "examDate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalDate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "encounterRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EncounterRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "toothCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "recordedBy": {
+          "$ref": "#/$defs/ClinicalAuthor"
+        },
+        "recordedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "PerioExamList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "$ref": "#/$defs/PerioExamHeader"
+          }
+        }
+      }
+    },
+    "PerioExamRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/PerioExam"
+        }
+      }
+    },
+    "PerioExamRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["patientRef", "siteScheme", "teeth"],
+      "description": "Record one complete exam: every listed tooth with every site of the scheme, each value measured or explicitly not measured. A partial exam is refused as a whole.",
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "encounterRef": {
+          "$ref": "#/$defs/EncounterRef"
+        },
+        "examDate": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "siteScheme": {
+          "$ref": "#/$defs/PerioSiteScheme"
+        },
+        "teeth": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 52,
+          "items": {
+            "$ref": "#/$defs/PerioToothInput"
+          }
+        }
+      }
+    },
+    "PerioExamRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque periodontal exam reference (C7)."
+    },
+    "PerioFlagSeries": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 6,
+      "items": {
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "const": "not_measured"
+          }
+        ]
+      },
+      "description": "Bleeding per site in the scheme order: present true or false, or not_measured."
+    },
+    "PerioFormula": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "formulaRef",
+        "version",
+        "operation",
+        "inputs",
+        "approvalStatus",
+        "withdrawn",
+        "historical"
+      ],
+      "properties": {
+        "formulaRef": {
+          "$ref": "#/$defs/PerioFormulaRef"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "operation": {
+          "enum": ["sum"]
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "enum": ["probing_depth", "recession"]
+          }
+        },
+        "approvalStatus": {
+          "const": "pending",
+          "description": "No formula is clinically approved; a derived value is never presented as approved (C-D3)."
+        },
+        "withdrawn": {
+          "type": "boolean"
+        },
+        "historical": {
+          "type": "boolean",
+          "description": "true when the formula was withdrawn after this derivation."
+        }
+      }
+    },
+    "PerioFormulaRef": {
+      "type": "string",
+      "pattern": "^SYN-[A-Z0-9-]{1,40}$",
+      "description": "Synthetic formula identifier in the tenant registry; no clinical meaning (C-D3: every formula pending approval)."
+    },
+    "PerioGradeCode": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]{1,32}$"
+    },
+    "PerioGradeValue": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["grade"],
+          "properties": {
+            "grade": {
+              "$ref": "#/$defs/PerioGradeCode"
+            }
+          }
+        },
+        {
+          "const": "not_measured"
+        }
+      ],
+      "description": "A grade from the tenant-configured vocabulary, or explicitly not_measured."
+    },
+    "PerioMeasure": {
+      "enum": ["probing_depth", "recession", "bleeding", "mobility", "furcation"]
+    },
+    "PerioMeasurement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "measurementRef",
+        "tooth",
+        "site",
+        "measure",
+        "status",
+        "mm",
+        "present",
+        "grade",
+        "current",
+        "supersedesRef",
+        "supersededByRef",
+        "reasonCode",
+        "recordedBy",
+        "recordedAt"
+      ],
+      "properties": {
+        "measurementRef": {
+          "$ref": "#/$defs/PerioMeasurementRef"
+        },
+        "tooth": {
+          "$ref": "#/$defs/ToothRef"
+        },
+        "site": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PerioSite"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "measure": {
+          "$ref": "#/$defs/PerioMeasure"
+        },
+        "status": {
+          "enum": ["measured", "not_measured"]
+        },
+        "mm": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "present": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "grade": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PerioGradeCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "current": {
+          "type": "boolean"
+        },
+        "supersedesRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PerioMeasurementRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "supersededByRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PerioMeasurementRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reasonCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recordedBy": {
+          "$ref": "#/$defs/ClinicalAuthor"
+        },
+        "recordedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "PerioMeasurementRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque periodontal measurement reference (C7)."
+    },
+    "PerioRecessionSeries": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 6,
+      "items": {
+        "oneOf": [
+          {
+            "type": "integer",
+            "minimum": -10,
+            "maximum": 20
+          },
+          {
+            "const": "not_measured"
+          }
+        ]
+      },
+      "description": "Recession per site in the scheme order: whole millimetres within provisional engineering bounds -10..20, or not_measured."
+    },
+    "PerioSite": {
+      "enum": ["db", "b", "mb", "dl", "l", "ml"]
+    },
+    "PerioSiteScheme": {
+      "enum": ["six_site_provisional"],
+      "description": "Provisional six-site scheme (C-S1-Q5: the site definition is a clinical value pending the reviewer)."
+    },
+    "PerioStreamRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque periodontal stream reference: one per source patient, so merged exams stay distinct (C7)."
+    },
+    "PerioToothInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tooth", "mobility", "furcation", "probingDepth", "recession", "bleeding"],
+      "description": "One tooth of an exam: tooth-level grades and one value per site of the scheme, in scheme order (exactly six).",
+      "properties": {
+        "tooth": {
+          "$ref": "#/$defs/ToothInput"
+        },
+        "mobility": {
+          "$ref": "#/$defs/PerioGradeValue"
+        },
+        "furcation": {
+          "$ref": "#/$defs/PerioGradeValue"
+        },
+        "probingDepth": {
+          "$ref": "#/$defs/PerioDepthSeries"
+        },
+        "recession": {
+          "$ref": "#/$defs/PerioRecessionSeries"
+        },
+        "bleeding": {
+          "$ref": "#/$defs/PerioFlagSeries"
+        }
+      }
+    },
+    "PlanAcceptance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "acceptanceRef",
+        "planVersionRef",
+        "estimateRef",
+        "scope",
+        "acceptedBy",
+        "acceptedAt",
+        "estimatePresented",
+        "consent"
+      ],
+      "properties": {
+        "acceptanceRef": {
+          "$ref": "#/$defs/AcceptanceRef"
+        },
+        "planVersionRef": {
+          "$ref": "#/$defs/PlanVersionRef"
+        },
+        "estimateRef": {
+          "$ref": "#/$defs/EstimateRef"
+        },
+        "scope": {
+          "const": "full"
+        },
+        "acceptedBy": {
+          "$ref": "#/$defs/ActorRef"
+        },
+        "acceptedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "estimatePresented": {
+          "type": "boolean"
+        },
+        "consent": {
+          "$ref": "#/$defs/EstimateConsentBinding"
+        }
+      }
+    },
+    "PlanAlternativeCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "displayText": {
+          "$ref": "#/$defs/PlanText"
+        },
+        "encounterRef": {
+          "$ref": "#/$defs/EncounterRef"
+        }
+      }
+    },
+    "PlanAlternativeList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["planRef", "headVersionRef", "headState", "selection"],
+            "properties": {
+              "planRef": {
+                "$ref": "#/$defs/TreatmentPlanRef"
+              },
+              "headVersionRef": {
+                "$ref": "#/$defs/PlanVersionRef"
+              },
+              "headState": {
+                "$ref": "#/$defs/PlanVersionState"
+              },
+              "selection": {
+                "type": "string",
+                "enum": ["accepted", "unselected", "undecided"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "PlanAreaCode": {
+      "enum": ["ur", "ul", "ll", "lr", "upper", "lower"],
+      "description": "Provisional area vocabulary (quadrants and arches; pending clinical approval)."
+    },
+    "PlanDetail": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "detailRef",
+        "planVersionRef",
+        "sequence",
+        "phase",
+        "scope",
+        "tooth",
+        "surfaces",
+        "areaCode",
+        "chartEntryRef",
+        "displayText",
+        "state",
+        "reasonCode",
+        "stateRecordedBy",
+        "stateRecordedAt",
+        "derivedFromDetailRef",
+        "createdBy",
+        "createdAt",
+        "items"
+      ],
+      "properties": {
+        "detailRef": {
+          "$ref": "#/$defs/PlanDetailRef"
+        },
+        "planVersionRef": {
+          "$ref": "#/$defs/PlanVersionRef"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "phase": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scope": {
+          "$ref": "#/$defs/PlanDetailScope"
+        },
+        "tooth": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToothRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "surfaces": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SurfaceSet"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "areaCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanAreaCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "chartEntryRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChartEntryRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "displayText": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "$ref": "#/$defs/PlanDetailState"
+        },
+        "reasonCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stateRecordedBy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ClinicalAuthor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stateRecordedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "derivedFromDetailRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanDetailRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "createdBy": {
+          "$ref": "#/$defs/ClinicalAuthor"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PlanItem"
+          }
+        }
+      }
+    },
+    "PlanDetailAdd": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedRevision", "scope"],
+      "properties": {
+        "expectedRevision": {
+          "$ref": "#/$defs/Version"
+        },
+        "scope": {
+          "$ref": "#/$defs/PlanDetailScope"
+        },
+        "tooth": {
+          "$ref": "#/$defs/ToothInput"
+        },
+        "surfaces": {
+          "$ref": "#/$defs/SurfaceSet"
+        },
+        "areaCode": {
+          "$ref": "#/$defs/PlanAreaCode"
+        },
+        "phase": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 99
+        },
+        "chartEntryRef": {
+          "$ref": "#/$defs/ChartEntryRef"
+        },
+        "displayText": {
+          "$ref": "#/$defs/PlanText"
+        }
+      }
+    },
+    "PlanDetailRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque plan detail reference (C11)."
+    },
+    "PlanDetailScope": {
+      "enum": ["tooth", "surface_set", "area", "whole_mouth"]
+    },
+    "PlanDetailState": {
+      "enum": ["active", "declined", "discontinued"]
+    },
+    "PlanDetailStateSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedRevision", "state", "reasonCode"],
+      "properties": {
+        "expectedRevision": {
+          "$ref": "#/$defs/Version"
+        },
+        "state": {
+          "enum": ["declined", "discontinued"]
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "PlanItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "itemRef",
+        "detailRef",
+        "planVersionRef",
+        "procedureCodeRef",
+        "sequence",
+        "tooth",
+        "surfaces",
+        "areaCode",
+        "feeScheduleRef",
+        "chartEntryRef",
+        "displayText",
+        "state",
+        "appointmentRef",
+        "derivedFromItemRef",
+        "createdBy",
+        "createdAt",
+        "transitions"
+      ],
+      "properties": {
+        "itemRef": {
+          "$ref": "#/$defs/PlanItemRef"
+        },
+        "detailRef": {
+          "$ref": "#/$defs/PlanDetailRef"
+        },
+        "planVersionRef": {
+          "$ref": "#/$defs/PlanVersionRef"
+        },
+        "procedureCodeRef": {
+          "$ref": "#/$defs/SyntheticCodeRef"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "tooth": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToothRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "surfaces": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SurfaceSet"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "areaCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanAreaCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "feeScheduleRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FeeScheduleRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "chartEntryRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChartEntryRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "displayText": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "$ref": "#/$defs/PlanItemState"
+        },
+        "appointmentRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AppointmentRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "derivedFromItemRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanItemRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "createdBy": {
+          "$ref": "#/$defs/ClinicalAuthor"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "transitions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PlanItemTransition"
+          }
+        }
+      }
+    },
+    "PlanItemAdd": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedRevision", "procedureCodeRef", "sequence"],
+      "description": "Add an item to a detail. There is no amount: a fee schedule reference or nothing (estimate-incomplete).",
+      "properties": {
+        "expectedRevision": {
+          "$ref": "#/$defs/Version"
+        },
+        "procedureCodeRef": {
+          "$ref": "#/$defs/SyntheticCodeRef"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 999
+        },
+        "tooth": {
+          "$ref": "#/$defs/ToothInput"
+        },
+        "surfaces": {
+          "$ref": "#/$defs/SurfaceSet"
+        },
+        "areaCode": {
+          "$ref": "#/$defs/PlanAreaCode"
+        },
+        "feeScheduleRef": {
+          "$ref": "#/$defs/FeeScheduleRef"
+        },
+        "chartEntryRef": {
+          "$ref": "#/$defs/ChartEntryRef"
+        },
+        "displayText": {
+          "$ref": "#/$defs/PlanText"
+        }
+      }
+    },
+    "PlanItemRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque plan item reference (C11; C14 renders against it)."
+    },
+    "PlanItemState": {
+      "enum": ["proposed", "accepted", "scheduled", "completed", "declined", "discontinued"],
+      "description": "Item state; completed is set only by a rendered procedure (C14)."
+    },
+    "PlanItemStateSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedRevision", "state"],
+      "properties": {
+        "expectedRevision": {
+          "$ref": "#/$defs/Version"
+        },
+        "state": {
+          "$ref": "#/$defs/PlanItemState"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "appointmentRef": {
+          "$ref": "#/$defs/AppointmentRef"
+        }
+      }
+    },
+    "PlanItemTransition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "to",
+        "cause",
+        "reasonCode",
+        "parentDetailRef",
+        "appointmentRef",
+        "recordedBy",
+        "recordedAt"
+      ],
+      "properties": {
+        "from": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanItemState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "to": {
+          "$ref": "#/$defs/PlanItemState"
+        },
+        "cause": {
+          "enum": [
+            "created",
+            "direct",
+            "detail_declined",
+            "detail_discontinued",
+            "carried_forward",
+            "rendered",
+            "render_reversed"
+          ]
+        },
+        "reasonCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "parentDetailRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanDetailRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "appointmentRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AppointmentRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recordedBy": {
+          "$ref": "#/$defs/ClinicalAuthor"
+        },
+        "recordedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "PlanText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "Free text as recorded."
+    },
+    "PlanVersion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "planVersionRef",
+        "number",
+        "state",
+        "revision",
+        "displayText",
+        "supersedesRef",
+        "supersededByRef",
+        "supersedeReasonCode",
+        "acceptance",
+        "encounterRef",
+        "createdBy",
+        "createdAt",
+        "estimateReadiness",
+        "details"
+      ],
+      "properties": {
+        "planVersionRef": {
+          "$ref": "#/$defs/PlanVersionRef"
+        },
+        "number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "state": {
+          "$ref": "#/$defs/PlanVersionState"
+        },
+        "revision": {
+          "$ref": "#/$defs/Version"
+        },
+        "displayText": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "supersedesRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanVersionRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "supersededByRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanVersionRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "supersedeReasonCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "acceptance": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["acceptanceRef", "acceptedAt"],
+              "description": "Recorded by C12 through the acceptance seam; consent (C13) is a separate later fact.",
+              "properties": {
+                "acceptanceRef": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "acceptedAt": {
+                  "$ref": "#/$defs/Instant"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "encounterRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EncounterRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "createdBy": {
+          "$ref": "#/$defs/ClinicalAuthor"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "estimateReadiness": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["complete", "itemCount", "itemsWithoutFeeScheduleRef"],
+          "description": "Whether every item names a fee schedule reference. Never an amount: pricing is C12 and billing.",
+          "properties": {
+            "complete": {
+              "type": "boolean"
+            },
+            "itemCount": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "itemsWithoutFeeScheduleRef": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/PlanItemRef"
+              }
+            }
+          }
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PlanDetail"
+          }
+        }
+      }
+    },
+    "PlanVersionRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque plan version reference (C11; C12 binds estimates and acceptance to it)."
+    },
+    "PlanVersionState": {
+      "enum": ["draft", "accepted", "superseded"],
+      "description": "superseded once a later version names this one; accepted (C12 seam) is immutable content."
+    },
+    "PlanVersionSupersede": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedRevision", "reasonCode"],
+      "properties": {
+        "expectedRevision": {
+          "$ref": "#/$defs/Version"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "displayText": {
+          "$ref": "#/$defs/PlanText"
+        }
+      }
+    },
+    "ProcedureBillingEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eventType",
+        "procedureRef",
+        "patientRef",
+        "encounterRef",
+        "renderingProviderRef",
+        "dateOfService",
+        "codeRef",
+        "toothSurface",
+        "planItemRef",
+        "reversesProcedureRef",
+        "replacesProcedureRef",
+        "version"
+      ],
+      "properties": {
+        "eventType": {
+          "type": "string",
+          "enum": ["procedure.rendered.v1", "procedure.reversed.v1"]
+        },
+        "procedureRef": {
+          "$ref": "#/$defs/ProcedureRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "encounterRef": {
+          "$ref": "#/$defs/EncounterRef"
+        },
+        "renderingProviderRef": {
+          "$ref": "#/$defs/ProviderResourceRef"
+        },
+        "dateOfService": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "codeRef": {
+          "$ref": "#/$defs/SyntheticCodeRef"
+        },
+        "toothSurface": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProcedureToothSurface"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "planItemRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanItemRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reversesProcedureRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProcedureRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "replacesProcedureRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProcedureRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "const": 1
+        }
+      },
+      "description": "The C14 -> B contract: identifiers and the correction relationship only; never an amount, narrative or demographic value. patientRef is the encounter patient when the fact was recorded."
+    },
+    "ProcedureCodeRefs": {
+      "type": "array",
+      "maxItems": 50,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/SyntheticCodeRef"
+      },
+      "description": "Provisional synthetic procedure-code references (C-D2); never a licensed code table."
+    },
+    "ProcedureCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/RenderedProcedure"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ProcedureCorrect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasonCode"],
+      "properties": {
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "replacement": {
+          "$ref": "#/$defs/ProcedureReplacement"
+        }
+      },
+      "description": "Correct a rendered procedure by a reversal and, optionally, a linked replacement."
+    },
+    "ProcedureCorrectionResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["original", "reversal", "replacement"],
+          "properties": {
+            "original": {
+              "$ref": "#/$defs/RenderedProcedure"
+            },
+            "reversal": {
+              "$ref": "#/$defs/RenderedProcedure"
+            },
+            "replacement": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/RenderedProcedure"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ProcedureDuplicateIntent": {
+      "type": "string",
+      "enum": ["repeat_in_visit", "additional_visit"],
+      "description": "Explicit indicator that a same-looking procedure is intentionally recorded again."
+    },
+    "ProcedureList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["procedures", "netRefs"],
+          "properties": {
+            "procedures": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "$ref": "#/$defs/RenderedProcedure"
+              }
+            },
+            "netRefs": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "$ref": "#/$defs/ProcedureRef"
+              }
+            }
+          }
+        }
+      }
+    },
+    "ProcedureRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/RenderedProcedure"
+        }
+      }
+    },
+    "ProcedureRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque rendered-procedure reference (C14); the only key billing (B) uses for a charge."
+    },
+    "ProcedureRender": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sequence", "dateOfService", "renderingProviderRef"],
+      "properties": {
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 999
+        },
+        "dateOfService": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "renderingProviderRef": {
+          "$ref": "#/$defs/ProviderResourceRef"
+        },
+        "planItemRef": {
+          "$ref": "#/$defs/PlanItemRef"
+        },
+        "codeRef": {
+          "$ref": "#/$defs/SyntheticCodeRef"
+        },
+        "tooth": {
+          "$ref": "#/$defs/ToothInput"
+        },
+        "surfaces": {
+          "$ref": "#/$defs/SurfaceSet"
+        },
+        "chartEntryRef": {
+          "$ref": "#/$defs/ChartEntryRef"
+        },
+        "providerOverrideReason": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "duplicateIntent": {
+          "$ref": "#/$defs/ProcedureDuplicateIntent"
+        }
+      },
+      "description": "Record that a procedure was actually performed in this encounter. A planned procedure names its plan item (code, tooth and surfaces come from it); an unscheduled one names its SYN- code. No amount, no narrative."
+    },
+    "ProcedureReplacement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 999
+        },
+        "dateOfService": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "renderingProviderRef": {
+          "$ref": "#/$defs/ProviderResourceRef"
+        },
+        "codeRef": {
+          "$ref": "#/$defs/SyntheticCodeRef"
+        },
+        "tooth": {
+          "$ref": "#/$defs/ToothInput"
+        },
+        "surfaces": {
+          "$ref": "#/$defs/SurfaceSet"
+        },
+        "providerOverrideReason": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      },
+      "description": "The corrected values; anything omitted is carried from the reversed procedure."
+    },
+    "ProcedureToothSurface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["toothRef", "surfaces"],
+      "properties": {
+        "toothRef": {
+          "type": "string",
+          "pattern": "^(perm-(ur|ul|ll|lr)-[1-8]|prim-(ur|ul|ll|lr)-[1-5]|sn-(ur|ul|ll|lr)-[1-4])$"
+        },
+        "surfaces": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SurfaceSet"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "ProviderResourceRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "A scheduling resource of kind provider (S7): the rendering provider."
+    },
+    "ReasonCode": {
+      "type": "string",
+      "pattern": "^[a-z_]{1,64}$",
+      "description": "Server-checked reason value; never free text (vocabulary pending clinical approval)."
+    },
+    "RenderedProcedure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "procedureRef",
+        "kind",
+        "state",
+        "encounterRef",
+        "patientRef",
+        "sourcePatientRef",
+        "sequence",
+        "planItemRef",
+        "provenance",
+        "codeRef",
+        "tooth",
+        "surfaces",
+        "chartEntryRef",
+        "chartDiscrepancy",
+        "dateOfService",
+        "renderingProviderRef",
+        "providerOverrideReason",
+        "duplicateIntent",
+        "reversesProcedureRef",
+        "reversedByRef",
+        "replacesProcedureRef",
+        "replacedByRef",
+        "reasonCode",
+        "recordedBy",
+        "recordedAt",
+        "billingEvent"
+      ],
+      "properties": {
+        "procedureRef": {
+          "$ref": "#/$defs/ProcedureRef"
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["rendered", "reversal"]
+        },
+        "state": {
+          "type": "string",
+          "enum": ["active", "reversed", "reversal"]
+        },
+        "encounterRef": {
+          "$ref": "#/$defs/EncounterRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "sourcePatientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "planItemRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanItemRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "provenance": {
+          "type": "string",
+          "enum": ["planned", "unscheduled", "correction"]
+        },
+        "codeRef": {
+          "$ref": "#/$defs/SyntheticCodeRef"
+        },
+        "tooth": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToothRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "surfaces": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SurfaceSet"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "chartEntryRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChartEntryRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "chartDiscrepancy": {
+          "type": "string",
+          "enum": ["none", "chart_entry_superseded", "chart_entry_entered_in_error"],
+          "description": "The recorded chart entry was later superseded or marked in error; the recorded tooth is kept and flagged for review."
+        },
+        "dateOfService": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "renderingProviderRef": {
+          "$ref": "#/$defs/ProviderResourceRef"
+        },
+        "providerOverrideReason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "duplicateIntent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProcedureDuplicateIntent"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reversesProcedureRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProcedureRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reversedByRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProcedureRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "replacesProcedureRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProcedureRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "replacedByRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProcedureRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reasonCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recordedBy": {
+          "$ref": "#/$defs/ClinicalAuthor"
+        },
+        "recordedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "billingEvent": {
+          "$ref": "#/$defs/ProcedureBillingEvent"
+        }
+      }
+    },
+    "ReportedBy": {
+      "enum": ["patient", "guardian", "caregiver", "clinician", "external_record"],
+      "description": "Who reported the information (the recorder is always the authenticated clinical author)."
+    },
+    "ResourceRefId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque scheduling resource reference (S7)."
+    },
+    "ReviewOutcome": {
+      "enum": ["none", "confirmed"],
+      "description": "none: reviewed with the patient and none present; confirmed: the recorded list was reviewed."
+    },
+    "SectionKey": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,63}$",
+      "description": "Section key of a note template (synthetic placeholder; required sections are C-S2-Q1, blocking)."
+    },
+    "SourceRef": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+      "description": "Reference to the source document or import batch; required for imported provenance."
+    },
+    "SurfaceSet": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 7,
+      "items": {
+        "$ref": "#/$defs/ToothSurface"
+      }
+    },
+    "SyntheticCodeRef": {
+      "type": "string",
+      "pattern": "^SYN-[A-Z0-9-]{1,40}$",
+      "description": "Provisional internal synthetic code (C-D2). Not a licensed terminology code; carries no clinical meaning."
+    },
+    "TemplateCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enforced",
+        "satisfied",
+        "blocksSigning",
+        "missingSections",
+        "missingCodeRefs",
+        "unresolvedSections"
+      ],
+      "properties": {
+        "enforced": {
+          "type": "boolean"
+        },
+        "satisfied": {
+          "type": "boolean"
+        },
+        "blocksSigning": {
+          "type": "boolean"
+        },
+        "missingSections": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "$ref": "#/$defs/SectionKey"
+          }
+        },
+        "missingCodeRefs": {
+          "$ref": "#/$defs/ProcedureCodeRefs"
+        },
+        "unresolvedSections": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "$ref": "#/$defs/SectionKey"
+          }
+        }
+      }
+    },
+    "ToothDentition": {
+      "enum": ["permanent", "primary", "supernumerary"]
+    },
+    "ToothDisplaySystem": {
+      "enum": ["universal", "fdi"],
+      "description": "Numbering projection of the canonical identity (C-D1: Universal is the US default; FDI per preference)."
+    },
+    "ToothInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["system", "code"],
+      "description": "A tooth named in a supported numbering system (Universal, FDI) or by canonical reference. The server resolves the canonical identity; an unknown code is refused, never guessed.",
+      "properties": {
+        "system": {
+          "$ref": "#/$defs/ToothInputSystem"
+        },
+        "code": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9-]{1,12}$"
+        }
+      }
+    },
+    "ToothInputSystem": {
+      "enum": ["universal", "fdi", "canonical"]
+    },
+    "ToothRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["canonicalRef", "dentition", "displaySystem", "display", "universal", "fdi"],
+      "description": "Canonical tooth identity (the authority) with numbering projections; null where a system has no counterpart (for example a supernumerary tooth).",
+      "properties": {
+        "canonicalRef": {
+          "type": "string",
+          "pattern": "^(perm|prim|sn)-(ur|ul|ll|lr)-[1-8]$"
+        },
+        "dentition": {
+          "$ref": "#/$defs/ToothDentition"
+        },
+        "displaySystem": {
+          "$ref": "#/$defs/ToothDisplaySystem"
+        },
+        "display": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "universal": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fdi": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "ToothSurface": {
+      "enum": ["M", "D", "O", "I", "B", "F", "L"],
+      "description": "Provisional surface vocabulary (C-S1-Q2 pending reviewer); validated per tooth type by the server."
+    },
+    "TreatmentPlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "planRef",
+        "patientRef",
+        "sourcePatientRef",
+        "headVersionRef",
+        "createdBy",
+        "createdAt",
+        "versions"
+      ],
+      "properties": {
+        "planRef": {
+          "$ref": "#/$defs/TreatmentPlanRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "sourcePatientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "headVersionRef": {
+          "$ref": "#/$defs/PlanVersionRef"
+        },
+        "createdBy": {
+          "$ref": "#/$defs/ClinicalAuthor"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "versions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PlanVersion"
+          }
+        }
+      }
+    },
+    "TreatmentPlanCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["targetRef", "plan"],
+          "properties": {
+            "targetRef": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The plan, version, detail or item the command created or changed."
+            },
+            "plan": {
+              "$ref": "#/$defs/TreatmentPlan"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "TreatmentPlanCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["patientRef"],
+      "description": "Create a plan and its first (draft) version.",
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "encounterRef": {
+          "$ref": "#/$defs/EncounterRef"
+        },
+        "displayText": {
+          "$ref": "#/$defs/PlanText"
+        }
+      }
+    },
+    "TreatmentPlanList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "planRef",
+              "patientRef",
+              "sourcePatientRef",
+              "headVersionRef",
+              "headVersionNumber",
+              "headState",
+              "createdAt"
+            ],
+            "properties": {
+              "planRef": {
+                "$ref": "#/$defs/TreatmentPlanRef"
+              },
+              "patientRef": {
+                "$ref": "#/$defs/PatientRef"
+              },
+              "sourcePatientRef": {
+                "$ref": "#/$defs/PatientRef"
+              },
+              "headVersionRef": {
+                "$ref": "#/$defs/PlanVersionRef"
+              },
+              "headVersionNumber": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "headState": {
+                "$ref": "#/$defs/PlanVersionState"
+              },
+              "createdAt": {
+                "$ref": "#/$defs/Instant"
+              }
+            }
+          }
+        }
+      }
+    },
+    "TreatmentPlanRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/TreatmentPlan"
+        }
+      }
+    },
+    "TreatmentPlanRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque treatment plan reference (C11)."
+    },
+    "Version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    }
+  }
+}

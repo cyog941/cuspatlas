@@ -173,11 +173,18 @@ describe('S11 acceptance', () => {
     expect([t?.kind, t?.reasonCode]).toStrictEqual(['no_show', 'no_contact']);
     expect(await leakTables(db)).not.toContain(MARKER);
     expect(h.logLines.join('\n')).not.toContain(MARKER);
-    // The note lives only in the attendance row: no clinical note table exists or receives it.
-    const clinical = await db.admin.query(
-      `SELECT count(*)::int AS n FROM information_schema.tables WHERE table_schema = 'cuspatlas' AND table_name ~ 'clinical|note'`,
+    // The note lives only in the attendance row: no clinical or note table receives it. (Workstream C
+    // adjusted this check from "no such table exists" when the clinical tables arrived; same intent.)
+    const clinical = await db.admin.query<{ table_name: string }>(
+      `SELECT table_name FROM information_schema.tables WHERE table_schema = 'cuspatlas'
+         AND table_type = 'BASE TABLE' AND table_name ~ 'clinical|note'`,
     );
-    expect(clinical.rows[0].n).toBe(0);
+    for (const { table_name } of clinical.rows) {
+      const { rows } = await db.admin.query(
+        `SELECT coalesce(json_agg(t)::text, '') AS j FROM cuspatlas.${table_name} t`,
+      );
+      expect([table_name, rows[0].j.includes(MARKER)]).toStrictEqual([table_name, false]);
+    }
   });
 
   it('4-5. clinical completion and financial facts cannot be recorded as attendance', async () => {

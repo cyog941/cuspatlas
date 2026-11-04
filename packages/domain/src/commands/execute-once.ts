@@ -13,6 +13,7 @@ import {
   type TenantTransaction,
 } from '@cuspatlas/contracts';
 import { BILLING_REPLAY_CODECS } from '../billing/codecs';
+import { CLINICAL_REPLAY_CODECS } from '../clinical/codecs';
 import { PATIENT_REPLAY_CODECS } from '../patients/replay-codecs';
 import { APPOINTMENT_REPLAY_CODECS, SCHEDULING_REPLAY_CODECS } from '../scheduling/codecs';
 import { EXTENDED_SCHEDULING_CODECS } from '../scheduling/ext-codecs';
@@ -238,6 +239,7 @@ export const executeOnce: CommandExecutor = createExecuteOnce({
     ...SCHEDULING_REPLAY_CODECS,
     ...APPOINTMENT_REPLAY_CODECS,
     ...BILLING_REPLAY_CODECS,
+    ...CLINICAL_REPLAY_CODECS,
     ...EXTENDED_SCHEDULING_CODECS,
   },
 });

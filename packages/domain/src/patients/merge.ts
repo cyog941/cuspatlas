@@ -48,6 +48,15 @@ export interface MergeRecordClass {
     | 'patient_relationships'
     | 'appointment_requests'
     | 'appointments'
+    // C5/C8 clinical classes (appended by workstream C).
+    | 'clinical_encounters'
+    | 'clinical_history_streams'
+    // C6/C7/C11 clinical classes (workstream C batch 2a).
+    | 'clinical_charts'
+    | 'clinical_perio_streams'
+    | 'clinical_treatment_plans'
+    // C13 consent (workstream C batch 3).
+    | 'clinical_consents'
     | 'appointment_series'
     | 'waitlist_entries';
   readonly column: 'subject_patient_id' | 'counterparty_patient_id';
@@ -135,6 +144,28 @@ export const MERGE_RECORD_CLASSES: readonly MergeRecordClass[] = [
       'updated_at',
     ],
   },
+  // C5 (workstream C): an encounter follows its patient. The digest covers identity, the visit, the
+  // location and the opening authorship; the closure columns are write-once lifecycle facts (the
+  // encounter guard trigger refuses any rewrite) and are left out so a later close never blocks an
+  // unmerge. Role assignments carry no patient reference and are never touched by a merge.
+  {
+    recordClass: 'clinicalEncounter',
+    table: 'clinical_encounters',
+    column: 'subject_patient_id',
+    referenceField: 'patientRef',
+    factKind: 'clinical',
+    digestExclude: [
+      'subject_patient_id',
+      'state',
+      'disposition_code',
+      'closed_by',
+      'closed_by_role',
+      'closed_by_credential_ref',
+      'closed_at',
+      'version',
+      'updated_at',
+    ],
+  },
   // S13: a recurrence series follows its patient (its occurrences are appointments, registered above).
   // The pattern, anchor and creator are content; state, end and counters are lifecycle.
   {
@@ -152,6 +183,59 @@ export const MERGE_RECORD_CLASSES: readonly MergeRecordClass[] = [
       'version',
       'updated_at',
     ],
+  },
+  // C8 (workstream C): a history stream follows its patient. Versions, items, changes and
+  // verifications reference the stream, never the patient, so a merge cannot touch them; the stream
+  // keeps its source patient (origin_patient_id, excluded below). The digest covers the source and
+  // creation; only the reference, the version head and bookkeeping are excluded.
+  {
+    recordClass: 'clinicalHistoryStream',
+    table: 'clinical_history_streams',
+    column: 'subject_patient_id',
+    referenceField: 'patientRef',
+    factKind: 'clinical',
+    digestExclude: ['subject_patient_id', 'head_sequence', 'version', 'updated_at'],
+  },
+  // C6 (workstream C): a chart follows its patient. Entries reference the chart, never the patient,
+  // so a merge cannot touch them; the chart keeps its source patient (origin_patient_id, excluded).
+  {
+    recordClass: 'clinicalChart',
+    table: 'clinical_charts',
+    column: 'subject_patient_id',
+    referenceField: 'patientRef',
+    factKind: 'clinical',
+    digestExclude: ['subject_patient_id', 'head_sequence', 'version', 'updated_at'],
+  },
+  // C7 (workstream C): a perio stream follows its patient; exams, measurements and derivations
+  // reference the stream, never the patient; the stream keeps its source patient.
+  {
+    recordClass: 'clinicalPerioStream',
+    table: 'clinical_perio_streams',
+    column: 'subject_patient_id',
+    referenceField: 'patientRef',
+    factKind: 'clinical',
+    digestExclude: ['subject_patient_id', 'head_sequence', 'version', 'updated_at'],
+  },
+  // C11 (workstream C): a treatment plan follows its patient; versions, details, items and events
+  // reference the plan, never the patient; the plan keeps its source patient.
+  {
+    recordClass: 'clinicalTreatmentPlan',
+    table: 'clinical_treatment_plans',
+    column: 'subject_patient_id',
+    referenceField: 'patientRef',
+    factKind: 'clinical',
+    digestExclude: ['subject_patient_id', 'head_version', 'version', 'updated_at'],
+  },
+  // C13: a consent follows its patient; its content, signer authority and bindings never change
+  // (a withdrawal is a separate record), so the digest covers everything but the reference and
+  // bookkeeping.
+  {
+    recordClass: 'clinicalConsent',
+    table: 'clinical_consents',
+    column: 'subject_patient_id',
+    referenceField: 'patientRef',
+    factKind: 'clinical',
+    digestExclude: ['subject_patient_id', 'version', 'updated_at'],
   },
   // S15: a waitlist entry follows its patient with its history (offers reference the entry).
   {
@@ -219,6 +303,46 @@ export const MERGE_EXCLUDED_REFERENCES: readonly { table: string; column: string
     table: 'rcm_coverage_versions',
     column: 'subscriber_patient_id',
     why: 'coverage history is never relinked',
+  },
+  {
+    table: 'clinical_history_streams',
+    column: 'origin_patient_id',
+    why: 'a history stream keeps its source patient so merged histories stay distinguishable (C8)',
+  },
+  {
+    table: 'clinical_charts',
+    column: 'origin_patient_id',
+    why: 'a chart keeps its source patient so merged charts stay distinguishable (C6)',
+  },
+  {
+    table: 'clinical_perio_streams',
+    column: 'origin_patient_id',
+    why: 'a perio stream keeps its source patient so merged exams stay distinct (C7)',
+  },
+  {
+    table: 'clinical_treatment_plans',
+    column: 'origin_patient_id',
+    why: 'a treatment plan keeps its source patient (C11)',
+  },
+  {
+    table: 'clinical_consents',
+    column: 'origin_patient_id',
+    why: 'a consent keeps its source patient (C13)',
+  },
+  {
+    table: 'clinical_consents',
+    column: 'signer_patient_id',
+    why: 'the signer recorded at capture is a historical fact (C13)',
+  },
+  {
+    table: 'clinical_consent_withdrawals',
+    column: 'signer_patient_id',
+    why: 'the signer recorded at withdrawal is a historical fact (C13)',
+  },
+  {
+    table: 'clinical_rendered_procedures',
+    column: 'origin_patient_id',
+    why: 'the patient a procedure was billed for when rendered is a historical fact (C14); the encounter moves',
   },
 ];
 

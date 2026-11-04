@@ -2475,6 +2475,1822 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/clinical/authors:
+    post:
+      operationId: clinical.authors.define
+      description: >-
+        Define (no expectedVersion) or change (with expectedVersion) the clinical author profile of a tenant member: the clinical role and an optional credential reference held by the staff module, recorded on every clinical mutation that member makes. An actor that is not a member of this tenant is 404. An existing profile without expectedVersion is 409 author_profile_exists. Human principals only; requires admin.configure. Roles are recommended-pending-clinical-approval.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ClinicalAuthorDefine'
+      responses:
+        '201':
+          description: Profile defined or changed.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ClinicalAuthorCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/author-context:
+    get:
+      operationId: clinical.authors.context
+      description: >-
+        The caller's own clinical author context. Not resolvable is an explicit answer with a reason (service_principal, no_profile, profile_inactive), never an empty success. Requires clinical.read.
+      responses:
+        '200':
+          description: Author context.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/AuthorContext'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/encounters:
+    post:
+      operationId: clinical.encounters.open
+      description: >-
+        Open an encounter (C5) for a patient, optionally for an appointment (S10). One encounter per appointment: a second open returns the first with outcome existing and applies nothing from the request. An appointment that is cancelled or rescheduled is permitted and flagged. Attendance (S11) is not clinical completion and is never set here. Role assignments (treating, secondary, supervising, staff, completing) are independent of each other and of the author; nothing is inferred from a procedure or the appointment. A merged-away patient is 409 patient_merged. Human principals with a resolvable clinical author profile only (403 otherwise); requires clinical.write.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EncounterOpen'
+      responses:
+        '201':
+          description: Encounter opened, or the existing encounter of the appointment.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EncounterOpenResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/encounters/{encounterRef}:
+    get:
+      operationId: clinical.encounters.read
+      description: >-
+        One encounter with its appointment state at open and now, current and historical role assignments and authorship. Hidden, missing and other-location encounters are the same 404. A sensitive read (logged with references only). Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/EncounterRef'
+      responses:
+        '200':
+          description: The encounter.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EncounterRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/encounters/{encounterRef}/assignments:
+    post:
+      operationId: clinical.encounters.assign
+      description: >-
+        Append one role assignment (or an explicit unassignment with assignee null) if expectedVersion matches. The assignee is a provider resource (provider roles) or staff resource (staff role), active, at the encounter location. Other roles are unchanged. A closed encounter is 409 encounter_closed. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/EncounterRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EncounterAssign'
+      responses:
+        '201':
+          description: Assignment appended.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EncounterCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/encounters/{encounterRef}/close:
+    post:
+      operationId: clinical.encounters.close
+      description: >-
+        Close an open encounter with a tenant-configured disposition (422 notConfigured otherwise), recording the closing author and instant. Closing is one-way; a closed encounter refuses new clinical entries (409 encounter_closed with the alternative operation where one exists). Closing changes no plan item, attendance or billing fact. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/EncounterRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EncounterClose'
+      responses:
+        '200':
+          description: Encounter closed.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EncounterCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/patients/{patientRef}/encounters:
+    get:
+      operationId: clinical.encounters.list
+      description: >-
+        A patient's encounters at the caller's visible locations, one keyset page at a time (limit 1-100, default 25; larger values refused). An unknown or hidden patient is 404; a patient with no encounters is an empty page. A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/PatientRef'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/ClinicalCursor'
+      responses:
+        '200':
+          description: One page of encounters.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EncounterList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/history/changes:
+    post:
+      operationId: clinical.history.recordChange
+      description: >-
+        Record one append-only history version (C8) for a patient: new items (condition, allergy, medication, vital, social; or an explicit none_known statement for allergy, condition or medication) and changes of existing items. Each change records state (active, resolved, discontinued for medications, entered_in_error), effective dates and a reason for any non-active state; unspecified text and dates carry forward; nothing is deleted. Provenance (staff, patient_reported, imported), the reporter and, for imports, the source are required; the recorder is the authenticated clinical author. Verification cannot be set here. An active none_known statement and an active item of the same kind cannot coexist (409 none_known_active or active_items_present). With an encounterRef, the encounter must be open (409 encounter_closed naming clinical.encounters.open). Free text and provisional SYN- codes only; no drug database, no interaction checking, no decision support. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/HistoryChangeRecord'
+      responses:
+        '201':
+          description: Version recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/HistoryVersionCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/patients/{patientRef}/history:
+    get:
+      operationId: clinical.history.read
+      description: >-
+        The patient history as of an instant (query asOf; default now; a future instant is 422): every item with its current change, the verification of that exact change, and every earlier change and verification, plus the streams (one per source patient, so merged histories stay distinguishable). recorded=false means nothing was recorded by then (unknown), not an empty history. A merged-away patient is 409 patient_merged naming the survivor. A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/PatientRef'
+        - $ref: '#/components/parameters/HistoryAsOf'
+      responses:
+        '200':
+          description: The history as of the instant.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/HistoryRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/history/versions/{historyVersionRef}:
+    get:
+      operationId: clinical.history.readVersion
+      description: >-
+        One recorded history version with its provenance, reporter, source, author and change set. A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/HistoryVersionRef'
+      responses:
+        '200':
+          description: The version.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/HistoryVersionRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/patients/{patientRef}/alerts:
+    get:
+      operationId: clinical.history.alerts
+      description: >-
+        Allergies, conditions and medications as recorded. Per kind the status is unknown (nothing recorded or reviewed; never reported as none), none_reported (an explicit none-known statement), reviewed_none (a clinician attested none at an encounter and nothing of the kind was recorded since) or present (active items, each with provenance and whether its current change is verified). Interaction checking and decision support are explicitly not provided. A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/PatientRef'
+      responses:
+        '200':
+          description: The alert projection.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ActiveAlerts'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/history/items/{itemRef}/verifications:
+    post:
+      operationId: clinical.history.verifyItem
+      description: >-
+        Record that the authenticated clinical author verified the exact current change of an item (expectedChangeRef; 409 item_changed otherwise). The reported value is never overwritten; a later change needs a new verification and earlier verifications are kept. An entered_in_error item cannot be verified. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/HistoryItemRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/HistoryVerify'
+      responses:
+        '201':
+          description: Verification recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/HistoryItemCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/encounters/{encounterRef}/history-reviews:
+    post:
+      operationId: clinical.history.attestReview
+      description: >-
+        Attest at an open encounter that allergies, conditions or medications were reviewed: none (reviewed, none present; refused with 409 active_items_present while an active item of the kind exists) or confirmed (the recorded list was reviewed). Append-only. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/EncounterRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/HistoryReviewAttest'
+      responses:
+        '201':
+          description: Review attested.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/HistoryReviewCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/note-templates:
+    post:
+      operationId: clinical.noteTemplates.define
+      description: >-
+        Define a versioned progress-note template (version 1): note type, label, enforcement flag, sections (key, label, required) and associated synthetic SYN- procedure-code references (never a licensed code set). An enforced template blocks signing, not drafting (C-D4, recommended-pending-clinical-approval). One active template per note type and case-insensitive label (409 template_exists with blockingRefs). Requires admin.configure; human principals only.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteTemplateDefine'
+      responses:
+        '201':
+          description: Template defined.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteTemplateCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/note-templates/{templateRef}:
+    get:
+      operationId: clinical.noteTemplates.read
+      description: >-
+        A note template with every immutable version and its current version; retired templates stay readable. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/NoteTemplateRef'
+      responses:
+        '200':
+          description: The template.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteTemplateRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/note-templates/{templateRef}/versions:
+    post:
+      operationId: clinical.noteTemplates.revise
+      description: >-
+        Append the next immutable version of an active template if expectedVersion matches (409 stale_version otherwise; 409 template_retired for a retired template). Earlier versions, including their code associations, are retained unchanged for every note that pinned them. Requires admin.configure; human principals only.
+      parameters:
+        - $ref: '#/components/parameters/NoteTemplateRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteTemplateRevise'
+      responses:
+        '201':
+          description: Version appended.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteTemplateCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/note-templates/{templateRef}/retire:
+    post:
+      operationId: clinical.noteTemplates.retire
+      description: >-
+        Retire an active template with a reason code. A retired template is absent from new drafts and applicability lists and stays resolvable for existing references; retirement is one-way. Requires admin.configure; human principals only.
+      parameters:
+        - $ref: '#/components/parameters/NoteTemplateRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteTemplateRetire'
+      responses:
+        '200':
+          description: Template retired.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteTemplateCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/note-template-versions/{templateVersionRef}:
+    get:
+      operationId: clinical.noteTemplates.readVersion
+      description: >-
+        One immutable note template version (also for retired templates). Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/NoteTemplateVersionRef'
+      responses:
+        '200':
+          description: The template version.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteTemplateVersionRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/encounters/{encounterRef}/note-templates:
+    get:
+      operationId: clinical.noteTemplates.applicable
+      description: >-
+        Active templates for a visible encounter, in two groups: associated (the current version associates one of the given SYN- procedure codes, with the matched codes) and general (no code association). The codes are caller-supplied until C11/C14 record encounter procedures. Nothing is applied to a note. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/EncounterRef'
+        - $ref: '#/components/parameters/NoteTemplateProcedureCodes'
+      responses:
+        '200':
+          description: The applicable templates.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteTemplateApplicable'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/encounters/{encounterRef}/notes:
+    post:
+      operationId: clinical.notes.createDraft
+      description: >-
+        Create a mutable note draft at an open, visible encounter (409 encounter_closed with alternative clinical.notes.addendum otherwise), optionally pinned to the current version of an active template of the same note type (409 template_retired or template_version_superseded; 422 templateNoteTypeMismatch). source=ai_draft is a provenance label only and needs model and prompt version references (422 aiDraftUnattributed); nothing in the service generates note text. Drafting is never blocked by template enforcement (C-D4). Requires clinical.write, a human principal and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/EncounterRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteDraftCreate'
+      responses:
+        '201':
+          description: Draft created.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: clinical.notes.list
+      description: >-
+        The notes of a visible encounter, oldest first, each with its draft or frozen versions (digest verified on read). A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/EncounterRef'
+      responses:
+        '200':
+          description: The encounter's notes.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/notes/{noteRef}:
+    get:
+      operationId: clinical.notes.read
+      description: >-
+        One note: while a draft, the draft content with its live template check; once signed, every frozen version (original, amendments, addenda) with author, instant, reason, referenced version, template and history versions recorded against, co-signature state and its content digest, recomputed on read (digestVerified). A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/NoteRef'
+      responses:
+        '200':
+          description: The note.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/notes/{noteRef}/draft:
+    post:
+      operationId: clinical.notes.updateDraft
+      description: >-
+        Replace a draft's content (and optionally re-pin its template) if expectedVersion matches (409 stale_version otherwise). A signed note is never updated: 409 note_signed with alternative clinical.notes.amend. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/NoteRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteDraftUpdate'
+      responses:
+        '200':
+          description: Draft updated.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/notes/{noteRef}/sign:
+    post:
+      operationId: clinical.notes.sign
+      description: >-
+        Sign a draft as the authenticated human clinician: freezes the content as the original version with the signer, instant, pinned template version, the C8 history versions current at signing, the supervising assignment (co-signature pending) and a content digest. The enforcement point of C-D4: an enforced template that is not satisfied refuses with 409 template_deficit and the deficit list; a non-enforced template records the check as a warning. A concurrent second signature gets 409 note_signed with alternative clinical.notes.addendum. Requires clinical.sign, a human principal and a resolvable clinical author; a model is never the signer.
+      parameters:
+        - $ref: '#/components/parameters/NoteRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteSign'
+      responses:
+        '200':
+          description: Note signed.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/notes/{noteRef}/amendments:
+    post:
+      operationId: clinical.notes.amend
+      description: >-
+        Append an amendment to a signed note: a complete replacement statement with a reason code, referencing the latest version; the signed versions stay byte-identical. Template enforcement applies as at signing. Amending a note signed by another clinician needs the clinical-oversight scope (403 clinical_oversight_required with alternative clinical.notes.addendum; C-D5). A racing amendment gets 409 stale_version. Requires clinical.sign, a human principal and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/NoteRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteAmend'
+      responses:
+        '201':
+          description: Amendment appended.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/notes/{noteRef}/addenda:
+    post:
+      operationId: clinical.notes.addendum
+      description: >-
+        Append an addendum (additional text with a reason code) to a signed note, referencing the latest version; the preferred path for clarification. Never alters a frozen version. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/NoteRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteAddendum'
+      responses:
+        '201':
+          description: Addendum appended.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/notes/{noteRef}/cosignatures:
+    post:
+      operationId: clinical.notes.cosign
+      description: >-
+        Co-sign one frozen version that requires it (the encounter had a supervising assignment when it was frozen), bound to the content digest the co-signer saw (409 content_digest_mismatch otherwise). The co-signer must differ from the author (409 cosigner_is_author); one co-signature per version. Who must co-sign which note class is pending clinical decision C-S2-Q5. Requires clinical.sign, a human principal and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/NoteRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteCosign'
+      responses:
+        '201':
+          description: Co-signature recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/chart/entries:
+    post:
+      operationId: clinical.chart.recordEntry
+      description: >-
+        Record one append-only chart entry (C6) for a patient: a kind (condition, existing_restoration, missing, supernumerary, implant, prosthodontic), a provisional SYN- finding code, an optional tooth named in Universal, FDI or canonical form (resolved to the canonical identity; an unknown code is 422 unknownToothCode, never guessed) and an optional surface set validated against the tooth type (provisional surface scope, C-S1-Q2). Provenance recorded, imported (needs sourceRef; never attributed to the recorder as clinical author) or patient_reported. A duplicate of an active entry (same tooth, surface set, kind, finding, provenance and state) returns it with outcome existing and applies nothing. With an encounterRef the encounter must be open (409 encounter_closed naming clinical.encounters.open). A merged-away patient is 409 patient_merged. No diagnosis, no decision support. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ChartEntryRecord'
+      responses:
+        '201':
+          description: Entry recorded, or the existing duplicate.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ChartEntryCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/chart/entries/{chartEntryRef}/corrections:
+    post:
+      operationId: clinical.chart.correctEntry
+      description: >-
+        Correct a chart entry (C6) by writing a superseding entry with a reason code into the same chart; unspecified fields carry forward, null clears surfaces or detail text, provenance and source carry forward. The state may be active, resolved or entered_in_error. There is no update or delete of a recorded entry. A base that was already superseded is 409 entry_superseded naming the current successor (so duplicated corrections keep one successor); an entered_in_error base is 409 entry_entered_in_error. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/ChartEntryRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ChartEntryCorrect'
+      responses:
+        '201':
+          description: Superseding entry recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ChartCorrectionResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/patients/{patientRef}/chart:
+    get:
+      operationId: clinical.chart.read
+      description: >-
+        The patient chart as of an instant (query asOf; default now; a future instant is 422): every entry of every chart of the patient (one per source patient, so merged charts stay distinguishable) with its state as of then (superseded once a correction names it), recorder, clinical author and provenance, plus the per-tooth state reconstructed from active entries (present, missing, implant; a tooth without an active entry is not listed). Optional filters dentition and provenance; displaySystem universal (default) or fdi projects each canonical tooth. recorded=false is an explicit empty chart. A merged-away patient is 409 patient_merged naming the survivor. A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/PatientRef'
+        - $ref: '#/components/parameters/HistoryAsOf'
+        - $ref: '#/components/parameters/ChartDentition'
+        - $ref: '#/components/parameters/ChartProvenanceFilter'
+        - $ref: '#/components/parameters/ToothDisplaySystem'
+      responses:
+        '200':
+          description: The chart as of the instant.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ChartRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/perio/exams:
+    post:
+      operationId: clinical.perio.recordExam
+      description: >-
+        Record one complete periodontal exam (C7) for a patient: every listed tooth (Universal, FDI or canonical; not a supernumerary tooth) with every site of the provisional six-site scheme (probing depth 0..20 mm, recession -10..20 mm, bleeding) plus mobility and furcation grades from the tenant-configured vocabulary, each measured or explicitly not_measured (stored as such, never as zero). A partial exam (missing or duplicate site, duplicate tooth) is refused as a whole (422 siteMissing, duplicateSite, duplicateTooth); an unconfigured grade is 422 notConfigured; a tooth charted missing is 409 tooth_absent_on_chart naming the chart entry (the chart must record otherwise first; nothing is created implicitly). Raw values only; no derived value is computed here. With an encounterRef the encounter must be open. Synthetic engineering bounds and scheme pending clinical approval (C-S1-Q5). Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PerioExamRecord'
+      responses:
+        '201':
+          description: Exam recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PerioExamCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/perio/exams/{perioExamRef}/corrections:
+    post:
+      operationId: clinical.perio.correctExam
+      description: >-
+        Supersede named current measurements of an exam (C7) with a reason code; each correction is a new value in the same exam and the prior value stays readable with its successor. A measurement already superseded is 409 measurement_superseded naming the current successor; a value of the wrong shape for its measure is 422 valueNotForMeasure. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/PerioExamRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PerioExamCorrect'
+      responses:
+        '201':
+          description: Corrections recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PerioExamCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/perio/exams/{perioExamRef}/derivations:
+    post:
+      operationId: clinical.perio.derive
+      description: >-
+        Compute derived values of an exam (C7) under one formula version from the tenant registry (synthetic SYN- formulas; every formula is pending clinical approval, C-D3). Values are stored with the formula version and labelled derived_pending_clinical_approval, never rewritten; a later computation, under the same or a new version, is a new derivation. A site with an unmeasured input is not_computable (excluded from arithmetic). An unknown formula or version is 422 notConfigured; a withdrawn formula is 409 formula_withdrawn. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/PerioExamRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PerioDerive'
+      responses:
+        '201':
+          description: Derivation recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PerioDerivationCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/perio/exams/{perioExamRef}:
+    get:
+      operationId: clinical.perio.readExam
+      description: >-
+        One periodontal exam (C7) with its source patient, every measurement (current and superseded, with correction reasons and authors) and every derivation with its formula version, pending-approval status and withdrawn/historical flags. A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/PerioExamRef'
+      responses:
+        '200':
+          description: The exam.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PerioExamRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/patients/{patientRef}/perio-exams:
+    get:
+      operationId: clinical.perio.listExams
+      description: >-
+        Every periodontal exam of a patient (C7), oldest first, each with its stream and source patient so merged exams stay distinct. A merged-away patient is 409 patient_merged. A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/PatientRef'
+      responses:
+        '200':
+          description: The exams.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PerioExamList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/perio/comparisons:
+    get:
+      operationId: clinical.perio.compare
+      description: >-
+        Compare two exams of one patient (C7) per tooth and site for probing depth and recession: only measured pairs carry a delta (target minus base); not_measured and absent sites are listed with the reason and never treated as improvement. With formulaRef and formulaVersion, the latest derivation of that version in each exam is compared too and each exam's formula version is named (pending approval; 409 derivation_missing when an exam has none). Exams of different patients are 422 examPatientMismatch. A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/PerioBaseExam'
+        - $ref: '#/components/parameters/PerioTargetExam'
+        - $ref: '#/components/parameters/PerioFormulaRefQuery'
+        - $ref: '#/components/parameters/PerioFormulaVersionQuery'
+      responses:
+        '200':
+          description: The comparison.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PerioComparison'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/treatment-plans:
+    post:
+      operationId: clinical.treatmentPlans.create
+      description: >-
+        Create a treatment plan (C11) for a patient with its first draft version (revision 1). No level of a plan stores an amount. With an encounterRef the encounter must be open. A merged-away patient is 409 patient_merged. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/TreatmentPlanCreate'
+      responses:
+        '201':
+          description: Plan created (targetRef is the plan).
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/TreatmentPlanCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/treatment-plans/{planRef}:
+    get:
+      operationId: clinical.treatmentPlans.read
+      description: >-
+        One treatment plan (C11) at all three levels: every version (draft, accepted or superseded, with the version it supersedes and its successor), its details (scope, tooth, surfaces, area, chart entry, state) and their items (provisional SYN- procedure code, sequence, fee schedule reference, chart entry, state, appointment reference and every transition with cause and author), plus estimate readiness (whether every item names a fee schedule reference; never an amount). A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/TreatmentPlanRef'
+      responses:
+        '200':
+          description: The plan.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/TreatmentPlanRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/patients/{patientRef}/treatment-plans:
+    get:
+      operationId: clinical.treatmentPlans.list
+      description: >-
+        A patient's treatment plans (C11) with their head version and its state, each with its source patient. A merged-away patient is 409 patient_merged. A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/PatientRef'
+      responses:
+        '200':
+          description: The plans.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/TreatmentPlanList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/treatment-plans/versions/{planVersionRef}/details:
+    post:
+      operationId: clinical.treatmentPlans.addDetail
+      description: >-
+        Add a detail (C11) to a draft plan version if expectedRevision matches (409 stale_version otherwise): scope tooth (tooth), surface_set (tooth and surfaces validated per tooth type), area (provisional area code) or whole_mouth. A tooth must name its chart entry (same patient, current; a tooth charted missing is plannable only this way) or have an active chart state (409 tooth_not_charted); nothing is charted implicitly. An accepted version is 409 plan_version_accepted; a superseded one 409 plan_version_superseded naming its successor. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/PlanVersionRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PlanDetailAdd'
+      responses:
+        '201':
+          description: Detail added (targetRef is the detail).
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/TreatmentPlanCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/treatment-plans/details/{planDetailRef}/items:
+    post:
+      operationId: clinical.treatmentPlans.addItem
+      description: >-
+        Add an item (C11) to an active detail of a draft version if expectedRevision matches: a provisional SYN- procedure code, a sequence, an optional tooth (inside the detail's tooth), surfaces or area, an optional fee schedule reference and chart entry. An item never carries an amount; without a fee schedule reference it is estimate-incomplete. Its first state is proposed. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/PlanDetailRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PlanItemAdd'
+      responses:
+        '201':
+          description: Item added (targetRef is the item).
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/TreatmentPlanCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/treatment-plans/items/{planItemRef}/state:
+    post:
+      operationId: clinical.treatmentPlans.setItemState
+      description: >-
+        Move an item (C11) through the designed transition set if expectedRevision matches: proposed to accepted, declined or discontinued; accepted to scheduled (a booked appointment of the same patient, referenced only; no scheduling record is written), declined or discontinued; scheduled to accepted (with a reason), declined or discontinued; declined to proposed (with a reason). Anything else is 409 transition_not_allowed; completed is 409 completion_requires_rendered_procedure naming clinical.procedures.render (C14). Allowed on an accepted version, refused on a superseded one or a declined or discontinued detail. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/PlanItemRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PlanItemStateSet'
+      responses:
+        '200':
+          description: Transition recorded (targetRef is the item).
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/TreatmentPlanCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/treatment-plans/details/{planDetailRef}/state:
+    post:
+      operationId: clinical.treatmentPlans.setDetailState
+      description: >-
+        Decline or discontinue an active detail (C11) with a reason if expectedRevision matches. Each item still proposed, accepted or scheduled receives its own recorded transition to the same state, naming the detail as parent and carrying the reason; items already declined or discontinued are left as they are. There is no delete. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/PlanDetailRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PlanDetailStateSet'
+      responses:
+        '200':
+          description: Detail state and consequences recorded (targetRef is the detail).
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/TreatmentPlanCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/treatment-plans/versions/{planVersionRef}/supersede:
+    post:
+      operationId: clinical.treatmentPlans.supersede
+      description: >-
+        Create the next plan version (C11) naming the head version it supersedes, with a reason; its details and items are carried forward with their current states (recorded as carried_forward) and derivation links. The superseded version, accepted or not, stays readable and unchanged; it takes no further edit. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/PlanVersionRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PlanVersionSupersede'
+      responses:
+        '201':
+          description: New version created (targetRef is the new version).
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/TreatmentPlanCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/treatment-plans/versions/{planVersionRef}/estimates:
+    post:
+      operationId: clinical.estimates.generate
+      description: >-
+        Generate the next immutable estimate version (C12) of a plan version from staff-entered per-item fee placeholders as Money (each for an item naming a fee schedule reference; synthetic, no fee schedule data until B9) and coverage or discount references with source freshness (B5 owns eligibility; nothing is computed here). An estimate missing a fee for any open item is incomplete and carries no amount. Never a coverage guarantee (notAGuarantee, coverageStatus entered, unknown or stale; patient responsibility is a labelled unknown or a bounded range, C-D7 recommended-pending-approval). Requires clinical.write (human).
+      parameters:
+        - $ref: '#/components/parameters/PlanVersionRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EstimateGenerate'
+      responses:
+        '201':
+          description: Estimate version created.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EstimateCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: clinical.estimates.list
+      description: >-
+        Every estimate version of a plan version (C12), oldest first, with presentation and acceptance. A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/PlanVersionRef'
+      responses:
+        '200':
+          description: The estimates.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EstimateList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/estimates/{estimateRef}:
+    get:
+      operationId: clinical.estimates.read
+      description: >-
+        One estimate version (C12) with lines, assumptions, coverage status, presentation, acceptance and the consent binding (outstanding until C13 binds a consent). A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/EstimateRef'
+      responses:
+        '200':
+          description: The estimate.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EstimateRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/estimates/{estimateRef}/presentation:
+    post:
+      operationId: clinical.estimates.present
+      description: >-
+        Mark the current complete estimate as presented (C12), re-evaluating coverage freshness at that instant (stale is shown, never silently reused). A superseded estimate is 409 estimate_superseded naming the current version; an incomplete one is 409 estimate_incomplete. Requires clinical.write (human).
+      parameters:
+        - $ref: '#/components/parameters/EstimateRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EstimatePresent'
+      responses:
+        '200':
+          description: Estimate presented.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EstimateCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/estimates/{estimateRef}/acceptance:
+    post:
+      operationId: clinical.estimates.accept
+      description: >-
+        Accept the plan version against this exact current estimate (C12) through the C11 acceptance seam (expectedRevision of the plan version). Full scope only: a phase-level acceptance is 409 partial_acceptance_unsupported. A superseded estimate is 409 estimate_superseded; an already accepted version or an accepted alternative of the same problem is 409. The acceptance records an outstanding consent binding; it is never consented treatment by itself (C13). Requires clinical.write (human).
+      parameters:
+        - $ref: '#/components/parameters/EstimateRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EstimateAccept'
+      responses:
+        '201':
+          description: Acceptance recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EstimateCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/treatment-plans/{planRef}/alternatives:
+    post:
+      operationId: clinical.treatmentPlans.createAlternative
+      description: >-
+        Create an alternative plan (C12) for the same patient and clinical problem; both plans join one alternative group and the source plan is never changed. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/TreatmentPlanRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PlanAlternativeCreate'
+      responses:
+        '201':
+          description: Alternative plan created (targetRef is the new plan).
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/TreatmentPlanCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: clinical.treatmentPlans.alternatives
+      description: >-
+        The plans offered for the same problem (C12), oldest first, with head version, state and selection (accepted, unselected, undecided). A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/TreatmentPlanRef'
+      responses:
+        '200':
+          description: The alternatives.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PlanAlternativeList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/consents:
+    post:
+      operationId: clinical.consents.capture
+      description: >-
+        Record a treatment consent (C13, C-D6 recommended-pending-approval): scope (treatment_plan with planVersionRef, procedure with planVersionRef and planItemRef, or general_treatment), method, consent template reference and digest, structured attestation code, optional witness, and an evidence artifact reference and digest (required for paper and portal; no bytes or signature image are accepted). Signer authority is evaluated now: the patient (403 consent_signer_minor when recorded as a minor) or a related person holding an active S5 relationship with the consent scope (403 relationship_* otherwise). A method configured to need a witness is 409 witness_required without one; a superseded plan version is 409 plan_version_superseded naming the current one. Treatment consent only, never E's messaging consent. Requires clinical.write (human).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ConsentCapture'
+      responses:
+        '201':
+          description: Consent recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ConsentCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/consents/{consentRef}:
+    get:
+      operationId: clinical.consents.read
+      description: >-
+        One consent (C13) with its signer authority as recorded, evidence reference, template digest status (registered or unresolved; an unresolved digest is retained and flagged) and withdrawal. A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/ConsentRef'
+      responses:
+        '200':
+          description: The consent.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ConsentRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/consents/{consentRef}/withdrawal:
+    post:
+      operationId: clinical.consents.withdraw
+      description: >-
+        Withdraw a consent (C13) as a new record with reason, instant, optional evidence and the signer authority evaluated now; the consent row and care already delivered are never rewritten. expectedVersion guards concurrency (409 stale_version); a second withdrawal is 409 consent_withdrawn. Requires clinical.write (human).
+      parameters:
+        - $ref: '#/components/parameters/ConsentRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ConsentWithdraw'
+      responses:
+        '201':
+          description: Withdrawal recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ConsentCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/patients/{patientRef}/consents:
+    get:
+      operationId: clinical.consents.list
+      description: >-
+        A patient's consents (C13) as of an instant (asOf, default now; a withdrawal after asOf is not shown), optionally for one plan version, oldest first, each with its source patient. A merged-away patient is 409 patient_merged. A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/PatientRef'
+        - $ref: '#/components/parameters/ConsentAsOf'
+        - $ref: '#/components/parameters/ConsentPlanVersion'
+      responses:
+        '200':
+          description: The consents.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ConsentList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/consent-templates:
+    post:
+      operationId: clinical.consentTemplates.register
+      description: >-
+        Register a consent text version by reference and SHA-256 digest (C13 practice configuration; the text is held elsewhere). A text change is a new digest; earlier consents keep theirs. A duplicate is 409 template_registered. Requires admin.configure (human).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ConsentTemplateRegister'
+      responses:
+        '201':
+          description: Template version registered.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ConsentTemplateCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/encounters/{encounterRef}/procedures:
+    post:
+      operationId: clinical.procedures.render
+      description: >-
+        Record a rendered procedure (C14) in an open encounter: sequence within the visit, date of service (not after today at the encounter location), rendering provider (a provider resource assigned to the encounter, or 409 provider_not_assigned unless providerOverrideReason is given), and either planItemRef (an accepted or scheduled item of the encounter patient; its code, tooth and surfaces are used and the item becomes completed through this command only) or an unscheduled SYN- codeRef with optional tooth, surfaces and chart entry. The same procedure twice is 409 duplicate_procedure unless duplicateIntent says so. No amount and no narrative. Publishes the outbox event billing consumes (identifier payload: the procedure row). Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/EncounterRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ProcedureRender'
+      responses:
+        '201':
+          description: Procedure recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ProcedureCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: clinical.procedures.list
+      description: >-
+        Every rendered procedure, reversal and replacement of an encounter (C14), oldest first, with the net set still standing (netRefs). A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/EncounterRef'
+      responses:
+        '200':
+          description: The procedures.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ProcedureList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/procedures/{procedureRef}:
+    get:
+      operationId: clinical.procedures.read
+      description: >-
+        One rendered procedure (C14) with its correction links, the chart discrepancy flag (the recorded chart entry later superseded or marked in error) and the billing event payload. A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/ProcedureRef'
+      responses:
+        '200':
+          description: The procedure.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ProcedureRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/procedures/{procedureRef}/corrections:
+    post:
+      operationId: clinical.procedures.correct
+      description: >-
+        Correct a rendered procedure (C14) by a reversal and an optional replacement, both linked, with a reason; nothing is updated. A completed plan item returns to accepted (render_reversed) and is completed again by a replacement with the same code. A reversed procedure is 409 procedure_reversed. Publishes correcting events. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/ProcedureRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ProcedureCorrect'
+      responses:
+        '201':
+          description: Reversal (and replacement) recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ProcedureCorrectionResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   /v1/scheduling/appointments/{appointmentRef}/visit-context:
     get:
       operationId: scheduling.visitContext.read
@@ -3750,6 +5566,177 @@ components:
       schema:
         type: string
         pattern: '^([1-9]|[1-9][0-9]|100)$'
+    EncounterRef:
+      name: encounterRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EncounterRef'
+    ClinicalCursor:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/Cursor'
+    HistoryVersionRef:
+      name: historyVersionRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/HistoryVersionRef'
+    HistoryItemRef:
+      name: itemRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/HistoryItemRef'
+    HistoryAsOf:
+      name: asOf
+      in: query
+      required: false
+      description: RFC 3339 instant; the history as recorded at that instant (default now).
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/Instant'
+    NoteTemplateRef:
+      name: templateRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteTemplateRef'
+    NoteTemplateVersionRef:
+      name: templateVersionRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteTemplateVersionRef'
+    NoteTemplateProcedureCodes:
+      name: procedureCodeRefs
+      in: query
+      required: false
+      description: Comma-separated synthetic SYN- procedure codes proposed or rendered at the encounter.
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteTemplateApplicableQuery/properties/procedureCodeRefs'
+    NoteRef:
+      name: noteRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteRef'
+    ChartEntryRef:
+      name: chartEntryRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ChartEntryRef'
+    ChartDentition:
+      name: dentition
+      in: query
+      required: false
+      description: Only entries on teeth of this dentition (entries without a tooth are kept).
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ChartReadQuery/properties/dentition'
+    ChartProvenanceFilter:
+      name: provenance
+      in: query
+      required: false
+      description: Only entries of this provenance (for example recorded, to exclude imported history).
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ChartProvenance'
+    ToothDisplaySystem:
+      name: displaySystem
+      in: query
+      required: false
+      description: Numbering projection of each canonical tooth (default universal).
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ToothDisplaySystem'
+    PerioExamRef:
+      name: perioExamRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PerioExamRef'
+    PerioBaseExam:
+      name: baseExamRef
+      in: query
+      required: false
+      description: The earlier exam (required).
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PerioExamRef'
+    PerioTargetExam:
+      name: targetExamRef
+      in: query
+      required: false
+      description: The later exam (required).
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PerioExamRef'
+    PerioFormulaRefQuery:
+      name: formulaRef
+      in: query
+      required: false
+      description: Optional formula for a derived comparison (with formulaVersion).
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PerioFormulaRef'
+    PerioFormulaVersionQuery:
+      name: formulaVersion
+      in: query
+      required: false
+      description: Formula version (with formulaRef).
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PerioCompareQuery/properties/formulaVersion'
+    EstimateRef:
+      name: estimateRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EstimateRef'
+    ConsentRef:
+      name: consentRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ConsentRef'
+    ConsentAsOf:
+      name: asOf
+      in: query
+      required: false
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/Instant'
+    ConsentPlanVersion:
+      name: planVersionRef
+      in: query
+      required: false
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PlanVersionRef'
+    ProcedureRef:
+      name: procedureRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ProcedureRef'
+    TreatmentPlanRef:
+      name: planRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/TreatmentPlanRef'
+    PlanVersionRef:
+      name: planVersionRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PlanVersionRef'
+    PlanDetailRef:
+      name: planDetailRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PlanDetailRef'
+    PlanItemRef:
+      name: planItemRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PlanItemRef'
   responses:
     Refusal:
       description: Typed refusal (code, retryable, correlationId, optional safe detail).

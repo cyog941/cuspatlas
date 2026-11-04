@@ -25,11 +25,13 @@ import {
 import {
   type AttemptRecordingDeps,
   BILLING_POST_MERGE_PROBE,
+  CLINICAL_POST_MERGE_FACT_PROBES,
   type CommandExecutor,
   type CursorCodec,
   createAppointmentService,
   createAuthorize,
   createBillingService,
+  createClinicalService,
   createPatientService,
   createProposalService,
   createSchedulingResourceService,
@@ -48,6 +50,8 @@ import {
 import { assertDistinctAudience, assertIdentityAllowed, createMcpAuthenticator } from './auth';
 import { APPOINTMENT_TOOLS } from './tools/appointments';
 import { BILLING_TOOLS } from './tools/billing';
+import { CLINICAL_TOOLS } from './tools/clinical';
+import { CLINICAL_RECORD_TOOLS } from './tools/clinical-record';
 import { PATIENT_TOOLS } from './tools/patients';
 import { PROPOSAL_TOOLS } from './tools/proposals';
 import { SCHEDULING_TOOLS } from './tools/scheduling';
@@ -127,6 +131,8 @@ export const TOOLS: readonly ToolDefinition[] = [
   ...SCHEDULING_TOOLS,
   ...APPOINTMENT_TOOLS,
   ...BILLING_TOOLS,
+  ...CLINICAL_TOOLS,
+  ...CLINICAL_RECORD_TOOLS,
   ...SCHEDULING_OP_TOOLS,
 ];
 
@@ -146,8 +152,24 @@ const REF_PARAMS = [
   'entryRef',
   'paymentRef',
   'attemptRef',
+  'encounterRef',
   // S12-S16 path parameters.
   'itemRef',
+  'historyVersionRef',
+  // C6/C7/C11 clinical record path references.
+  'chartEntryRef',
+  'perioExamRef',
+  'planRef',
+  'planVersionRef',
+  'planDetailRef',
+  'planItemRef',
+  'estimateRef',
+  'consentRef',
+  'procedureRef',
+  'templateRef',
+  'templateVersionRef',
+  'noteRef',
+  // S12-S16 path parameters.
   'seriesRef',
   'intentRef',
   'offerRef',
@@ -239,12 +261,13 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
   });
   const patients = createPatientService({
     matchKeyPepper: resolveMatchKeyPepper(deps.env, deps.matchKeyPepper),
+    // C5: clinical facts after a merge make an unmerge need the reconciliation review (S-D2).
+    postMergeFactProbes: [...CLINICAL_POST_MERGE_FACT_PROBES, BILLING_POST_MERGE_PROBE],
     authorize,
     withTenantTransaction: deps.tenantTransactions,
     recording,
     execute: deps.execute ?? executeOnce,
     ...(deps.cursors ? { cursors: deps.cursors } : {}),
-    postMergeFactProbes: [BILLING_POST_MERGE_PROBE],
   });
   const scheduling = createSchedulingResourceService({
     authorize,
@@ -265,6 +288,13 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     recording,
     execute: deps.execute ?? executeOnce,
   });
+  const clinical = createClinicalService({
+    authorize,
+    withTenantTransaction: deps.tenantTransactions,
+    recording,
+    execute: deps.execute ?? executeOnce,
+    ...(deps.cursors ? { cursors: deps.cursors } : {}),
+  });
   const toolDeps: ToolDeps = {
     service,
     proposals,
@@ -272,6 +302,7 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     scheduling,
     appointments,
     billing,
+    clinical,
     authorize,
     recording,
   };

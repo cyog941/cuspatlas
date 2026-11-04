@@ -133,6 +133,93 @@ export const ACTION_POLICIES = {
   'rcm.coverages.read': { scope: 'coverage.read', principals: ['human', 'service'] },
   'rcm.coverages.resolve': { scope: 'coverage.read', principals: ['human', 'service'] },
   'rcm.eligibility.record': { scope: 'coverage.write', principals: ['human', 'service'] },
+  // C5 encounters and clinical authorship (recommended-pending-clinical-approval). Clinical
+  // mutations are human-only: a model or integration is never a clinical author. Every mutation
+  // additionally needs a resolvable clinical author profile (clinical/authorship.ts). Reads are
+  // sensitive-read audited and open to service principals holding clinical.read.
+  'clinical.authors.define': { scope: 'admin.configure', principals: ['human'] },
+  'clinical.authors.context': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.encounters.open': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.encounters.assign': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.encounters.close': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.encounters.read': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.encounters.list': { scope: 'clinical.read', principals: ['human', 'service'] },
+  // C8 medical history, allergies and medications (recommended-pending-clinical-approval). Writes
+  // are human clinical authors only; reads (history, a version, alerts) are sensitive reads.
+  'clinical.history.recordChange': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.history.verifyItem': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.history.attestReview': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.history.read': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.history.readVersion': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.history.alerts': { scope: 'clinical.read', principals: ['human', 'service'] },
+  // C6 chart (recommended-pending-clinical-approval): writes are human clinical authors only; the
+  // chart read is a sensitive read.
+  'clinical.chart.recordEntry': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.chart.correctEntry': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.chart.read': { scope: 'clinical.read', principals: ['human', 'service'] },
+  // C7 periodontal exams (recommended-pending-clinical-approval). Recording, correcting and deriving
+  // are human clinical authors only; reads and comparison are sensitive reads.
+  'clinical.perio.recordExam': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.perio.correctExam': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.perio.derive': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.perio.readExam': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.perio.listExams': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.perio.compare': { scope: 'clinical.read', principals: ['human', 'service'] },
+  // C11 treatment plans (recommended-pending-clinical-approval). Every plan mutation, including item
+  // state changes, is a human clinical author's; plan-version acceptance is C12's (seam only here).
+  'clinical.treatmentPlans.create': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.treatmentPlans.addDetail': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.treatmentPlans.addItem': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.treatmentPlans.setItemState': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.treatmentPlans.setDetailState': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.treatmentPlans.supersede': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.treatmentPlans.read': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.treatmentPlans.list': { scope: 'clinical.read', principals: ['human', 'service'] },
+  // C12 estimates and acceptance (C-D7 recommended-pending-approval). Generating, presenting and
+  // accepting are human staff actions under clinical.write (no clinical author profile needed: an
+  // estimate is not clinical authorship); creating an alternative plan is a clinical author's.
+  'clinical.estimates.generate': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.estimates.present': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.estimates.accept': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.estimates.read': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.estimates.list': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.treatmentPlans.createAlternative': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.treatmentPlans.alternatives': { scope: 'clinical.read', principals: ['human', 'service'] },
+  // C13 consent (C-D6 recommended-pending-approval). Capturing and withdrawing are human staff actions
+  // under clinical.write; the signer's own authority is evaluated separately (S5, scope consent).
+  // Registering a consent text version is practice configuration.
+  'clinical.consents.capture': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.consents.withdraw': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.consents.read': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.consents.list': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.consentTemplates.register': { scope: 'admin.configure', principals: ['human'] },
+  // C14 rendered procedures. Rendering and correcting are human clinical authorship (clinical.write and a
+  // resolvable clinical author); reads are sensitive reads. No action posts money (B consumes events).
+  'clinical.procedures.render': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.procedures.correct': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.procedures.read': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.procedures.list': { scope: 'clinical.read', principals: ['human', 'service'] },
+  // C9 progress-note templates (C-D4, recommended-pending-clinical-approval). Templates are practice
+  // configuration (human admin only); reads need clinical.read.
+  'clinical.noteTemplates.define': { scope: 'admin.configure', principals: ['human'] },
+  'clinical.noteTemplates.revise': { scope: 'admin.configure', principals: ['human'] },
+  'clinical.noteTemplates.retire': { scope: 'admin.configure', principals: ['human'] },
+  'clinical.noteTemplates.read': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.noteTemplates.readVersion': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.noteTemplates.applicable': { scope: 'clinical.read', principals: ['human', 'service'] },
+  // C10 notes (C-D4, C-D5 recommended-pending-clinical-approval). Signing, amendment and co-signature
+  // are human-only under clinical.sign; drafting and addenda need clinical.write; every write also
+  // needs a resolvable clinical author. Amending another clinician's signed note is checked as an
+  // additional capability of the amend caller (clinical.oversight), never as a separate operation.
+  'clinical.notes.createDraft': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.notes.updateDraft': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.notes.sign': { scope: 'clinical.sign', principals: ['human'] },
+  'clinical.notes.amend': { scope: 'clinical.sign', principals: ['human'] },
+  'clinical.notes.amendOthers': { scope: 'clinical.oversight', principals: ['human'] },
+  'clinical.notes.addendum': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.notes.cosign': { scope: 'clinical.sign', principals: ['human'] },
+  'clinical.notes.read': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.notes.list': { scope: 'clinical.read', principals: ['human', 'service'] },
   // S12 visit context: a container of references to clinical producers. Reading it needs
   // scheduling.read; pinning, assigning and linking references are scheduling work (scheduling.write).
   // A clinical producer applies its own policy when it resolves a reference.

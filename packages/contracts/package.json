@@ -10,7 +10,8 @@
     "./action-proposal.schema.json": "./src/action-proposal.schema.json",
     "./patient.schema.json": "./src/patient.schema.json",
     "./scheduling.schema.json": "./src/scheduling.schema.json",
-    "./billing.schema.json": "./src/billing.schema.json"
+    "./billing.schema.json": "./src/billing.schema.json",
+    "./clinical.schema.json": "./src/clinical.schema.json"
   },
   "dependencies": {
     "ajv": "8.20.0",

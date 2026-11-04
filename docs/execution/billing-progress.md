@@ -267,7 +267,7 @@ Findings addressed (tests/integration/billing-hardening.test.ts, 9 tests; `no-fl
 
 - Red: `corepack pnpm test -- billing-hardening no-float-money` before the fixes → exit 1, 9 hardening failed; the guard extension failed 1 of 5.
 - Green: `corepack pnpm test -- billing-hardening no-float-money` → exit 0, 14 passed; full `corepack pnpm test` → 41 files, 863 tests (853 + 9 + 1). One full run had two host-load timing failures (`restore-smoke` (e), `worker-recovery` lease timing) that passed on an isolated rerun (38 passed); the gate run below is the record.
-- Migration `20261109050000_billing_hardening.sql` (attempt `pending` outcome, guard and update policy, plan attempt `submitted`, one-receipt index, `clock_timestamp()` posting default, replaced `billing_check_signs` and `billing_check_entry`). B1 case 15's structural allowlist names `command_idempotency` (the replay check before a capture).
+- Migration `20261120050000_billing_hardening.sql` (attempt `pending` outcome, guard and update policy, plan attempt `submitted`, one-receipt index, `clock_timestamp()` posting default, replaced `billing_check_signs` and `billing_check_entry`). B1 case 15's structural allowlist names `command_idempotency` (the replay check before a capture).
 - Deviation: a pending attempt left by a crash between steps (a) and (c) has no audit row until it is reconciled (the audit is written with the outcome); it is visible in the worklist from the moment it is committed.
 
 ## Seams for later tasks

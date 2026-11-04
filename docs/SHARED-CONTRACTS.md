@@ -76,6 +76,12 @@ Registered by workstream S scheduling (2026-11-05, synthetic implementation; dec
 
 Registered by workstream B (2026-11-04, synthetic implementation; decisions pending billing approval in ADR 0008): `billing.write` (post charges, record and settle payments, allocate, transfer responsibility; human or service) and `billing.correct` (human only: reversals, refunds and transfers of funds between patients). Billing reads use the report scopes already listed (`ledger.read`, `paymentDistribution.read`, `undistributedFunds.read`, and `receivables.read` for payment plans and statements), never `patients.read` alone. Registered by workstream B for B5 (2026-11-09, synthetic implementation, pending billing approval): `coverage.read` (coverage records, eligibility records and the coverage status C and S read) and `coverage.write` (record and change coverage, record eligibility; human or service).
 
+Registered by workstream C clinical record (batch 1, synthetic implementation; clinical semantics recommended-pending-clinical-approval in ADR 0005 and 0006): `clinical.read` (every clinical read: encounters, medical history, alerts, the caller's author context; each is a sensitive read) and `clinical.write` (clinical mutations; human principals only, and only with a resolvable clinical author profile). `clinical.sign` stays reserved for C10; the clinical-oversight scope of C-D5 is not registered until C10. Clinical author profiles are practice configuration under `admin.configure`.
+
+Workstream C batch 2b, C9 (synthetic implementation; C-D4 recommended-pending-clinical-approval in ADR 0006): progress-note templates are practice configuration under `admin.configure` (human principals only); template reads and applicability need `clinical.read`. No new scope.
+
+Registered by workstream C batch 2b, C10 (synthetic implementation; C-D4 and C-D5 recommended-pending-clinical-approval in ADR 0006): `clinical.sign` is now used (human only: signing a note, amending a note, co-signing a frozen version; always with a resolvable clinical author) and `clinical.oversight` (human only; an additional capability of the amend caller, required to amend a note signed by another clinician; never sufficient on its own). Drafting and addenda remain `clinical.write`.
+
 Camel-case scope names (`receivables.read` written as `receivablesRead`) are a defect. A scope used in any plan must appear in the registry; a plan that needs a new scope adds it there first.
 
 ### Relationship scopes

@@ -3,11 +3,13 @@ import type { MembershipSource, SecurityAttemptSink, WithTenantTransaction } fro
 import {
   type AttemptRecordingDeps,
   BILLING_POST_MERGE_PROBE,
+  CLINICAL_POST_MERGE_FACT_PROBES,
   type CommandExecutor,
   type CursorCodec,
   createAppointmentService,
   createAuthorize,
   createBillingService,
+  createClinicalService,
   createPatientService,
   createProposalService,
   createSchedulingResourceService,
@@ -29,6 +31,8 @@ import {
   registerBookingRoutes,
 } from './routes/appointments';
 import { registerBillingRoutes } from './routes/billing';
+import { registerClinicalRoutes } from './routes/clinical';
+import { registerClinicalRecordRoutes } from './routes/clinical-record';
 import { registerPatientRoutes } from './routes/patients';
 import { registerProposalRoutes } from './routes/proposals';
 import { registerSchedulingRoutes } from './routes/scheduling';
@@ -166,13 +170,13 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       registerProposalRoutes(app, { authenticator, proposals });
       const patients = createPatientService({
         matchKeyPepper: resolveMatchKeyPepper(deps.env, deps.matchKeyPepper),
+        // C5: clinical facts after a merge make an unmerge need the reconciliation review (S-D2).
+        postMergeFactProbes: [...CLINICAL_POST_MERGE_FACT_PROBES, BILLING_POST_MERGE_PROBE],
         authorize,
         withTenantTransaction: deps.tenantTransactions,
         recording,
         execute: deps.execute ?? executeOnce,
         ...(deps.cursors ? { cursors: deps.cursors } : {}),
-        // B1: a financial fact posted after a merge makes the unmerge need reconciliation review.
-        postMergeFactProbes: [BILLING_POST_MERGE_PROBE],
       });
       registerPatientRoutes(app, { authenticator, patients });
       const scheduling = createSchedulingResourceService({
@@ -199,6 +203,15 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         execute: deps.execute ?? executeOnce,
       });
       registerBillingRoutes(app, { authenticator, billing });
+      const clinical = createClinicalService({
+        authorize,
+        withTenantTransaction: deps.tenantTransactions,
+        recording,
+        execute: deps.execute ?? executeOnce,
+        ...(deps.cursors ? { cursors: deps.cursors } : {}),
+      });
+      registerClinicalRoutes(app, { authenticator, clinical });
+      registerClinicalRecordRoutes(app, { authenticator, clinical });
       registerSchedulingOpRoutes(app, { authenticator, appointments });
     }
   }

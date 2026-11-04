@@ -244,9 +244,11 @@ describe('S14 acceptance (no verified channel; E6 not built)', () => {
     );
     expect(statements.length).toBeGreaterThan(10);
     for (const s of statements) expect(s).not.toMatch(/consent|opt_?out|suppression_decision|quiet_hours/i);
+    // C13 clinical treatment consent (clinical_consent*) is a clinical record, not communication consent.
     const tables = await db.admin.query(
       `SELECT table_name FROM information_schema.tables WHERE table_schema = 'cuspatlas'
-       AND table_name ~ '(consent|opt_?out|suppression)'`,
+       AND table_name ~ '(consent|opt_?out|suppression)'
+       AND table_name !~ '^clinical_'`,
     );
     expect(tables.rows).toStrictEqual([]);
     const cols = await db.admin.query(

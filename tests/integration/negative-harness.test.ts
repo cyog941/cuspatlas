@@ -12,9 +12,12 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { seedBillingScopes } from './support/billing-fixtures';
+// Workstream C (clinical record) rows are appended below with their own fixtures.
+import { seedClinicalScopes, seedDispositions, seedPerioConfiguration } from './support/clinical-fixtures';
 import { openTestDatabase, type TestDatabase } from './support/db';
 import { SVC_A1, seedTenancy, T_ALPHA, T_BETA, USER_A1, USER_A2, USER_A4, USER_B1 } from './support/fixtures';
 import { MARKER } from './support/marker';
+import { seedNoteScopes } from './support/note-fixtures';
 import { patientBody, seedPatientScopes, USER_A5 } from './support/patient-fixtures';
 import { seedSchedulingScopes } from './support/scheduling-fixtures';
 import { createTestTokenIssuer, TEST_AUDIENCE, type TestTokenIssuer } from './support/test-token-issuer';
@@ -920,8 +923,8 @@ export const COMMANDS: HarnessCommand[] = [
     tool: 'billing_plans_get',
     crossTenant: 'not_found',
     downgradedTo: 'noPatientScopes',
-    rest: (f) => ({ method: 'GET', url: `${PLANS}/${f.alphaPlan}`, keyed: false, status: 200 }),
-    mcpArgs: (f) => ({ planRef: f.alphaPlan }),
+    rest: (f) => ({ method: 'GET', url: `${PLANS}/${f.alphaPaymentPlan}`, keyed: false, status: 200 }),
+    mcpArgs: (f) => ({ planRef: f.alphaPaymentPlan }),
   },
   ...(
     [
@@ -973,12 +976,12 @@ export const COMMANDS: HarnessCommand[] = [
       downgradedTo: 'readOnly',
       rest: (f) => ({
         method: 'POST',
-        url: `${PLANS}/${f.alphaPlan}/${suffix}`,
+        url: `${PLANS}/${f.alphaPaymentPlan}/${suffix}`,
         body: body(),
         keyed: true,
         status: 201,
       }),
-      mcpArgs: (f) => ({ planRef: f.alphaPlan, ...body(), idempotencyKey: randomUUID() }),
+      mcpArgs: (f) => ({ planRef: f.alphaPaymentPlan, ...body(), idempotencyKey: randomUUID() }),
     }),
   ),
   // B4 statements.
@@ -1068,6 +1071,973 @@ export const COMMANDS: HarnessCommand[] = [
     downgradedTo: 'noPatientScopes',
     rest: () => ({ method: 'GET', url: '/v1/billing/payment-plan-worklist', keyed: false, status: 200 }),
     mcpArgs: () => ({}),
+  },
+  // C5 encounters and clinical authorship (workstream C).
+  {
+    operation: 'clinical.authors.define',
+    tool: 'clinical_authors_define',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: () => ({
+      method: 'POST',
+      url: '/v1/clinical/authors',
+      body: { actorRef: USER_A4, role: 'assistant', credentialRef: MARKER },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: () => ({
+      actorRef: USER_A4,
+      role: 'assistant',
+      credentialRef: MARKER,
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.authors.context',
+    tool: 'clinical_author_context',
+    crossTenant: 'tenant_own_data',
+    downgradedTo: 'noPatientScopes',
+    rest: () => ({ method: 'GET', url: '/v1/clinical/author-context', keyed: false, status: 200 }),
+    mcpArgs: () => ({}),
+  },
+  {
+    operation: 'clinical.encounters.open',
+    tool: 'clinical_encounters_open',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: '/v1/clinical/encounters',
+      body: { patientRef: P(f), locationRef: f.alphaLocation },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({ patientRef: P(f), locationRef: f.alphaLocation, idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'clinical.encounters.read',
+    tool: 'clinical_encounters_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/encounters/${f.alphaEncounter}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ encounterRef: f.alphaEncounter }),
+  },
+  {
+    operation: 'clinical.encounters.assign',
+    tool: 'clinical_encounters_assign',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/encounters/${f.alphaEncounter}/assignments`,
+      body: {
+        expectedVersion: 1,
+        role: 'treating_provider',
+        assignee: { kind: 'provider', resourceRef: f.alphaProvider },
+      },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      encounterRef: f.alphaEncounter,
+      expectedVersion: 1,
+      role: 'treating_provider',
+      assignee: { kind: 'provider', resourceRef: f.alphaProvider },
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.encounters.close',
+    tool: 'clinical_encounters_close',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/encounters/${f.alphaEncounter}/close`,
+      body: { expectedVersion: 1, dispositionCode: 'completed_as_planned' },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({
+      encounterRef: f.alphaEncounter,
+      expectedVersion: 1,
+      dispositionCode: 'completed_as_planned',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.encounters.list',
+    tool: 'clinical_encounters_list',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/patients/${P(f)}/encounters`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ patientRef: P(f) }),
+  },
+  // C8 medical history, allergies and medications (workstream C).
+  {
+    operation: 'clinical.history.recordChange',
+    tool: 'clinical_history_record_change',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: '/v1/clinical/history/changes',
+      body: historyBody(f),
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({ ...historyBody(f), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'clinical.history.read',
+    tool: 'clinical_history_read',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({ method: 'GET', url: `/v1/clinical/patients/${P(f)}/history`, keyed: false, status: 200 }),
+    mcpArgs: (f) => ({ patientRef: P(f) }),
+  },
+  {
+    operation: 'clinical.history.readVersion',
+    tool: 'clinical_history_get_version',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/history/versions/${f.alphaHistoryVersion}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ historyVersionRef: f.alphaHistoryVersion }),
+  },
+  {
+    operation: 'clinical.history.alerts',
+    tool: 'clinical_history_alerts',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({ method: 'GET', url: `/v1/clinical/patients/${P(f)}/alerts`, keyed: false, status: 200 }),
+    mcpArgs: (f) => ({ patientRef: P(f) }),
+  },
+  {
+    operation: 'clinical.history.verifyItem',
+    tool: 'clinical_history_verify_item',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/history/items/${f.alphaHistoryItem}/verifications`,
+      body: { expectedChangeRef: f.alphaHistoryChange },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      itemRef: f.alphaHistoryItem,
+      expectedChangeRef: f.alphaHistoryChange,
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.history.attestReview',
+    tool: 'clinical_history_attest_review',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/encounters/${f.alphaEncounter}/history-reviews`,
+      body: { medication: 'confirmed' },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      encounterRef: f.alphaEncounter,
+      medication: 'confirmed',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  // C6 chart (workstream C batch 2a).
+  {
+    operation: 'clinical.chart.recordEntry',
+    tool: 'clinical_chart_record_entry',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: '/v1/clinical/chart/entries',
+      body: chartBody(f),
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({ ...chartBody(f), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'clinical.chart.correctEntry',
+    tool: 'clinical_chart_correct_entry',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/chart/entries/${f.alphaChartEntry}/corrections`,
+      body: { reasonCode: 'wrong_surface', state: 'active', detailText: `Synthetic ${MARKER}` },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      chartEntryRef: f.alphaChartEntry,
+      reasonCode: 'wrong_surface',
+      state: 'active',
+      detailText: `Synthetic ${MARKER}`,
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.chart.read',
+    tool: 'clinical_chart_read',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({ method: 'GET', url: `/v1/clinical/patients/${P(f)}/chart`, keyed: false, status: 200 }),
+    mcpArgs: (f) => ({ patientRef: P(f) }),
+  },
+  // C7 periodontal exams (workstream C batch 2a).
+  {
+    operation: 'clinical.perio.recordExam',
+    tool: 'clinical_perio_record_exam',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: '/v1/clinical/perio/exams',
+      body: perioBody(f),
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({ ...perioBody(f), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'clinical.perio.correctExam',
+    tool: 'clinical_perio_correct_exam',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/perio/exams/${f.alphaPerioExam}/corrections`,
+      body: perioCorrection(f),
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({ perioExamRef: f.alphaPerioExam, ...perioCorrection(f), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'clinical.perio.derive',
+    tool: 'clinical_perio_derive',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/perio/exams/${f.alphaPerioExam}/derivations`,
+      body: { formulaRef: 'SYN-PERIO-SUM', formulaVersion: 1 },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      perioExamRef: f.alphaPerioExam,
+      formulaRef: 'SYN-PERIO-SUM',
+      formulaVersion: 1,
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.perio.readExam',
+    tool: 'clinical_perio_get_exam',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/perio/exams/${f.alphaPerioExam}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ perioExamRef: f.alphaPerioExam }),
+  },
+  {
+    operation: 'clinical.perio.listExams',
+    tool: 'clinical_perio_list_exams',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/patients/${P(f)}/perio-exams`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ patientRef: P(f) }),
+  },
+  {
+    operation: 'clinical.perio.compare',
+    tool: 'clinical_perio_compare',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/perio/comparisons?baseExamRef=${f.alphaPerioExam}&targetExamRef=${f.alphaPerioExam}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ baseExamRef: f.alphaPerioExam, targetExamRef: f.alphaPerioExam }),
+  },
+  // C11 treatment plans (workstream C batch 2a).
+  {
+    operation: 'clinical.treatmentPlans.create',
+    tool: 'clinical_treatment_plans_create',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: '/v1/clinical/treatment-plans',
+      body: { patientRef: f.alphaPatient, displayText: `Synthetic ${MARKER}` },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      patientRef: f.alphaPatient,
+      displayText: `Synthetic ${MARKER}`,
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.treatmentPlans.read',
+    tool: 'clinical_treatment_plans_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/treatment-plans/${f.alphaPlan}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ planRef: f.alphaPlan }),
+  },
+  {
+    operation: 'clinical.treatmentPlans.list',
+    tool: 'clinical_treatment_plans_list',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/patients/${P(f)}/treatment-plans`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ patientRef: P(f) }),
+  },
+  {
+    operation: 'clinical.treatmentPlans.addDetail',
+    tool: 'clinical_treatment_plans_add_detail',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/treatment-plans/versions/${f.alphaPlanVersion}/details`,
+      body: { expectedRevision: 3, scope: 'whole_mouth', displayText: `Synthetic ${MARKER}` },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      planVersionRef: f.alphaPlanVersion,
+      expectedRevision: 3,
+      scope: 'whole_mouth',
+      displayText: `Synthetic ${MARKER}`,
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.treatmentPlans.addItem',
+    tool: 'clinical_treatment_plans_add_item',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/treatment-plans/details/${f.alphaPlanDetail}/items`,
+      body: { expectedRevision: 3, procedureCodeRef: 'SYN-HARNESS-PROC', sequence: 2 },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      planDetailRef: f.alphaPlanDetail,
+      expectedRevision: 3,
+      procedureCodeRef: 'SYN-HARNESS-PROC',
+      sequence: 2,
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.treatmentPlans.setItemState',
+    tool: 'clinical_treatment_plans_set_item_state',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/treatment-plans/items/${f.alphaPlanItem}/state`,
+      body: { expectedRevision: 3, state: 'accepted' },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({
+      planItemRef: f.alphaPlanItem,
+      expectedRevision: 3,
+      state: 'accepted',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.treatmentPlans.setDetailState',
+    tool: 'clinical_treatment_plans_set_detail_state',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/treatment-plans/details/${f.alphaPlanDetail}/state`,
+      body: { expectedRevision: 3, state: 'declined', reasonCode: 'patient_declined' },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({
+      planDetailRef: f.alphaPlanDetail,
+      expectedRevision: 3,
+      state: 'declined',
+      reasonCode: 'patient_declined',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.treatmentPlans.supersede',
+    tool: 'clinical_treatment_plans_supersede',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/treatment-plans/versions/${f.alphaPlanVersion}/supersede`,
+      body: { expectedRevision: 3, reasonCode: 'treatment_changed' },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      planVersionRef: f.alphaPlanVersion,
+      expectedRevision: 3,
+      reasonCode: 'treatment_changed',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  // C9 progress-note templates (workstream C).
+  {
+    operation: 'clinical.noteTemplates.define',
+    tool: 'clinical_note_templates_define',
+    crossTenant: 'own_tenant_only',
+    downgradedTo: 'readOnly',
+    rest: () => ({
+      method: 'POST',
+      url: '/v1/clinical/note-templates',
+      body: templateBody(),
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: () => ({ ...templateBody(), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'clinical.noteTemplates.revise',
+    tool: 'clinical_note_templates_revise',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/note-templates/${f.alphaTemplate}/versions`,
+      body: { expectedVersion: 1, enforced: false, sections: TEMPLATE_SECTIONS },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      templateRef: f.alphaTemplate,
+      expectedVersion: 1,
+      enforced: false,
+      sections: TEMPLATE_SECTIONS,
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.noteTemplates.retire',
+    tool: 'clinical_note_templates_retire',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/note-templates/${f.alphaTemplate}/retire`,
+      body: { expectedVersion: 1, reasonCode: 'superseded' },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({
+      templateRef: f.alphaTemplate,
+      expectedVersion: 1,
+      reasonCode: 'superseded',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.noteTemplates.read',
+    tool: 'clinical_note_templates_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/note-templates/${f.alphaTemplate}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ templateRef: f.alphaTemplate }),
+  },
+  {
+    operation: 'clinical.noteTemplates.readVersion',
+    tool: 'clinical_note_templates_get_version',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/note-template-versions/${f.alphaTemplateVersion}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ templateVersionRef: f.alphaTemplateVersion }),
+  },
+  {
+    operation: 'clinical.noteTemplates.applicable',
+    tool: 'clinical_note_templates_applicable',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/encounters/${f.alphaEncounter}/note-templates?procedureCodeRefs=SYN-PROC-001`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ encounterRef: f.alphaEncounter, procedureCodeRefs: 'SYN-PROC-001' }),
+  },
+  // C10 notes: drafting, signing, amendment, addendum and co-signature (workstream C).
+  {
+    operation: 'clinical.notes.createDraft',
+    tool: 'clinical_notes_create_draft',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/encounters/${f.alphaEncounter}/notes`,
+      body: noteBody(),
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({ encounterRef: f.alphaEncounter, ...noteBody(), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'clinical.notes.list',
+    tool: 'clinical_notes_list',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/encounters/${f.alphaEncounter}/notes`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ encounterRef: f.alphaEncounter }),
+  },
+  {
+    operation: 'clinical.notes.read',
+    tool: 'clinical_notes_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/notes/${f.alphaSignedNote}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ noteRef: f.alphaSignedNote }),
+  },
+  {
+    operation: 'clinical.notes.updateDraft',
+    tool: 'clinical_notes_update_draft',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/notes/${f.alphaNote}/draft`,
+      body: { expectedVersion: 1, content: NOTE_CONTENT },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({
+      noteRef: f.alphaNote,
+      ...{ expectedVersion: 1, content: NOTE_CONTENT },
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.notes.sign',
+    tool: 'clinical_notes_sign',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/notes/${f.alphaNote}/sign`,
+      body: { expectedVersion: 1 },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ noteRef: f.alphaNote, ...{ expectedVersion: 1 }, idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'clinical.notes.amend',
+    tool: 'clinical_notes_amend',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/notes/${f.alphaSignedNote}/amendments`,
+      body: { expectedVersion: 2, reasonCode: 'correction', content: NOTE_CONTENT },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      noteRef: f.alphaSignedNote,
+      ...{ expectedVersion: 2, reasonCode: 'correction', content: NOTE_CONTENT },
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.notes.addendum',
+    tool: 'clinical_notes_add_addendum',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/notes/${f.alphaSignedNote}/addenda`,
+      body: { expectedVersion: 2, reasonCode: 'clarification', text: `Synthetic ${MARKER}` },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      noteRef: f.alphaSignedNote,
+      ...{ expectedVersion: 2, reasonCode: 'clarification', text: `Synthetic ${MARKER}` },
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.notes.cosign',
+    tool: 'clinical_notes_cosign',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/notes/${f.alphaSignedNote}/cosignatures`,
+      body: { sequence: 1, contentDigest: f.alphaSignedDigest },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      noteRef: f.alphaSignedNote,
+      ...{ sequence: 1, contentDigest: f.alphaSignedDigest },
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  // C12 estimates, alternatives and acceptance (workstream C batch 3).
+  {
+    operation: 'clinical.estimates.generate',
+    tool: 'clinical_estimates_generate',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/treatment-plans/versions/${f.alphaPlanVersion}/estimates`,
+      body: { lines: [], feeScheduleVersionRef: 'synthetic-harness-fees' },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      planVersionRef: f.alphaPlanVersion,
+      lines: [],
+      feeScheduleVersionRef: 'synthetic-harness-fees',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.estimates.list',
+    tool: 'clinical_estimates_list',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/treatment-plans/versions/${f.alphaPlanVersion}/estimates`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ planVersionRef: f.alphaPlanVersion }),
+  },
+  {
+    operation: 'clinical.estimates.read',
+    tool: 'clinical_estimates_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/estimates/${f.alphaEstimate}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ estimateRef: f.alphaEstimate }),
+  },
+  {
+    operation: 'clinical.estimates.present',
+    tool: 'clinical_estimates_present',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/estimates/${f.alphaEstimate}/presentation`,
+      body: { expectedEstimateNumber: 1 },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({
+      estimateRef: f.alphaEstimate,
+      expectedEstimateNumber: 1,
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.estimates.accept',
+    tool: 'clinical_estimates_accept',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/estimates/${f.alphaEstimate}/acceptance`,
+      body: { expectedRevision: 3, scope: 'full' },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      estimateRef: f.alphaEstimate,
+      expectedRevision: 3,
+      scope: 'full',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.treatmentPlans.createAlternative',
+    tool: 'clinical_treatment_plans_create_alternative',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/treatment-plans/${f.alphaPlan}/alternatives`,
+      body: { displayText: `Synthetic ${MARKER}` },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      planRef: f.alphaPlan,
+      displayText: `Synthetic ${MARKER}`,
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.treatmentPlans.alternatives',
+    tool: 'clinical_treatment_plans_list_alternatives',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/treatment-plans/${f.alphaPlan}/alternatives`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ planRef: f.alphaPlan }),
+  },
+  // C13 consent capture (workstream C batch 3).
+  {
+    operation: 'clinical.consents.capture',
+    tool: 'clinical_consents_capture',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: '/v1/clinical/consents',
+      body: {
+        patientRef: f.alphaPatient,
+        scope: 'general_treatment',
+        method: 'in_person',
+        templateRef: 'synthetic-harness-consent',
+        templateDigest: DIGEST_A,
+        attestationCode: 'signed_in_person',
+        signer: { kind: 'patient' },
+      },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      ...{
+        patientRef: f.alphaPatient,
+        scope: 'general_treatment',
+        method: 'in_person',
+        templateRef: 'synthetic-harness-consent',
+        templateDigest: DIGEST_A,
+        attestationCode: 'signed_in_person',
+        signer: { kind: 'patient' },
+      },
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.consents.read',
+    tool: 'clinical_consents_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/consents/${f.alphaConsent}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ consentRef: f.alphaConsent }),
+  },
+  {
+    operation: 'clinical.consents.list',
+    tool: 'clinical_consents_list',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/patients/${P(f)}/consents`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ patientRef: P(f) }),
+  },
+  {
+    operation: 'clinical.consents.withdraw',
+    tool: 'clinical_consents_withdraw',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/consents/${f.alphaConsent}/withdrawal`,
+      body: { expectedVersion: 1, reasonCode: 'patient_request', signer: { kind: 'patient' } },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      consentRef: f.alphaConsent,
+      expectedVersion: 1,
+      reasonCode: 'patient_request',
+      signer: { kind: 'patient' },
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.consentTemplates.register',
+    tool: 'clinical_consent_templates_register',
+    crossTenant: 'own_tenant_only',
+    downgradedTo: 'readOnly',
+    rest: () => ({
+      method: 'POST',
+      url: '/v1/clinical/consent-templates',
+      body: { templateRef: 'synthetic-harness-consent', digest: randomDigest() },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: () => ({
+      templateRef: 'synthetic-harness-consent',
+      digest: randomDigest(),
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  // C14 rendered procedures (workstream C batch 3).
+  {
+    operation: 'clinical.procedures.render',
+    tool: 'clinical_procedures_render',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/encounters/${f.alphaEncounter}/procedures`,
+      body: {
+        sequence: 7,
+        dateOfService: '2026-11-01',
+        renderingProviderRef: f.alphaProvider,
+        codeRef: 'SYN-HARNESS-PROC',
+      },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      encounterRef: f.alphaEncounter,
+      sequence: 7,
+      dateOfService: '2026-11-01',
+      renderingProviderRef: f.alphaProvider,
+      codeRef: 'SYN-HARNESS-PROC',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.procedures.correct',
+    tool: 'clinical_procedures_correct',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/procedures/${f.alphaProcedure}/corrections`,
+      body: { reasonCode: 'recorded_in_error' },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      procedureRef: f.alphaProcedure,
+      reasonCode: 'recorded_in_error',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.procedures.read',
+    tool: 'clinical_procedures_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/procedures/${f.alphaProcedure}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ procedureRef: f.alphaProcedure }),
+  },
+  {
+    operation: 'clinical.procedures.list',
+    tool: 'clinical_procedures_list',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/encounters/${f.alphaEncounter}/procedures`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ encounterRef: f.alphaEncounter }),
   },
   // S12 visit context (every command; producers are absent, but every dimension is refused first).
   ...visitRows(),
@@ -1182,6 +2152,74 @@ function chargeBody(f: HarnessFixture) {
     procedureRef: `syn-proc-harness-${randomUUID().slice(0, 8)}`,
     serviceDate: '2026-10-01',
     amount: { currency: 'USD', minor: 1500 },
+  };
+}
+
+const DIGEST_A = `sha256:${'a'.repeat(64)}`;
+const randomDigest = () => `sha256:${randomUUID().replaceAll('-', '')}${randomUUID().replaceAll('-', '')}`;
+
+function perioBody(f: HarnessFixture) {
+  return {
+    patientRef: f.alphaPatient,
+    siteScheme: 'six_site_provisional',
+    teeth: [perioTooth('14')],
+  };
+}
+function perioTooth(code: string) {
+  return {
+    tooth: { system: 'universal', code },
+    mobility: 'not_measured',
+    furcation: 'not_measured',
+    probingDepth: [3, 3, 3, 3, 3, 3],
+    recession: [1, 1, 1, 1, 1, 1],
+    bleeding: ['not_measured', false, false, false, false, false],
+  };
+}
+function perioCorrection(f: HarnessFixture) {
+  return {
+    reasonCode: 'transcription_error',
+    corrections: [{ measurementRef: f.alphaPerioMeasurement, value: { status: 'measured', mm: 4 } }],
+  };
+}
+
+function chartBody(f: HarnessFixture) {
+  return {
+    patientRef: f.alphaPatient,
+    provenance: 'recorded',
+    tooth: { system: 'universal', code: '19' },
+    surfaces: ['O'],
+    kind: 'condition',
+    findingRef: 'SYN-HARNESS-002',
+    detailText: `Synthetic ${MARKER}`,
+  };
+}
+
+const NOTE_CONTENT = {
+  sections: [{ sectionKey: 'subjective', text: `Synthetic ${MARKER}` }],
+  procedureCodeRefs: [],
+};
+function noteBody() {
+  return { noteType: 'progress', content: NOTE_CONTENT };
+}
+
+const TEMPLATE_SECTIONS = [{ sectionKey: 'subjective', label: 'Synthetic subjective', required: true }];
+/** A fresh label per call: a second active template with the same type and label is refused. */
+function templateBody() {
+  return {
+    noteType: 'progress',
+    label: `Synthetic harness template ${randomUUID()}`,
+    enforced: true,
+    sections: TEMPLATE_SECTIONS,
+    procedureCodeRefs: ['SYN-PROC-001'],
+  };
+}
+
+function historyBody(f: HarnessFixture) {
+  return {
+    patientRef: f.alphaPatient,
+    provenance: 'patient_reported',
+    reportedBy: 'patient',
+    changes: [{ kind: 'allergy', state: 'active', displayText: `Synthetic ${MARKER}` }],
   };
 }
 
@@ -1647,6 +2685,11 @@ beforeAll(async () => {
   await seedPatientScopes(db.admin);
   await seedSchedulingScopes(db.admin);
   await seedBillingScopes(db.admin);
+  await seedClinicalScopes(db.admin);
+  await seedNoteScopes(db.admin);
+  await seedDispositions(db.admin, T_ALPHA, ['completed_as_planned']);
+  await seedPerioConfiguration(db.admin, T_ALPHA);
+  await seedPerioConfiguration(db.admin, T_BETA);
   issuer = await createTestTokenIssuer();
   logLines = [];
   const stream = { write: (l: string) => logLines.push(l) };
@@ -1840,14 +2883,113 @@ beforeAll(async () => {
   });
   expect(attempt.json().data.outcome).toBe('unknown');
   // B3: one unsigned payment plan for the alpha patient.
-  const plan = await owner(PLANS, planBody({ alphaPatient } as HarnessFixture));
-  expect(plan.statusCode).toBe(201);
+  const paymentPlan = await owner(PLANS, planBody({ alphaPatient } as HarnessFixture));
+  expect(paymentPlan.statusCode).toBe(201);
   // B4: one statement for the alpha guarantor (the counterparty guarantees the alpha patient).
   const statement = await owner(
     STATEMENTS,
     statementBody({ alphaPatient, alphaCounterparty } as HarnessFixture),
   );
   expect(statement.statusCode).toBe(201);
+  // C5: an open alpha encounter for the alpha appointment (version 1).
+  const encounter = await owner('/v1/clinical/encounters', {
+    patientRef: alphaPatient,
+    appointmentRef: appointment.json().data.appointmentRef,
+  });
+  expect(encounter.statusCode).toBe(201);
+  // C8: one recorded history version for the alpha patient (one allergy item).
+  const history = await owner('/v1/clinical/history/changes', {
+    patientRef: alphaPatient,
+    provenance: 'staff',
+    reportedBy: 'clinician',
+    changes: [{ kind: 'allergy', state: 'active', displayText: 'Synthetic harness allergen' }],
+  });
+  expect(history.statusCode).toBe(201);
+  const recorded = history.json().data;
+  // C6: one active chart entry for the alpha patient.
+  const chartEntry = await owner('/v1/clinical/chart/entries', {
+    patientRef: alphaPatient,
+    provenance: 'recorded',
+    tooth: { system: 'universal', code: '3' },
+    kind: 'condition',
+    findingRef: 'SYN-HARNESS-001',
+  });
+  expect(chartEntry.statusCode).toBe(201);
+  // C7: one alpha periodontal exam (tooth 14).
+  const perio = await owner('/v1/clinical/perio/exams', {
+    patientRef: alphaPatient,
+    siteScheme: 'six_site_provisional',
+    teeth: [perioTooth('14')],
+  });
+  expect(perio.statusCode).toBe(201);
+  const perioExam = perio.json().data;
+  // C11: one alpha plan (revision 3): a whole-mouth detail with one proposed item.
+  const plan = await owner('/v1/clinical/treatment-plans', { patientRef: alphaPatient });
+  expect(plan.statusCode).toBe(201);
+  const planVersion = plan.json().data.plan.headVersionRef;
+  const planDetail = await owner(`/v1/clinical/treatment-plans/versions/${planVersion}/details`, {
+    expectedRevision: 1,
+    scope: 'whole_mouth',
+  });
+  expect(planDetail.statusCode).toBe(201);
+  const planItem = await owner(
+    `/v1/clinical/treatment-plans/details/${planDetail.json().data.targetRef}/items`,
+    {
+      expectedRevision: 2,
+      procedureCodeRef: 'SYN-HARNESS-PROC',
+      sequence: 1,
+    },
+  );
+  expect(planItem.statusCode).toBe(201);
+  // C12: one incomplete estimate (version 1) on the alpha plan version (its item names no fee).
+  const estimate = await owner(`/v1/clinical/treatment-plans/versions/${planVersion}/estimates`, {
+    lines: [],
+  });
+  expect(estimate.statusCode).toBe(201);
+  // C13: one active alpha consent (general treatment, signed by the adult alpha patient).
+  const consent = await owner('/v1/clinical/consents', {
+    patientRef: alphaPatient,
+    scope: 'general_treatment',
+    method: 'in_person',
+    templateRef: 'synthetic-harness-consent',
+    templateDigest: DIGEST_A,
+    attestationCode: 'signed_in_person',
+    signer: { kind: 'patient' },
+  });
+  expect(consent.statusCode).toBe(201);
+  // C9: one active alpha note template (version 1).
+  const template = await owner('/v1/clinical/note-templates', templateBody());
+  expect(template.statusCode).toBe(201);
+  // C10: one alpha draft (version 1) and one signed alpha note (version 2) at the alpha encounter.
+  const encounterRef = encounter.json().data.encounter.encounterRef;
+  const noteDraft = await owner(`/v1/clinical/encounters/${encounterRef}/notes`, {
+    noteType: 'progress',
+    content: {
+      sections: [{ sectionKey: 'subjective', text: 'Synthetic harness note' }],
+      procedureCodeRefs: [],
+    },
+  });
+  expect(noteDraft.statusCode).toBe(201);
+  const toSign = await owner(`/v1/clinical/encounters/${encounterRef}/notes`, {
+    noteType: 'progress',
+    content: {
+      sections: [{ sectionKey: 'subjective', text: 'Synthetic harness signed note' }],
+      procedureCodeRefs: [],
+    },
+  });
+  const signedNote = await owner(`/v1/clinical/notes/${toSign.json().data.noteRef}/sign`, {
+    expectedVersion: 1,
+  });
+  expect(signedNote.statusCode).toBe(200);
+  // C14: one rendered alpha procedure (unscheduled; provider not assigned, so with an override reason).
+  const procedure = await owner(`/v1/clinical/encounters/${encounterRef}/procedures`, {
+    sequence: 1,
+    dateOfService: '2026-11-01',
+    renderingProviderRef: alphaProvider,
+    codeRef: 'SYN-HARNESS-PROC',
+    providerOverrideReason: 'harness_fixture',
+  });
+  expect(procedure.statusCode).toBe(201);
   // S13: one alpha series (one Monday occurrence) for the series rows.
   const series = await owner('/v1/scheduling/series', {
     patientRef: alphaPatient,
@@ -1962,13 +3104,34 @@ beforeAll(async () => {
   });
   expect(recallTask.statusCode).toBe(201);
   fixture = {
-    alphaPlan: plan.json().data.planRef,
+    alphaPaymentPlan: paymentPlan.json().data.planRef,
     alphaCoverage: coverage.json().data.coverageRef,
     alphaStatement: statement.json().data.statementRef,
     alphaPayment: cashPayment.json().data.paymentRef,
     alphaAttempt: attempt.json().data.attemptRef,
     alphaCharge: charge.json().data.chargeRef,
     alphaJournalEntry: charge.json().data.entryRef,
+    alphaPlan: plan.json().data.plan.planRef,
+    alphaPlanVersion: planVersion,
+    alphaPlanDetail: planDetail.json().data.targetRef,
+    alphaPlanItem: planItem.json().data.targetRef,
+    alphaEstimate: estimate.json().data.estimateRef,
+    alphaConsent: consent.json().data.consentRef,
+    alphaProcedure: procedure.json().data.procedureRef,
+    alphaPerioExam: perioExam.examRef,
+    alphaPerioMeasurement: perioExam.measurements.find(
+      (m: { measure: string; site: string | null }) => m.measure === 'probing_depth' && m.site === 'b',
+    ).measurementRef,
+    alphaChartEntry: chartEntry.json().data.entry.entryRef,
+    alphaNote: noteDraft.json().data.noteRef,
+    alphaSignedNote: signedNote.json().data.noteRef,
+    alphaSignedDigest: signedNote.json().data.versions[0].contentDigest,
+    alphaTemplate: template.json().data.templateRef,
+    alphaTemplateVersion: template.json().data.currentVersion.templateVersionRef,
+    alphaHistoryVersion: recorded.header.historyVersionRef,
+    alphaHistoryItem: recorded.changes[0].itemRef,
+    alphaHistoryChange: recorded.changes[0].change.changeRef,
+    alphaEncounter: encounter.json().data.encounter.encounterRef,
     alphaRecallTask: recallTask.json().data.recallTaskRef,
     alphaEntry: idleEntry.json().data.entryRef,
     alphaOffer: liveOffer.json().data.offerRef,
@@ -2112,6 +3275,44 @@ async function state(): Promise<string> {
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.rcm_coverages'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.rcm_coverage_versions'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.rcm_eligibility_records'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_author_profiles'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_encounters'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_encounter_assignments'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_history_streams'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_history_versions'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_history_items'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_history_changes'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_history_verifications'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_history_reviews'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_charts'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_chart_entries'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_perio_streams'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_perio_exams'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_perio_measurements'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_perio_derivations'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_perio_derived_values'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_treatment_plans'),
+    await q('SELECT count(*)::int AS n, sum(revision)::int AS v FROM cuspatlas.clinical_plan_versions'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_plan_details'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_plan_items'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_plan_item_events'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_plan_detail_events'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_plan_alternatives'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_estimates'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_estimate_lines'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_estimate_assumptions'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_estimate_presentations'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_plan_acceptances'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_consent_templates'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_consents'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_consent_withdrawals'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_rendered_procedures'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_note_templates'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_note_template_versions'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_notes'),
+    await q('SELECT json_agg(n.draft_sections ORDER BY n.id)::text AS d FROM cuspatlas.clinical_notes n'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_note_versions'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_note_cosignatures'),
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.visit_context_items'),
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.appointment_series'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.appointment_series_occurrences'),

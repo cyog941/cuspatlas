@@ -4,6 +4,8 @@ Date: 2026-11-03. Status: researched planning requirements, not implemented inte
 
 ## Decisions for architecture
 
+The user subsequently directed a 90% practice-suitability target. Apply the [broad coverage strategy](PRACTICE-COVERAGE-STRATEGY.md): research major imaging ecosystems independently of the user's inventory, measure joint practice suitability, and qualify exact configurations. Pilot inventory is a validation input, not a prerequisite for all research or the boundary of product ambition.
+
 1. Keep existing acquisition software for the first pilot. Qualify a supported patient-context bridge and image-return path. Launching the vendor application alone is not a complete bridge.
 2. Offer safe import as a baseline; qualify TWAIN, vendor SDK or DICOM interfaces individually. No universal sensor promise, browser USB assumption or proprietary driver redistribution.
 3. Qualify DentalXChange first for claims and attachments because public developer contracts exist. This is a research priority, not a procurement decision. Keep the adapter replaceable and evaluate an alternative before commitment.

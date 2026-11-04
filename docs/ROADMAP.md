@@ -4,6 +4,8 @@ This is a proposed sequence, not a delivery-date commitment. No product implemen
 
 ## Planning sequence
 
+The [practice coverage strategy](PRACTICE-COVERAGE-STRATEGY.md) adds a user-directed target of 90% suitability for US general-dentistry practice locations. P1 must research broad imaging ecosystems and payer/service coverage, not only one pilot. This is an unverified target; national claims require representative evidence and joint suitability across hardware, insurance and the other release requirements. First pilots still require qualification of all their essential workflows.
+
 | Stage | Output | Exit condition |
 |---|---|---|
 | P0: foundation and research | Repository, original scope/design, evidence ledger, backlog, development provisioning record | Documents reviewed; cloud project verified; authenticated REA/Craft attachment remains unresolved |

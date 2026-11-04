@@ -22,6 +22,8 @@ Start here, in this order:
 
 ## The planning package
 
+- [90% practice-suitability target and compatibility research](docs/PRACTICE-COVERAGE-STRATEGY.md)
+
 - **Contracts and matrices**: [shared contracts across plans](docs/SHARED-CONTRACTS.md) · [workflow, state and role matrix](docs/WORKFLOW-ROLE-MATRIX.md) · [integration and device qualification](docs/INTEGRATION-QUALIFICATION-MATRIX.md) · [synthetic acceptance scenarios](docs/ACCEPTANCE-SCENARIOS.md)
 - **Architecture contracts**: [AI PMS architecture and delivery gates](docs/AI-PMS-ARCHITECTURE.md) · [hardware and claims qualification](docs/HARDWARE-AND-CLAIMS-QUALIFICATION.md)
 - **Delivery**: [roadmap](docs/ROADMAP.md) · [foundation status and Supabase provisioning](docs/SETUP.md)

@@ -30,7 +30,7 @@ export function registerBillingRoutes(
   const post = (operationId: string, run: (r: FastifyRequest) => Promise<unknown>) => {
     const r = routeFor(operationId);
     app.post(r.fastifyPath, on(operationId), async (request, reply) =>
-      reply.code(Number(r.success.status)).send(await run(request)),
+      reply.code(Number.parseInt(r.success.status, 10)).send(await run(request)),
     );
   };
   const get = (operationId: string, run: (r: FastifyRequest) => Promise<unknown>) => {

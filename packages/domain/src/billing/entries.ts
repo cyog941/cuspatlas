@@ -205,7 +205,7 @@ export function createEntryOperations(base: BillingBase) {
         await base.authorize(ctx, op);
         validate<LedgerQuery>(validateLedgerQuery, query);
         assertRef(patientRef);
-        const limit = query.limit === undefined ? DEFAULT_LIMIT : Number(query.limit);
+        const limit = query.limit === undefined ? DEFAULT_LIMIT : Number.parseInt(query.limit, 10);
         const scope = `ledger:${patientRef}`;
         const after = query.cursor === undefined ? null : cursors.decode(ctx.tenantId, scope, query.cursor);
         const [afterAt, afterId] = after === null ? [null, null] : after.split('_');

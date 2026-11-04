@@ -19,7 +19,8 @@ Authorization basis: user instruction to build every backend workstream on synth
 | B2 Payments, allocations, undistributed funds | verified on synthetic data (Windows host); decisions pending billing approval; provider execution blocked-on-discovery (B-S1) | 66ea613 | 759 tests |
 | B3 Payment plans, expired-card and failed-auto-pay worklists | verified on synthetic data (Windows host); decisions pending billing approval; card and auto-pay execution blocked-on-discovery (B-S1, PAY-02..04, PAY-07) | 31f9cd6 | 805 tests |
 | B4 Audited statements, snapshot and staleness | verified on synthetic data (Windows host); decisions pending billing approval; delivery not built (E7) | 2542e00 | 823 tests |
-| B5 Coverage, eligibility records, coverage provenance | verified on synthetic data (Windows host); decisions pending billing approval; live eligibility blocked-on-discovery (B-S3); fee schedules B9 (B-S4) | (this commit) | 853 tests |
+| B5 Coverage, eligibility records, coverage provenance | verified on synthetic data (Windows host); decisions pending billing approval; live eligibility blocked-on-discovery (B-S3); fee schedules B9 (B-S4) | 6ca38d9 | 853 tests |
+| B1/B2 hardening after independent review of 66ea613 | verified on synthetic data (Windows host); no MUST-FAIL finding; decisions pending billing approval | (this commit) | 863 tests |
 
 ## Pending decisions
 
@@ -252,6 +253,23 @@ Shared files touched in B5 (append-only lines): `policy/authorize.ts` (5 rows), 
 
 Deviations: the RCM operations live in `packages/domain/src/rcm/coverage.ts` but are served by the billing service and contract (`rcm.*` operation names, `/v1/rcm/...` routes, `rcm_*` tools) instead of a second contract file. `recordEligibility` takes `source` (`entered` or `fake_adapter`); state `unparsed` is added beside `verified | unverified | unknown`. `assessEligibilityFreshness` is the per-record `freshness` of the resolution (`current | stale`; no record is `unknown` status). The overlap rule is stricter than the plan (any payer of the same rank). `stale_eligibility` and `unparsed_response` are not refusals: both are recorded, visible states. The `ResponsibilityTransfer` body replaced `payerRef` with `coverageRef` (pre-release contract change; legacy rows untouched).
 
+### Hardening of B1/B2 after independent review (review of 66ea613: no MUST-FAIL)
+
+Findings addressed (tests/integration/billing-hardening.test.ts, 9 tests; `no-float-money.test.ts` +1):
+
+1. Capture loss: a card capture is now three steps. (a) Validate and commit the attempt as `pending` under its stable provider key; (b) call the provider outside any transaction (a throw or timeout is `unknown`); (c) in executeOnce, record the answer once and post a confirmed payment. A failure after the capture leaves the pending attempt as an `unknown_payment_outcome` reconciliation item; reconciliation (lookup, never a new capture) posts once. Plan collection uses the same steps (the plan attempt is `submitted` and reports the B2 attempt's outcome). Cases: a provider that throws (1), an outbox fault after a confirmed capture (2), a plan installment whose provider throws (4).
+2. The commit-time sign rule now locks the touched payments then charges (`FOR NO KEY UPDATE`, compatible with the foreign-key KEY SHARE locks of line inserts) before summing: two raw runtime-role transactions over-allocating one charge at once give one commit and one 23514 (5).
+3. Backstops at commit: each entry kind may touch only its accounts; entries must be in the tenant currency; a received entry must match its payment and a card payment needs a captured attempt of the same amount; at most one received entry per payment (unique partial index) (6). The unapplied holder versus merge set stays a domain rule (documented in the migration: transfers legitimately move funds and the merge set is resolved at read time).
+4. Key reuse after idempotency expiry: the pending insert is `ON CONFLICT (provider key) DO NOTHING`; an existing attempt is 409 `duplicate_attempt` naming it, never a second capture (3).
+5. `BILLING_POST_MERGE_PROBE` walks the whole merge chain (root and everything merged into it, like `mergeSet`) with `posted_at >= merged_at`; entries take `clock_timestamp()` (7).
+6. Reconciling a capture after the payer was merged posts the payment to the survivor (merge-set root) (8).
+- Nits: BigInt instead of `Math.min`/Number arithmetic in allocation and refund; `Number(` and `Math.` are now flagged on every billing and rcm money path (only `money.ts` performs the one sanctioned conversion); a seeded property run of 60 random post/pay/allocate/refund/reverse operations keeps every entry balanced, every sign rule and balance = receivable + unapplied lines, with only typed refusals (9).
+
+- Red: `corepack pnpm test -- billing-hardening no-float-money` before the fixes → exit 1, 9 hardening failed; the guard extension failed 1 of 5.
+- Green: `corepack pnpm test -- billing-hardening no-float-money` → exit 0, 14 passed; full `corepack pnpm test` → 41 files, 863 tests (853 + 9 + 1). One full run had two host-load timing failures (`restore-smoke` (e), `worker-recovery` lease timing) that passed on an isolated rerun (38 passed); the gate run below is the record.
+- Migration `20261109050000_billing_hardening.sql` (attempt `pending` outcome, guard and update policy, plan attempt `submitted`, one-receipt index, `clock_timestamp()` posting default, replaced `billing_check_signs` and `billing_check_entry`). B1 case 15's structural allowlist names `command_idempotency` (the replay check before a capture).
+- Deviation: a pending attempt left by a crash between steps (a) and (c) has no audit row until it is reconciled (the audit is written with the outcome); it is visible in the worklist from the moment it is committed.
+
 ## Seams for later tasks
 
 - C14: drive `billing.charges.post` as a service principal with the rendered-procedure reference in place of `syn-proc-...` (a new `source` value) and the procedure code once B-S4 settles; one original charge per procedure is already enforced.
@@ -282,3 +300,4 @@ Deviations: the RCM operations live in `packages/domain/src/rcm/coverage.ts` but
 ## Gate runs
 
 - `corepack pnpm run ci` after B2 (uncommitted tree): first run exit 1, 758 passed and 1 failed: `restore-smoke` (e) failed in cleanup with `EBUSY: resource busy or locked, rmdir ...\cuspatlas-backup-cluster2-...\data` (a Windows file lock on the second embedded cluster data directory; no billing code involved; sibling workers were running test suites on the same host). Immediate rerun: exit 0, 37 files, 759 tests, privacy scan, SBOM, evidence and evidence-verify ok. Recorded as an environmental flake, not fixed here.
+- `corepack pnpm run ci` after batch 2 and the hardening (uncommitted hardening tree on top of 6ca38d9): exit 0, 41 files, 863 tests, privacy scan, SBOM, evidence and evidence-verify ok (controls unreviewed, not certified).

@@ -81,10 +81,10 @@ export function createAllocationOperations(base: BillingBase) {
                 const usable = holders.filter(
                   (h) => account.ids.includes(h.patientRef) && h.amount.minor > 0,
                 );
-                const available = usable.reduce((s, h) => s + h.amount.minor, 0);
-                if (available === 0 && holders.some((h) => h.amount.minor > 0))
+                const available = usable.reduce((s, h) => s + BigInt(h.amount.minor), 0n);
+                if (available === 0n && holders.some((h) => h.amount.minor > 0))
                   throw failed('patient_mismatch');
-                if (available < amount.minor) throw conflict('insufficient_funds');
+                if (available < BigInt(amount.minor)) throw conflict('insufficient_funds');
                 const open = await dimensionBalance(tx, current.currency, {
                   account: 'patient_receivable',
                   charge: charge.id,
@@ -96,14 +96,16 @@ export function createAllocationOperations(base: BillingBase) {
                 // Funds are consumed from the holders of the charge's account in patient-reference
                 // order (ADR 0008 M-5): usually one holder, more only after a merge or a transfer.
                 const lines: LineInput[] = [];
-                let rest = amount.minor;
+                let rest = BigInt(amount.minor);
                 for (const h of usable) {
-                  if (rest === 0) break;
-                  const take = Math.min(h.amount.minor, rest);
+                  if (rest === 0n) break;
+                  const held = BigInt(h.amount.minor);
+                  // biome-ignore lint/complexity/useMathMinMax: BigInt minor units; Math is not a money path.
+                  const take = held < rest ? held : rest;
                   rest -= take;
                   lines.push({
                     account: 'unapplied_credit',
-                    amount: moneyFromMinorText(current.currency, String(take)),
+                    amount: moneyFromMinorText(current.currency, take.toString()),
                     patientId: h.patientRef,
                     paymentId: current.id,
                   });

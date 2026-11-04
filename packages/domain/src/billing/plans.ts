@@ -52,7 +52,14 @@ import {
   validate,
 } from './base';
 import { createSyntheticPaymentProvider, type PaymentProviderPort } from './payment-port';
-import { assertGuarantor, captureWithProvider, insertPayment } from './payments';
+import {
+  assertGuarantor,
+  callProvider,
+  committedReplay,
+  finalizeAttempt,
+  insertPayment,
+  insertPendingAttempt,
+} from './payments';
 
 export const PLAN_RESOURCE = 'billingPaymentPlan';
 /** Days before the card's expiry month ends at which the card counts as expiring (pending approval). */
@@ -159,17 +166,19 @@ async function computePlan(tx: TenantTransaction, row: PlanRow): Promise<Compute
     terms_version: number;
     period_no: number;
     attempt_no: number;
-    outcome: PlanAttemptOutcome;
+    outcome: PlanAttemptOutcome | 'submitted';
     block_reason: 'card_expired' | null;
     amount: string;
     payment_attempt_id: string | null;
     created_at: Date;
+    provider_outcome: 'pending' | 'confirmed' | 'declined' | 'unknown' | null;
     resolution: 'captured' | 'not_captured' | null;
     payment_id: string | null;
     counted: boolean;
   }>(
     `SELECT pa.id, pa.terms_version, pa.period_no, pa.attempt_no, pa.outcome, pa.block_reason,
-       pa.amount_minor::text AS amount, pa.payment_attempt_id, pa.created_at, a.resolution, pay.id AS payment_id,
+       pa.amount_minor::text AS amount, pa.payment_attempt_id, pa.created_at, a.outcome AS provider_outcome,
+       a.resolution, pay.id AS payment_id,
        (pay.id IS NOT NULL AND NOT EXISTS (
           SELECT 1 FROM cuspatlas.billing_journal_entries r
           JOIN cuspatlas.billing_journal_entries e ON r.reverses_entry_id = e.id
@@ -181,12 +190,19 @@ async function computePlan(tx: TenantTransaction, row: PlanRow): Promise<Compute
     [row.id],
   );
   const attempts: (PlanAttemptView & { counted: bigint })[] = attemptRows.map((a) => {
+    // A provider attempt's outcome lives on the B2 attempt: pending (a lost finalize) reads as unknown,
+    // and a reconciled unknown reads as its resolution.
+    const provider = a.provider_outcome ?? a.outcome;
     const outcome: PlanAttemptOutcome =
-      a.outcome === 'unknown' && a.resolution !== null
-        ? a.resolution === 'captured'
-          ? 'confirmed'
-          : 'declined'
-        : a.outcome;
+      a.outcome === 'blocked'
+        ? 'blocked'
+        : a.resolution !== null
+          ? a.resolution === 'captured'
+            ? 'confirmed'
+            : 'declined'
+          : provider === 'pending' || provider === 'submitted'
+            ? 'unknown'
+            : (provider as PlanAttemptOutcome);
     return {
       planAttemptRef: a.id,
       termsVersion: a.terms_version,
@@ -479,12 +495,7 @@ export function createPlanOperations(
   /** Authorize, validate, lock the plan, check the expected version and run once. */
   function onPlan<P extends object, T>(
     ctx: ActorContext,
-    op:
-      | 'billing.plans.authorize'
-      | 'billing.plans.amend'
-      | 'billing.plans.autopay'
-      | 'billing.plans.collect'
-      | 'billing.plans.close',
+    op: 'billing.plans.authorize' | 'billing.plans.amend' | 'billing.plans.autopay' | 'billing.plans.close',
     planRef: string,
     envelope: CommandEnvelope<unknown>,
     check: (p: unknown) => asserts p is P,
@@ -696,21 +707,29 @@ export function createPlanOperations(
 
     /**
      * recordInstallmentAttempt (B3 contract): one attempt for one installment period through the
-     * provider port. A declined attempt is a recorded fact; an unknown one blocks the plan until the
-     * B2 reconciliation resolves it; an expired card records a blocked attempt without charging.
+     * provider port. The attempt is committed as pending under the plan lock before the provider is
+     * called; the answer is then recorded once and a confirmed capture posted (executeOnce). A
+     * declined attempt is a recorded fact; an unknown one blocks the plan until the B2 reconciliation
+     * resolves it; an expired card records a blocked attempt without charging.
      */
     collectInstallment(
       ctx: ActorContext,
       planRef: string,
       envelope: CommandEnvelope<unknown>,
     ): Promise<CommandResult<PlanCollectData>> {
-      return onPlan<PlanCollect, PlanCollectData>(
-        ctx,
-        'billing.plans.collect',
-        planRef,
-        envelope,
-        (p): asserts p is PlanCollect => validate<PlanCollect>(validatePlanCollect, p),
-        async (tx, row, c, p) => {
+      const op = 'billing.plans.collect';
+      return base.guarded(ctx, op, async () => {
+        await base.authorize(ctx, op);
+        checkEnvelope(envelope, op);
+        const p = envelope.payload;
+        validate<PlanCollect>(validatePlanCollect, p);
+        assertRef(planRef);
+        const replayEnvelope = { ...envelope, payload: { planRef, ...p } };
+        const reserved = await deps.withTenantTransaction(ctx, async (tx) => {
+          await loadPlan(tx, planRef, 'FOR UPDATE');
+          if (await committedReplay(tx, op, envelope.idempotencyKey)) return null;
+          const row = await loadPlan(tx, planRef);
+          const c = await computePlan(tx, row);
           const v = c.view;
           if (v.planState !== 'open') throw closedConflict(v);
           if (!c.authorized) throw conflict('unsigned_authorization');
@@ -719,14 +738,14 @@ export function createPlanOperations(
           if (inst.dueOn > row.today) throw failed('period_not_due');
           assertNoneInFlight(c);
           const prior = v.attempts.filter(
-            (a) => a.termsVersion === v.termsVersion && a.periodNo === p.periodNo,
+            (x) => x.termsVersion === v.termsVersion && x.periodNo === p.periodNo,
           );
           const remaining = subtractMoney(inst.amount, inst.collected);
-          const first = prior[0];
-          if (remaining.minor <= 0 || (first && p.retry !== true)) {
+          const last = prior[prior.length - 1];
+          if (remaining.minor <= 0 || (last && p.retry !== true)) {
             throw conflict(
               'duplicate_period',
-              first ? [{ kind: 'planAttempt', ref: (prior[prior.length - 1] ?? first).planAttemptRef }] : [],
+              last ? [{ kind: 'planAttempt', ref: last.planAttemptRef }] : [],
             );
           }
           if (v.instrumentRef === null) throw conflict('instrument_absent');
@@ -737,67 +756,95 @@ export function createPlanOperations(
           const patient = await loadPatient(tx, row.patient_id, 'FOR SHARE');
           assertNotMerged(patient);
           const attemptNo = prior.length + 1;
-          const insertAttempt = async (outcome: PlanAttemptOutcome, paymentAttemptId: string | null) => {
-            const { rows } = await tx.query<{ id: string }>(
-              `INSERT INTO cuspatlas.billing_payment_plan_attempts (tenant_id, plan_id, terms_version, period_no,
-                 attempt_no, outcome, block_reason, payment_attempt_id, amount_minor, currency, created_by)
-               VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6, $7, $8, $9, cuspatlas.current_actor_id())
-               RETURNING id`,
-              [
-                row.id,
-                v.termsVersion,
-                p.periodNo,
-                attemptNo,
-                outcome,
-                outcome === 'blocked' ? 'card_expired' : null,
-                paymentAttemptId,
-                String(amount.minor),
-                amount.currency,
-              ],
-            );
-            return rows[0]?.id as string;
-          };
-          const result = (
-            planAttemptRef: string,
-            outcome: PlanAttemptOutcome,
-            attemptRef: string | null,
-            paymentRef: string | null,
-          ) => ({
-            data: { planRef: row.id, planAttemptRef, outcome, attemptRef, paymentRef },
-            changed: 'installmentAttempt',
-          });
-          if (v.cardExpiryState === 'expired') {
-            return result(await insertAttempt('blocked', null), 'blocked', null, null);
-          }
+          const blocked = v.cardExpiryState === 'expired';
           // The provider key names the plan, terms version, period and attempt number: a scheduler
           // rerun (any idempotency key) or a retry after a lost commit cannot capture twice.
           const providerKey = sha256Hex(
             `billing-plan:${ctx.tenantId}:${row.id}:${v.termsVersion}:${p.periodNo}:${attemptNo}`,
           );
-          const captured = await captureWithProvider(tx, provider, {
+          const paymentAttemptId = blocked
+            ? null
+            : await insertPendingAttempt(tx, {
+                patientId: row.patient_id,
+                guarantorId: row.guarantor_id,
+                instrumentRef: v.instrumentRef,
+                providerKey,
+                amount,
+              });
+          const { rows } = await tx.query<{ id: string }>(
+            `INSERT INTO cuspatlas.billing_payment_plan_attempts (tenant_id, plan_id, terms_version, period_no,
+               attempt_no, outcome, block_reason, payment_attempt_id, amount_minor, currency, created_by)
+             VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6, $7, $8, $9, cuspatlas.current_actor_id())
+             RETURNING id`,
+            [
+              row.id,
+              v.termsVersion,
+              p.periodNo,
+              attemptNo,
+              blocked ? 'blocked' : 'submitted',
+              blocked ? 'card_expired' : null,
+              paymentAttemptId,
+              String(amount.minor),
+              amount.currency,
+            ],
+          );
+          return {
+            planAttemptRef: rows[0]?.id as string,
+            paymentAttemptId,
+            providerKey,
+            instrumentRef: v.instrumentRef,
+            amount,
             patientId: row.patient_id,
             guarantorId: row.guarantor_id,
-            instrumentRef: v.instrumentRef,
-            providerKey,
-            amount,
-          });
-          const planAttemptRef = await insertAttempt(captured.outcome, captured.attemptId);
-          let paymentRef: string | null = null;
-          if (captured.outcome === 'confirmed') {
-            const posted = await insertPayment(tx, {
-              patientId: row.patient_id,
-              guarantorId: row.guarantor_id,
-              method: 'card_synthetic',
-              amount,
-              externalRef: captured.receiptId,
-              attemptId: captured.attemptId,
-              receivedAt: null,
+          };
+        });
+        const answer =
+          reserved === null || reserved.paymentAttemptId === null
+            ? null
+            : await callProvider(provider, {
+                providerKey: reserved.providerKey,
+                amount: reserved.amount,
+                instrumentRef: reserved.instrumentRef,
+              });
+        return deps.withTenantTransaction(ctx, async (tx) => {
+          await loadPlan(tx, planRef, 'FOR UPDATE');
+          return execute<PlanCollectData>(ctx, replayEnvelope, tx, async () => {
+            if (reserved === null) throw new RefusalError({ code: 'conflict', retryable: true });
+            const data = (outcome: PlanAttemptOutcome, paymentRef: string | null): PlanCollectData => ({
+              planRef,
+              planAttemptRef: reserved.planAttemptRef,
+              outcome,
+              attemptRef: reserved.paymentAttemptId,
+              paymentRef,
             });
-            paymentRef = posted.paymentId;
-          }
-          return result(planAttemptRef, captured.outcome, captured.attemptId, paymentRef);
-        },
-      );
+            let result = data('blocked', null);
+            if (reserved.paymentAttemptId !== null && answer !== null) {
+              const final = await finalizeAttempt(tx, reserved.paymentAttemptId, answer);
+              let paymentRef: string | null = null;
+              if (final.outcome === 'confirmed') {
+                const posted = await insertPayment(tx, {
+                  patientId: reserved.patientId,
+                  guarantorId: reserved.guarantorId,
+                  method: 'card_synthetic',
+                  amount: reserved.amount,
+                  externalRef: final.receiptId,
+                  attemptId: reserved.paymentAttemptId,
+                  receivedAt: null,
+                });
+                paymentRef = posted.paymentId;
+              }
+              result = data(final.outcome, paymentRef);
+            }
+            const version = await bump(tx, planRef);
+            await recordCommand(
+              tx,
+              { operation: op, resourceType: PLAN_RESOURCE, resourceRef: planRef, resourceVersion: version },
+              { changedFields: ['installmentAttempt'] },
+            );
+            return { data: result, version };
+          });
+        });
+      });
     },
 
     /** voidPlan (B3 contract) and default: a human closure decision; history and money stay. */

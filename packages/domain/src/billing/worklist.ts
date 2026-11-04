@@ -40,7 +40,7 @@ export function createWorklistOperations(base: BillingBase) {
       return base.guarded(ctx, op, async () => {
         await base.authorize(ctx, op);
         validate<BillingWorklistQuery>(validateBillingWorklistQuery, query);
-        const limit = query.limit === undefined ? DEFAULT_LIMIT : Number(query.limit);
+        const limit = query.limit === undefined ? DEFAULT_LIMIT : Number.parseInt(query.limit, 10);
         return deps.withTenantTransaction(ctx, async (tx) => {
           const settings = await loadSettings(tx);
           const items = `
@@ -56,7 +56,7 @@ export function createWorklistOperations(base: BillingBase) {
             SELECT 'unknown_payment_outcome'::text, a.id, a.patient_id, a.amount_minor::text, a.currency, a.created_at,
               a.created_at + make_interval(hours => $3)
             FROM cuspatlas.billing_payment_attempts a
-            WHERE a.outcome = 'unknown' AND a.resolution IS NULL
+            WHERE a.outcome IN ('unknown', 'pending') AND a.resolution IS NULL
               AND ($1::text IS NULL OR $1::text = 'unknown_payment_outcome')`;
           const params = [query.kind ?? null, settings.escalationDays, UNKNOWN_OUTCOME_DUE_HOURS];
           const { rows } = await tx.query<ItemRow>(

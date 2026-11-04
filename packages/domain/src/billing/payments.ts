@@ -39,13 +39,19 @@ import {
   isPgError,
   loadPatient,
   loadSettings,
+  mergeSet,
   notFound,
   type PatientRow,
   validate,
 } from './base';
 import { bumpAggregates, lockAggregates, PAYMENT_RESOURCE } from './entries';
 import { dimensionBalance, type LineInput, postEntry, SignViolation } from './journal';
-import { createSyntheticPaymentProvider, type PaymentProviderPort } from './payment-port';
+import {
+  type CaptureRequest,
+  createSyntheticPaymentProvider,
+  type PaymentProviderPort,
+  type ProviderAnswer,
+} from './payment-port';
 
 export const ATTEMPT_RESOURCE = 'billingPaymentAttempt';
 
@@ -179,13 +185,13 @@ export async function insertPayment(
 }
 
 /**
- * One capture through the provider port with a stable key, recorded as an attempt row whatever the
- * answer: confirmed (with a receipt), declined (nothing collected) or unknown (an open
- * reconciliation item, never retried automatically). Shared by recordPayment and plan collection.
+ * Phase 1 of a capture (review fix): the attempt is recorded as `pending` and committed BEFORE the
+ * provider is called, so a provider throw, a timeout, a crash or a later refusal can never erase the
+ * fact that money may have been captured. A provider key that already has an attempt (for example
+ * a caller key reused after its idempotency record expired) is a typed 409, never a second capture.
  */
-export async function captureWithProvider(
+export async function insertPendingAttempt(
   tx: TenantTransaction,
-  provider: PaymentProviderPort,
   o: {
     patientId: string;
     guarantorId: string | null;
@@ -193,36 +199,69 @@ export async function captureWithProvider(
     providerKey: string;
     amount: Money;
   },
-): Promise<{ outcome: 'confirmed' | 'declined' | 'unknown'; attemptId: string; receiptId: string | null }> {
-  const answer = await provider.capture({
-    providerKey: o.providerKey,
-    amount: o.amount,
-    instrumentRef: o.instrumentRef,
-  });
-  const confirmed = answer.outcome === 'confirmed' && answer.receiptId !== undefined;
-  const outcome = confirmed ? 'confirmed' : answer.outcome === 'declined' ? 'declined' : 'unknown';
+): Promise<string> {
   const { rows } = await tx.query<{ id: string }>(
     `INSERT INTO cuspatlas.billing_payment_attempts (tenant_id, patient_id, guarantor_id, method, instrument_ref,
-       provider_key, amount_minor, currency, outcome, provider_receipt, created_by)
-     VALUES (cuspatlas.current_tenant_id(), $1, $2, 'card_synthetic', $3, $4, $5, $6, $7, $8,
+       provider_key, amount_minor, currency, outcome, created_by)
+     VALUES (cuspatlas.current_tenant_id(), $1, $2, 'card_synthetic', $3, $4, $5, $6, 'pending',
        cuspatlas.current_actor_id())
+     ON CONFLICT (tenant_id, provider_key) DO NOTHING
      RETURNING id`,
-    [
-      o.patientId,
-      o.guarantorId,
-      o.instrumentRef,
-      o.providerKey,
-      String(o.amount.minor),
-      o.amount.currency,
-      outcome,
-      confirmed ? (answer.receiptId as string) : null,
-    ],
+    [o.patientId, o.guarantorId, o.instrumentRef, o.providerKey, String(o.amount.minor), o.amount.currency],
   );
-  return {
-    outcome,
-    attemptId: rows[0]?.id as string,
-    receiptId: confirmed ? (answer.receiptId as string) : null,
-  };
+  const id = rows[0]?.id;
+  if (id) return id;
+  const { rows: existing } = await tx.query<{ id: string }>(
+    'SELECT id FROM cuspatlas.billing_payment_attempts WHERE provider_key = $1',
+    [o.providerKey],
+  );
+  throw conflict('duplicate_attempt', existing[0] ? [{ kind: 'paymentAttempt', ref: existing[0].id }] : []);
+}
+
+/** Phase 2: the provider call, outside any transaction. A throw or a timeout is `unknown`. */
+export async function callProvider(
+  provider: PaymentProviderPort,
+  request: CaptureRequest,
+): Promise<ProviderAnswer> {
+  try {
+    return await provider.capture(request);
+  } catch {
+    return { outcome: 'unknown' };
+  }
+}
+
+/** Phase 3: records the provider's answer exactly once on the pending attempt. */
+export async function finalizeAttempt(
+  tx: TenantTransaction,
+  attemptId: string,
+  answer: ProviderAnswer,
+): Promise<{ outcome: 'confirmed' | 'declined' | 'unknown'; receiptId: string | null }> {
+  const confirmed = answer.outcome === 'confirmed' && answer.receiptId !== undefined;
+  const outcome = confirmed ? 'confirmed' : answer.outcome === 'declined' ? 'declined' : 'unknown';
+  const receiptId = confirmed ? (answer.receiptId as string) : null;
+  const { rows } = await tx.query<{ id: string }>(
+    `UPDATE cuspatlas.billing_payment_attempts SET outcome = $2, provider_receipt = $3, version = version + 1,
+       updated_at = now()
+     WHERE id = $1 AND outcome = 'pending' RETURNING id`,
+    [attemptId, outcome, receiptId],
+  );
+  if (rows.length === 0) throw conflict('duplicate_attempt', [{ kind: 'paymentAttempt', ref: attemptId }]);
+  return { outcome, receiptId };
+}
+
+/** True when this caller key already has a stored result (the executor will replay it). */
+export async function committedReplay(
+  tx: TenantTransaction,
+  operation: string,
+  key: string,
+): Promise<boolean> {
+  const { rows } = await tx.query<{ ok: number }>(
+    `SELECT 1 AS ok FROM cuspatlas.command_idempotency
+     WHERE tenant_id = cuspatlas.current_tenant_id() AND principal_id = cuspatlas.current_actor_id()
+       AND operation = $1 AND key_digest = $2 AND state IN ('committed', 'failed') AND expires_at > now()`,
+    [operation, idempotencyKeyDigest(key)],
+  );
+  return rows.length > 0;
 }
 
 /**
@@ -273,7 +312,11 @@ export function createPaymentOperations(
   }
 
   return {
-    /** recordPaymentIntent (B2 contract): records the fact, or the provider attempt and its outcome. */
+    /**
+     * recordPaymentIntent (B2 contract): records the fact, or the provider attempt and its outcome.
+     * A card capture runs in three steps: validate and commit a pending attempt, call the provider
+     * outside any transaction, then finalize the attempt and post the payment once (executeOnce).
+     */
     recordPayment(
       ctx: ActorContext,
       envelope: CommandEnvelope<unknown>,
@@ -284,105 +327,159 @@ export function createPaymentOperations(
         checkEnvelope(envelope, op);
         const p = envelope.payload;
         validate<PaymentRecord>(validatePaymentRecord, p);
-        return deps.withTenantTransaction(ctx, async (tx) => {
+        const card = p.method === 'card_synthetic';
+        const prepare = async (tx: TenantTransaction, patient: PatientRow, guarantor: PatientRow | null) => {
+          const settings = await loadSettings(tx);
+          const amount = inTenantCurrency(settings, p.amount);
+          if (card && p.instrumentRef === undefined) throw failed('instrument_required');
+          if (!card && p.instrumentRef !== undefined) throw failed('instrument_not_allowed');
+          if (card && p.externalRef !== undefined) throw failed('external_ref_not_allowed');
+          if (p.receivedAt !== undefined) {
+            const { rows } = await tx.query<{ future: boolean }>(
+              `SELECT ($1::timestamptz > now() + interval '5 minutes') AS future`,
+              [p.receivedAt],
+            );
+            if (rows[0]?.future === true) throw failed('received_in_future');
+          }
+          assertNotMerged(patient);
+          if (guarantor) {
+            assertNotMerged(guarantor);
+            await assertGuarantor(tx, patient, guarantor);
+          }
+          return amount;
+        };
+        const post = async (
+          tx: TenantTransaction,
+          o: {
+            patientId: string;
+            guarantorId: string | null;
+            amount: Money;
+            externalRef: string | null;
+            attemptId: string | null;
+          },
+        ) => {
+          const posted = await insertPayment(tx, {
+            patientId: o.patientId,
+            guarantorId: o.guarantorId,
+            method: p.method,
+            amount: o.amount,
+            externalRef: o.externalRef,
+            attemptId: o.attemptId,
+            receivedAt: p.receivedAt ?? null,
+          });
+          await recordCommand(
+            tx,
+            {
+              operation: op,
+              resourceType: PAYMENT_RESOURCE,
+              resourceRef: posted.paymentId,
+              resourceVersion: 1,
+            },
+            { changedFields: ['payment'] },
+          );
+          return {
+            data: {
+              outcome: 'confirmed' as const,
+              paymentRef: posted.paymentId,
+              attemptRef: o.attemptId,
+              entryRef: posted.entryRef,
+            },
+            version: 1,
+          };
+        };
+        if (!card) {
+          return deps.withTenantTransaction(ctx, async (tx) => {
+            const patient = await loadPatient(tx, p.patientRef, 'FOR SHARE');
+            const guarantor =
+              p.guarantorRef === undefined ? null : await loadPatient(tx, p.guarantorRef, 'FOR SHARE');
+            return execute<PaymentCommandData>(ctx, envelope, tx, async () => {
+              const amount = await prepare(tx, patient, guarantor);
+              if (p.externalRef !== undefined) {
+                const dup = await tx.query<{ id: string }>(
+                  'SELECT id FROM cuspatlas.billing_payments WHERE method = $1 AND external_ref = $2',
+                  [p.method, p.externalRef],
+                );
+                const id = dup.rows[0]?.id;
+                if (id) throw conflict('duplicate_receipt', [{ kind: 'billingPayment', ref: id }]);
+              }
+              return post(tx, {
+                patientId: patient.id,
+                guarantorId: guarantor?.id ?? null,
+                amount,
+                externalRef: p.externalRef ?? null,
+                attemptId: null,
+              });
+            });
+          });
+        }
+        // The provider key is stable for every retry of this caller request (same scope as the
+        // idempotency reservation); the pending attempt makes it single-use.
+        const providerKey = sha256Hex(
+          `billing-provider:${ctx.tenantId}:${ctx.actorId}:${op}:${idempotencyKeyDigest(envelope.idempotencyKey)}`,
+        );
+        const pending = await deps.withTenantTransaction(ctx, async (tx) => {
           const patient = await loadPatient(tx, p.patientRef, 'FOR SHARE');
           const guarantor =
             p.guarantorRef === undefined ? null : await loadPatient(tx, p.guarantorRef, 'FOR SHARE');
-          return execute<PaymentCommandData>(ctx, envelope, tx, async () => {
-            const settings = await loadSettings(tx);
-            const amount = inTenantCurrency(settings, p.amount);
-            const card = p.method === 'card_synthetic';
-            if (card && p.instrumentRef === undefined) throw failed('instrument_required');
-            if (!card && p.instrumentRef !== undefined) throw failed('instrument_not_allowed');
-            if (card && p.externalRef !== undefined) throw failed('external_ref_not_allowed');
-            if (p.receivedAt !== undefined) {
-              const { rows } = await tx.query<{ future: boolean }>(
-                `SELECT ($1::timestamptz > now() + interval '5 minutes') AS future`,
-                [p.receivedAt],
-              );
-              if (rows[0]?.future === true) throw failed('received_in_future');
-            }
-            assertNotMerged(patient);
-            if (guarantor) {
-              assertNotMerged(guarantor);
-              await assertGuarantor(tx, patient, guarantor);
-            }
-            if (!card && p.externalRef !== undefined) {
-              const dup = await tx.query<{ id: string }>(
-                'SELECT id FROM cuspatlas.billing_payments WHERE method = $1 AND external_ref = $2',
-                [p.method, p.externalRef],
-              );
-              const id = dup.rows[0]?.id;
-              if (id) throw conflict('duplicate_receipt', [{ kind: 'billingPayment', ref: id }]);
-            }
-            let attemptId: string | null = null;
-            let externalRef = p.externalRef ?? null;
-            if (card) {
-              // The provider key is stable for every retry of this caller request (same scope as the
-              // idempotency reservation), so a retry after a lost commit cannot charge twice.
-              const providerKey = sha256Hex(
-                `billing-provider:${ctx.tenantId}:${ctx.actorId}:${op}:${idempotencyKeyDigest(envelope.idempotencyKey)}`,
-              );
-              const captured = await captureWithProvider(tx, provider, {
-                patientId: patient.id,
-                guarantorId: guarantor?.id ?? null,
-                instrumentRef: p.instrumentRef as string,
-                providerKey,
-                amount,
-              });
-              const outcome = captured.outcome;
-              const confirmed = outcome === 'confirmed';
-              attemptId = captured.attemptId;
-              if (!confirmed) {
-                // Declined: a recorded fact, nothing collected. Unknown: an open reconciliation item,
-                // never posted as collected and never retried automatically.
-                await recordCommand(
-                  tx,
-                  {
-                    operation: op,
-                    resourceType: ATTEMPT_RESOURCE,
-                    resourceRef: attemptId,
-                    resourceVersion: 1,
-                  },
-                  { changedFields: ['attempt'] },
-                );
-                return {
-                  data: { outcome, paymentRef: null, attemptRef: attemptId, entryRef: null },
-                  version: 1,
-                };
-              }
-              externalRef = captured.receiptId as string;
-            }
-            const posted = await insertPayment(tx, {
-              patientId: patient.id,
-              guarantorId: guarantor?.id ?? null,
-              method: p.method,
-              amount,
-              externalRef,
-              attemptId,
-              receivedAt: p.receivedAt ?? null,
-            });
-            await recordCommand(
-              tx,
-              {
-                operation: op,
-                resourceType: PAYMENT_RESOURCE,
-                resourceRef: posted.paymentId,
-                resourceVersion: 1,
-              },
-              { changedFields: ['payment'] },
-            );
-            return {
-              data: {
-                outcome: 'confirmed',
-                paymentRef: posted.paymentId,
-                attemptRef: attemptId,
-                entryRef: posted.entryRef,
-              },
-              version: 1,
-            };
+          if (await committedReplay(tx, op, envelope.idempotencyKey)) return null;
+          const amount = await prepare(tx, patient, guarantor);
+          const attemptId = await insertPendingAttempt(tx, {
+            patientId: patient.id,
+            guarantorId: guarantor?.id ?? null,
+            instrumentRef: p.instrumentRef as string,
+            providerKey,
+            amount,
           });
+          return { attemptId, amount, patientId: patient.id, guarantorId: guarantor?.id ?? null };
         });
+        const answer =
+          pending === null
+            ? null
+            : await callProvider(provider, {
+                providerKey,
+                amount: pending.amount,
+                instrumentRef: p.instrumentRef as string,
+              });
+        return deps.withTenantTransaction(ctx, async (tx) =>
+          execute<PaymentCommandData>(ctx, envelope, tx, async () => {
+            // Only a stored result can be replayed; without one there is nothing safe to answer.
+            if (pending === null || answer === null)
+              throw new RefusalError({ code: 'conflict', retryable: true });
+            const final = await finalizeAttempt(tx, pending.attemptId, answer);
+            if (final.outcome !== 'confirmed') {
+              // Declined: a recorded fact, nothing collected. Unknown: an open reconciliation item,
+              // never posted as collected and never retried automatically.
+              await recordCommand(
+                tx,
+                {
+                  operation: op,
+                  resourceType: ATTEMPT_RESOURCE,
+                  resourceRef: pending.attemptId,
+                  resourceVersion: 2,
+                },
+                { changedFields: ['attempt'] },
+              );
+              return {
+                data: {
+                  outcome: final.outcome,
+                  paymentRef: null,
+                  attemptRef: pending.attemptId,
+                  entryRef: null,
+                },
+                version: 2,
+              };
+            }
+            // Money follows the merge set: a capture whose payer was merged meanwhile goes to the survivor.
+            const root = (await mergeSet(tx, pending.patientId)).root;
+            return post(tx, {
+              patientId: root,
+              guarantorId: pending.guarantorId,
+              amount: pending.amount,
+              externalRef: final.receiptId,
+              attemptId: pending.attemptId,
+            });
+          }),
+        );
       });
     },
 
@@ -518,12 +615,13 @@ export function createPaymentOperations(
           const own = holders.find((x) => x.patientRef === row.patient_id)?.amount.minor ?? 0;
           if (own < amount.minor) throw conflict('refund_exceeds_funds');
           const unsettled = (await cashOf(tx, row.id, row.currency, 'undeposited_funds')).minor;
-          const fromUnsettled = Math.min(unsettled, amount.minor);
-          const fromSettled = amount.minor - fromUnsettled;
+          const fromUnsettled =
+            BigInt(unsettled) < BigInt(amount.minor) ? BigInt(unsettled) : BigInt(amount.minor);
+          const fromSettled = BigInt(amount.minor) - fromUnsettled;
           const lines: LineInput[] = [
             { account: 'unapplied_credit', amount, patientId: row.patient_id, paymentId: row.id },
           ];
-          if (fromUnsettled > 0) {
+          if (fromUnsettled > 0n) {
             lines.push({
               account: 'undeposited_funds',
               amount: moneyFromMinorText(row.currency, String(-fromUnsettled)),
@@ -531,7 +629,7 @@ export function createPaymentOperations(
               paymentId: row.id,
             });
           }
-          if (fromSettled > 0) {
+          if (fromSettled > 0n) {
             lines.push({
               account: 'settled_cash',
               amount: moneyFromMinorText(row.currency, String(-fromSettled)),
@@ -646,7 +744,7 @@ export function createPaymentOperations(
             { ...envelope, payload: { attemptRef, ...(p as object) } },
             tx,
             async () => {
-              if (a.outcome !== 'unknown') throw conflict('not_reconcilable');
+              if (a.outcome !== 'unknown' && a.outcome !== 'pending') throw conflict('not_reconcilable');
               if (a.resolution !== null) throw conflict('already_resolved');
               const answer = await provider.lookup({
                 providerKey: a.provider_key,
@@ -661,10 +759,10 @@ export function createPaymentOperations(
                 });
               }
               const { rows: upd } = await tx.query<{ version: number }>(
-                `UPDATE cuspatlas.billing_payment_attempts SET resolution = $1, resolved_at = now(),
+                `UPDATE cuspatlas.billing_payment_attempts SET outcome = 'unknown', resolution = $1, resolved_at = now(),
                    resolved_by = cuspatlas.current_actor_id(), provider_receipt = $2, version = version + 1,
                    updated_at = now()
-                 WHERE id = $3 AND resolution IS NULL RETURNING version`,
+                 WHERE id = $3 AND resolution IS NULL AND outcome IN ('unknown', 'pending') RETURNING version`,
                 [captured ? 'captured' : 'not_captured', captured ? answer.receiptId : null, a.id],
               );
               const version = upd[0]?.version;
@@ -672,8 +770,10 @@ export function createPaymentOperations(
               let paymentRef: string | null = null;
               let entryRef: string | null = null;
               if (captured) {
+                // A payer merged since the attempt: the captured money belongs to the survivor's account.
+                const root = (await mergeSet(tx, a.patient_id)).root;
                 const posted = await insertPayment(tx, {
-                  patientId: a.patient_id,
+                  patientId: root,
                   guarantorId: a.guarantor_id,
                   method: 'card_synthetic',
                   amount: moneyFromMinorText(a.currency, a.amount),

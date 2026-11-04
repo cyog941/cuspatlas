@@ -10,6 +10,9 @@ import { describe, expect, it } from 'vitest';
 const ROOT = resolve(__dirname, '../../../..');
 const TS_FORBIDDEN =
   /\bparseFloat\b|\.toFixed\s*\(|\.toPrecision\s*\(|\bMath\.(round|floor|ceil|trunc|fround)\b|\bNumber\.parseFloat\b|\bFloat(32|64)Array\b/;
+/** Number() and Math on a money path (review nit): BigInt helpers only; the one sanctioned conversion is money.ts. */
+const TS_NUMERIC = /\bNumber\s*\(|\bMath\./;
+const NUMERIC_ALLOWED = new Set(['packages/contracts/src/money.ts']);
 const SQL_FORBIDDEN = /\b(double\s+precision|real|float4|float8|float|money)\b(?!_)/i;
 
 const stripTs = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/.*$/gm, '$1');
@@ -49,6 +52,15 @@ describe('no floating-point arithmetic on money paths', () => {
       const lines = stripTs(readFileSync(join(ROOT, f), 'utf8')).split('\n');
       lines.forEach((line, i) => {
         expect([f, i + 1, TS_FORBIDDEN.test(line)]).toStrictEqual([f, i + 1, false]);
+      });
+    }
+  });
+
+  it('no billing TypeScript converts with Number() or computes with Math (BigInt helpers only)', () => {
+    for (const f of tsSources().filter((x) => !NUMERIC_ALLOWED.has(x))) {
+      const lines = stripTs(readFileSync(join(ROOT, f), 'utf8')).split('\n');
+      lines.forEach((line, i) => {
+        expect([f, i + 1, TS_NUMERIC.test(line)]).toStrictEqual([f, i + 1, false]);
       });
     }
   });

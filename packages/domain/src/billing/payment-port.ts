@@ -33,7 +33,9 @@ export interface PaymentProviderPort {
  * chosen by the synthetic instrument reference so REST, MCP and tests observe the same outcomes:
  * `syn-card-decline...` declines; `syn-card-timeout-captured...` answers unknown, then confirmed on
  * lookup; `syn-card-timeout-absent...` unknown, then declined (never captured); `syn-card-timeout-
- * pending...` unknown on both; anything else confirms. Not a model of any real processor.
+ * pending...` unknown on both; `syn-card-throw...` throws on capture (lookup: `-captured` confirms,
+ * `-pending` stays unknown, anything else declined); anything else confirms. Not a model of any
+ * real processor.
  */
 export function createSyntheticPaymentProvider(): PaymentProviderPort {
   const receipt = (key: string) =>
@@ -44,10 +46,15 @@ export function createSyntheticPaymentProvider(): PaymentProviderPort {
       return { outcome: 'confirmed', receiptId: receipt(key) };
     if (instrumentRef.startsWith('syn-card-timeout-absent')) return { outcome: 'declined' };
     if (instrumentRef.startsWith('syn-card-timeout-pending')) return { outcome: 'unknown' };
+    if (instrumentRef.startsWith('syn-card-throw-captured'))
+      return { outcome: 'confirmed', receiptId: receipt(key) };
+    if (instrumentRef.startsWith('syn-card-throw-pending')) return { outcome: 'unknown' };
+    if (instrumentRef.startsWith('syn-card-throw')) return { outcome: 'declined' };
     return { outcome: 'confirmed', receiptId: receipt(key) };
   };
   return {
     async capture(request) {
+      if (request.instrumentRef.startsWith('syn-card-throw')) throw new Error('synthetic provider failure');
       if (request.instrumentRef.startsWith('syn-card-timeout')) return { outcome: 'unknown' };
       return settled(request.instrumentRef, request.providerKey);
     },

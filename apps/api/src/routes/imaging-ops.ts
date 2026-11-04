@@ -273,6 +273,98 @@ export const IMAGING_OPS: readonly ImagingOp[] = [
       'Reference read for consumers (C15 encounters, B attachment packages): object state, media type, length, SHA-256 and the current association; matchesExpected is false when it no longer matches the patient the consumer expected.',
     invoke: (svc, actor, i) => data(svc.resolveImageRef(actor, param(i, 'imageRef'), i.body)),
   },
+  // I4 mounts, annotations and derived images (separate records; the original never changes).
+  {
+    method: 'post',
+    path: '/v1/imaging/mounts',
+    operationId: 'imaging.mounts.create',
+    protected: true,
+    requestBody: I('MountCreate'),
+    success: { status: '201', schema: I('MountCommandResult') },
+    refusals: COMMAND,
+    tool: 'imaging_mounts_create',
+    description:
+      'Create a mount (an ordered group of available objects of one patient) on a configured template; invalid slots, unknown templates and mixed or missing associations refuse the whole mount.',
+    invoke: (svc, actor, i) => svc.createMount(actor, env('imaging.mounts.create', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/imaging/mounts/{mountRef}/revise',
+    operationId: 'imaging.mounts.revise',
+    protected: true,
+    requestBody: I('MountRevise'),
+    success: { status: '200', schema: I('MountCommandResult') },
+    refusals: COMMAND,
+    tool: 'imaging_mounts_revise',
+    description: 'Revise a mount: a new version with the given slots; every earlier version stays readable.',
+    invoke: (svc, actor, i) => svc.reviseMount(actor, param(i, 'mountRef'), env('imaging.mounts.revise', i)),
+  },
+  {
+    method: 'get',
+    path: '/v1/imaging/mounts/{mountRef}',
+    operationId: 'imaging.mounts.read',
+    protected: true,
+    success: { status: '200', schema: I('MountRead') },
+    refusals: ['400', '401', '403', '404', '503'],
+    query: 'MountQuery',
+    tool: 'imaging_mounts_get',
+    description:
+      'Read a mount version (current by default): slots with object state (present, unavailable, missing after deletion), digest and current patient.',
+    invoke: (svc, actor, i) => data(svc.readMount(actor, param(i, 'mountRef'), i.body)),
+  },
+  {
+    method: 'post',
+    path: `${OBJ}/annotations`,
+    operationId: 'imaging.annotations.create',
+    protected: true,
+    requestBody: I('AnnotationCreate'),
+    success: { status: '201', schema: I('AnnotationCommandResult') },
+    refusals: COMMAND,
+    tool: 'imaging_annotations_create',
+    description:
+      'Add an annotation (normalized geometry, optional label) as its own record; never burned into the object. No diagnostic interpretation or measurement claim.',
+    invoke: (svc, actor, i) =>
+      svc.createAnnotation(actor, param(i, 'objectRef'), env('imaging.annotations.create', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/imaging/annotations/{annotationRef}/supersede',
+    operationId: 'imaging.annotations.supersede',
+    protected: true,
+    requestBody: I('AnnotationSupersede'),
+    success: { status: '201', schema: I('AnnotationCommandResult') },
+    refusals: COMMAND,
+    tool: 'imaging_annotations_supersede',
+    description:
+      'Supersede an annotation with a reason: a new version with the new geometry, or a withdrawal; earlier versions stay readable.',
+    invoke: (svc, actor, i) =>
+      svc.supersedeAnnotation(actor, param(i, 'annotationRef'), env('imaging.annotations.supersede', i)),
+  },
+  {
+    method: 'get',
+    path: `${OBJ}/annotations`,
+    operationId: 'imaging.annotations.list',
+    protected: true,
+    success: { status: '200', schema: I('AnnotationList') },
+    refusals: READ,
+    tool: 'imaging_annotations_list',
+    description: 'Every annotation version of an object (current, superseded and withdrawn).',
+    invoke: (svc, actor, i) => data(svc.listAnnotations(actor, param(i, 'objectRef'))),
+  },
+  {
+    method: 'post',
+    path: `${OBJ}/derived`,
+    operationId: 'imaging.derived.create',
+    protected: true,
+    requestBody: I('DerivedCreate'),
+    success: { status: '201', schema: I('DerivedCommandResult') },
+    refusals: COMMAND,
+    tool: 'imaging_derived_create',
+    description:
+      'Derive a new object (crop, quarter-turn rotation or inversion) from an available PNG original. The original is never modified; the derived object records its source digest, transform and author and is never an original. Same transform again returns the existing derivation.',
+    invoke: (svc, actor, i) =>
+      svc.createDerivedImage(actor, param(i, 'objectRef'), env('imaging.derived.create', i)),
+  },
 ];
 
 /** The route contracts only (spread into ROUTES). */

@@ -166,6 +166,14 @@ export const ACTION_POLICIES = {
   'imaging.associations.history': { scope: 'imaging.read', principals: ['human', 'service'] },
   'imaging.associations.unmatched': { scope: 'imaging.read', principals: ['human', 'service'] },
   'imaging.imageRefs.resolve': { scope: 'imaging.read', principals: ['human', 'service'] },
+  // I4 mounts, annotations and derived images: separate records, never edits of an original.
+  'imaging.mounts.create': { scope: 'imaging.write', principals: ['human', 'service'] },
+  'imaging.mounts.revise': { scope: 'imaging.write', principals: ['human', 'service'] },
+  'imaging.mounts.read': { scope: 'imaging.read', principals: ['human', 'service'] },
+  'imaging.annotations.create': { scope: 'imaging.write', principals: ['human', 'service'] },
+  'imaging.annotations.supersede': { scope: 'imaging.write', principals: ['human', 'service'] },
+  'imaging.annotations.list': { scope: 'imaging.read', principals: ['human', 'service'] },
+  'imaging.derived.create': { scope: 'imaging.write', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

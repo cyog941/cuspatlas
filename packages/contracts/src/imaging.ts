@@ -224,3 +224,61 @@ export interface ImageRefQuery {
 export const validateAssociationConfirm = def('AssociationConfirm');
 export const validateAssociationCorrect = def('AssociationCorrect');
 export const validateImageRefQuery = def('ImageRefQuery');
+
+// I4 mounts, annotations and derived images.
+export type MountTemplate = 'pa-1' | 'pano-1' | 'bitewing-2' | 'bitewing-4' | 'photo-8' | 'fmx-18';
+export interface MountSlot {
+  readonly slot: number;
+  readonly objectRef: string;
+}
+export interface MountCreate {
+  readonly template: MountTemplate;
+  readonly slots: readonly MountSlot[];
+}
+export interface MountRevise {
+  readonly expectedVersion: number;
+  readonly slots: readonly MountSlot[];
+}
+export interface MountQuery {
+  readonly version?: string;
+}
+export type Geometry =
+  | { readonly kind: 'point'; readonly x: number; readonly y: number }
+  | {
+      readonly kind: 'rect';
+      readonly x: number;
+      readonly y: number;
+      readonly width: number;
+      readonly height: number;
+    }
+  | { readonly kind: 'polyline'; readonly points: readonly { readonly x: number; readonly y: number }[] };
+export interface AnnotationCreate {
+  readonly kind: 'marker' | 'region' | 'line' | 'label';
+  readonly geometry: Geometry;
+  readonly label?: string;
+}
+export interface AnnotationSupersede {
+  readonly expectedVersion: number;
+  readonly reasonCode: string;
+  readonly geometry?: Geometry;
+  readonly label?: string;
+}
+export type Transform =
+  | {
+      readonly kind: 'crop';
+      readonly x: number;
+      readonly y: number;
+      readonly width: number;
+      readonly height: number;
+    }
+  | { readonly kind: 'rotate'; readonly degrees: 90 | 180 | 270 }
+  | { readonly kind: 'invert' };
+export interface DerivedCreate {
+  readonly transform: Transform;
+}
+export const validateMountCreate = def('MountCreate');
+export const validateMountRevise = def('MountRevise');
+export const validateMountQuery = def('MountQuery');
+export const validateAnnotationCreate = def('AnnotationCreate');
+export const validateAnnotationSupersede = def('AnnotationSupersede');
+export const validateDerivedCreate = def('DerivedCreate');

@@ -153,6 +153,13 @@ const TOOL_NAMES = [
   'imaging_associations_history',
   'imaging_associations_unmatched',
   'imaging_image_refs_resolve',
+  'imaging_mounts_create',
+  'imaging_mounts_revise',
+  'imaging_mounts_get',
+  'imaging_annotations_create',
+  'imaging_annotations_supersede',
+  'imaging_annotations_list',
+  'imaging_derived_create',
 ].sort();
 
 let db: TestDatabase;

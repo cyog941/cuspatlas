@@ -251,6 +251,115 @@ export const ROWS: ImagingHarnessRow[] = [
     rest: (x) => ({ method: 'GET', url: `/v1/imaging/image-refs/${x.imageRef}`, keyed: false, status: 200 }),
     mcpArgs: (x) => ({ imageRef: x.imageRef }),
   },
+  // I4 mounts, annotations and derived images.
+  {
+    operation: 'imaging.mounts.create',
+    crossTenant: 'not_found',
+    downgradedTo: 'imagingReadOnly',
+    rest: (x) => ({
+      method: 'POST',
+      url: '/v1/imaging/mounts',
+      body: { template: 'pa-1', slots: [{ slot: 1, objectRef: x.associated }] },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (x) => ({
+      template: 'pa-1',
+      slots: [{ slot: 1, objectRef: x.associated }],
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'imaging.mounts.revise',
+    crossTenant: 'not_found',
+    downgradedTo: 'imagingReadOnly',
+    rest: (x) => ({
+      method: 'POST',
+      url: `/v1/imaging/mounts/${x.mount}/revise`,
+      body: { expectedVersion: 1, slots: [{ slot: 2, objectRef: x.associated }] },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (x) => ({
+      mountRef: x.mount,
+      expectedVersion: 1,
+      slots: [{ slot: 2, objectRef: x.associated }],
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'imaging.mounts.read',
+    crossTenant: 'not_found',
+    downgradedTo: 'noImagingScopes',
+    rest: (x) => ({ method: 'GET', url: `/v1/imaging/mounts/${x.mount}`, keyed: false, status: 200 }),
+    mcpArgs: (x) => ({ mountRef: x.mount }),
+  },
+  {
+    operation: 'imaging.annotations.create',
+    crossTenant: 'not_found',
+    downgradedTo: 'imagingReadOnly',
+    rest: (x) => ({
+      method: 'POST',
+      url: `/v1/imaging/objects/${x.associated}/annotations`,
+      body: { kind: 'marker', geometry: { kind: 'point', x: 0.5, y: 0.5 }, label: `harness ${MARKER}` },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (x) => ({
+      objectRef: x.associated,
+      kind: 'marker',
+      geometry: { kind: 'point', x: 0.5, y: 0.5 },
+      label: `harness ${MARKER}`,
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'imaging.annotations.supersede',
+    crossTenant: 'not_found',
+    downgradedTo: 'imagingReadOnly',
+    rest: (x) => ({
+      method: 'POST',
+      url: `/v1/imaging/annotations/${x.annotation}/supersede`,
+      body: { expectedVersion: 1, reasonCode: 'not_needed' },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (x) => ({
+      annotationRef: x.annotation,
+      expectedVersion: 1,
+      reasonCode: 'not_needed',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'imaging.annotations.list',
+    crossTenant: 'not_found',
+    downgradedTo: 'noImagingScopes',
+    rest: (x) => ({
+      method: 'GET',
+      url: `/v1/imaging/objects/${x.associated}/annotations`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (x) => ({ objectRef: x.associated }),
+  },
+  {
+    operation: 'imaging.derived.create',
+    crossTenant: 'not_found',
+    downgradedTo: 'imagingReadOnly',
+    rest: (x) => ({
+      method: 'POST',
+      url: `/v1/imaging/objects/${x.associated}/derived`,
+      body: { transform: { kind: 'invert' } },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (x) => ({
+      objectRef: x.associated,
+      transform: { kind: 'invert' },
+      idempotencyKey: randomUUID(),
+    }),
+  },
 ];
 
 beforeAll(async () => {
@@ -299,6 +408,18 @@ beforeAll(async () => {
   );
   expect(c.status).toBe(201);
   const assoc = c.json.data as { decisionRef: string; imageRef: string };
+  const post = (url: string, body: unknown) =>
+    s.inject('owner', 'POST', url, body, { 'idempotency-key': randomUUID() });
+  const mnt = await post('/v1/imaging/mounts', {
+    template: 'bitewing-2',
+    slots: [{ slot: 1, objectRef: associated }],
+  });
+  expect(mnt.status).toBe(201);
+  const ann = await post(`/v1/imaging/objects/${associated}/annotations`, {
+    kind: 'marker',
+    geometry: { kind: 'point', x: 0.2, y: 0.2 },
+  });
+  expect(ann.status).toBe(201);
   f = {
     object,
     grant: grant.grantRef,
@@ -310,6 +431,8 @@ beforeAll(async () => {
     associated,
     decision: assoc.decisionRef,
     imageRef: assoc.imageRef,
+    mount: (mnt.json.data as { mountRef: string }).mountRef,
+    annotation: (ann.json.data as { annotationRef: string }).annotationRef,
   };
 });
 afterAll(async () => {

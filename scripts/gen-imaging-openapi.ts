@@ -16,6 +16,8 @@ const PARAM_DEF: Record<string, string> = {
   ingressRef: 'IngressRef',
   decisionRef: 'DecisionRef',
   imageRef: 'ImageRef',
+  mountRef: 'MountRef',
+  annotationRef: 'AnnotationRef',
 };
 const defs = imagingSchema.$defs as Record<string, { properties?: Record<string, { $ref?: string }> }>;
 

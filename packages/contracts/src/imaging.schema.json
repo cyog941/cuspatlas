@@ -258,6 +258,56 @@
         },
         "association": {
           "$ref": "#/$defs/Association"
+        },
+        "derivation": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "derivationRef",
+                "sourceObjectRef",
+                "sourceDigestSha256",
+                "transform",
+                "authorRef",
+                "derivedAt"
+              ],
+              "properties": {
+                "derivationRef": {
+                  "$ref": "#/$defs/EntityRef"
+                },
+                "sourceObjectRef": {
+                  "$ref": "#/$defs/ObjectRef"
+                },
+                "sourceDigestSha256": {
+                  "$ref": "#/$defs/Sha256"
+                },
+                "transform": {
+                  "$ref": "#/$defs/Transform"
+                },
+                "authorRef": {
+                  "$ref": "#/$defs/EntityRef"
+                },
+                "derivedAt": {
+                  "$ref": "#/$defs/Instant"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "derivedObjects": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/ObjectRef"
+          }
+        },
+        "annotationCount": {
+          "type": "integer",
+          "minimum": 0
         }
       }
     },
@@ -1334,6 +1384,576 @@
             }
           },
           "description": "Reference read consumed by C15 and B attachment packages: a hash-bound image handle and its current association."
+        }
+      }
+    },
+    "MountRef": {
+      "$ref": "#/$defs/EntityRef",
+      "description": "Opaque mount reference."
+    },
+    "AnnotationRef": {
+      "$ref": "#/$defs/EntityRef",
+      "description": "Opaque annotation reference (one lineage of versions)."
+    },
+    "MountTemplate": {
+      "enum": ["pa-1", "pano-1", "bitewing-2", "bitewing-4", "photo-8", "fmx-18"],
+      "description": "Configured mount templates (imaging-mount-templates.pending-approval.1); the number is the slot count."
+    },
+    "MountSlot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["slot", "objectRef"],
+      "properties": {
+        "slot": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
+        },
+        "objectRef": {
+          "$ref": "#/$defs/ObjectRef"
+        }
+      }
+    },
+    "MountCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["template", "slots"],
+      "properties": {
+        "template": {
+          "$ref": "#/$defs/MountTemplate"
+        },
+        "slots": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 18,
+          "items": {
+            "$ref": "#/$defs/MountSlot"
+          }
+        }
+      }
+    },
+    "MountRevise": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "slots"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "slots": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 18,
+          "items": {
+            "$ref": "#/$defs/MountSlot"
+          }
+        }
+      }
+    },
+    "MountCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mountRef", "version", "template", "slotCount"],
+          "properties": {
+            "mountRef": {
+              "$ref": "#/$defs/MountRef"
+            },
+            "version": {
+              "$ref": "#/$defs/Version"
+            },
+            "template": {
+              "$ref": "#/$defs/MountTemplate"
+            },
+            "slotCount": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "MountQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "version": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,8}$"
+        }
+      }
+    },
+    "MountRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mountRef",
+            "template",
+            "version",
+            "currentVersion",
+            "patientRef",
+            "mixedAssociation",
+            "slots",
+            "createdAt",
+            "createdBy"
+          ],
+          "properties": {
+            "mountRef": {
+              "$ref": "#/$defs/MountRef"
+            },
+            "template": {
+              "$ref": "#/$defs/MountTemplate"
+            },
+            "version": {
+              "$ref": "#/$defs/Version"
+            },
+            "currentVersion": {
+              "$ref": "#/$defs/Version"
+            },
+            "patientRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/PatientRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "mixedAssociation": {
+              "type": "boolean",
+              "description": "True when slot objects are now associated with different patients (or none)."
+            },
+            "slots": {
+              "type": "array",
+              "maxItems": 18,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["slot", "objectRef", "state", "patientRef", "digestSha256"],
+                "properties": {
+                  "slot": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "objectRef": {
+                    "$ref": "#/$defs/ObjectRef"
+                  },
+                  "state": {
+                    "enum": ["present", "unavailable", "missing"],
+                    "description": "missing: the object was deleted (I8); the mount version stays readable."
+                  },
+                  "patientRef": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/PatientRef"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "digestSha256": {
+                    "$ref": "#/$defs/Sha256"
+                  }
+                }
+              }
+            },
+            "createdAt": {
+              "$ref": "#/$defs/Instant"
+            },
+            "createdBy": {
+              "$ref": "#/$defs/EntityRef"
+            }
+          }
+        }
+      }
+    },
+    "AnnotationKind": {
+      "enum": ["marker", "region", "line", "label"]
+    },
+    "Geometry": {
+      "description": "Normalized coordinates (0..1) over the object; never burned into the original.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "x", "y"],
+          "properties": {
+            "kind": {
+              "const": "point"
+            },
+            "x": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "y": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "x", "y", "width", "height"],
+          "properties": {
+            "kind": {
+              "const": "rect"
+            },
+            "x": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "y": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "width": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "height": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "points"],
+          "properties": {
+            "kind": {
+              "const": "polyline"
+            },
+            "points": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 50,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["x", "y"],
+                "properties": {
+                  "x": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "y": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "AnnotationLabel": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "AnnotationCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "geometry"],
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/AnnotationKind"
+        },
+        "geometry": {
+          "$ref": "#/$defs/Geometry"
+        },
+        "label": {
+          "$ref": "#/$defs/AnnotationLabel"
+        }
+      }
+    },
+    "AnnotationSupersede": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "reasonCode"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "geometry": {
+          "$ref": "#/$defs/Geometry"
+        },
+        "label": {
+          "$ref": "#/$defs/AnnotationLabel"
+        }
+      },
+      "description": "With a geometry: a new version replaces the current one. Without: the annotation is withdrawn (a new version in state withdrawn)."
+    },
+    "AnnotationCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["annotationRef", "objectRef", "version", "state"],
+          "properties": {
+            "annotationRef": {
+              "$ref": "#/$defs/AnnotationRef"
+            },
+            "objectRef": {
+              "$ref": "#/$defs/ObjectRef"
+            },
+            "version": {
+              "$ref": "#/$defs/Version"
+            },
+            "state": {
+              "enum": ["current", "withdrawn"]
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "Annotation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "annotationRef",
+        "objectRef",
+        "version",
+        "state",
+        "kind",
+        "geometry",
+        "label",
+        "reasonCode",
+        "authorRef",
+        "createdAt"
+      ],
+      "properties": {
+        "annotationRef": {
+          "$ref": "#/$defs/AnnotationRef"
+        },
+        "objectRef": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "state": {
+          "enum": ["current", "superseded", "withdrawn"]
+        },
+        "kind": {
+          "$ref": "#/$defs/AnnotationKind"
+        },
+        "geometry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Geometry"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "label": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AnnotationLabel"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reasonCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "authorRef": {
+          "$ref": "#/$defs/EntityRef"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "AnnotationList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["objectRef", "annotations"],
+          "properties": {
+            "objectRef": {
+              "$ref": "#/$defs/ObjectRef"
+            },
+            "annotations": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "$ref": "#/$defs/Annotation"
+              }
+            }
+          }
+        }
+      }
+    },
+    "Transform": {
+      "description": "Server-side transform producing a new derived object; the source is never modified. PNG sources only in this batch.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "x", "y", "width", "height"],
+          "properties": {
+            "kind": {
+              "const": "crop"
+            },
+            "x": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 8192
+            },
+            "y": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 8192
+            },
+            "width": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 8192
+            },
+            "height": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 8192
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "degrees"],
+          "properties": {
+            "kind": {
+              "const": "rotate"
+            },
+            "degrees": {
+              "enum": [90, 180, 270]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": {
+            "kind": {
+              "const": "invert"
+            }
+          }
+        }
+      ]
+    },
+    "DerivedCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["transform"],
+      "properties": {
+        "transform": {
+          "$ref": "#/$defs/Transform"
+        }
+      }
+    },
+    "DerivedCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["objectRef", "sourceObjectRef", "digestSha256", "created", "derivationRef"],
+          "properties": {
+            "objectRef": {
+              "$ref": "#/$defs/ObjectRef"
+            },
+            "sourceObjectRef": {
+              "$ref": "#/$defs/ObjectRef"
+            },
+            "digestSha256": {
+              "$ref": "#/$defs/Sha256"
+            },
+            "created": {
+              "type": "boolean"
+            },
+            "derivationRef": {
+              "$ref": "#/$defs/EntityRef"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
         }
       }
     }

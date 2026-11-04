@@ -151,6 +151,7 @@ export const ACTION_POLICIES = {
   'rcm.claims.replace': { scope: 'billing.write', principals: ['human'] },
   'rcm.claims.submit': { scope: 'billing.write', principals: ['human', 'service'] },
   'rcm.claims.poll': { scope: 'billing.write', principals: ['human', 'service'] },
+  'rcm.claims.prepareSecondary': { scope: 'billing.write', principals: ['human', 'service'] },
   'rcm.claims.read': { scope: 'openClaims.read', principals: ['human', 'service'] },
   'rcm.claims.worklist': { scope: 'openClaims.read', principals: ['human', 'service'] },
   'rcm.appeals.draft': { scope: 'billing.write', principals: ['human'] },

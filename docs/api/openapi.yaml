@@ -5981,6 +5981,48 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/rcm/claims/{claimRef}/secondary:
+    post:
+      operationId: rcm.claims.prepareSecondary
+      description: >-
+        B8 (CL-11): prepare the secondary claim of a primary claim from its paid adjudication and posted
+        remittance (COB evidence by reference). It claims only the patient responsibility the primary left,
+        which stays off the patient while unresolved; its own lifecycle reuses B6. One per primary; tertiary
+        is refused.
+      parameters:
+        - name: claimRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/SecondaryClaimPrepare'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   /v1/rcm/remittances:
     post:
       operationId: rcm.remittances.ingest

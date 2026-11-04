@@ -32,8 +32,7 @@ import {
   notFound,
   validate,
 } from './base';
-import { CHARGE_RESOURCE } from './charges';
-import { bumpAggregates, lockAggregates } from './entries';
+import { lockAggregates } from './entries';
 import { resolveAllowance } from './fees';
 import { type LineInput, postEntry, SignViolation } from './journal';
 

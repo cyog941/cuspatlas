@@ -3764,7 +3764,9 @@
         "submissions",
         "events",
         "appeals",
-        "version"
+        "version",
+        "rank",
+        "primaryClaimRef"
       ],
       "properties": {
         "claimRef": {
@@ -3982,6 +3984,23 @@
         },
         "version": {
           "$ref": "#/$defs/Version"
+        },
+        "rank": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3,
+          "description": "Benefit rank of the claim coverage (1 primary, 2 secondary)."
+        },
+        "primaryClaimRef": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Uuid"
+            }
+          ],
+          "description": "For a secondary claim, the primary claim whose adjudication it relies on."
         }
       }
     },
@@ -4672,6 +4691,17 @@
         },
         "replayed": {
           "type": "boolean"
+        }
+      }
+    },
+    "SecondaryClaimPrepare": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "B8: prepare the secondary claim of a primary claim for a secondary-rank coverage of the patient. Needs the primary paid adjudication and posted remittance (COB evidence); claims only the patient responsibility the primary left.",
+      "required": ["coverageRef"],
+      "properties": {
+        "coverageRef": {
+          "$ref": "#/$defs/Uuid"
         }
       }
     }

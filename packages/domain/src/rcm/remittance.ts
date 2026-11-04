@@ -53,6 +53,12 @@ export interface MatchRow extends Record<string, unknown> {
   billed: string;
   allowance: string | null;
   insurer_open: string;
+  /** B8: the claim is itself a secondary claim (its PR goes to the patient; tertiary unsupported). */
+  is_secondary: boolean;
+  claim_rank: number;
+  /** B8 / CL-11: a secondary-rank coverage of the account effective on the date of service. */
+  secondary_coverage_id: string | null;
+  secondary_payer_ref: string | null;
 }
 
 export async function loadRemittanceForUpdate(tx: TenantTransaction, ref: string) {
@@ -95,10 +101,22 @@ export async function matchClaimLine(
        l.allowance_minor::text AS allowance,
        (SELECT coalesce(sum(j.amount_minor), 0) FROM cuspatlas.billing_journal_lines j
         WHERE j.charge_id = l.charge_id AND j.account = 'insurer_receivable' AND j.coverage_id = c.coverage_id)::text
-         AS insurer_open
+         AS insurer_open,
+       EXISTS (SELECT 1 FROM cuspatlas.rcm_secondary_claims x WHERE x.claim_id = c.id) AS is_secondary,
+       (SELECT v.benefit_rank::int FROM cuspatlas.rcm_coverage_versions v WHERE v.coverage_id = c.coverage_id
+        ORDER BY v.coverage_version DESC LIMIT 1) AS claim_rank,
+       sec.id AS secondary_coverage_id, sec.payer_ref AS secondary_payer_ref
      FROM cuspatlas.rcm_claims c
      JOIN cuspatlas.rcm_claim_submissions s ON s.claim_id = c.id AND s.outcome = 'transmitted'
      JOIN cuspatlas.rcm_claim_lines l ON l.version_id = s.version_id AND l.line_no = $2
+     LEFT JOIN LATERAL (
+       SELECT sc.id, sc.payer_ref FROM cuspatlas.rcm_coverages sc
+       JOIN LATERAL (SELECT * FROM cuspatlas.rcm_coverage_versions x WHERE x.coverage_id = sc.id
+                     ORDER BY x.coverage_version DESC LIMIT 1) v ON true
+       WHERE sc.patient_id IN (SELECT p.id FROM cuspatlas.patients p WHERE p.id = c.patient_id OR p.merged_into = c.patient_id)
+         AND v.benefit_rank = 2 AND v.effective_from <= l.date_of_service
+         AND (v.effective_until IS NULL OR v.effective_until >= l.date_of_service)
+       ORDER BY v.effective_from, sc.created_at, sc.id LIMIT 1) sec ON true
      WHERE c.id = $1`,
     [claimRef, lineNo],
   );
@@ -177,7 +195,30 @@ export async function postRemittanceLine(
       }),
     );
   }
-  if (pr > 0n) {
+  // CL-11: a primary claim's patient responsibility is unresolved insurer responsibility while the
+  // account has a secondary coverage on the date of service: it moves to that coverage, not the patient.
+  if (pr > 0n && !m.is_secondary && m.claim_rank === 1 && m.secondary_coverage_id && m.secondary_payer_ref) {
+    entries.push(
+      await postEntry(tx, {
+        kind: 'responsibilityTransfer',
+        currency,
+        chargeId: m.charge_id,
+        remittanceId: remId,
+        reasonCode: 'remittance_secondary_pending',
+        lines: [
+          {
+            account: 'insurer_receivable',
+            amount: amt(pr),
+            patientId: m.patient_id,
+            chargeId: m.charge_id,
+            payerRef: m.secondary_payer_ref,
+            coverageId: m.secondary_coverage_id,
+          },
+          insurer(pr),
+        ],
+      }),
+    );
+  } else if (pr > 0n) {
     entries.push(
       await postEntry(tx, {
         kind: 'responsibilityTransfer',

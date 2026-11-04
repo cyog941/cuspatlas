@@ -205,6 +205,7 @@ describe('runtime database role', () => {
       'rcm_remittance_reversals',
       'rcm_remittance_settlements',
       'rcm_remittances',
+      'rcm_secondary_claims',
       'rcm_submission_policies',
       'rcm_submission_policy_revocations',
       'rcm_workflow_policies',

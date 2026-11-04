@@ -241,3 +241,9 @@ export interface WorkflowPolicyCommandData {
 export const validateRemittanceLineResolve = billingDef('RemittanceLineResolve');
 export const validateRemittanceResolutionDecide = billingDef('RemittanceResolutionDecide');
 export const validateWorkflowPolicyPublish = billingDef('WorkflowPolicyPublish');
+
+// ---- B8 secondary claims (fake clearinghouse only).
+export interface SecondaryClaimPrepare {
+  readonly coverageRef: string;
+}
+export const validateSecondaryClaimPrepare = billingDef('SecondaryClaimPrepare');

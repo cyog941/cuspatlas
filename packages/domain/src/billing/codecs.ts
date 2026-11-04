@@ -232,6 +232,7 @@ export const BILLING_FLAT_OPERATIONS: readonly string[] = [
   'rcm.claims.attach',
   'rcm.claims.replace',
   'rcm.claims.submit',
+  'rcm.claims.prepareSecondary',
   'rcm.appeals.draft',
   'rcm.appeals.review',
   'rcm.submissionPolicies.create',

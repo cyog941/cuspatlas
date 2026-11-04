@@ -271,6 +271,20 @@ export const BILLING_OPS: BillingOp[] = [
   },
   {
     method: 'post',
+    path: '/v1/rcm/claims/{claimRef}/secondary',
+    operationId: 'rcm.claims.prepareSecondary',
+    protected: true,
+    requestBody: B('SecondaryClaimPrepare'),
+    success: { status: '201', schema: B('ClaimCommandResult') },
+    refusals: COMMAND,
+    tool: 'rcm_claims_prepare_secondary',
+    description:
+      'B8 (CL-11): prepare the secondary claim of a primary claim from its paid adjudication and posted remittance (COB evidence by reference). It claims only the patient responsibility the primary left, which stays off the patient while unresolved; its own lifecycle reuses B6. One per primary; tertiary is refused.',
+    invoke: (svc, actor, i) =>
+      svc.prepareSecondaryClaim(actor, param(i, 'claimRef'), env('rcm.claims.prepareSecondary', i)),
+  },
+  {
+    method: 'post',
     path: '/v1/rcm/remittances',
     operationId: 'rcm.remittances.ingest',
     protected: true,

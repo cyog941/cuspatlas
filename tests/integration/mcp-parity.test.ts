@@ -146,6 +146,7 @@ const TOOL_NAMES = [
   'rcm_claims_get',
   'rcm_claims_poll',
   'rcm_claims_prepare',
+  'rcm_claims_prepare_secondary',
   'rcm_claims_replace',
   'rcm_claims_submit',
   'rcm_claims_validate',

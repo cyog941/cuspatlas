@@ -16,6 +16,7 @@ import {
   moneyFromMinorText,
   type PolicyCommandData,
   RefusalError,
+  type SecondaryClaimPrepare,
   type SubmissionPolicyCreate,
   type TenantTransaction,
   validateAppealDraft,
@@ -26,6 +27,7 @@ import {
   validateClaimSubmit,
   validateClaimVersioned,
   validateClaimWorklistQuery,
+  validateSecondaryClaimPrepare,
   validateSubmissionPolicyCreate,
   validateSubmissionPolicyRevoke,
 } from '@cuspatlas/contracts';
@@ -43,6 +45,7 @@ import {
   notFound,
   validate,
 } from '../billing/base';
+import { lockAggregates } from '../billing/entries';
 import { resolveAllowance } from '../billing/fees';
 import { postEntry, SignViolation } from '../billing/journal';
 import { committedReplay, providerTiming, withTimeout } from '../billing/payments';
@@ -141,6 +144,57 @@ async function chargeOf(tx: TenantTransaction, procedureRef: string, lock = fals
     [procedureRef],
   );
   return rows[0] ?? null;
+}
+
+/** B8: the primary claim a secondary claim relies on, or null for a primary claim. */
+export async function secondaryOf(tx: TenantTransaction, claimId: string): Promise<string | null> {
+  const { rows } = await tx.query<{ primary_claim_id: string }>(
+    'SELECT primary_claim_id FROM cuspatlas.rcm_secondary_claims WHERE claim_id = $1',
+    [claimId],
+  );
+  return rows[0]?.primary_claim_id ?? null;
+}
+
+/**
+ * B8 COB evidence: the remittance lines that posted one claim line (matched at ingestion, matched by a
+ * resolution, or approved with a residual), each with whether its remittance was reversed since.
+ */
+export async function postedRemittanceLines(tx: TenantTransaction, claimId: string, lineNo: number) {
+  const { rows } = await tx.query<{
+    remittance_id: string;
+    line_no: number;
+    paid: string;
+    contractual: string;
+    pr: string;
+    reversed: boolean;
+  }>(
+    `SELECT rl.remittance_id, rl.line_no, rl.paid_minor::text AS paid, rl.contractual_minor::text AS contractual,
+       rl.patient_responsibility_minor::text AS pr,
+       EXISTS (SELECT 1 FROM cuspatlas.rcm_remittance_reversals x WHERE x.remittance_id = rl.remittance_id) AS reversed
+     FROM cuspatlas.rcm_remittance_lines rl
+     WHERE (rl.status = 'posted' AND rl.claim_id = $1 AND rl.claim_line_no = $2)
+        OR EXISTS (SELECT 1 FROM cuspatlas.rcm_remittance_line_resolutions r
+                   LEFT JOIN cuspatlas.rcm_remittance_resolution_decisions d ON d.resolution_id = r.id
+                   WHERE r.remittance_id = rl.remittance_id AND r.line_no = rl.line_no AND r.claim_id = $1
+                     AND r.claim_line_no = $2 AND (r.action = 'match_claim_line' OR d.decision = 'approved'))
+     ORDER BY rl.remittance_id, rl.line_no`,
+    [claimId, lineNo],
+  );
+  return rows;
+}
+
+async function accountOpen(
+  tx: TenantTransaction,
+  chargeId: string,
+  account: string,
+  coverageId: string | null,
+) {
+  const { rows } = await tx.query<{ s: string }>(
+    `SELECT coalesce(sum(amount_minor), 0)::text AS s FROM cuspatlas.billing_journal_lines
+     WHERE charge_id = $1 AND account = $2 AND ($3::uuid IS NULL OR coverage_id = $3::uuid)`,
+    [chargeId, account, coverageId],
+  );
+  return BigInt(rows[0]?.s ?? '0');
 }
 
 /** The benefit rank (1 primary .. 3 tertiary) of a coverage's latest version. */
@@ -325,6 +379,20 @@ async function readiness(tx: TenantTransaction, claim: ClaimRow, head: VersionRo
     if (/^SYN-ATT-/.test(l.code_ref) && attachments.length === 0)
       issues.push({ code: 'attachment_required', owner: 'clinical', sourceRef: l.procedure_id });
     facts.push([l.charge_id, charge?.reversed ?? null, eff[0]?.ok ?? null, rec?.id ?? null]);
+  }
+  const primary = await secondaryOf(tx, claim.id);
+  if (primary !== null) {
+    // A secondary relies on the primary's remittance: a reversal since preparation flags it for review.
+    const { rows: rev } = await tx.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM cuspatlas.rcm_remittance_reversals x
+       WHERE x.remittance_id IN (
+         SELECT (r ->> 'remittanceRef')::uuid FROM cuspatlas.rcm_secondary_claims sc,
+           jsonb_array_elements(sc.cob_evidence) e, jsonb_array_elements(e -> 'remittances') r
+         WHERE sc.claim_id = $1)`,
+      [claim.id],
+    );
+    if ((rev[0]?.n ?? 0) > 0) issues.push({ code: 'primary_reversed', owner: 'billing', sourceRef: primary });
+    facts.push(['secondary', primary, rev[0]?.n ?? 0]);
   }
   const unique = [...new Map(issues.map((i) => [`${i.code}:${i.sourceRef}`, i])).values()];
   return { issues: unique, digest: sha256Hex(canonicalJson({ version: head.id, facts })) };
@@ -779,6 +847,166 @@ export function createClaimOperations(
       });
     },
 
+    /**
+     * B8 / CL-11: a secondary claim from the primary's adjudication and remittance (COB evidence).
+     * The primary must be a rank-1 claim whose latest submission carries a paid adjudication and whose
+     * lines each have a posted, unreversed remittance line; the secondary claims only the patient
+     * responsibility the primary left (never what the primary paid), which sits as insurer
+     * responsibility of the secondary coverage from that moment (the patient is not billed for it).
+     * One secondary per primary; tertiary coordination is not supported (422).
+     */
+    prepareSecondaryClaim(
+      ctx: ActorContext,
+      claimRef: string,
+      envelope: CommandEnvelope<unknown>,
+    ): Promise<CommandResult<ClaimCommandData>> {
+      const op = 'rcm.claims.prepareSecondary';
+      return base.guarded(ctx, op, async () => {
+        await base.authorize(ctx, op);
+        checkEnvelope(envelope, op);
+        const p = envelope.payload;
+        validate<SecondaryClaimPrepare>(validateSecondaryClaimPrepare, p);
+        return deps.withTenantTransaction(ctx, async (tx) => {
+          const primary = await loadClaim(tx, claimRef, 'FOR UPDATE');
+          return execute<ClaimCommandData>(
+            ctx,
+            { ...envelope, payload: { claimRef, ...p } },
+            tx,
+            async () => {
+              if ((await secondaryOf(tx, primary.id)) !== null) throw failed('not_a_primary_claim');
+              if ((await coverageRankOf(tx, primary.coverage_id)) !== 1) throw failed('not_a_primary_claim');
+              const set = await mergeSet(tx, primary.patient_id);
+              assertRef(p.coverageRef);
+              const { rows: cov } = await tx.query<{ id: string; payer_ref: string }>(
+                'SELECT id, payer_ref FROM cuspatlas.rcm_coverages WHERE id = $1 AND patient_id = ANY ($2::uuid[])',
+                [p.coverageRef, set.ids],
+              );
+              const sec = cov[0];
+              if (!sec) throw failed('coverage_not_of_patient');
+              const rank = await coverageRankOf(tx, sec.id);
+              if (rank === 3) throw failed('tertiary_not_supported');
+              if (rank !== 2) throw failed('coverage_not_secondary');
+              const { rows: dup } = await tx.query<{ claim_id: string }>(
+                'SELECT claim_id FROM cuspatlas.rcm_secondary_claims WHERE primary_claim_id = $1',
+                [primary.id],
+              );
+              if (dup[0]) throw conflict('secondary_exists', [{ kind: 'claim', ref: dup[0].claim_id }]);
+              const sub = await latestSubmission(tx, primary.id);
+              if (!sub || sub.outcome !== 'transmitted') throw later('primary_pending');
+              const { rows: ev } = await tx.query<{ kind: string }>(
+                'SELECT kind FROM cuspatlas.rcm_claim_events WHERE submission_id = $1',
+                [sub.id],
+              );
+              const kinds = ev.map((e) => e.kind);
+              if (kinds.includes('adjudicated_denied')) throw conflict('primary_denied');
+              if (!kinds.includes('adjudicated_paid')) throw later('primary_pending');
+              const settings = await loadSettings(tx);
+              const evidence: unknown[] = [];
+              const lines: Omit<LineRow, 'line_no'>[] = [];
+              for (const l of await linesOf(tx, sub.version_id)) {
+                const posted = await postedRemittanceLines(tx, primary.id, l.line_no);
+                if (posted.length === 0) throw conflict('missing_adjudication');
+                const live = posted.filter((x) => !x.reversed);
+                if (live.length === 0) throw conflict('primary_reversed');
+                const pr = live.reduce((s, x) => s + BigInt(x.pr), 0n);
+                evidence.push({
+                  claimLineNo: l.line_no,
+                  chargeRef: l.charge_id,
+                  remittances: live.map((x) => ({
+                    remittanceRef: x.remittance_id,
+                    lineNo: x.line_no,
+                    paid: x.paid,
+                    contractual: x.contractual,
+                    patientResponsibility: x.pr,
+                  })),
+                });
+                if (pr <= 0n) continue;
+                await lockAggregates(tx, { payments: [], charges: [l.charge_id] });
+                const already = await accountOpen(tx, l.charge_id, 'insurer_receivable', sec.id);
+                // A remittance posted before the secondary coverage was known left the amount with the
+                // patient: it moves to the secondary insurer now (CL-11), never more than the primary left.
+                if (already < pr) {
+                  const patientOpen = await accountOpen(tx, l.charge_id, 'patient_receivable', null);
+                  const move = pr - already < patientOpen ? pr - already : patientOpen;
+                  if (move > 0n) {
+                    await postEntry(tx, {
+                      kind: 'responsibilityTransfer',
+                      currency: settings.currency,
+                      chargeId: l.charge_id,
+                      reasonCode: 'secondary_claim_prepared',
+                      lines: [
+                        {
+                          account: 'insurer_receivable',
+                          amount: moneyFromMinorText(settings.currency, move.toString()),
+                          patientId: set.root,
+                          chargeId: l.charge_id,
+                          payerRef: sec.payer_ref,
+                          coverageId: sec.id,
+                        },
+                        {
+                          account: 'patient_receivable',
+                          amount: moneyFromMinorText(settings.currency, (-move).toString()),
+                          patientId: set.root,
+                          chargeId: l.charge_id,
+                        },
+                      ],
+                    });
+                  }
+                }
+                const billed = await accountOpen(tx, l.charge_id, 'insurer_receivable', sec.id);
+                const claimable = billed < pr ? billed : pr;
+                if (claimable <= 0n) continue;
+                const allowance = await resolveAllowance(tx, l.code_ref, l.date_of_service, sec.id);
+                const { line_no: _n, ...rest } = l;
+                lines.push({
+                  ...rest,
+                  billed: claimable.toString(),
+                  allowance: allowance === null ? null : String(allowance.fee.minor),
+                });
+              }
+              if (lines.length === 0) throw failed('no_secondary_responsibility');
+              const { rows } = await tx.query<{ id: string }>(
+                `INSERT INTO cuspatlas.rcm_claims (tenant_id, patient_id, coverage_id, payer_ref, created_by)
+                 VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, cuspatlas.current_actor_id()) RETURNING id`,
+                [set.root, sec.id, sec.payer_ref],
+              );
+              const claimId = rows[0]?.id as string;
+              const versionRef = await insertVersion(tx, claimId, {
+                versionNo: 1,
+                reason: 'prepared',
+                reasonCode: null,
+                supersedes: null,
+                coverageVersion: await coverageVersionOf(tx, sec.id),
+                currency: settings.currency,
+                lines,
+                attachments: [],
+              });
+              await holdProcedures(
+                tx,
+                claimId,
+                versionRef,
+                2,
+                lines.map((l) => l.procedure_id as string),
+              );
+              await tx.query(
+                `INSERT INTO cuspatlas.rcm_secondary_claims (tenant_id, claim_id, primary_claim_id, primary_submission_id,
+                   cob_evidence, evidence_digest)
+                 VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4::jsonb, $5)`,
+                [claimId, primary.id, sub.id, canonicalJson(evidence), sha256Hex(canonicalJson(evidence))],
+              );
+              await record(tx, op, claimId, 1, 'claim');
+              const version = await bump(tx, primary.id);
+              await record(tx, op, primary.id, version, 'secondary');
+              return {
+                data: { claimRef: claimId, versionRef, versionNo: 1, outcome: 'prepared' },
+                version: 1,
+              };
+            },
+          );
+        });
+      });
+    },
+
     getClaim(ctx: ActorContext, claimRef: string) {
       const op = 'rcm.claims.read';
       return base.guarded(ctx, op, async () => {
@@ -1130,7 +1358,8 @@ export function createClaimOperations(
       ],
     );
     await transportEvent(tx, claim.id, submission, answer);
-    if (answer.outcome === 'transmitted') {
+    // A secondary claim's amount is already the secondary coverage's responsibility (B8 / CL-11).
+    if (answer.outcome === 'transmitted' && (await secondaryOf(tx, claim.id)) === null) {
       const { rows } = await tx.query<{ version_id: string }>(
         'SELECT version_id FROM cuspatlas.rcm_claim_submissions WHERE id = $1',
         [submission.id],
@@ -1191,6 +1420,8 @@ export function createClaimOperations(
                   throw conflict('replacement_not_needed');
               }
               reasonCode = r.reasonCode;
+              if (r.procedureRefs !== undefined && (await secondaryOf(tx, claim.id)) !== null)
+                throw failed('secondary_lines_fixed');
               if (r.procedureRefs !== undefined) {
                 const set = await mergeSet(tx, claim.patient_id);
                 lines = await buildLines(tx, set.ids, claim.coverage_id, r.procedureRefs);
@@ -1334,6 +1565,8 @@ export function createClaimOperations(
       patientRef: claim.patient_id,
       coverageRef: claim.coverage_id,
       payerRef: claim.payer_ref,
+      rank: await coverageRankOf(tx, claim.coverage_id),
+      primaryClaimRef: await secondaryOf(tx, claim.id),
       state,
       headVersionNo: head.version_no,
       versions: out,

@@ -54,6 +54,8 @@ export interface ClaimsPartnerPort {
     readonly appealKey: string;
     readonly transportRef: string;
   }): Promise<{ readonly sentRef: string } | null>;
+  /** Side-effect-free status of an appeal send by its key; never a new send. */
+  lookupAppeal(appealKey: string): Promise<{ readonly sentRef: string } | { readonly outcome: 'not_found' }>;
   fetchRemittance(remittanceRef: string): Promise<RemittanceAdvice | null>;
 }
 
@@ -68,6 +70,7 @@ const h = (s: string) => createHash('sha256').update(s).digest('hex').slice(0, 2
 export function createFakeClearinghouse() {
   const submitted = new Map<string, ClaimSubmitRequest>();
   const remittances = new Map<string, RemittanceAdvice>();
+  const appeals = new Map<string, string>();
   const answerFor = (r: ClaimSubmitRequest): TransportAnswer =>
     r.payerRef.startsWith('syn-payer-reject')
       ? { outcome: 'rejected', rejectionCode: 'SYN-RJ-001' }
@@ -109,7 +112,13 @@ export function createFakeClearinghouse() {
       return [ack, { eventRef: `syn-evt-${h(`adj:${key}`)}`, kind: 'adjudicated_paid', occurredAt: at }];
     },
     async sendAppeal(r) {
-      return { sentRef: `syn-appeal-${h(`appeal:${r.appealKey}`)}` };
+      const sentRef = `syn-appeal-${h(`appeal:${r.appealKey}`)}`;
+      appeals.set(r.appealKey, sentRef);
+      return { sentRef };
+    },
+    async lookupAppeal(key) {
+      const sentRef = appeals.get(key);
+      return sentRef ? { sentRef } : { outcome: 'not_found' };
     },
     async fetchRemittance(ref) {
       return remittances.get(ref) ?? null;

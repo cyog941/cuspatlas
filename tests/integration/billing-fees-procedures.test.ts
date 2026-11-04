@@ -337,7 +337,7 @@ describe('B9 adjustments and report scope', () => {
     expect(await patientOpen(charge)).toBe(12000);
   });
 
-  it('9. a contractual adjustment posts against the insurer receivable; never beyond the balance', async () => {
+  it('9. a manual contractual adjustment needs an adjudicated claim (review hardening; full flow in rcm-review-hardening-b6b9)', async () => {
     const { patient, charge } = await chargeFor('Synthetic Contractual');
     const cov = r.h.ok<{ data: { coverageRef: string } }>(
       await r.h.call('a1', 'POST', '/v1/rcm/coverages', {
@@ -365,15 +365,15 @@ describe('B9 adjustments and report scope', () => {
       coverageRef: cov,
       reasonCode: 'contractual_allowance',
     };
-    expect(
-      r.h.ok<{ data: { outcome: string } }>(await adjust(charge, { ...body, amount: usd(3000) }), 201).data
-        .outcome,
-    ).toBe('posted');
-    expect(reason(await adjust(charge, { ...body, amount: usd(9000) }))).toStrictEqual([
-      409,
-      'conflict',
-      'adjustment_exceeds_balance',
+    // No claim adjudication to tie it to: refused, nothing posted (it is never a free-standing write-down).
+    expect(reason(await adjust(charge, { ...body, amount: usd(3000) }))).toStrictEqual([
+      422,
+      'validation_failed',
+      'claim_required',
     ]);
+    expect(
+      reason(await adjust(charge, { ...body, claimRef: randomUUID(), amount: usd(3000) })),
+    ).toStrictEqual([404, 'not_found', undefined]);
     expect(
       reason(
         await adjust(charge, {

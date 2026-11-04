@@ -7,6 +7,7 @@ import {
   RefusalError,
   type RemittanceCommandData,
   type TenantTransaction,
+  validateRemittanceAdvice,
   validateRemittanceIngest,
   validateRemittanceReverse,
   validateRemittanceSettle,
@@ -22,6 +23,7 @@ import {
   notFound,
   validate,
 } from '../billing/base';
+import { lockAggregates } from '../billing/entries';
 import { type LineInput, loadLines, negatedLines, postEntry, SignViolation } from '../billing/journal';
 import { providerTiming, withTimeout } from '../billing/payments';
 import { canonicalJson, sha256Hex } from '../commands/digest';
@@ -99,6 +101,15 @@ export function createRemittanceOperations(
         [id],
       )
     ).rows[0]?.version as number;
+
+  async function insurerOpen(tx: TenantTransaction, chargeId: string, coverageId: string) {
+    const { rows } = await tx.query<{ s: string }>(
+      `SELECT coalesce(sum(amount_minor), 0)::text AS s FROM cuspatlas.billing_journal_lines
+       WHERE charge_id = $1 AND account = 'insurer_receivable' AND coverage_id = $2`,
+      [chargeId, coverageId],
+    );
+    return BigInt(rows[0]?.s ?? '0');
+  }
 
   async function matchLine(
     tx: TenantTransaction,
@@ -211,18 +222,34 @@ export function createRemittanceOperations(
           timing.timeoutMs,
           null,
         );
+        // Every amount is a non-negative integer in minor units before anything is matched or posted
+        // (review MUST-FAIL 3): a malformed advice is a typed 422, never a 500 or a partial posting.
+        if (
+          advice !== null &&
+          (!validateRemittanceAdvice(advice) || advice.remittanceRef !== p.remittanceRef)
+        )
+          throw failed('malformed_remittance');
+        const digest = advice === null ? null : sha256Hex(canonicalJson(advice));
         return deps.withTenantTransaction(ctx, async (tx) =>
           execute<RemittanceCommandData>(ctx, envelope, tx, async () => {
-            const { rows: dup } = await tx.query<{ id: string }>(
-              'SELECT id FROM cuspatlas.rcm_remittances WHERE remittance_ref = $1',
-              [p.remittanceRef],
-            );
-            if (dup[0])
+            const duplicate = async () => {
+              const { rows: dup } = await tx.query<{ id: string; content_digest: string }>(
+                'SELECT id, content_digest FROM cuspatlas.rcm_remittances WHERE remittance_ref = $1',
+                [p.remittanceRef],
+              );
+              const d = dup[0];
+              if (!d) return null;
+              // Same reference, different content: an explicit supersede decision, never a silent dedupe.
+              if (digest !== null && d.content_digest !== digest)
+                throw conflict('remittance_content_changed', [{ kind: 'remittance', ref: d.id }]);
               return {
-                data: { remittanceRef: dup[0].id, outcome: 'duplicate', posted: 0, review: 0, denied: 0 },
+                data: { remittanceRef: d.id, outcome: 'duplicate' as const, posted: 0, review: 0, denied: 0 },
                 version: 1,
               };
-            if (advice === null)
+            };
+            const prior = await duplicate();
+            if (prior) return prior;
+            if (advice === null || digest === null)
               throw new RefusalError({
                 code: 'conflict',
                 retryable: true,
@@ -232,20 +259,27 @@ export function createRemittanceOperations(
             if (advice.currency !== settings.currency) throw failed('currency_mismatch');
             const total = advice.lines.reduce((s, l) => s + BigInt(l.paidMinor), 0n);
             if (total !== BigInt(advice.totalPaidMinor)) throw failed('partial_parse');
+            // A concurrent ingest of the same reference waits on the unique key, then dedupes.
             const { rows } = await tx.query<{ id: string }>(
               `INSERT INTO cuspatlas.rcm_remittances (tenant_id, remittance_ref, payer_ref, currency, total_paid_minor, line_count,
                  content_digest, ingested_by)
-               VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6, cuspatlas.current_actor_id()) RETURNING id`,
+               VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6, cuspatlas.current_actor_id())
+               ON CONFLICT (tenant_id, remittance_ref) DO NOTHING RETURNING id`,
               [
                 advice.remittanceRef,
                 advice.payerRef,
                 advice.currency,
                 String(advice.totalPaidMinor),
                 advice.lines.length,
-                sha256Hex(canonicalJson(advice)),
+                digest,
               ],
             );
-            const remId = rows[0]?.id as string;
+            if (!rows[0]) {
+              const raced = await duplicate();
+              if (!raced) throw conflict('remittance_unavailable');
+              return raced;
+            }
+            const remId = rows[0].id;
             const counts = { posted: 0, review: 0, denied: 0 };
             for (const l of advice.lines) {
               const m = await matchLine(tx, l.claimRef, l.claimLineNo);
@@ -263,11 +297,19 @@ export function createRemittanceOperations(
                 [status, why] = ['review', 'underpayment'];
               else if (BigInt(m.insurer_open) < sum) [status, why] = ['review', 'insurer_balance_mismatch'];
               if (status === 'posted' && m) {
-                try {
-                  await post(tx, remId, m, l, advice.currency);
-                } catch (err) {
-                  if (!(err instanceof SignViolation)) throw err;
-                  [status, why] = ['review', 'insurer_balance_mismatch'];
+                // All of a line's entries post together or not at all (review MUST-FAIL 3): the charge is
+                // locked and its insurer balance re-read, so the whole line fits before the first entry;
+                // a sign failure after that aborts the whole remittance (never a partial line).
+                await lockAggregates(tx, { payments: [], charges: [m.charge_id] });
+                const open = await insurerOpen(tx, m.charge_id, m.coverage_id);
+                if (open < sum) [status, why] = ['review', 'insurer_balance_mismatch'];
+                else {
+                  try {
+                    await post(tx, remId, m, l, advice.currency);
+                  } catch (err) {
+                    if (err instanceof SignViolation) throw conflict('remittance_line_not_postable');
+                    throw err;
+                  }
                 }
               }
               counts[status] += 1;
@@ -318,9 +360,21 @@ export function createRemittanceOperations(
               if (rem.reversed) throw conflict('remittance_reversed');
               const amount = inTenantCurrency(await loadSettings(tx), p.amount);
               const open = await clearing(tx, rem.id, 'insurer_clearing');
-              // ERA versus deposit: a mismatch is never posted; it stays an explicit discrepancy.
-              if (open.sum !== BigInt(amount.minor) || open.patientId === null)
-                throw conflict('settlement_mismatch');
+              // ERA versus deposit (review SHOULD): the deposit must equal the ERA total; a mismatch is never
+              // posted. When the payer paid lines still in review, the gap between the ERA total and the
+              // clearing balance is named by those lines until they are resolved.
+              if (BigInt(amount.minor) !== BigInt(rem.total)) throw conflict('settlement_mismatch');
+              if (open.sum !== BigInt(amount.minor) || open.patientId === null) {
+                const { rows: gap } = await tx.query<{ line_no: number }>(
+                  `SELECT line_no FROM cuspatlas.rcm_remittance_lines WHERE remittance_id = $1 AND status = 'review'
+                     AND paid_minor > 0 ORDER BY line_no`,
+                  [rem.id],
+                );
+                throw conflict(
+                  gap.length > 0 ? 'settlement_pending_review' : 'settlement_mismatch',
+                  gap.map((g) => ({ kind: 'remittanceLine', ref: `${rem.id}:${g.line_no}` })),
+                );
+              }
               const entryRef = await postEntry(tx, {
                 kind: 'insurerSettlement',
                 currency: rem.currency,

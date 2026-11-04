@@ -19,7 +19,7 @@ import {
 } from '@cuspatlas/contracts';
 import { recordCommand } from '../events/record-command';
 import { recordSensitiveRead } from '../events/record-sensitive-read';
-import { coverageOf, locationIdsOf, locationRefsOf } from '../rcm/lookups';
+import { claimAdjudicationOf, coverageOf, locationIdsOf, locationRefsOf } from '../rcm/lookups';
 import {
   assertRef,
   type BillingBase,
@@ -34,6 +34,7 @@ import {
 } from './base';
 import { CHARGE_RESOURCE } from './charges';
 import { bumpAggregates, lockAggregates } from './entries';
+import { resolveAllowance } from './fees';
 import { type LineInput, postEntry, SignViolation } from './journal';
 
 export const ADJUSTMENT_RESOURCE = 'billingAdjustmentRequest';
@@ -79,8 +80,15 @@ export async function adjustmentLines(
 
 async function loadChargeRow(tx: TenantTransaction, chargeRef: string) {
   assertRef(chargeRef);
-  const { rows } = await tx.query<{ id: string; patient_id: string; service_date: string }>(
-    `SELECT id, patient_id, to_char(service_date, 'YYYY-MM-DD') AS service_date FROM cuspatlas.billing_charges
+  const { rows } = await tx.query<{
+    id: string;
+    patient_id: string;
+    service_date: string;
+    amount: string;
+    code: string | null;
+  }>(
+    `SELECT id, patient_id, to_char(service_date, 'YYYY-MM-DD') AS service_date, amount_minor::text AS amount,
+       procedure_code AS code FROM cuspatlas.billing_charges
      WHERE id = $1`,
     [chargeRef],
   );
@@ -118,6 +126,47 @@ async function postAdjustment(
 }
 
 /**
+ * The room a manual contractual adjustment of one charge may still take (review MUST-FAIL 4): the
+ * charge must be a line of the named claim's adjudicated (paid) submission for that coverage, and the
+ * total contractual write-down is capped at billed minus the payer allowance (resolveAllowance),
+ * counting posted contractual entries net of their reversals and pending contractual requests.
+ */
+async function contractualRoom(
+  tx: TenantTransaction,
+  charge: { id: string; amount: string; code: string | null; service_date: string },
+  claimRef: string,
+  coverageId: string,
+  excludeRequest: string | null,
+): Promise<bigint> {
+  assertRef(claimRef);
+  const claim = await claimAdjudicationOf(tx, claimRef, charge.id);
+  const c = claim;
+  if (!c) throw notFound();
+  if (c.coverage_id !== coverageId) throw failed('coverage_claim_mismatch');
+  if (!c.on_claim) throw failed('charge_not_on_claim');
+  if (!c.paid) throw conflict('claim_not_adjudicated');
+  const allowance =
+    charge.code === null ? null : await resolveAllowance(tx, charge.code, charge.service_date, coverageId);
+  if (allowance === null) throw conflict('allowance_unknown');
+  const reasons = ADJUSTMENT_REASONS.contractual;
+  const { rows: used } = await tx.query<{ posted: string; pending: string }>(
+    `SELECT
+       (SELECT coalesce(sum(l.amount_minor), 0) FROM cuspatlas.billing_journal_lines l
+          JOIN cuspatlas.billing_journal_entries e ON e.id = l.entry_id
+          LEFT JOIN cuspatlas.billing_journal_entries o ON o.id = e.reverses_entry_id
+        WHERE l.account = 'adjustment_expense' AND l.charge_id = $1 AND e.kind = 'adjustment'
+          AND (e.reason_code = ANY ($2::text[]) OR o.reason_code = ANY ($2::text[])))::text AS posted,
+       (SELECT coalesce(sum(r.amount_minor), 0) FROM cuspatlas.billing_adjustment_requests r
+        WHERE r.charge_id = $1 AND r.kind = 'contractual' AND ($3::uuid IS NULL OR r.id <> $3::uuid)
+          AND NOT EXISTS (SELECT 1 FROM cuspatlas.billing_adjustment_decisions d WHERE d.request_id = r.id))::text
+         AS pending`,
+    [charge.id, reasons, excludeRequest],
+  );
+  const gap = BigInt(charge.amount) - BigInt(allowance.fee.minor);
+  return gap - BigInt(used[0]?.posted ?? '0') - BigInt(used[0]?.pending ?? '0');
+}
+
+/**
  * B9 adjustments and the receivables report. Contractual adjustments (insurer responsibility, the
  * B-D2 recommendation) post directly; courtesy adjustments and write-offs are requests that another
  * human posts by approving (no silent write-off; the database refuses a self-decision too). Every
@@ -143,6 +192,7 @@ export function createAdjustmentOperations(base: BillingBase) {
           throw failed('coverage_required');
         if (p.kind === 'contractual' && p.responsibility !== 'insurer')
           throw failed('contractual_is_insurer');
+        if ((p.kind === 'contractual') !== (p.claimRef !== undefined)) throw failed('claim_required');
         return deps.withTenantTransaction(ctx, async (tx) => {
           const charge = await loadChargeRow(tx, chargeRef);
           await lockAggregates(tx, { payments: [], charges: [charge.id] });
@@ -154,45 +204,24 @@ export function createAdjustmentOperations(base: BillingBase) {
               const settings = await loadSettings(tx);
               const amount = inTenantCurrency(settings, p.amount);
               const coverageId = p.coverageRef ?? null;
-              if (p.kind === 'contractual') {
-                const lines = await adjustmentLines(tx, {
-                  chargeId: charge.id,
-                  patientId: charge.patient_id,
-                  amount,
-                  coverageId,
-                });
-                const entryRef = await postAdjustment(
-                  tx,
-                  {
-                    kind: 'adjustment',
-                    chargeId: charge.id,
-                    patientId: charge.patient_id,
-                    serviceDate: charge.service_date,
-                    reason: p.reasonCode,
-                  },
-                  lines,
-                  settings.currency,
-                );
-                const version =
-                  (await bumpAggregates(tx, { payments: [], charges: [charge.id] })).get(charge.id) ?? 1;
-                await recordCommand(
-                  tx,
-                  {
-                    operation: op,
-                    resourceType: CHARGE_RESOURCE,
-                    resourceRef: charge.id,
-                    resourceVersion: version,
-                  },
-                  { changedFields: ['adjustment'] },
-                );
-                return { data: { outcome: 'posted', requestRef: null, entryRef }, version };
-              }
+              // Every manual adjustment is a request a second human posts (review MUST-FAIL 4); service
+              // principals post contractual amounts only through remittance ingestion.
               if (ctx.principal !== 'human')
                 throw new RefusalError({ code: 'forbidden', reasonCode: 'principal_kind_denied' });
+              if (p.kind === 'contractual') {
+                const room = await contractualRoom(
+                  tx,
+                  charge,
+                  p.claimRef as string,
+                  coverageId as string,
+                  null,
+                );
+                if (BigInt(amount.minor) > room) throw failed('contractual_exceeds_allowance_gap');
+              }
               const { rows } = await tx.query<{ id: string }>(
                 `INSERT INTO cuspatlas.billing_adjustment_requests (tenant_id, charge_id, kind, responsibility, coverage_id,
-                   reason_code, amount_minor, currency, requested_by)
-                 VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6, $7, cuspatlas.current_actor_id())
+                   reason_code, amount_minor, currency, requested_by, claim_id)
+                 VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6, $7, cuspatlas.current_actor_id(), $8)
                  RETURNING id`,
                 [
                   charge.id,
@@ -202,6 +231,7 @@ export function createAdjustmentOperations(base: BillingBase) {
                   p.reasonCode,
                   String(amount.minor),
                   amount.currency,
+                  p.claimRef ?? null,
                 ],
               );
               const requestRef = rows[0]?.id as string;
@@ -238,15 +268,16 @@ export function createAdjustmentOperations(base: BillingBase) {
           const { rows } = await tx.query<{
             id: string;
             charge_id: string;
-            kind: 'courtesy' | 'writeOff';
+            kind: 'contractual' | 'courtesy' | 'writeOff';
             coverage_id: string | null;
+            claim_id: string | null;
             reason_code: string;
             amount: string;
             currency: string;
             requested_by: string;
           }>(
-            `SELECT id, charge_id, kind, coverage_id, reason_code, amount_minor::text AS amount, currency, requested_by
-             FROM cuspatlas.billing_adjustment_requests WHERE id = $1`,
+            `SELECT id, charge_id, kind, coverage_id, claim_id, reason_code, amount_minor::text AS amount, currency,
+               requested_by FROM cuspatlas.billing_adjustment_requests WHERE id = $1`,
             [requestRef],
           );
           const r = rows[0];
@@ -264,6 +295,13 @@ export function createAdjustmentOperations(base: BillingBase) {
               let entryRef: string | null = null;
               if (p.decision === 'approved') {
                 const amount = moneyFromMinorText(r.currency, r.amount);
+                // The allowance gap is rechecked at approval (another posting may have used it).
+                if (
+                  r.kind === 'contractual' &&
+                  BigInt(r.amount) >
+                    (await contractualRoom(tx, charge, r.claim_id as string, r.coverage_id as string, r.id))
+                )
+                  throw failed('contractual_exceeds_allowance_gap');
                 const lines = await adjustmentLines(tx, {
                   chargeId: charge.id,
                   patientId: charge.patient_id,
@@ -345,7 +383,7 @@ export function createAdjustmentOperations(base: BillingBase) {
              FROM cuspatlas.billing_charges c
              JOIN cuspatlas.billing_journal_lines l ON l.charge_id = c.id AND l.tenant_id = c.tenant_id
                AND l.account IN ('patient_receivable', 'insurer_receivable')
-             WHERE ($1::uuid[] IS NULL OR c.location_id = ANY ($1::uuid[]) OR c.location_id IS NULL)
+             WHERE ($1::uuid[] IS NULL OR c.location_id = ANY ($1::uuid[]))
                AND ($2::uuid[] IS NULL OR c.location_id = ANY ($2::uuid[]))
              GROUP BY c.location_id`,
             [allowedIds, askedIds],

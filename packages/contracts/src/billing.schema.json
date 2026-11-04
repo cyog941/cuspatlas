@@ -3324,7 +3324,7 @@
     "AdjustmentPost": {
       "type": "object",
       "additionalProperties": false,
-      "description": "An adjustment of one charge. Contractual (insurer responsibility) posts directly; courtesy and write-off are requests posted only by another human approving them. The reason must be configured for the kind.",
+      "description": "An adjustment of one charge. Every manual adjustment is a request another human posts by approving it. A contractual adjustment names the adjudicated claim of its coverage and is capped at billed minus the payer allowance; courtesy and write-off need a configured reason. Service principals post contractual amounts only through remittance ingestion.",
       "required": ["kind", "responsibility", "amount", "reasonCode"],
       "properties": {
         "kind": {
@@ -3341,6 +3341,9 @@
         },
         "reasonCode": {
           "$ref": "#/$defs/ReasonCode"
+        },
+        "claimRef": {
+          "$ref": "#/$defs/Uuid"
         }
       }
     },
@@ -3914,8 +3917,11 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["kind", "code", "codeSource", "codeVersion", "occurredAt"],
+            "required": ["eventRef", "kind", "code", "codeSource", "codeVersion", "occurredAt"],
             "properties": {
+              "eventRef": {
+                "$ref": "#/$defs/Uuid"
+              },
               "kind": {
                 "type": "string"
               },
@@ -4029,7 +4035,7 @@
     "ClaimWorklist": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data", "totalCount", "checkedAt"],
+      "required": ["data", "totalCount", "checkedAt", "truncated"],
       "properties": {
         "data": {
           "type": "array",
@@ -4043,6 +4049,10 @@
         },
         "checkedAt": {
           "$ref": "#/$defs/Instant"
+        },
+        "truncated": {
+          "type": "boolean",
+          "description": "True when more open claims exist than one page (newest first) shows."
         }
       }
     },
@@ -4386,6 +4396,81 @@
       "properties": {
         "data": {
           "$ref": "#/$defs/RemittanceView"
+        }
+      }
+    },
+    "RemittanceAdvice": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Shape check of a synthetic ERA-like advice fetched from the fake clearinghouse (not X12): every amount a non-negative integer in minor units.",
+      "required": ["remittanceRef", "payerRef", "currency", "totalPaidMinor", "lines"],
+      "properties": {
+        "remittanceRef": {
+          "type": "string",
+          "pattern": "^syn-era-[a-z0-9-]{1,60}$"
+        },
+        "payerRef": {
+          "$ref": "#/$defs/PayerRef"
+        },
+        "currency": {
+          "$ref": "#/$defs/CurrencyCode"
+        },
+        "totalPaidMinor": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 99999999999
+        },
+        "lines": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 500,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "lineNo",
+              "claimRef",
+              "claimLineNo",
+              "paidMinor",
+              "contractualMinor",
+              "patientResponsibilityMinor"
+            ],
+            "properties": {
+              "lineNo": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 500
+              },
+              "claimRef": {
+                "type": "string",
+                "maxLength": 64
+              },
+              "claimLineNo": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 50
+              },
+              "paidMinor": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 99999999999
+              },
+              "contractualMinor": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 99999999999
+              },
+              "patientResponsibilityMinor": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 99999999999
+              },
+              "denialCode": {
+                "type": "string",
+                "pattern": "^SYN-DN-[0-9]{3}$"
+              }
+            }
+          }
         }
       }
     }

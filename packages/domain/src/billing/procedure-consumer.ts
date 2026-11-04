@@ -7,7 +7,7 @@ import {
 import { loadEncounter } from '../clinical/encounters';
 import { loadRenderedProcedureEvent } from '../clinical/procedures';
 import { recordCommand } from '../events/record-command';
-import { assertRef, type BillingBase, conflict, loadSettings, mergeSet, notFound } from './base';
+import { assertRef, type BillingBase, conflict, isPgError, loadSettings, mergeSet, notFound } from './base';
 import { CHARGE_RESOURCE } from './charges';
 import { bumpAggregates, lockAggregates } from './entries';
 import { resolvePracticeFee } from './fees';
@@ -95,10 +95,12 @@ export function createProcedureConsumer(base: BillingBase) {
           };
           const root = (await mergeSet(tx, ev.patientRef)).root;
           if (ev.eventType === 'procedure.reversed.v1') {
-            const original = await chargeOfProcedure(tx, ev.reversesProcedureRef as string);
-            if (!original) throw later('original_charge_not_posted');
-            if (!(await claim(original.id))) return (await existing()) as ProcedureConsumeData;
-            await lockAggregates(tx, { payments: [], charges: [original.id] });
+            const found = await chargeOfProcedure(tx, ev.reversesProcedureRef as string);
+            if (!found) throw later('original_charge_not_posted');
+            if (!(await claim(found.id))) return (await existing()) as ProcedureConsumeData;
+            await lockAggregates(tx, { payments: [], charges: [found.id] });
+            // Re-read under the charge lock (review SHOULD): a concurrent reversal is seen here.
+            const original = (await chargeOfProcedure(tx, ev.reversesProcedureRef as string)) ?? found;
             if (original.reversal_id !== null) throw conflict('already_reversed');
             const settings = await loadSettings(tx);
             try {
@@ -133,6 +135,7 @@ export function createProcedureConsumer(base: BillingBase) {
             } catch (err) {
               // Money already allocated to the charge must be moved by a human first.
               if (err instanceof SignViolation) throw conflict('allocation_reversal_required');
+              if (isPgError(err, '23505')) throw conflict('already_reversed');
               throw err;
             }
           }

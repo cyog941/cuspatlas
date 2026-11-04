@@ -139,7 +139,7 @@ export const ACTION_POLICIES = {
   'billing.feeSchedules.publish': { scope: 'billing.write', principals: ['human'] },
   'billing.fees.resolve': { scope: 'ledger.read', principals: ['human', 'service'] },
   'billing.procedures.consume': { scope: 'billing.write', principals: ['service'] },
-  'billing.adjustments.post': { scope: 'billing.write', principals: ['human', 'service'] },
+  'billing.adjustments.post': { scope: 'billing.write', principals: ['human'] },
   'billing.adjustments.decide': { scope: 'billing.correct', principals: ['human'] },
   'billing.reports.receivables': { scope: 'receivables.read', principals: ['human', 'service'] },
   // B6 claims (fake clearinghouse only): reads need openClaims.read; preparation, validation,
@@ -160,7 +160,7 @@ export const ACTION_POLICIES = {
   // B7 remittance: ingestion and settlement are billing.write (a service may ingest); reversal is a
   // human-only correction; reads need paymentDistribution.read.
   'rcm.remittances.ingest': { scope: 'billing.write', principals: ['human', 'service'] },
-  'rcm.remittances.settle': { scope: 'billing.write', principals: ['human', 'service'] },
+  'rcm.remittances.settle': { scope: 'billing.write', principals: ['human'] },
   'rcm.remittances.reverse': { scope: 'billing.correct', principals: ['human'] },
   'rcm.remittances.read': { scope: 'paymentDistribution.read', principals: ['human', 'service'] },
   // C5 encounters and clinical authorship (recommended-pending-clinical-approval). Clinical

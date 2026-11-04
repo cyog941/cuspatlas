@@ -58,6 +58,8 @@ export interface AdjustmentPost {
   readonly kind: AdjustmentKind;
   readonly responsibility: 'patient' | 'insurer';
   readonly coverageRef?: string;
+  /** Contractual only: the adjudicated claim of the coverage the adjustment belongs to. */
+  readonly claimRef?: string;
   readonly amount: Money;
   readonly reasonCode: string;
 }
@@ -197,3 +199,5 @@ export interface RemittanceCommandData {
 export const validateRemittanceIngest = billingDef('RemittanceIngest');
 export const validateRemittanceSettle = billingDef('RemittanceSettle');
 export const validateRemittanceReverse = billingDef('RemittanceReverse');
+/** Shape of a fetched advice: every amount a non-negative integer (a malformed advice is 422). */
+export const validateRemittanceAdvice = billingDef('RemittanceAdvice');

@@ -48,3 +48,23 @@ export async function locationIdsOf(tx: TenantTransaction, refs: readonly string
   );
   return rows.map((r) => r.id);
 }
+
+/**
+ * B9 contractual adjustments (review MUST-FAIL 4): the claim's coverage, whether it holds a paid
+ * adjudication, and whether the charge is a line of one of its transmitted versions. null: hidden.
+ */
+export async function claimAdjudicationOf(
+  tx: TenantTransaction,
+  claimRef: string,
+  chargeId: string,
+): Promise<{ coverage_id: string; paid: boolean; on_claim: boolean } | null> {
+  const { rows } = await tx.query<{ coverage_id: string; paid: boolean; on_claim: boolean }>(
+    `SELECT c.coverage_id,
+       EXISTS (SELECT 1 FROM cuspatlas.rcm_claim_events e WHERE e.claim_id = c.id AND e.kind = 'adjudicated_paid') AS paid,
+       EXISTS (SELECT 1 FROM cuspatlas.rcm_claim_submissions s JOIN cuspatlas.rcm_claim_lines l ON l.version_id = s.version_id
+               WHERE s.claim_id = c.id AND s.outcome = 'transmitted' AND l.charge_id = $2) AS on_claim
+     FROM cuspatlas.rcm_claims c WHERE c.id = $1`,
+    [claimRef, chargeId],
+  );
+  return rows[0] ?? null;
+}

@@ -160,6 +160,14 @@ const TOOL_NAMES = [
   'imaging_annotations_supersede',
   'imaging_annotations_list',
   'imaging_derived_create',
+  'imaging_retention_set_policy',
+  'imaging_retention_policies',
+  'imaging_legal_holds_place',
+  'imaging_legal_holds_release',
+  'imaging_legal_holds_list',
+  'imaging_deletions_request',
+  'imaging_deletions_evaluate',
+  'imaging_deletions_execute',
 ].sort();
 
 let db: TestDatabase;

@@ -1956,6 +1956,463 @@
           "type": "boolean"
         }
       }
+    },
+    "LegalHoldRef": {
+      "$ref": "#/$defs/EntityRef",
+      "description": "Opaque legal hold reference."
+    },
+    "DeletionRef": {
+      "$ref": "#/$defs/EntityRef",
+      "description": "Opaque deletion request reference."
+    },
+    "RecordClass": {
+      "enum": ["associated_original", "unassociated_original", "derived"],
+      "description": "Retention record class of an image object (an original ever associated with a patient, never associated, or derived)."
+    },
+    "RetentionPolicySet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["recordClass", "minimumRetentionMonths", "basisCode", "jurisdictionCode"],
+      "properties": {
+        "recordClass": {
+          "$ref": "#/$defs/RecordClass"
+        },
+        "minimumRetentionMonths": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1200
+        },
+        "basisCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "jurisdictionCode": {
+          "type": "string",
+          "pattern": "^[a-z]{2}(-[a-z0-9]{1,16})?$"
+        }
+      },
+      "description": "A new version of the retention policy of one record class. Values need legal review: every policy is recorded as recommended_pending_approval. No universal default ships."
+    },
+    "RetentionPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policyRef",
+        "recordClass",
+        "version",
+        "minimumRetentionMonths",
+        "basisCode",
+        "jurisdictionCode",
+        "approvalStatus",
+        "createdAt"
+      ],
+      "properties": {
+        "policyRef": {
+          "$ref": "#/$defs/EntityRef"
+        },
+        "recordClass": {
+          "$ref": "#/$defs/RecordClass"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "minimumRetentionMonths": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "basisCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "jurisdictionCode": {
+          "type": "string"
+        },
+        "approvalStatus": {
+          "const": "recommended_pending_approval"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "RetentionPolicyCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["policyRef", "recordClass", "version", "approvalStatus"],
+          "properties": {
+            "policyRef": {
+              "$ref": "#/$defs/EntityRef"
+            },
+            "recordClass": {
+              "$ref": "#/$defs/RecordClass"
+            },
+            "version": {
+              "$ref": "#/$defs/Version"
+            },
+            "approvalStatus": {
+              "const": "recommended_pending_approval"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "RetentionPolicyList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/RetentionPolicy"
+          }
+        }
+      }
+    },
+    "LegalHoldPlace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["subject", "reasonCode"],
+      "properties": {
+        "subject": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "ref"],
+          "properties": {
+            "kind": {
+              "enum": ["object", "patient"]
+            },
+            "ref": {
+              "$ref": "#/$defs/EntityRef"
+            }
+          }
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      },
+      "description": "A legal hold on one object or on every image ever associated with a patient (including identities merged into it)."
+    },
+    "LegalHoldRelease": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasonCode"],
+      "properties": {
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "LegalHoldCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["legalHoldRef", "state"],
+          "properties": {
+            "legalHoldRef": {
+              "$ref": "#/$defs/LegalHoldRef"
+            },
+            "state": {
+              "enum": ["active", "released"]
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "LegalHold": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "legalHoldRef",
+        "subjectKind",
+        "subjectRef",
+        "state",
+        "reasonCode",
+        "placedBy",
+        "placedAt",
+        "releasedBy",
+        "releasedAt",
+        "releaseReason"
+      ],
+      "properties": {
+        "legalHoldRef": {
+          "$ref": "#/$defs/LegalHoldRef"
+        },
+        "subjectKind": {
+          "enum": ["object", "patient"]
+        },
+        "subjectRef": {
+          "$ref": "#/$defs/EntityRef"
+        },
+        "state": {
+          "enum": ["active", "released"]
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "placedBy": {
+          "$ref": "#/$defs/EntityRef"
+        },
+        "placedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "releasedBy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EntityRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "releasedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "releaseReason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "LegalHoldList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/LegalHold"
+          }
+        }
+      }
+    },
+    "DeletionRequestCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasonCode"],
+      "properties": {
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "DeletionRequestCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["deletionRef", "objectRef", "state", "requiresSecondActor", "recordClass"],
+          "properties": {
+            "deletionRef": {
+              "$ref": "#/$defs/DeletionRef"
+            },
+            "objectRef": {
+              "$ref": "#/$defs/ObjectRef"
+            },
+            "state": {
+              "const": "pending"
+            },
+            "requiresSecondActor": {
+              "type": "boolean"
+            },
+            "recordClass": {
+              "$ref": "#/$defs/RecordClass"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "DeletionExecute": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {}
+    },
+    "DeletionExecuteResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["deletionRef", "objectRef", "state", "deletedObjects", "bytes"],
+          "properties": {
+            "deletionRef": {
+              "$ref": "#/$defs/DeletionRef"
+            },
+            "objectRef": {
+              "$ref": "#/$defs/ObjectRef"
+            },
+            "state": {
+              "const": "executed"
+            },
+            "deletedObjects": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "bytes": {
+              "enum": ["removed", "retained_shared", "pending"],
+              "description": "pending: removal is retried by the next execute or reconcile."
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "DeletionEvaluation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "deletionRef",
+            "objectRef",
+            "state",
+            "blocked",
+            "rule",
+            "earliestAllowedAt",
+            "blockingRefs",
+            "requiresSecondActor",
+            "recordClass",
+            "requestedBy",
+            "requestedAt"
+          ],
+          "properties": {
+            "deletionRef": {
+              "$ref": "#/$defs/DeletionRef"
+            },
+            "objectRef": {
+              "$ref": "#/$defs/ObjectRef"
+            },
+            "state": {
+              "enum": ["pending", "executed"]
+            },
+            "blocked": {
+              "type": "boolean"
+            },
+            "rule": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ReasonCode"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "earliestAllowedAt": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Instant"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "blockingRefs": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind", "ref"],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "pattern": "^[a-z][A-Za-z]{0,63}$"
+                  },
+                  "ref": {
+                    "$ref": "#/$defs/EntityRef"
+                  }
+                }
+              }
+            },
+            "requiresSecondActor": {
+              "type": "boolean"
+            },
+            "recordClass": {
+              "$ref": "#/$defs/RecordClass"
+            },
+            "requestedBy": {
+              "$ref": "#/$defs/EntityRef"
+            },
+            "requestedAt": {
+              "$ref": "#/$defs/Instant"
+            }
+          }
+        }
+      }
     }
   }
 }

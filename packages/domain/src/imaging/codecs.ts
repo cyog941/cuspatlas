@@ -66,6 +66,11 @@ export const IMAGING_OPERATIONS: readonly string[] = [
   'imaging.annotations.create',
   'imaging.annotations.supersede',
   'imaging.derived.create',
+  'imaging.retention.setPolicy',
+  'imaging.legalHolds.place',
+  'imaging.legalHolds.release',
+  'imaging.deletions.request',
+  'imaging.deletions.execute',
 ];
 
 export const IMAGING_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<unknown>>> = Object.fromEntries(

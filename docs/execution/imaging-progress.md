@@ -14,7 +14,7 @@ Status values: not started, in progress, blocked with cause, verified on synthet
 | I2 ingress, gating, dedupe | verified on synthetic data (Windows host); real scanner blocked | 1034 tests + 13 todo |
 | I3 matching, association, `imageRef` | verified on synthetic data (Windows host); I-T8 deviation recorded | 1060 tests + 13 todo |
 | I4 mounts, annotations, derived images | verified on synthetic data (Windows host); I-D4 pending | 1089 tests + 13 todo |
-| I8 retention, deletion, legal hold | not started | |
+| I8 retention, deletion, legal hold | mechanism verified on synthetic data (Windows host); I-D5, I-D6 pending legal review | 1121 tests + 13 todo |
 
 ## Pending decisions
 
@@ -33,6 +33,9 @@ Status values: not started, in progress, blocked with cause, verified on synthet
 | I-D4 annotation storage | burned into an exported copy; stored separately | stored separately as versioned records with normalized geometry; nothing is burned into an original; no export rendering exists yet | Clinical reviewer |
 | I-T10 mount templates | free-form; configured set | configured set `imaging-mount-templates.pending-approval.1` (pa-1, pano-1, bitewing-2, bitewing-4, photo-8, fmx-18); all slot objects available and currently associated with one patient | Clinical and practice review; I-S1 device mount conventions |
 | I-T11 derived transforms | none; server-side transforms | crop, quarter-turn rotation and inversion of 8-bit PNG originals only (zero-dependency codec); one derivation per source and canonical transform; derived objects follow the source's association and are never originals; no fidelity claim | Clinical review; FDA intended-use review before any enhancement feature |
+| I-D5 retention defaults | universal period; per record class; per jurisdiction | per record class (`associated_original`, `unassociated_original`, `derived`) with a jurisdiction code on each version, months from receipt; **no default ships**: without a policy nothing can be deleted | Legal and clinical review per pilot jurisdiction |
+| I-D6 deletion authority | any clinician; practice manager; dual approval | `imaging.delete` (people only); a second person for any image ever associated with a patient; the requester alone for never-associated objects | Practice policy and legal review |
+| I-T12 legal hold scope | per object; per patient | both; a patient hold covers every image ever associated with the patient, including merged identities; holds override retention | Legal review |
 | I-T4 image visibility by location | per-location images; tenant-wide | tenant-wide (consistent with S-D8 tenant-wide patient identity); location restriction is not applied to imaging records | Practice-management review |
 
 ## I1 private object storage boundary
@@ -113,3 +116,21 @@ Negative harness: mount create, revise and read; annotation create, supersede an
 - Red (tests before the I4 code was wired): `corepack pnpm test -- imaging-composition` → exit 1, 8 failed (8).
 - Green: `corepack pnpm test -- imaging-composition` → exit 0, 8 passed; `corepack pnpm test -- imaging tenant-isolation mcp-parity patient-merge` → exit 0, 8 files, 250 passed.
 - Full gate: `typecheck`, `lint`, `contract:check` exit 0; `corepack pnpm test` → first run 1 failed (`restore-smoke` case (e), which starts a second embedded cluster, under parallel load; passes alone 16/16), rerun exit 0, 47 files, 1089 passed + 13 todo.
+
+## I8 retention, deletion and legal hold
+
+Design (operator procedure and backup interaction in [docs/runbooks/imaging-deletion.md](../runbooks/imaging-deletion.md)):
+
+- Operations: `imaging.retention.setPolicy` (`admin.configure`, people only), `.policies`; `imaging.legalHolds.place|release` (`imaging.legalHold`, people only), `.list`; `imaging.deletions.request|execute` (`imaging.delete`, people only), `.evaluate` (`imaging.read`). REST and MCP.
+- Storage (migration `20261111040000_imaging_retention.sql`): append-only `imaging_retention_policies` (versions per record class; `approval_status` can only be `recommended_pending_approval`), `imaging_legal_holds` (released once by the acting person), `imaging_deletion_requests` (one pending per object; identity fixed; executed once; a CHECK enforces the second person when required; byte state settles once), `imaging_objects.deleted_at|deletion_id` with a tombstone CHECK.
+- Shared refusal contract extension (same commit): `RefusalDetail.earliestAllowedAt` (date-time) in `context.ts` and the `Refusal` schema, for `minimum_retention_not_met`.
+- Evaluation order: active holds (object, its source original, every patient ever associated, merged identities), then the class's latest policy (missing = refused), then minimum retention from receipt. Blocked refusals are `replayable: false` (a hold can be released and time passes, so a same-key retry is evaluated again).
+- Execution: re-evaluated, dual approval, one transaction tombstones the object and its derived objects and revokes their grants; then tombstone markers, byte removal (unless another live object shares the blob) and the recorded byte state; retried idempotently by a repeat execute or reconcile. Reconcile also turns a live row with a tombstone back into `deleted` (restore drill).
+
+Acceptance cases (`tests/integration/imaging-retention.test.ts`, 8 tests): no policy means refused (`retention_policy_missing`, attempt row); minimum retention refused with the computed earliest date, a policy change deletes nothing, non-admins cannot set policy; a patient hold blocks the request with the hold as the reason, release allows it, an object hold placed after the request blocks execution with nothing half-deleted, the evaluation shows the rule; an associated image needs a second person, then is tombstoned with metadata, digest and provenance kept, bytes removed, its old grant refused, its derived object deleted, its mount slot shown missing, audit kept, and a replay or a second execute reports the same outcome; a never-associated object is deleted by its requester while identical bytes of another patient's object are retained and still readable; writers, service principals and other tenants are refused or hidden; a simulated restore that lists the deleted object as available is reconciled back to deleted and never served; MCP parity for holds and deletion refusal.
+
+Negative harness: set policy, policies, place, release and list holds, request, evaluate and execute deletion.
+
+- Red (tests before the I8 code was wired): `corepack pnpm test -- imaging-retention` → exit 1, 8 failed (8).
+- Green: `corepack pnpm test -- imaging-retention` → exit 0, 8 passed (one test setup corrected: the shared-bytes case needed a second dedupe scope, since identical unscoped bytes correctly deduplicate into one object); `corepack pnpm test -- imaging tenant-isolation mcp-parity patient-merge contract-drift` → exit 0, 10 files, 290 passed.
+- Full gate: `typecheck`, `lint`, `contract:check` exit 0; `corepack pnpm test` → exit 0, 48 files, 1121 passed + 13 todo.

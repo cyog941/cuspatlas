@@ -195,6 +195,8 @@ export interface RefusalDetail {
   readonly conflicts?: readonly Conflict[];
   /** S13 addition: the published configuration limit a request exceeded. */
   readonly limit?: { readonly name: string; readonly value: number };
+  /** I8 addition: the computed earliest instant an imaging deletion would be allowed. */
+  readonly earliestAllowedAt?: string;
   /** S13 addition: per-occurrence conflicts of a refused series (at most 52). */
   readonly occurrences?: readonly {
     readonly index: number;

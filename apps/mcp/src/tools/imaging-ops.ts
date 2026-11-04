@@ -15,6 +15,8 @@ export const IMAGING_TRANSPORT: Record<string, string> = {
   imageRef: 'ImageRef',
   mountRef: 'MountRef',
   annotationRef: 'AnnotationRef',
+  legalHoldRef: 'LegalHoldRef',
+  deletionRef: 'DeletionRef',
 };
 
 /** Input schema = the REST body (or GET query) properties plus path parameters and `idempotencyKey`. */

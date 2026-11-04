@@ -282,3 +282,27 @@ export const validateMountQuery = def('MountQuery');
 export const validateAnnotationCreate = def('AnnotationCreate');
 export const validateAnnotationSupersede = def('AnnotationSupersede');
 export const validateDerivedCreate = def('DerivedCreate');
+
+// I8 retention, deletion and legal hold.
+export type RecordClass = 'associated_original' | 'unassociated_original' | 'derived';
+export interface RetentionPolicySet {
+  readonly recordClass: RecordClass;
+  readonly minimumRetentionMonths: number;
+  readonly basisCode: string;
+  readonly jurisdictionCode: string;
+}
+export interface LegalHoldPlace {
+  readonly subject: { readonly kind: 'object' | 'patient'; readonly ref: string };
+  readonly reasonCode: string;
+}
+export interface LegalHoldRelease {
+  readonly reasonCode: string;
+}
+export interface DeletionRequestCreate {
+  readonly reasonCode: string;
+}
+export const validateRetentionPolicySet = def('RetentionPolicySet');
+export const validateLegalHoldPlace = def('LegalHoldPlace');
+export const validateLegalHoldRelease = def('LegalHoldRelease');
+export const validateDeletionRequestCreate = def('DeletionRequestCreate');
+export const validateDeletionExecute = def('DeletionExecute');

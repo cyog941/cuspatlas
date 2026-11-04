@@ -56,6 +56,13 @@ const BEGIN = {
   provenance: { source: 'operatorUpload', originalFilename: `harness-${MARKER}.png` },
 };
 
+const POLICY = {
+  recordClass: 'derived',
+  minimumRetentionMonths: 0,
+  basisCode: 'synthetic_test_policy',
+  jurisdictionCode: 'us-synthetic',
+};
+
 const toolOf = (operation: string) => IMAGING_OPS.find((o) => o.operationId === operation)?.tool ?? '';
 
 export const ROWS: ImagingHarnessRow[] = [
@@ -360,6 +367,106 @@ export const ROWS: ImagingHarnessRow[] = [
       idempotencyKey: randomUUID(),
     }),
   },
+  // I8 retention, deletion and legal hold.
+  {
+    operation: 'imaging.retention.setPolicy',
+    crossTenant: 'own_tenant_only',
+    downgradedTo: 'imagingReadOnly',
+    rest: () => ({
+      method: 'POST',
+      url: '/v1/imaging/retention/policies',
+      body: POLICY,
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: () => ({ ...POLICY, idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'imaging.retention.policies',
+    crossTenant: 'own_tenant_only',
+    downgradedTo: 'noImagingScopes',
+    rest: () => ({ method: 'GET', url: '/v1/imaging/retention/policies', keyed: false, status: 200 }),
+    mcpArgs: () => ({}),
+  },
+  {
+    operation: 'imaging.legalHolds.place',
+    crossTenant: 'not_found',
+    downgradedTo: 'imagingReadOnly',
+    rest: (x) => ({
+      method: 'POST',
+      url: '/v1/imaging/legal-holds',
+      body: { subject: { kind: 'object', ref: x.associated }, reasonCode: 'records_request' },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (x) => ({
+      subject: { kind: 'object', ref: x.associated },
+      reasonCode: 'records_request',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'imaging.legalHolds.release',
+    crossTenant: 'not_found',
+    downgradedTo: 'imagingReadOnly',
+    rest: (x) => ({
+      method: 'POST',
+      url: `/v1/imaging/legal-holds/${x.hold}/release`,
+      body: { reasonCode: 'matter_closed' },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (x) => ({ legalHoldRef: x.hold, reasonCode: 'matter_closed', idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'imaging.legalHolds.list',
+    crossTenant: 'own_tenant_only',
+    downgradedTo: 'noImagingScopes',
+    rest: () => ({ method: 'GET', url: '/v1/imaging/legal-holds', keyed: false, status: 200 }),
+    mcpArgs: () => ({}),
+  },
+  {
+    operation: 'imaging.deletions.request',
+    crossTenant: 'not_found',
+    downgradedTo: 'imagingReadOnly',
+    rest: (x) => ({
+      method: 'POST',
+      url: `/v1/imaging/objects/${x.object}/deletion-requests`,
+      body: { reasonCode: 'requested_by_practice' },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (x) => ({
+      objectRef: x.object,
+      reasonCode: 'requested_by_practice',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'imaging.deletions.evaluate',
+    crossTenant: 'not_found',
+    downgradedTo: 'noImagingScopes',
+    rest: (x) => ({
+      method: 'GET',
+      url: `/v1/imaging/deletion-requests/${x.deletion}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (x) => ({ deletionRef: x.deletion }),
+  },
+  {
+    operation: 'imaging.deletions.execute',
+    crossTenant: 'not_found',
+    downgradedTo: 'imagingReadOnly',
+    rest: (x) => ({
+      method: 'POST',
+      url: `/v1/imaging/deletion-requests/${x.deletion}/execute`,
+      body: {},
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (x) => ({ deletionRef: x.deletion, idempotencyKey: randomUUID() }),
+  },
 ];
 
 beforeAll(async () => {
@@ -420,6 +527,17 @@ beforeAll(async () => {
     geometry: { kind: 'point', x: 0.2, y: 0.2 },
   });
   expect(ann.status).toBe(201);
+  const hold = await post('/v1/imaging/legal-holds', {
+    subject: { kind: 'object', ref: object },
+    reasonCode: 'records_request',
+  });
+  expect(hold.status).toBe(201);
+  const pol = await post('/v1/imaging/retention/policies', { ...POLICY, recordClass: 'associated_original' });
+  expect(pol.status).toBe(201);
+  const del = await post(`/v1/imaging/objects/${associated}/deletion-requests`, {
+    reasonCode: 'requested_by_practice',
+  });
+  expect(del.status).toBe(201);
   f = {
     object,
     grant: grant.grantRef,
@@ -433,6 +551,8 @@ beforeAll(async () => {
     imageRef: assoc.imageRef,
     mount: (mnt.json.data as { mountRef: string }).mountRef,
     annotation: (ann.json.data as { annotationRef: string }).annotationRef,
+    hold: (hold.json.data as { legalHoldRef: string }).legalHoldRef,
+    deletion: (del.json.data as { deletionRef: string }).deletionRef,
   };
 });
 afterAll(async () => {

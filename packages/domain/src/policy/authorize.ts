@@ -174,6 +174,16 @@ export const ACTION_POLICIES = {
   'imaging.annotations.supersede': { scope: 'imaging.write', principals: ['human', 'service'] },
   'imaging.annotations.list': { scope: 'imaging.read', principals: ['human', 'service'] },
   'imaging.derived.create': { scope: 'imaging.write', principals: ['human', 'service'] },
+  // I8 retention, deletion and legal hold (I-D5/I-D6 pending approval): policy values are practice
+  // configuration by a person; holds and deletions are human decisions; evaluations are reads.
+  'imaging.retention.setPolicy': { scope: 'admin.configure', principals: ['human'] },
+  'imaging.retention.policies': { scope: 'imaging.read', principals: ['human', 'service'] },
+  'imaging.legalHolds.place': { scope: 'imaging.legalHold', principals: ['human'] },
+  'imaging.legalHolds.release': { scope: 'imaging.legalHold', principals: ['human'] },
+  'imaging.legalHolds.list': { scope: 'imaging.read', principals: ['human', 'service'] },
+  'imaging.deletions.request': { scope: 'imaging.delete', principals: ['human'] },
+  'imaging.deletions.evaluate': { scope: 'imaging.read', principals: ['human', 'service'] },
+  'imaging.deletions.execute': { scope: 'imaging.delete', principals: ['human'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

@@ -8,6 +8,7 @@ import {
 } from './composition';
 import { createIngressOperations, sweepAbandonedIngress } from './ingress';
 import { createObjectOperations } from './objects';
+import { createRetentionOperations, reconcileDeletions } from './retention';
 
 /**
  * Imaging service (workstream I). One instance per transport; REST and MCP call the same functions,
@@ -19,11 +20,12 @@ export function createImagingService(deps: ImagingDeps) {
     ...createObjectOperations(
       base,
       [associationExtension(() => sourceOfDerived), compositionExtension],
-      [sweepAbandonedIngress],
+      [sweepAbandonedIngress, reconcileDeletions],
     ),
     ...createIngressOperations(base),
     ...createAssociationOperations(base, [mountGuard], deps.limits?.unmatchedEscalationHours ?? 48),
     ...createCompositionOperations(base),
+    ...createRetentionOperations(base),
   };
 }
 

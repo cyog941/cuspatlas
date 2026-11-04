@@ -3407,6 +3407,256 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/imaging/retention/policies:
+    post:
+      operationId: imaging.retention.setPolicy
+      description: >-
+        Record a new version of the minimum retention of one record class (recommended_pending_approval; no
+        universal default ships). A policy change never deletes anything.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/RetentionPolicySet'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/RetentionPolicyCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: imaging.retention.policies
+      description: >-
+        The current retention policy version of each record class.
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/RetentionPolicyList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/legal-holds:
+    post:
+      operationId: imaging.legalHolds.place
+      description: >-
+        Place a legal hold on one object or on every image ever associated with a patient. A hold blocks
+        deletion and overrides retention.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/LegalHoldPlace'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/LegalHoldCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: imaging.legalHolds.list
+      description: >-
+        Legal holds, active first (at most 100).
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/LegalHoldList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/legal-holds/{legalHoldRef}/release:
+    post:
+      operationId: imaging.legalHolds.release
+      description: >-
+        Release a legal hold with a reason (once; the hold stays in history).
+      parameters:
+        - name: legalHoldRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/LegalHoldRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/LegalHoldRelease'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/LegalHoldCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/objects/{objectRef}/deletion-requests:
+    post:
+      operationId: imaging.deletions.request
+      description: >-
+        Request deletion of an object. Refused with the reason when a legal hold is active, no retention
+        policy exists, or the minimum retention is not met (with the computed earliest date).
+      parameters:
+        - name: objectRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeletionRequestCreate'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeletionRequestCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/deletion-requests/{deletionRef}:
+    get:
+      operationId: imaging.deletions.evaluate
+      description: >-
+        Evaluate a deletion request now: blocked or not, the rule, the earliest date and what blocks it.
+      parameters:
+        - name: deletionRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeletionRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeletionEvaluation'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/deletion-requests/{deletionRef}/execute:
+    post:
+      operationId: imaging.deletions.execute
+      description: >-
+        Execute a deletion (re-evaluated now; a second person for any image ever associated with a patient):
+        tombstone with audit and provenance kept, derived objects included, read grants revoked, bytes
+        removed unless shared by another live object. Retrying reports the same outcome.
+      parameters:
+        - name: deletionRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeletionRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeletionExecute'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeletionExecuteResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   # --- end imaging ---
 components:
   securitySchemes:

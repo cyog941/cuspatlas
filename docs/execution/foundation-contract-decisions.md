@@ -308,3 +308,12 @@ Additions only; no frozen row changed. Decisions are recommended-pending-approva
 - Read grants: HMAC tokens (`CUSPATLAS_IMAGING_TOKEN_SECRET`; the test-only secret only under synthetic-test) bound to tenant, principal, object, grant and expiry (at most 300 s), sent in `x-object-read-token` with the caller's own bearer token and checked against a revocable grant row. Issuance is not keyed (a fresh grant per call; no token reaches `command_idempotency`). A missing secret outside synthetic-test disables grants (typed 503) instead of refusing startup.
 - Security reason codes added: `imaging_refused` (any imaging refusal without a specific reason), `object_token_invalid`, `object_integrity_failed`, `upload_gated`. Imaging commands and byte reads record every typed refusal (not only denials); metadata reads record denials.
 - Fixed alert lines: `imaging_object_integrity_failed`, `imaging_object_store_unavailable`, `imaging_token_secret_missing`.
+
+## Task record: I2-I8 imaging batch 1 (workstream I, 2026-11-11)
+
+Additions only; no frozen row changed. Details and pending decisions in docs/execution/imaging-progress.md.
+
+- Shared refusal detail extension (same commit as the code): `RefusalDetail.earliestAllowedAt` (date-time) in `context.ts` and the `Refusal` schema, used by `minimum_retention_not_met`.
+- Merge registry: class `imagingAssociation` (`imaging_match_decisions.subject_patient_id`, factKind `clinical`) added to `MERGE_RECORD_CLASSES`; `imaging_ingress_sessions.intended_patient_id` and `imaging_objects.dedupe_patient_id` added to `MERGE_EXCLUDED_REFERENCES`.
+- Gate failures that preserve evidence (quarantined upload, failed derivation, integrity quarantine) commit their record and then refuse (`CommitThenRefuse`); they are never a 2xx.
+- Imaging replay projection `imagingCodec` accepts server references, SHA-256 digests, enumerations (including camelCase enums such as `operatorSelected`), instants, counts and flags; caller text never enters an imaging command result.

@@ -365,6 +365,108 @@ export const IMAGING_OPS: readonly ImagingOp[] = [
     invoke: (svc, actor, i) =>
       svc.createDerivedImage(actor, param(i, 'objectRef'), env('imaging.derived.create', i)),
   },
+  // I8 retention, deletion and legal hold (mechanism; values recommended-pending-approval).
+  {
+    method: 'post',
+    path: '/v1/imaging/retention/policies',
+    operationId: 'imaging.retention.setPolicy',
+    protected: true,
+    requestBody: I('RetentionPolicySet'),
+    success: { status: '201', schema: I('RetentionPolicyCommandResult') },
+    refusals: COMMAND,
+    tool: 'imaging_retention_set_policy',
+    description:
+      'Record a new version of the minimum retention of one record class (recommended_pending_approval; no universal default ships). A policy change never deletes anything.',
+    invoke: (svc, actor, i) => svc.setRetentionPolicy(actor, env('imaging.retention.setPolicy', i)),
+  },
+  {
+    method: 'get',
+    path: '/v1/imaging/retention/policies',
+    operationId: 'imaging.retention.policies',
+    protected: true,
+    success: { status: '200', schema: I('RetentionPolicyList') },
+    refusals: ['401', '403', '503'],
+    tool: 'imaging_retention_policies',
+    description: 'The current retention policy version of each record class.',
+    invoke: (svc, actor) => data(svc.listRetentionPolicies(actor)),
+  },
+  {
+    method: 'post',
+    path: '/v1/imaging/legal-holds',
+    operationId: 'imaging.legalHolds.place',
+    protected: true,
+    requestBody: I('LegalHoldPlace'),
+    success: { status: '201', schema: I('LegalHoldCommandResult') },
+    refusals: COMMAND,
+    tool: 'imaging_legal_holds_place',
+    description:
+      'Place a legal hold on one object or on every image ever associated with a patient. A hold blocks deletion and overrides retention.',
+    invoke: (svc, actor, i) => svc.placeLegalHold(actor, env('imaging.legalHolds.place', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/imaging/legal-holds/{legalHoldRef}/release',
+    operationId: 'imaging.legalHolds.release',
+    protected: true,
+    requestBody: I('LegalHoldRelease'),
+    success: { status: '200', schema: I('LegalHoldCommandResult') },
+    refusals: COMMAND,
+    tool: 'imaging_legal_holds_release',
+    description: 'Release a legal hold with a reason (once; the hold stays in history).',
+    invoke: (svc, actor, i) =>
+      svc.releaseLegalHold(actor, param(i, 'legalHoldRef'), env('imaging.legalHolds.release', i)),
+  },
+  {
+    method: 'get',
+    path: '/v1/imaging/legal-holds',
+    operationId: 'imaging.legalHolds.list',
+    protected: true,
+    success: { status: '200', schema: I('LegalHoldList') },
+    refusals: ['401', '403', '503'],
+    tool: 'imaging_legal_holds_list',
+    description: 'Legal holds, active first (at most 100).',
+    invoke: (svc, actor) => data(svc.listLegalHolds(actor)),
+  },
+  {
+    method: 'post',
+    path: `${OBJ}/deletion-requests`,
+    operationId: 'imaging.deletions.request',
+    protected: true,
+    requestBody: I('DeletionRequestCreate'),
+    success: { status: '201', schema: I('DeletionRequestCommandResult') },
+    refusals: COMMAND,
+    tool: 'imaging_deletions_request',
+    description:
+      'Request deletion of an object. Refused with the reason when a legal hold is active, no retention policy exists, or the minimum retention is not met (with the computed earliest date).',
+    invoke: (svc, actor, i) =>
+      svc.requestDeletion(actor, param(i, 'objectRef'), env('imaging.deletions.request', i)),
+  },
+  {
+    method: 'get',
+    path: '/v1/imaging/deletion-requests/{deletionRef}',
+    operationId: 'imaging.deletions.evaluate',
+    protected: true,
+    success: { status: '200', schema: I('DeletionEvaluation') },
+    refusals: READ,
+    tool: 'imaging_deletions_evaluate',
+    description:
+      'Evaluate a deletion request now: blocked or not, the rule, the earliest date and what blocks it.',
+    invoke: (svc, actor, i) => data(svc.evaluateDeletion(actor, param(i, 'deletionRef'))),
+  },
+  {
+    method: 'post',
+    path: '/v1/imaging/deletion-requests/{deletionRef}/execute',
+    operationId: 'imaging.deletions.execute',
+    protected: true,
+    requestBody: I('DeletionExecute'),
+    success: { status: '200', schema: I('DeletionExecuteResult') },
+    refusals: COMMAND,
+    tool: 'imaging_deletions_execute',
+    description:
+      'Execute a deletion (re-evaluated now; a second person for any image ever associated with a patient): tombstone with audit and provenance kept, derived objects included, read grants revoked, bytes removed unless shared by another live object. Retrying reports the same outcome.',
+    invoke: (svc, actor, i) =>
+      svc.executeDeletion(actor, param(i, 'deletionRef'), env('imaging.deletions.execute', i)),
+  },
 ];
 
 /** The route contracts only (spread into ROUTES). */

@@ -197,6 +197,11 @@
                 "value": { "type": "integer", "minimum": 0 }
               }
             },
+            "earliestAllowedAt": {
+              "type": "string",
+              "format": "date-time",
+              "description": "I8 addition: the computed earliest instant an imaging deletion would be allowed (minimum retention)."
+            },
             "occurrences": {
               "type": "array",
               "maxItems": 52,

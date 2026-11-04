@@ -187,13 +187,16 @@ describe('S10 acceptance', () => {
         actorRef: USER_A1,
       },
     ]);
-    // One audit row for the booking and one for the override record, in the same transaction.
+    // One audit row for the booking, one for its S14 notification intent and one for the override
+    // record, in the same transaction.
     const audit = await db.admin.query(
-      `SELECT operation, resource_type FROM cuspatlas.audit_events WHERE correlation_id = $1 ORDER BY operation`,
+      `SELECT operation, resource_type FROM cuspatlas.audit_events WHERE correlation_id = $1
+       ORDER BY operation, resource_type`,
       [overridden.headers['x-correlation-id']],
     );
     expect(audit.rows).toStrictEqual([
       { operation: 'scheduling.appointments.book', resource_type: 'appointment' },
+      { operation: 'scheduling.appointments.book', resource_type: 'notificationIntent' },
       { operation: 'scheduling.appointments.override', resource_type: 'appointmentOverride' },
     ]);
     // The same window again: the overlap with the overridden booking is not overrideable.
@@ -636,7 +639,8 @@ describe('S10 concurrency: repeated contention on one slot, REST and MCP mixed',
         );
         return {
           status: m.status,
-          body: m.status === 201 ? m.body : { code: m.code, detail: m.body.detail },
+          body:
+            m.status === 201 ? m.body : { code: m.code, retryable: m.body.retryable, detail: m.body.detail },
         };
       });
       const results = await Promise.all(attempts);
@@ -650,13 +654,24 @@ describe('S10 concurrency: repeated contention on one slot, REST and MCP mixed',
         const detail = l.body.detail as {
           conflicts: { kind: string; resourceRef: { resourceRef: string }; existingRef?: string }[];
         };
+        expect(l.body.code).toBe('conflict');
         expect(detail.conflicts.length).toBeGreaterThan(0);
+        // Terminal vs retryable: a conflict naming the committed winner is not retryable; a contended
+        // attempt that exhausted its deadlock budget without seeing a winner is retryable and names
+        // only the contended resources (review hardening, batch 3).
         for (const c of detail.conflicts) {
           expect(c.kind).toBe('resource_overlap');
           expect([loc.provider, loc.operatory]).toContain(c.resourceRef.resourceRef);
-          expect(c.existingRef).toBe(winner);
+          if (l.body.retryable === true) expect(c.existingRef).toBeUndefined();
+          else expect(c.existingRef).toBe(winner);
         }
       }
+      // Resource conflicts are never stored as replayable refusals (they depend on other bookings).
+      const stored = await db.admin.query(
+        `SELECT count(*)::int AS n FROM cuspatlas.command_idempotency
+         WHERE operation = 'scheduling.appointments.book' AND state = 'failed' AND result ->> 'code' = 'conflict'`,
+      );
+      expect(stored.rows[0].n).toBe(0);
       const audits = await db.admin.query(
         `SELECT count(*)::int AS n FROM cuspatlas.audit_events a
          JOIN cuspatlas.appointments p ON p.id = a.resource_ref
@@ -687,4 +702,29 @@ describe('S10 concurrency: repeated contention on one slot, REST and MCP mixed',
     writeFileSync('node_modules/.cache/cuspatlas/s10-concurrency.json', JSON.stringify(summary));
     expect(summary.every((s) => s.booked === 1 && s.conflicts === 9 && s.audits === 1)).toBe(true);
   }, 120_000);
+});
+
+describe('S7 time-block conflicts are not replayed (review hardening)', () => {
+  it('a block refused for an overlapping booking succeeds on the same key once the booking is cancelled', async () => {
+    const patient = await createPatient(h, 'Synthetic Blocker');
+    const booked = h.ok<Result>(await book(booking(patient, at(27, 14), at(27, 15))), 201);
+    const body = {
+      locationRef: loc.locationRef,
+      startsAt: at(27, 14),
+      endsAt: at(27, 15),
+      reasonCode: 'meeting',
+      resources: [{ kind: 'operatory', resourceRef: loc.operatory }],
+    };
+    const key = randomUUID();
+    const refused = await h.call('a1', 'POST', '/v1/scheduling/time-blocks', body, key);
+    expect([refused.statusCode, refused.json().code]).toStrictEqual([409, 'conflict']);
+    const cancel = await h.call('a1', 'POST', `${BOOK}/${booked.data.appointmentRef}/cancel`, {
+      expectedVersion: 1,
+      reasonCode: 'patient_request',
+    });
+    expect(cancel.statusCode, cancel.body).toBe(200);
+    const retry = await h.call('a1', 'POST', '/v1/scheduling/time-blocks', body, key);
+    expect(retry.statusCode, retry.body).toBe(201);
+    expect(retry.json().data.timeBlockRef).toBeDefined();
+  });
 });

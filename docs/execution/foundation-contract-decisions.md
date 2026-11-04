@@ -302,3 +302,49 @@ Additions only; no frozen row changed. ADR 0008 (recommended-pending-billing-app
 - Operations: `rcm.coverages.record|change|read|resolve`, `rcm.eligibility.record` under the new registry scopes `coverage.read` / `coverage.write`. `rcm.coverages.resolve` is the coverage-status read for C12 (`entered|unknown|stale`; `paymentAssurance: none`).
 - Eligibility port (`packages/domain/src/rcm/coverage.ts`): stable request key, outcomes `confirmed|declined|unknown`; only a deterministic fake adapter exists.
 - Merge: `rcm_coverages.patient_id` and `rcm_coverage_versions.subscriber_patient_id` are deliberate exclusions; resolution follows the merge set.
+
+## Task record: S12 visit context and the S12-S16 operation table (batch 3, 2026-11-07)
+
+- Operation table: `apps/api/src/routes/scheduling-ops.ts` `SCHEDULING_OPS` declares each S12-S16 operation once (route contract, MCP tool name, query definition for GETs, `postRead` for read-only POSTs, and the domain call). REST routes (`scheduling-ops-routes.ts`), MCP tools (`apps/mcp/src/tools/scheduling-ops.ts`), the closed-body drift check (every request body and query definition must set `additionalProperties: false`) and the tool drift test derive from it.
+- Replay projection: `packages/domain/src/scheduling/ext-codecs.ts` `flatCodec` persists flat command results only (server references, enumerations `^[a-z][a-z0-9_.:-]{0,79}$`, instants/dates, numbers, booleans, null, and lists of such strings) and throws on anything else, so caller text cannot reach `command_idempotency`.
+- Operations `scheduling.visitContext.read|items` (`scheduling.read`) and `.pinMedicalHistory|assignForm|unassignForm|linkLabCase|relinkLabCase` (`scheduling.write`), human or service. Producer port `SchedulingDeps.visitContextProducers` (resolve/current/listFor inside the caller's tenant transaction); none deployed. New refusal reasons (409 `conflict`): `producer_unavailable` (not stored by the executor), `appointment_not_open`, `already_pinned`, `producer_record_missing`, `producer_record_voided`, `lab_case_bound_elsewhere`, `lab_case_not_bound`, `lab_case_already_here`, `item_not_active`.
+- Storage `visit_context_items` (migration `20261107000000_visit_context.sql`): references only; one pin per appointment, one active assignment per form and appointment, one active binding per lab case (partial unique indexes); relink history without foreign keys (restore order).
+
+## Task record: S13 recurrence series (batch 3, 2026-11-07)
+
+- Shared refusal detail extension (same commit as the code): `RefusalDetail.limit = {name, value}` (the published configuration limit a request exceeded) and `RefusalDetail.occurrences = [{index, startsAt, conflicts}]` (at most 52) in `context.ts` and the `Refusal` schema. `RefusalInit.replayable` (default true): a terminal-coded refusal with `replayable: false` is not stored by `executeOnce` (the transaction rolls back), for conflicts that depend on other records' current state.
+- Operations `scheduling.series.plan|read` (`scheduling.read`; plan is a POST read) and `.create|extend|end` (`scheduling.write`), human or service. Occurrences are written by `insertBookingIn` (the single S10 insert path) with the series operation as audit operation. Cancel and reschedule of an occurrence (or of a booking rescheduled from one) append `appointment_series_exceptions` in the same transaction.
+- Storage (migration `20261107010000_appointment_recurrence.sql`): `appointment_series` (pattern and anchor immutable by trigger; ended once; runtime UPDATE on lifecycle and merge columns only), append-only `appointment_series_occurrences` and `appointment_series_exceptions`; `scheduling_policy_settings.series_occurrence_limit` (default 26, 1-52; runtime read-only).
+
+## Task record: S14 notification intents and the proposed work-item contract (batch 3, 2026-11-07)
+
+- `notification_intents` (migration `20261107020000_notification_intents.sql`): append-only, RLS, runtime SELECT/INSERT only; channel CHECK allows the five channels but scheduling writes `none` only until S-S2/S-D5; `suppression_decision_ref` stays NULL (E6 adds its decision path and grant); `UNIQUE (tenant_id, delivery_key)` with delivery key `<purpose>:<subjectRef>`.
+- Recording: `recordNotificationIntent(tx, operation, …)` inside the causing command's transaction (booking insert path, cancel; S15 offers and S16 recall tasks). Operations `scheduling.notifications.read|worklist` (`scheduling.read`).
+- Proposed shared contract (owner S until adopted; other workstreams to adopt rather than define a second model): `WorkItem = {workItemRef, kind, reasonCode, explanation (server text), evidenceRefs[{kind, ref}], owner {queue, principalRef}, nextActionOwedBy (practice|patient|payer|vendor|platform), dueAt, priority, priorityRationale, suggestedNextAction, blockingDependencies[]}` and `WorkItemList = {asOf, coverage (available | unavailable{reason, owner}), count, items}` in `scheduling.schema.json`, built by `packages/domain/src/work-items/`. A list that cannot be computed is `unavailable` with its owner, never an empty list. Work items are projections of stored facts, not a second state machine.
+
+## Task record: S15 waitlist and PT-02 cancellation recovery (batch 3, 2026-11-07)
+
+- Operations `scheduling.waitlist.add|remove|offer|respond|reconcileOffers` (`scheduling.write`), `.list|offers.read` (`scheduling.read`); `scheduling.recovery.list|read` (`scheduling.read`), `.execute` (`scheduling.write`, human or service; a service principal additionally needs a live standing policy); `scheduling.standingPolicies.grant|revoke` (`admin.configure`, human only), `.list` (`scheduling.read`).
+- Offers reuse the S10 hold mechanism (`createHoldIn`); acceptance reuses the S10 insert path (`insertBookingIn`) and hold conversion. The hold of a live offer is guarded against the generic book-from-hold and release commands (409 `hold_belongs_to_offer`), so no offer books without its explicit acceptance.
+- Proposed shared contract, standing policy (owner S until A adopts standing-policy registration; the F proposal tables are bound to the synthetic task operations and were not widened): `{policyRef, operation, ownerRef (granting human), granteeRef (one service principal), locationRefs, maxOffersPerRecovery, expiresAt (at most 90 days), state active|revoked|expired, version}`. The executing transaction re-reads the policy `FOR SHARE` (serialized with revocation, which locks `FOR UPDATE`), refuses when missing, revoked or expired (403 `forbidden`, detail `standing_policy_required`) or over its limit (409 `standing_policy_limit`), and records `standing_policy_id` and `standing_policy_version` on the offer. The grant is immutable by trigger; revocation is one-way.
+- Storage (migration `20261107030000_waitlist.sql`): `scheduling_offer_policies` (runtime read-only), `waitlist_entries` (merge class `waitlistEntry`), `waitlist_offers` (binding immutable, outcome once), `cancellation_recoveries` (one per cancelled appointment), `scheduling_standing_policies`.
+
+## Task record: S16 recall and the PT-03 follow-up worklist (batch 3, 2026-11-07)
+
+- Operations `scheduling.recall.definePolicy` (`admin.configure`), `.policies|due` (`scheduling.read`), `.createTask|resolveTask` (`scheduling.write`); `scheduling.followUp.worklist` (`scheduling.read`). Human or service.
+- Storage (migration `20261107040000_recall.sql`): append-only `recall_policies` (unique tenant, category, version; basis CHECK allows `attended_visit` only until C14), `recall_tasks` (one open task per patient and policy version; resolved with a reason, never deleted; merge-excluded).
+- The due list is computed on read from stored state (appointments, S11 attendance, patients, open tasks) and states policy version and freshness; S owns recall policy and due computation, E6 consumes due items for enrollment and decides contact. `WorkItemList` gains optional `notCovered = [{area, owner, reason}]` for areas whose producer is not deployed.
+
+## Task record: S17 parity, export and scenario (batch 3, 2026-11-07)
+
+- Operation `scheduling.export` (`admin.configure`, human only, tenant-wide members only; sensitive-read logged): format `cuspatlas-scheduling-export/1`, tables `SCHEDULING_EXPORT_TABLES` in foreign-key order, rows without `tenant_id`. `importSchedulingExport` in `packages/db` is a privileged synthetic-only round-trip loader, not the M1 import.
+- The integration vitest project also runs `tests/scenarios/*.test.ts` (one global database setup).
+
+## Task record: review hardening of S8-S11 (batch 3, 2026-11-07)
+
+- Booking and reschedule validate the window and resolve resources inside the idempotent handler, so a same-key retry is answered from the reservation (replay or `idempotency_conflict`) before any validation of a changed world.
+- Booking resource conflicts are `replayable: false` (not stored by `executeOnce`). A stored refusal never keeps a conflict `existingRef` (stripped at storage, including per-occurrence conflicts). Validation refusals stay terminal and replayed.
+- Attendance confirmation provenance: `confirmed_automated` only by a service principal, `confirmed_manual` only by a person (403 `forbidden`, attempt reason `principal_kind_denied`).
+- Every occupancy-writing path (S7 time blocks included) releases expired holds on its resources before checking; a 23P01 conflict list is never empty.
+- Patient conflicts name merged, deceased or inactive state only to callers holding `patients.read`; others get `patient_unavailable` with a generic explanation.
+- Hold ownership decision: any member with `scheduling.write` at a visible location may convert or release a hold; a waitlist offer hold only through `scheduling.waitlist.respond`.

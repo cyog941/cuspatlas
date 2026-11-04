@@ -1,5 +1,5 @@
 import type { ValidateFunction } from 'ajv/dist/2020.js';
-import type { ResourceKind, ResourceRef } from './context';
+import type { Conflict, ResourceKind, ResourceRef } from './context';
 import schema from './scheduling.schema.json' with { type: 'json' };
 import { collectPropertyNames, createAjv } from './validation';
 
@@ -524,3 +524,405 @@ export interface DailyWorklistData {
 
 export const validateAttendanceRecord = def('AttendanceRecord');
 export const validateWorklistQuery = def('WorklistQuery');
+
+/** S12 visit context: a container of references to clinical producers (C8, C10, C11, C13, C16). */
+export type VisitItemKind = 'medical_history_pin' | 'form_assignment' | 'lab_case_link';
+export type VisitProducerKey = 'medicalHistory' | 'forms' | 'noteDrafts' | 'labCases' | 'treatmentPlanItems';
+export type VisitProducerOwner = 'C8' | 'C10' | 'C11' | 'C13' | 'C16';
+export interface VisitFormAssign {
+  readonly formRef: string;
+}
+export interface VisitFormUnassign {
+  readonly expectedVersion: number;
+  readonly reasonCode: string;
+}
+export interface VisitLabLink {
+  readonly labCaseRef: string;
+}
+export interface VisitLabRelink {
+  readonly labCaseRef: string;
+  readonly reasonCode: string;
+}
+export interface VisitItemCommandData {
+  readonly itemRef: string;
+  readonly appointmentRef: string;
+  readonly itemKind: VisitItemKind;
+  readonly producerRef: string;
+  readonly itemVersion: number | null;
+  readonly state: 'active' | 'ended';
+  readonly endKind: 'unassigned' | 'relinked' | null;
+  readonly created: boolean;
+}
+export interface VisitContextEntry {
+  readonly itemRef: string | null;
+  readonly producerRef: string;
+  readonly version: number | null;
+  readonly currentVersion: number | null;
+  readonly provenanceRef: string | null;
+  readonly resolution: 'resolved' | 'voided' | 'not_found';
+  readonly state: 'active' | 'ended';
+}
+export type VisitContextSlot =
+  | {
+      readonly status: 'unavailable';
+      readonly owner: VisitProducerOwner;
+      readonly reason: 'producer_not_deployed';
+    }
+  | {
+      readonly status: 'available';
+      readonly owner: VisitProducerOwner;
+      readonly entries: VisitContextEntry[];
+    };
+export interface VisitContextData {
+  readonly appointmentRef: string;
+  readonly asOf: string;
+  readonly appointment: {
+    readonly status: AppointmentStatus;
+    readonly version: number;
+    readonly startsAt: string;
+    readonly locationRef: string;
+    readonly acceptsChanges: boolean;
+  };
+  readonly patient: { readonly status: 'resolved'; readonly patientRef: string };
+  readonly attendance: { readonly status: 'resolved'; readonly state: AttendanceState };
+  readonly items: Readonly<Record<VisitProducerKey, VisitContextSlot>>;
+  readonly readiness: {
+    readonly resolved: number;
+    readonly unavailable: VisitProducerKey[];
+    readonly complete: boolean;
+  };
+}
+export interface VisitContextItemRecord {
+  readonly itemRef: string;
+  readonly itemKind: VisitItemKind;
+  readonly producer: 'C8' | 'C13' | 'C16';
+  readonly producerRef: string;
+  readonly itemVersion: number | null;
+  readonly provenanceRef: string | null;
+  readonly state: 'active' | 'ended';
+  readonly endKind: 'unassigned' | 'relinked' | null;
+  readonly endReason: string | null;
+  readonly relinkedFrom: string | null;
+  readonly relinkedTo: string | null;
+  readonly actorRef: string;
+  readonly createdAt: string;
+  readonly endedAt: string | null;
+  readonly version: number;
+}
+
+export const validateVisitContextPin = def('VisitContextPin');
+export const validateVisitFormAssign = def('VisitFormAssign');
+export const validateVisitFormUnassign = def('VisitFormUnassign');
+export const validateVisitLabLink = def('VisitLabLink');
+export const validateVisitLabRelink = def('VisitLabRelink');
+
+/** S13 recurrence series (ADR 0009 S-D1 cap; S-S3-R1/R2 occurrence rules). */
+export const SERIES_LIMIT_NAME = 'scheduling.series.occurrenceLimit';
+/** Published configuration ceiling of the per-request occurrence limit (default limit 26). */
+export const SERIES_LIMIT_CEILING = 52;
+export const SERIES_DEFAULT_LIMIT = 26;
+export interface SeriesPattern {
+  readonly frequency: 'weekly' | 'monthly';
+  readonly interval: number;
+}
+export interface SeriesCreate {
+  readonly patientRef: string;
+  readonly locationRef: string;
+  readonly provider: { readonly kind: 'provider'; readonly resourceRef: string };
+  readonly operatory: { readonly kind: 'operatory'; readonly resourceRef: string } | null;
+  readonly noOperatoryReason?: NoOperatoryReason;
+  readonly resources?: readonly ResourceRef[];
+  readonly appointmentTypeCode?: string;
+  readonly pattern: SeriesPattern;
+  readonly firstDate: string;
+  readonly startTime: string;
+  readonly durationMinutes: number;
+  readonly count: number;
+  readonly skipConflicts?: boolean;
+}
+export interface SeriesExtend {
+  readonly expectedVersion: number;
+  readonly count: number;
+  readonly skipConflicts?: boolean;
+}
+export interface SeriesEnd {
+  readonly expectedVersion: number;
+  readonly reasonCode: string;
+}
+export interface SeriesCommandData {
+  readonly seriesRef: string;
+  readonly state: 'active' | 'ended';
+  readonly requested: number;
+  readonly created: number;
+  readonly skipped: number;
+  /** True when `skipConflicts` left occurrences unbooked: 201 with fewer bookings than requested. */
+  readonly partial: boolean;
+  readonly appointmentRefs: string[];
+  readonly skippedOccurrences: {
+    readonly index: number;
+    readonly localDate: string;
+    readonly reason: string;
+  }[];
+  readonly openOccurrenceRefs: string[];
+}
+export interface SeriesPlanData {
+  readonly limit: { readonly name: string; readonly value: number; readonly ceiling: number };
+  readonly requested: number;
+  readonly conflicted: number;
+  readonly occurrences: {
+    readonly index: number;
+    readonly localDate: string;
+    readonly startsAt: string;
+    readonly endsAt: string;
+    readonly conflicts: readonly Conflict[];
+  }[];
+}
+export interface SeriesRecord {
+  readonly seriesRef: string;
+  readonly patientRef: string;
+  readonly locationRef: string;
+  readonly pattern: SeriesPattern;
+  readonly firstDate: string;
+  readonly startTime: string;
+  readonly durationMinutes: number;
+  readonly timeZone: string;
+  readonly provider: { readonly kind: 'provider'; readonly resourceRef: string };
+  readonly operatory: { readonly kind: 'operatory'; readonly resourceRef: string } | null;
+  readonly state: 'active' | 'ended';
+  readonly endReason: string | null;
+  readonly limitAtCreation: number;
+  readonly version: number;
+  readonly occurrences: {
+    readonly index: number;
+    readonly localDate: string;
+    readonly startsAt: string;
+    readonly endsAt: string;
+    readonly outcome: 'booked' | 'skipped';
+    readonly skipReason: string | null;
+    readonly appointmentRef: string | null;
+    readonly currentAppointmentRef: string | null;
+    readonly status: AppointmentStatus | null;
+  }[];
+  readonly exceptions: {
+    readonly index: number;
+    readonly appointmentRef: string;
+    readonly kind: 'cancelled' | 'rescheduled';
+    readonly reasonCode: string;
+    readonly occurredAt: string;
+  }[];
+}
+export const validateSeriesCreate = def('SeriesCreate');
+export const validateSeriesExtend = def('SeriesExtend');
+export const validateSeriesEnd = def('SeriesEnd');
+
+/** Proposed shared exception-first work item (S-owned until a shared module adopts it). */
+export type WorkItemKind =
+  | 'notification_without_channel'
+  | 'cancellation_recovery'
+  | 'waitlist_offer_pending'
+  | 'recall_due'
+  | 'recall_task_open'
+  | 'request_unbooked'
+  | 'request_booking_lost';
+export interface WorkItem {
+  readonly workItemRef: string;
+  readonly kind: WorkItemKind;
+  readonly reasonCode: string;
+  readonly explanation: string;
+  readonly evidenceRefs: readonly { readonly kind: string; readonly ref: string }[];
+  readonly owner: {
+    readonly queue: 'front_desk' | 'scheduling' | 'recall' | 'practice_manager';
+    readonly principalRef: string | null;
+  };
+  readonly nextActionOwedBy: 'practice' | 'patient' | 'payer' | 'vendor' | 'platform';
+  readonly dueAt: string | null;
+  readonly priority: 'routine' | 'soon' | 'urgent';
+  readonly priorityRationale: string;
+  readonly suggestedNextAction: string;
+  readonly blockingDependencies: readonly string[];
+}
+export type WorkCoverage =
+  | { readonly status: 'available' }
+  | { readonly status: 'unavailable'; readonly reason: string; readonly owner: string };
+export interface WorkItemListData {
+  readonly asOf: string;
+  readonly coverage: WorkCoverage;
+  readonly count: number;
+  /** Areas the list cannot cover yet (producer not deployed), reported rather than shown as empty. */
+  readonly notCovered?: readonly { readonly area: string; readonly owner: string; readonly reason: string }[];
+  readonly items: readonly WorkItem[];
+}
+
+/** S14 notification intents (no verified channel; E6 decides suppression; E7 delivers). */
+export type NotificationPurpose = 'reminder' | 'cancellation' | 'waitlist_offer' | 'recall';
+export type NotificationChannel = 'none' | 'sms' | 'email' | 'voice' | 'portal';
+export interface NotificationWorklistQuery {
+  readonly locationRef?: string;
+}
+export interface NotificationIntentRecord {
+  readonly intentRef: string;
+  readonly subjectKind: 'appointment' | 'waitlist_offer' | 'recall_task';
+  readonly subjectRef: string;
+  readonly locationRef: string;
+  readonly purpose: NotificationPurpose;
+  readonly channel: NotificationChannel;
+  readonly deliveryKey: string;
+  readonly policyRef: string;
+  readonly templateRef: string | null;
+  readonly supersedes: string | null;
+  readonly supersededBy: string | null;
+  readonly dueAt: string | null;
+  readonly suppressionDecision: {
+    readonly ref: null;
+    readonly owner: 'E6';
+    readonly state: 'undecided';
+    readonly statement: string;
+  };
+  readonly delivery: { readonly owner: 'E7'; readonly state: 'not_sent_no_verified_channel' };
+  readonly createdAt: string;
+}
+export const validateNotificationWorklistQuery = def('NotificationWorklistQuery');
+
+/** S15 waitlist and PT-02 cancellation recovery inputs (outputs are typed in the domain module). */
+export type WaitlistState = 'active' | 'offered' | 'booked' | 'removed';
+export type OfferOutcome = 'accepted' | 'declined' | 'expired' | 'withdrawn';
+export interface WaitlistAdd {
+  readonly patientRef: string;
+  readonly locationRef: string;
+  readonly durationMinutes: number;
+  readonly desiredFrom: string;
+  readonly desiredUntil: string;
+  readonly providerPreference?: { readonly kind: 'provider'; readonly resourceRef: string };
+  readonly appointmentTypeCode?: string;
+  readonly priority?: number;
+  readonly requestedChannel?: NotificationChannel;
+  readonly expiresAt?: string;
+}
+export interface WaitlistRemove {
+  readonly expectedVersion: number;
+  readonly reasonCode: string;
+}
+export interface WaitlistListQuery {
+  readonly locationRef?: string;
+  readonly state?: WaitlistState;
+}
+export interface WaitlistOffer {
+  readonly startsAt: string;
+  readonly endsAt: string;
+  readonly provider: { readonly kind: 'provider'; readonly resourceRef: string };
+  readonly operatory: { readonly kind: 'operatory'; readonly resourceRef: string } | null;
+  readonly noOperatoryReason?: NoOperatoryReason;
+}
+export interface OfferRespond {
+  readonly expectedVersion: number;
+  readonly outcome: 'accepted' | 'declined' | 'withdrawn';
+  readonly reasonCode?: string;
+}
+export interface RecoveryListQuery {
+  readonly locationRef?: string;
+}
+export interface RecoveryExecute {
+  readonly expectedVersion: number;
+  readonly entryRef?: string;
+}
+export interface StandingPolicyGrant {
+  readonly operation: 'scheduling.recovery.execute';
+  readonly granteeRef: string;
+  readonly locationRefs: readonly string[];
+  readonly maxOffersPerRecovery: number;
+  readonly expiresAt: string;
+}
+export interface StandingPolicyRevoke {
+  readonly expectedVersion: number;
+  readonly reasonCode: string;
+}
+export const validateWaitlistAdd = def('WaitlistAdd');
+export const validateWaitlistRemove = def('WaitlistRemove');
+export const validateWaitlistListQuery = def('WaitlistListQuery');
+export const validateWaitlistOffer = def('WaitlistOffer');
+export const validateOfferRespond = def('OfferRespond');
+export const validateOfferReconcile = def('OfferReconcile');
+export const validateRecoveryListQuery = def('RecoveryListQuery');
+export const validateRecoveryExecute = def('RecoveryExecute');
+export const validateStandingPolicyGrant = def('StandingPolicyGrant');
+export const validateStandingPolicyRevoke = def('StandingPolicyRevoke');
+
+/** S16 recall policy and due computation (ADR 0009 S-D7 pending approval). */
+export type RecallBasis = 'attended_visit' | 'completed_procedure';
+export interface RecallPolicyDefine {
+  readonly category: string;
+  readonly intervalMonths: number;
+  readonly basis: RecallBasis;
+  readonly appointmentTypeCodes?: readonly string[];
+  readonly excludeBooked?: boolean;
+}
+export interface RecallDueQuery {
+  readonly category: string;
+  readonly asOf?: string;
+  readonly locationRef?: string;
+}
+export interface RecallTaskCreate {
+  readonly patientRef: string;
+  readonly category: string;
+  readonly locationRef: string;
+  readonly expectedPolicyVersion: number;
+  readonly asOf?: string;
+}
+export interface RecallTaskResolve {
+  readonly expectedVersion: number;
+  readonly reasonCode: string;
+}
+export interface FollowUpWorklistQuery {
+  readonly locationRef?: string;
+}
+export const validateRecallPolicyDefine = def('RecallPolicyDefine');
+export const validateRecallDueQuery = def('RecallDueQuery');
+export const validateRecallTaskCreate = def('RecallTaskCreate');
+export const validateRecallTaskResolve = def('RecallTaskResolve');
+export const validateFollowUpWorklistQuery = def('FollowUpWorklistQuery');
+
+/**
+ * S17 minimal scheduling export (S scope; the full export contract is M1). Versioned; one array of
+ * row objects per table in foreign-key order, references preserved, no tenant field.
+ */
+export const SCHEDULING_EXPORT_FORMAT = 'cuspatlas-scheduling-export/1';
+export const SCHEDULING_EXPORT_TABLES = [
+  'scheduling_policy_settings',
+  'scheduling_attendance_reasons',
+  'scheduling_locations',
+  'scheduling_resources',
+  'scheduling_availability_versions',
+  'scheduling_offer_policies',
+  'scheduling_time_blocks',
+  'patients',
+  'patient_status_history',
+  'patient_relationships',
+  'patient_merges',
+  'patient_merge_moves',
+  'patient_merge_reversals',
+  'appointment_requests',
+  'appointment_request_transitions',
+  'scheduling_holds',
+  'appointments',
+  'scheduling_occupancy',
+  'appointment_lifecycle_events',
+  'appointment_overrides',
+  'appointment_attendance_transitions',
+  'visit_context_items',
+  'appointment_series',
+  'appointment_series_occurrences',
+  'appointment_series_exceptions',
+  'notification_intents',
+  'waitlist_entries',
+  'cancellation_recoveries',
+  'scheduling_standing_policies',
+  'waitlist_offers',
+  'recall_policies',
+  'recall_tasks',
+] as const;
+export type SchedulingExportTable = (typeof SCHEDULING_EXPORT_TABLES)[number];
+export interface SchedulingExport {
+  readonly format: typeof SCHEDULING_EXPORT_FORMAT;
+  readonly exportedAt: string;
+  readonly tables: Readonly<Record<string, readonly Record<string, unknown>[]>>;
+}

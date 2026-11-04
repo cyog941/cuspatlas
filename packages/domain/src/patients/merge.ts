@@ -44,7 +44,12 @@ export const MERGE_POLICY_VERSION = 'patient-merge.pending-approval.1';
  */
 export interface MergeRecordClass {
   readonly recordClass: string;
-  readonly table: 'patient_relationships' | 'appointment_requests' | 'appointments';
+  readonly table:
+    | 'patient_relationships'
+    | 'appointment_requests'
+    | 'appointments'
+    | 'appointment_series'
+    | 'waitlist_entries';
   readonly column: 'subject_patient_id' | 'counterparty_patient_id';
   /** Public name of the reference in the record's contract. */
   readonly referenceField: string;
@@ -130,10 +135,42 @@ export const MERGE_RECORD_CLASSES: readonly MergeRecordClass[] = [
       'updated_at',
     ],
   },
+  // S13: a recurrence series follows its patient (its occurrences are appointments, registered above).
+  // The pattern, anchor and creator are content; state, end and counters are lifecycle.
+  {
+    recordClass: 'appointmentSeries',
+    table: 'appointment_series',
+    column: 'subject_patient_id',
+    referenceField: 'patientRef',
+    factKind: 'administrative',
+    digestExclude: [
+      'subject_patient_id',
+      'occurrence_count',
+      'state',
+      'end_reason',
+      'ended_at',
+      'version',
+      'updated_at',
+    ],
+  },
+  // S15: a waitlist entry follows its patient with its history (offers reference the entry).
+  {
+    recordClass: 'waitlistEntry',
+    table: 'waitlist_entries',
+    column: 'subject_patient_id',
+    referenceField: 'patientRef',
+    factKind: 'administrative',
+    digestExclude: ['subject_patient_id', 'state', 'state_reason', 'appointment_id', 'version', 'updated_at'],
+  },
 ];
 
 /** Foreign keys to patients that a merge deliberately does not move, with the reason. */
 export const MERGE_EXCLUDED_REFERENCES: readonly { table: string; column: string; why: string }[] = [
+  {
+    table: 'recall_tasks',
+    column: 'subject_patient_id',
+    why: 'a recall contact task stays with the identity it was created for; the follow-up worklist flags it (patient_merged) and recall is recomputed for the survivor',
+  },
   { table: 'patients', column: 'merged_into', why: 'the merge link itself' },
   {
     table: 'patient_status_history',

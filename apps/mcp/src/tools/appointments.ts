@@ -8,12 +8,21 @@ type Def = { properties: Record<string, object>; required?: string[] };
 const def = (name: string) => DEFS[name] as Def;
 
 /** Transport-only properties and the contract definition each one uses. */
-const TRANSPORT: Record<string, string> = {
+export const TRANSPORT: Record<string, string> = {
   idempotencyKey: 'IdempotencyKey',
   requestRef: 'RequestRef',
   appointmentRef: 'AppointmentRef',
   holdRef: 'HoldRef',
   transitionRef: 'TransitionRef',
+  // S12-S16 path parameters.
+  itemRef: 'VisitItemRef',
+  seriesRef: 'SeriesRef',
+  intentRef: 'IntentRef',
+  entryRef: 'EntryRef',
+  offerRef: 'OfferRef',
+  recoveryRef: 'RecoveryRef',
+  policyRef: 'StandingPolicyRef',
+  recallTaskRef: 'RecallTaskRef',
 };
 
 /**
@@ -21,7 +30,7 @@ const TRANSPORT: Record<string, string> = {
  * properties (Idempotency-Key header and path parameters). Built mechanically from
  * scheduling.schema.json so REST and MCP cannot drift.
  */
-function schemaFor(body: string | null, transport: readonly string[]) {
+export function schemaFor(body: string | null, transport: readonly string[]) {
   const d = body === null ? { properties: {}, required: [] } : def(body);
   const props: Record<string, object | string> = { ...d.properties };
   for (const t of transport) props[t] = TRANSPORT[t] as string;

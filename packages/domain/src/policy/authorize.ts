@@ -133,6 +133,58 @@ export const ACTION_POLICIES = {
   'rcm.coverages.read': { scope: 'coverage.read', principals: ['human', 'service'] },
   'rcm.coverages.resolve': { scope: 'coverage.read', principals: ['human', 'service'] },
   'rcm.eligibility.record': { scope: 'coverage.write', principals: ['human', 'service'] },
+  // S12 visit context: a container of references to clinical producers. Reading it needs
+  // scheduling.read; pinning, assigning and linking references are scheduling work (scheduling.write).
+  // A clinical producer applies its own policy when it resolves a reference.
+  'scheduling.visitContext.read': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  'scheduling.visitContext.items': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  'scheduling.visitContext.pinMedicalHistory': {
+    scope: 'scheduling.write',
+    principals: ['human', 'service'],
+  },
+  'scheduling.visitContext.assignForm': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.visitContext.unassignForm': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.visitContext.linkLabCase': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.visitContext.relinkLabCase': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  // S13 recurrence series (ADR 0009 S-D1 pending approval). Planning is a read.
+  'scheduling.series.plan': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  'scheduling.series.read': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  'scheduling.series.create': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.series.extend': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.series.end': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  // S14 notification intents: recorded by the commands that cause them; staff read them and the
+  // worklist of intents no channel will deliver. No send operation exists in scheduling.
+  'scheduling.notifications.read': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  'scheduling.notifications.worklist': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  // S15 waitlist (ADR 0009 S-D6 pending): entries and offers are scheduling work; an offer never
+  // books, acceptance is its own explicit command.
+  'scheduling.waitlist.add': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.waitlist.remove': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.waitlist.list': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  'scheduling.waitlist.offer': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.waitlist.offers.read': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  'scheduling.waitlist.respond': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.waitlist.reconcileOffers': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  // PT-02 cancellation recovery. A service principal may execute only under a live standing policy
+  // (checked in the domain at execution); granting and revoking a standing policy is practice
+  // administration by a person.
+  'scheduling.recovery.list': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  'scheduling.recovery.read': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  'scheduling.recovery.execute': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.standingPolicies.grant': { scope: 'admin.configure', principals: ['human'] },
+  'scheduling.standingPolicies.revoke': { scope: 'admin.configure', principals: ['human'] },
+  'scheduling.standingPolicies.list': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  // S16 recall (ADR 0009 S-D7 pending): defining a policy is practice configuration; the due list is a
+  // read that produces no outreach; a contact task is an explicit scheduling command.
+  'scheduling.recall.definePolicy': { scope: 'admin.configure', principals: ['human', 'service'] },
+  'scheduling.recall.policies': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  'scheduling.recall.due': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  'scheduling.recall.createTask': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.recall.resolveTask': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  // PT-03 (S part): the follow-up worklist of recall tasks and unbooked or lost-booking requests.
+  'scheduling.followUp.worklist': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  // S17 minimal scheduling export: a tenant-wide human administrator only (sensitive-read logged).
+  'scheduling.export': { scope: 'admin.configure', principals: ['human'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

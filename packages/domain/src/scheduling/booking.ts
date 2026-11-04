@@ -35,6 +35,7 @@ import { recordCommand } from '../events/record-command';
 import { assertPatientSchedulable } from '../patients/identity';
 import { type AuthorizationDecision, assertLocation } from '../policy/authorize';
 import { type AppointmentBase, assertVisibleLocation } from './appointment-base';
+import { currentIntentOf, recordNotificationIntent } from './notification-intent';
 import { linkRequestToBookingIn, loadRequest } from './requests';
 import {
   checkEnvelope,
@@ -45,6 +46,7 @@ import {
   notFound,
   type ResourceRow,
 } from './resources';
+import { assertHoldNotOffered, expireOfferOfHold } from './waitlist-offers';
 import { addDays, formatLocal, isKnownTimeZone, isoWeekday, localToInstant, minutesOf } from './zoned-time';
 
 export const APPOINTMENT_RESOURCE = 'appointment';
@@ -65,6 +67,9 @@ export const bookingConflict = (list: readonly Conflict[], retryable = false) =>
   new RefusalError({
     code: 'conflict',
     retryable,
+    // Not stored by the idempotency executor: a cancellation can clear the blocker, and the conflict
+    // detail is filtered for the caller on every attempt (review hardening, batch 3).
+    replayable: false,
     reasonCode: 'booking_conflict',
     detail: { reason: 'booking_conflict', conflicts: list.slice(0, MAX_CONFLICTS) },
   });
@@ -123,12 +128,12 @@ export async function loadAppointment(
   return row;
 }
 
-interface Window {
+export interface Window {
   readonly s: number;
   readonly e: number;
 }
 
-function checkWindow(startsAt: string, endsAt: string): Window {
+export function checkWindow(startsAt: string, endsAt: string): Window {
   const s = Date.parse(startsAt);
   const e = Date.parse(endsAt);
   if (!(s < e)) throw failedAt('/endsAt', 'intervalOrder');
@@ -145,13 +150,14 @@ function checkWindow(startsAt: string, endsAt: string): Window {
  * see; a visible resource at another location of the booking is a 422. Rows are locked FOR NO KEY UPDATE in id order:
  * contenders for one resource queue on its row (deadlock-free), see each other's committed occupancy in
  * their pre-check, and a concurrent deactivation (FOR UPDATE) serializes with the booking; foreign-key
- * inserts (KEY SHARE) from other commands are not blocked.
+ * inserts (KEY SHARE) from other commands are not blocked. Read-only planning passes `lock = false`.
  */
-async function resolveBookingResources(
+export async function resolveBookingResources(
   tx: TenantTransaction,
   decision: AuthorizationDecision,
   location: LocationRow,
   refs: readonly ResourceRef[],
+  lock = true,
 ): Promise<ResourceRow[]> {
   const ids = refs.map((r) => r.resourceRef);
   if (new Set(ids).size !== ids.length) throw failedAt('/resources', 'duplicate');
@@ -160,7 +166,7 @@ async function resolveBookingResources(
     `SELECT r.id, r.kind, r.location_id, l.location_ref, r.display_label, r.display_order, r.status, r.version
      FROM cuspatlas.scheduling_resources r
      JOIN cuspatlas.scheduling_locations l ON l.id = r.location_id AND l.tenant_id = r.tenant_id
-     WHERE r.id = ANY ($1::uuid[]) ORDER BY r.id FOR NO KEY UPDATE OF r`,
+     WHERE r.id = ANY ($1::uuid[]) ORDER BY r.id ${lock ? 'FOR NO KEY UPDATE OF r' : ''}`,
     [ids],
   );
   const byId = new Map(rows.map((r) => [r.id, r]));
@@ -174,10 +180,10 @@ async function resolveBookingResources(
   });
 }
 
-const refOf = (r: ResourceRow): ResourceRef => ({ kind: r.kind, resourceRef: r.id });
+export const refOf = (r: ResourceRow): ResourceRef => ({ kind: r.kind, resourceRef: r.id });
 
 /** Weekly hours of the version in force, as instants, for the local dates around the window. */
-async function availabilityConflicts(
+export async function availabilityConflicts(
   tx: TenantTransaction,
   resources: readonly ResourceRow[],
   w: Window,
@@ -238,7 +244,11 @@ async function availabilityConflicts(
 }
 
 /** Releases hold occupancy that has expired on these resources in this window (lazy reconciliation). */
-async function releaseExpiredHolds(tx: TenantTransaction, ids: readonly string[], w: Window): Promise<void> {
+export async function releaseExpiredHolds(
+  tx: TenantTransaction,
+  ids: readonly string[],
+  w: Window,
+): Promise<void> {
   const expired = await tx.query<{ id: string }>(
     `SELECT DISTINCT h.id FROM cuspatlas.scheduling_holds h
      JOIN cuspatlas.scheduling_occupancy o ON o.source_kind = 'hold' AND o.source_id = h.id AND o.tenant_id = h.tenant_id
@@ -254,7 +264,7 @@ async function releaseExpiredHolds(tx: TenantTransaction, ids: readonly string[]
     );
 }
 
-async function expireHolds(tx: TenantTransaction, holdIds: readonly string[]): Promise<number> {
+export async function expireHolds(tx: TenantTransaction, holdIds: readonly string[]): Promise<number> {
   const locked = await tx.query<{ id: string; version: number }>(
     `SELECT id, version FROM cuspatlas.scheduling_holds WHERE id = ANY ($1::uuid[]) AND state = 'active'
        AND expires_at <= now() ORDER BY id FOR UPDATE`,
@@ -281,6 +291,8 @@ async function expireHolds(tx: TenantTransaction, holdIds: readonly string[]): P
       },
       { changedFields: ['state'] },
     );
+    // S15: an offer made on this hold expires with it (no staff action); its entry is open again.
+    await expireOfferOfHold(tx, h.id);
   }
   return locked.rows.length;
 }
@@ -289,7 +301,7 @@ async function expireHolds(tx: TenantTransaction, holdIds: readonly string[]): P
  * Busy time overlapping the window on these resources (or location-wide). The blocking record is
  * named only to callers who may read bookings; the blocking resource is always one the caller named.
  */
-async function busyConflicts(
+export async function busyConflicts(
   tx: TenantTransaction,
   location: LocationRow,
   ids: readonly string[],
@@ -375,7 +387,7 @@ export async function occupy(
   }
 }
 
-interface Prepared {
+export interface Prepared {
   readonly resources: ResourceRow[];
   readonly w: Window;
   readonly operatory: ResourceRow | null;
@@ -384,15 +396,16 @@ interface Prepared {
 }
 
 /** Schema-independent checks of a booking window and its resources (domain validation, 422). */
-async function prepareWindow(
+export async function prepareWindow(
   tx: TenantTransaction,
   decision: AuthorizationDecision,
   location: LocationRow,
   p: BookingWindowInput,
+  lock = true,
 ): Promise<Prepared> {
   if (!isKnownTimeZone(p.timeZone)) throw failedAt('/timeZone', 'unknownTimeZone');
   const refs: ResourceRef[] = [p.provider, ...(p.operatory ? [p.operatory] : []), ...(p.resources ?? [])];
-  const rows = await resolveBookingResources(tx, decision, location, refs);
+  const rows = await resolveBookingResources(tx, decision, location, refs, lock);
   if (p.operatory === null && p.noOperatoryReason === undefined)
     throw failedAt('/noOperatoryReason', 'required');
   if (p.operatory !== null && p.noOperatoryReason !== undefined) {
@@ -412,12 +425,23 @@ async function prepareWindow(
   };
 }
 
-async function patientConflicts(tx: TenantTransaction, patientRef: string): Promise<Conflict[]> {
+export async function patientConflicts(
+  tx: TenantTransaction,
+  patientRef: string,
+  canReadPatients: boolean,
+): Promise<Conflict[]> {
   try {
     await assertPatientSchedulable(tx, patientRef);
     return [];
   } catch (err) {
     if (!isRefusalError(err) || err.code !== 'conflict') throw err;
+    // A caller who may not read patients learns only that the patient cannot be scheduled, never
+    // whether the record is merged, deceased or inactive.
+    if (!canReadPatients) {
+      return [
+        { kind: 'patient_unavailable', explanation: 'The patient cannot be scheduled.', overrideable: false },
+      ];
+    }
     const reason = err.detail?.reason;
     if (reason === 'patient_merged') {
       return [
@@ -451,108 +475,221 @@ function settle(
   return [...new Set(conflicts.map((c) => c.kind))];
 }
 
+/**
+ * Inserts a booking for a prepared window after every check; returns the appointment id. The one
+ * booking insert path: S10 book and reschedule, S13 series occurrences and S15 offer acceptance.
+ */
+export async function insertBookingIn(
+  tx: TenantTransaction,
+  operation: string,
+  o: {
+    location: LocationRow;
+    prepared: Prepared;
+    patientRef: string;
+    timeZone: string;
+    appointmentTypeCode: string | null;
+    requestId: string | null;
+    holdId: string | null;
+    rescheduledFrom: string | null;
+    ignoreSources: string[];
+    canReadBookings: boolean;
+    canReadPatients: boolean;
+    override: BookingWindowInput['override'];
+    canOverride: boolean;
+    extraConflicts: Conflict[];
+  },
+): Promise<string> {
+  const { prepared, location } = o;
+  const ids = prepared.resources.map((r) => r.id);
+  await releaseExpiredHolds(tx, ids, prepared.w);
+  const conflicts = [
+    ...o.extraConflicts,
+    ...(await patientConflicts(tx, o.patientRef, o.canReadPatients)),
+    ...(await availabilityConflicts(tx, prepared.resources, prepared.w, location.time_zone)),
+    ...(await busyConflicts(tx, location, ids, prepared.w, o.ignoreSources, o.canReadBookings)),
+  ];
+  if (location.status !== 'active') throw failedAt('/locationRef', 'locationInactive');
+  const overridden = settle(conflicts, o.override, o.canOverride);
+  const { rows } = await tx.query<{ id: string }>(
+    `INSERT INTO cuspatlas.appointments (tenant_id, subject_patient_id, location_id, starts_at, ends_at, time_zone,
+       provider_id, operatory_id, no_operatory_reason, appointment_type_code, request_id, hold_id, rescheduled_from_id,
+       created_by)
+     VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, cuspatlas.current_actor_id())
+     RETURNING id`,
+    [
+      o.patientRef,
+      location.id,
+      new Date(prepared.w.s),
+      new Date(prepared.w.e),
+      o.timeZone,
+      prepared.provider.id,
+      prepared.operatory?.id ?? null,
+      prepared.noOperatoryReason,
+      o.appointmentTypeCode,
+      o.requestId,
+      o.holdId,
+      o.rescheduledFrom,
+    ],
+  );
+  const id = rows[0]?.id;
+  if (!id) throw new Error('insert returned no row');
+  await occupy(tx, 'appointment', id, location, prepared.resources.map(refOf), prepared.w, () =>
+    busyConflicts(tx, location, ids, prepared.w, [...o.ignoreSources, id], o.canReadBookings),
+  );
+  await tx.query(
+    `INSERT INTO cuspatlas.appointment_lifecycle_events (tenant_id, appointment_id, kind, related_appointment_id,
+       appointment_version, actor_id)
+     VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, 1, cuspatlas.current_actor_id())`,
+    [id, o.rescheduledFrom === null ? 'booked' : 'rescheduled_in', o.rescheduledFrom],
+  );
+  await recordCommand(
+    tx,
+    { operation, resourceType: APPOINTMENT_RESOURCE, resourceRef: id, resourceVersion: 1 },
+    { changedFields: ['patientRef', 'window', 'resources', 'status'] },
+  );
+  // S14: one reminder intent per booking, channel none; a reschedule supersedes the old reminder.
+  await recordNotificationIntent(tx, operation, {
+    subjectKind: 'appointment',
+    subjectId: id,
+    locationId: location.id,
+    purpose: 'reminder',
+    dueAt: new Date(prepared.w.s),
+    supersedes: o.rescheduledFrom === null ? null : await currentIntentOf(tx, o.rescheduledFrom, 'reminder'),
+  });
+  if (overridden.length > 0 && o.override) {
+    const ov = await tx.query<{ id: string }>(
+      `INSERT INTO cuspatlas.appointment_overrides (tenant_id, appointment_id, override_code, reason_code,
+         overridden_kinds, policy_version, actor_id)
+       VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4::text[], $5, cuspatlas.current_actor_id())
+       RETURNING id`,
+      [id, o.override.code, o.override.reasonCode, overridden, OVERRIDE_POLICY_VERSION],
+    );
+    const overrideId = ov.rows[0]?.id;
+    if (!overrideId) throw new Error('insert returned no row');
+    // Its own audited record (one audit row per resource version).
+    await recordCommand(
+      tx,
+      {
+        operation: 'scheduling.appointments.override',
+        resourceType: 'appointmentOverride',
+        resourceRef: overrideId,
+        resourceVersion: 1,
+      },
+      { changedFields: ['override'] },
+    );
+  }
+  return id;
+}
+
+/**
+ * Creates a hold (an occupancy of kind `hold` with an expiry) after the inactive-resource and busy
+ * checks; the exclusion constraint is the authority. Shared by S10 holds and S15 waitlist offers.
+ */
+export async function createHoldIn(
+  tx: TenantTransaction,
+  operation: string,
+  location: LocationRow,
+  resources: readonly ResourceRow[],
+  w: Window,
+  ttlMinutes: number,
+  canReadBookings: boolean,
+  extraConflicts: readonly Conflict[] = [],
+): Promise<{ id: string; expires_at: Date }> {
+  const ids = resources.map((r) => r.id);
+  await releaseExpiredHolds(tx, ids, w);
+  const conflicts = [
+    ...extraConflicts,
+    ...resources
+      .filter((r) => r.status !== 'active')
+      .map(
+        (r): Conflict => ({
+          kind: 'outside_availability',
+          resourceRef: refOf(r),
+          explanation: 'The resource is inactive.',
+          overrideable: false,
+        }),
+      ),
+    ...(await busyConflicts(tx, location, ids, w, [], canReadBookings)),
+  ];
+  if (conflicts.length > 0) throw bookingConflict(conflicts);
+  const { rows } = await tx.query<{ id: string; expires_at: Date }>(
+    `INSERT INTO cuspatlas.scheduling_holds (tenant_id, location_id, starts_at, ends_at, expires_at, created_by)
+     VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, now() + make_interval(mins => $4), cuspatlas.current_actor_id())
+     RETURNING id, expires_at`,
+    [location.id, new Date(w.s), new Date(w.e), ttlMinutes],
+  );
+  const hold = rows[0];
+  if (!hold) throw new Error('insert returned no row');
+  await occupy(tx, 'hold', hold.id, location, resources.map(refOf), w, () =>
+    busyConflicts(tx, location, ids, w, [hold.id], canReadBookings),
+  );
+  await recordCommand(
+    tx,
+    { operation, resourceType: HOLD_RESOURCE, resourceRef: hold.id, resourceVersion: 1 },
+    { changedFields: ['window', 'resources', 'expiresAt'] },
+  );
+  return hold;
+}
+
+/** Marks an active hold converted into a booking (same transaction as the booking insert). */
+export async function convertHoldIn(
+  tx: TenantTransaction,
+  holdId: string,
+  holdVersion: number,
+  appointmentId: string,
+): Promise<void> {
+  await tx.query(
+    `UPDATE cuspatlas.scheduling_holds SET state = 'converted', appointment_id = $1, version = version + 1,
+       updated_at = now() WHERE id = $2`,
+    [appointmentId, holdId],
+  );
+  await recordCommand(
+    tx,
+    {
+      operation: 'scheduling.holds.convert',
+      resourceType: HOLD_RESOURCE,
+      resourceRef: holdId,
+      resourceVersion: holdVersion + 1,
+    },
+    { changedFields: ['state', 'appointmentRef'] },
+  );
+}
+
+/** Releases an active hold with a reason (explicit release, offer decline or withdrawal). */
+export async function releaseHoldIn(
+  tx: TenantTransaction,
+  operation: string,
+  holdId: string,
+  holdVersion: number,
+  reason: string,
+): Promise<void> {
+  await tx.query(
+    `UPDATE cuspatlas.scheduling_occupancy SET released_at = now()
+     WHERE source_kind = 'hold' AND source_id = $1 AND released_at IS NULL`,
+    [holdId],
+  );
+  await tx.query(
+    `UPDATE cuspatlas.scheduling_holds SET state = 'released', release_reason = $1, released_at = now(),
+       version = version + 1, updated_at = now() WHERE id = $2`,
+    [reason, holdId],
+  );
+  await recordCommand(
+    tx,
+    { operation, resourceType: HOLD_RESOURCE, resourceRef: holdId, resourceVersion: holdVersion + 1 },
+    { changedFields: ['state'] },
+  );
+}
+
 /** S10 commands and queries: holds, booking, reschedule, cancel and the appointment read. */
 export function createBookingOperations(base: AppointmentBase) {
   const { deps, execute } = base;
 
   async function probes(ctx: ActorContext, override: unknown) {
     const canReadBookings = await base.can(ctx, 'scheduling.appointments.read');
+    const canReadPatients = await base.can(ctx, 'patients.read');
     const canOverride =
       override === undefined ? false : await base.can(ctx, 'scheduling.appointments.override');
-    return { canReadBookings, canOverride };
-  }
-
-  /** Inserts a booking for a prepared window after every check; returns the appointment id. */
-  async function insertBooking(
-    tx: TenantTransaction,
-    operation: string,
-    o: {
-      location: LocationRow;
-      prepared: Prepared;
-      patientRef: string;
-      timeZone: string;
-      appointmentTypeCode: string | null;
-      requestId: string | null;
-      holdId: string | null;
-      rescheduledFrom: string | null;
-      ignoreSources: string[];
-      canReadBookings: boolean;
-      override: BookingWindowInput['override'];
-      canOverride: boolean;
-      extraConflicts: Conflict[];
-    },
-  ): Promise<string> {
-    const { prepared, location } = o;
-    const ids = prepared.resources.map((r) => r.id);
-    await releaseExpiredHolds(tx, ids, prepared.w);
-    const conflicts = [
-      ...o.extraConflicts,
-      ...(await patientConflicts(tx, o.patientRef)),
-      ...(await availabilityConflicts(tx, prepared.resources, prepared.w, location.time_zone)),
-      ...(await busyConflicts(tx, location, ids, prepared.w, o.ignoreSources, o.canReadBookings)),
-    ];
-    if (location.status !== 'active') throw failedAt('/locationRef', 'locationInactive');
-    const overridden = settle(conflicts, o.override, o.canOverride);
-    const { rows } = await tx.query<{ id: string }>(
-      `INSERT INTO cuspatlas.appointments (tenant_id, subject_patient_id, location_id, starts_at, ends_at, time_zone,
-         provider_id, operatory_id, no_operatory_reason, appointment_type_code, request_id, hold_id, rescheduled_from_id,
-         created_by)
-       VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, cuspatlas.current_actor_id())
-       RETURNING id`,
-      [
-        o.patientRef,
-        location.id,
-        new Date(prepared.w.s),
-        new Date(prepared.w.e),
-        o.timeZone,
-        prepared.provider.id,
-        prepared.operatory?.id ?? null,
-        prepared.noOperatoryReason,
-        o.appointmentTypeCode,
-        o.requestId,
-        o.holdId,
-        o.rescheduledFrom,
-      ],
-    );
-    const id = rows[0]?.id;
-    if (!id) throw new Error('insert returned no row');
-    await occupy(tx, 'appointment', id, location, prepared.resources.map(refOf), prepared.w, () =>
-      busyConflicts(tx, location, ids, prepared.w, [...o.ignoreSources, id], o.canReadBookings),
-    );
-    await tx.query(
-      `INSERT INTO cuspatlas.appointment_lifecycle_events (tenant_id, appointment_id, kind, related_appointment_id,
-         appointment_version, actor_id)
-       VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, 1, cuspatlas.current_actor_id())`,
-      [id, o.rescheduledFrom === null ? 'booked' : 'rescheduled_in', o.rescheduledFrom],
-    );
-    await recordCommand(
-      tx,
-      { operation, resourceType: APPOINTMENT_RESOURCE, resourceRef: id, resourceVersion: 1 },
-      { changedFields: ['patientRef', 'window', 'resources', 'status'] },
-    );
-    if (overridden.length > 0 && o.override) {
-      const ov = await tx.query<{ id: string }>(
-        `INSERT INTO cuspatlas.appointment_overrides (tenant_id, appointment_id, override_code, reason_code,
-           overridden_kinds, policy_version, actor_id)
-         VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4::text[], $5, cuspatlas.current_actor_id())
-         RETURNING id`,
-        [id, o.override.code, o.override.reasonCode, overridden, OVERRIDE_POLICY_VERSION],
-      );
-      const overrideId = ov.rows[0]?.id;
-      if (!overrideId) throw new Error('insert returned no row');
-      // Its own audited record (one audit row per resource version).
-      await recordCommand(
-        tx,
-        {
-          operation: 'scheduling.appointments.override',
-          resourceType: 'appointmentOverride',
-          resourceRef: overrideId,
-          resourceVersion: 1,
-        },
-        { changedFields: ['override'] },
-      );
-    }
-    return id;
+    return { canReadBookings, canReadPatients, canOverride };
   }
 
   async function releaseOccupancy(tx: TenantTransaction, kind: 'hold' | 'appointment', sourceId: string) {
@@ -575,11 +712,10 @@ export function createBookingOperations(base: AppointmentBase) {
         const p = envelope.payload;
         assertValid<BookingCreate>(validateBookingCreate, p, SCHEDULING_PROPERTIES);
         assertLocation(decision.locationRefs, p.locationRef);
-        const { canReadBookings, canOverride } = await probes(ctx, p.override);
+        const { canReadBookings, canReadPatients, canOverride } = await probes(ctx, p.override);
         return deps.withTenantTransaction(ctx, async (tx) => {
           // FOR SHARE: serializes with a location-wide block (which takes the row FOR UPDATE).
           const location = await loadLocation(tx, p.locationRef, 'share');
-          const prepared = await prepareWindow(tx, decision, location, p);
           const request =
             p.requestRef === undefined
               ? null
@@ -587,11 +723,16 @@ export function createBookingOperations(base: AppointmentBase) {
           const hold =
             p.holdRef === undefined ? null : await loadHold(tx, decision, p.holdRef, 'FOR UPDATE OF h');
           return execute<BookingResult>(ctx, envelope, tx, async () => {
+            // Window and resource validation run inside the handler, so a same-key retry replays the
+            // recorded result even after the start has passed (review hardening, batch 3).
+            const prepared = await prepareWindow(tx, decision, location, p);
             const extra: Conflict[] = [];
             const ignore: string[] = [];
             if (hold) {
               if (hold.state !== 'active') throw stateConflict('hold_not_active');
               if (hold.expired) throw stateConflict('hold_expired');
+              // A waitlist offer's hold books only through the offer's explicit acceptance (S15).
+              await assertHoldNotOffered(tx, hold.id);
               if (hold.location_id !== location.id) throw failedAt('/holdRef', 'locationMismatch');
               const heldIds = new Set(hold.resource_ids);
               if (!prepared.resources.every((r) => heldIds.has(r.id)))
@@ -615,7 +756,7 @@ export function createBookingOperations(base: AppointmentBase) {
             }
             // A converted hold gives its range to the booking: released first, in this transaction.
             if (hold) await releaseOccupancy(tx, 'hold', hold.id);
-            const id = await insertBooking(tx, op, {
+            const id = await insertBookingIn(tx, op, {
               location,
               prepared,
               patientRef: p.patientRef,
@@ -626,6 +767,7 @@ export function createBookingOperations(base: AppointmentBase) {
               rescheduledFrom: null,
               ignoreSources: ignore,
               canReadBookings,
+              canReadPatients,
               override: p.override,
               canOverride,
               extraConflicts: extra,
@@ -683,42 +825,11 @@ export function createBookingOperations(base: AppointmentBase) {
           return execute<BookingResult>(ctx, envelope, tx, async () => {
             const w = checkWindow(p.startsAt, p.endsAt);
             if (location.status !== 'active') throw failedAt('/locationRef', 'locationInactive');
-            const ids = resources.map((r) => r.id);
-            await releaseExpiredHolds(tx, ids, w);
-            const conflicts = [
-              ...resources
-                .filter((r) => r.status !== 'active')
-                .map(
-                  (r): Conflict => ({
-                    kind: 'outside_availability',
-                    resourceRef: refOf(r),
-                    explanation: 'The resource is inactive.',
-                    overrideable: false,
-                  }),
-                ),
-              ...(await busyConflicts(tx, location, ids, w, [], canReadBookings)),
-            ];
-            if (conflicts.length > 0) throw bookingConflict(conflicts);
             const settings = await tx.query<{ ttl: number }>(
               'SELECT hold_ttl_minutes AS ttl FROM cuspatlas.scheduling_policy_settings',
             );
             const ttl = p.ttlMinutes ?? settings.rows[0]?.ttl ?? 15;
-            const { rows } = await tx.query<{ id: string; expires_at: Date }>(
-              `INSERT INTO cuspatlas.scheduling_holds (tenant_id, location_id, starts_at, ends_at, expires_at, created_by)
-               VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, now() + make_interval(mins => $4), cuspatlas.current_actor_id())
-               RETURNING id, expires_at`,
-              [location.id, new Date(w.s), new Date(w.e), ttl],
-            );
-            const hold = rows[0];
-            if (!hold) throw new Error('insert returned no row');
-            await occupy(tx, 'hold', hold.id, location, resources.map(refOf), w, () =>
-              busyConflicts(tx, location, ids, w, [hold.id], canReadBookings),
-            );
-            await recordCommand(
-              tx,
-              { operation: op, resourceType: HOLD_RESOURCE, resourceRef: hold.id, resourceVersion: 1 },
-              { changedFields: ['window', 'resources', 'expiresAt'] },
-            );
+            const hold = await createHoldIn(tx, op, location, resources, w, ttl, canReadBookings);
             return {
               data: {
                 outcome: 'held',
@@ -748,6 +859,7 @@ export function createBookingOperations(base: AppointmentBase) {
           const hold = await loadHold(tx, decision, holdRef, 'FOR UPDATE OF h');
           return execute<HoldCommandData>(ctx, { ...envelope, payload: { holdRef, ...p } }, tx, async () => {
             if (hold.state !== 'active') throw stateConflict('hold_not_active');
+            await assertHoldNotOffered(tx, hold.id);
             await releaseOccupancy(tx, 'hold', hold.id);
             const reason = hold.expired ? 'expired' : p.reasonCode;
             await tx.query(
@@ -812,16 +924,16 @@ export function createBookingOperations(base: AppointmentBase) {
         checkEnvelope(envelope, op);
         const p = envelope.payload;
         assertValid<AppointmentReschedule>(validateAppointmentReschedule, p, SCHEDULING_PROPERTIES);
-        const { canReadBookings, canOverride } = await probes(ctx, p.override);
+        const { canReadBookings, canReadPatients, canOverride } = await probes(ctx, p.override);
         return deps.withTenantTransaction(ctx, async (tx) => {
           const old = await loadAppointment(tx, decision, appointmentRef, 'FOR UPDATE OF a');
           const location = await loadLocation(tx, old.location_ref, 'share');
-          const prepared = await prepareWindow(tx, decision, location, p);
           return execute<BookingResult>(
             ctx,
             { ...envelope, payload: { appointmentRef, ...p } },
             tx,
             async () => {
+              const prepared = await prepareWindow(tx, decision, location, p);
               if (old.version !== p.expectedVersion) {
                 throw new RefusalError({ code: 'stale_version', detail: { currentVersion: old.version } });
               }
@@ -829,7 +941,7 @@ export function createBookingOperations(base: AppointmentBase) {
               if (guard) await guard(tx, old.id, p.reasonCode);
               // The old range is released first (same transaction), so the new window may overlap it.
               await releaseOccupancy(tx, 'appointment', old.id);
-              const id = await insertBooking(tx, op, {
+              const id = await insertBookingIn(tx, op, {
                 location,
                 prepared,
                 patientRef: old.subject_patient_id,
@@ -840,6 +952,7 @@ export function createBookingOperations(base: AppointmentBase) {
                 rescheduledFrom: old.id,
                 ignoreSources: [],
                 canReadBookings,
+                canReadPatients,
                 override: p.override,
                 canOverride,
                 extraConflicts: [],
@@ -930,7 +1043,16 @@ export function createBookingOperations(base: AppointmentBase) {
                VALUES (cuspatlas.current_tenant_id(), $1, 'cancelled', $2, $3, cuspatlas.current_actor_id())`,
                 [appt.id, p.reasonCode, version],
               );
-              // The outbox row is the notification intent seam (S14/E7 decide channel and delivery).
+              // S14: the cancellation intent (channel none) supersedes the booking's reminder; the
+              // outbox events of both rows are the seam E7 consumes. Nothing is sent from here.
+              await recordNotificationIntent(tx, op, {
+                subjectKind: 'appointment',
+                subjectId: appt.id,
+                locationId: appt.location_id,
+                purpose: 'cancellation',
+                dueAt: null,
+                supersedes: await currentIntentOf(tx, appt.id, 'reminder'),
+              });
               await recordCommand(
                 tx,
                 {
@@ -957,7 +1079,7 @@ export function createBookingOperations(base: AppointmentBase) {
   };
 }
 
-interface HoldRow extends Record<string, unknown> {
+export interface HoldRow extends Record<string, unknown> {
   id: string;
   location_id: string;
   location_ref: string;
@@ -969,7 +1091,7 @@ interface HoldRow extends Record<string, unknown> {
   resource_ids: string[];
 }
 
-async function loadHold(
+export async function loadHold(
   tx: TenantTransaction,
   decision: AuthorizationDecision,
   holdRef: string,

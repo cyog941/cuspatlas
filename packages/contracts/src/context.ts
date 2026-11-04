@@ -188,6 +188,14 @@ export interface RefusalDetail {
   readonly blockingRefs?: readonly { readonly kind: string; readonly ref: string }[];
   /** S7 addition: the conflicts behind a `conflict` refusal (at most 50). */
   readonly conflicts?: readonly Conflict[];
+  /** S13 addition: the published configuration limit a request exceeded. */
+  readonly limit?: { readonly name: string; readonly value: number };
+  /** S13 addition: per-occurrence conflicts of a refused series (at most 52). */
+  readonly occurrences?: readonly {
+    readonly index: number;
+    readonly startsAt: string;
+    readonly conflicts: readonly Conflict[];
+  }[];
 }
 
 export interface DomainRefusal {
@@ -203,6 +211,12 @@ export interface RefusalInit {
   readonly detail?: RefusalDetail;
   /** Internal reason for the security-attempt record; never sent to the caller. */
   readonly reasonCode?: SecurityReasonCode;
+  /**
+   * S13 addition: false for a refusal that depends on other records' current state (a resource
+   * conflict another command can clear). The idempotency executor then neither stores nor replays
+   * it, so a same-key retry is evaluated again. Default true (terminal refusals are replayed).
+   */
+  readonly replayable?: boolean;
 }
 
 /** Typed denial thrown inside the domain; the command boundary normalizes it. */
@@ -211,6 +225,7 @@ export class RefusalError extends Error {
   readonly retryable: boolean;
   readonly detail: RefusalDetail | undefined;
   readonly reasonCode: SecurityReasonCode | undefined;
+  readonly replayable: boolean;
   /** Set once the boundary has persisted the security attempt, so it is never recorded twice. */
   attemptRecorded = false;
 
@@ -221,6 +236,7 @@ export class RefusalError extends Error {
     this.retryable = init.retryable ?? false;
     this.detail = init.detail;
     this.reasonCode = init.reasonCode;
+    this.replayable = init.replayable ?? true;
   }
 
   toRefusal(correlationId: string): DomainRefusal {

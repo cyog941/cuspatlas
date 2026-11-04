@@ -32,6 +32,7 @@ import { registerBillingRoutes } from './routes/billing';
 import { registerPatientRoutes } from './routes/patients';
 import { registerProposalRoutes } from './routes/proposals';
 import { registerSchedulingRoutes } from './routes/scheduling';
+import { registerSchedulingOpRoutes } from './routes/scheduling-ops-routes';
 import { registerSessionRoutes } from './routes/session';
 import { registerSyntheticTaskRoutes } from './routes/synthetic-tasks';
 
@@ -184,6 +185,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       const appointments = createAppointmentService({
         authorize,
         withTenantTransaction: deps.tenantTransactions,
+        memberships: deps.membership,
         recording,
         execute: deps.execute ?? executeOnce,
       });
@@ -197,6 +199,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         execute: deps.execute ?? executeOnce,
       });
       registerBillingRoutes(app, { authenticator, billing });
+      registerSchedulingOpRoutes(app, { authenticator, appointments });
     }
   }
 

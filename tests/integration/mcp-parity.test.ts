@@ -132,6 +132,46 @@ const TOOL_NAMES = [
   'rcm_coverages_record',
   'rcm_coverages_resolve',
   'rcm_eligibility_record',
+  // S12 visit context tools (derived from SCHEDULING_OPS; parity in scheduling-parity).
+  'scheduling_visit_context_get',
+  'scheduling_visit_context_items',
+  'scheduling_visit_context_pin_medical_history',
+  'scheduling_visit_context_assign_form',
+  'scheduling_visit_context_unassign_form',
+  'scheduling_visit_context_link_lab_case',
+  'scheduling_visit_context_relink_lab_case',
+  // S13 recurrence series tools.
+  'scheduling_series_plan',
+  'scheduling_series_create',
+  'scheduling_series_get',
+  'scheduling_series_extend',
+  'scheduling_series_end',
+  // S14 notification intents.
+  'scheduling_notifications_worklist',
+  'scheduling_notifications_get',
+  // S15 waitlist and PT-02 cancellation recovery.
+  'scheduling_waitlist_add',
+  'scheduling_waitlist_list',
+  'scheduling_waitlist_remove',
+  'scheduling_waitlist_offer',
+  'scheduling_waitlist_reconcile_offers',
+  'scheduling_waitlist_offer_get',
+  'scheduling_waitlist_respond',
+  'scheduling_recovery_list',
+  'scheduling_recovery_get',
+  'scheduling_recovery_execute',
+  'scheduling_standing_policies_grant',
+  'scheduling_standing_policies_list',
+  'scheduling_standing_policies_revoke',
+  // S16 recall and the PT-03 follow-up worklist.
+  'scheduling_recall_define_policy',
+  'scheduling_recall_policies',
+  'scheduling_recall_due',
+  'scheduling_recall_create_task',
+  'scheduling_recall_resolve_task',
+  'scheduling_follow_up_worklist',
+  // S17 export.
+  'scheduling_export',
 ].sort();
 
 let db: TestDatabase;

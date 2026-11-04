@@ -14,3 +14,4 @@ export * from './policy/authorize';
 export * from './policy/patient-access';
 export * from './scheduling';
 export * from './synthetic-tasks';
+export * from './work-items';

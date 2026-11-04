@@ -214,6 +214,31 @@
                   "overrideable": { "type": "boolean" }
                 }
               }
+            },
+            "limit": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "value"],
+              "description": "S13 addition: the published configuration limit a request exceeded (for example the series occurrence limit).",
+              "properties": {
+                "name": { "type": "string", "pattern": "^[a-z][A-Za-z.]{0,63}$" },
+                "value": { "type": "integer", "minimum": 0 }
+              }
+            },
+            "occurrences": {
+              "type": "array",
+              "maxItems": 52,
+              "description": "S13 addition: per-occurrence conflicts of a refused series (occurrences without a conflict are omitted).",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["index", "startsAt", "conflicts"],
+                "properties": {
+                  "index": { "type": "integer", "minimum": 1, "maximum": 10000 },
+                  "startsAt": { "type": "string", "format": "date-time" },
+                  "conflicts": { "$ref": "#/$defs/Refusal/properties/detail/properties/conflicts" }
+                }
+              }
             }
           }
         }

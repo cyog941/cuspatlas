@@ -10,6 +10,7 @@ import {
   SCHEDULING_SCHEMA_FILE,
   SCHEMA_FILE,
 } from './routes/manifest';
+import { SCHEDULING_OPS } from './routes/scheduling-ops';
 
 export interface ContractSources {
   readonly openapiText: string;
@@ -358,7 +359,12 @@ export function checkContractDrift(src: ContractSources): string[] {
     problems.push('PatientSearch.limit must be bounded to 1..100');
   }
   const sdef = (name: string) => pointer(scheduling, `/$defs/${name}`);
-  for (const name of SCHEDULING_BODIES) {
+  // S12-S16: every request body and GET query of the operation table is a closed object too.
+  const opBodies = SCHEDULING_OPS.flatMap((o) => [
+    ...(o.requestBody ? [o.requestBody.replace('scheduling:', '')] : []),
+    ...(o.query ? [o.query] : []),
+  ]);
+  for (const name of [...SCHEDULING_BODIES, ...opBodies]) {
     if (pointer(sdef(name), '/additionalProperties') !== false) {
       problems.push(`${name} must set additionalProperties: false`);
     }

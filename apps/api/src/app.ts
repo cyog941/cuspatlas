@@ -33,6 +33,7 @@ import { registerClinicalRecordRoutes } from './routes/clinical-record';
 import { registerPatientRoutes } from './routes/patients';
 import { registerProposalRoutes } from './routes/proposals';
 import { registerSchedulingRoutes } from './routes/scheduling';
+import { registerSchedulingOpRoutes } from './routes/scheduling-ops-routes';
 import { registerSessionRoutes } from './routes/session';
 import { registerSyntheticTaskRoutes } from './routes/synthetic-tasks';
 
@@ -185,6 +186,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       const appointments = createAppointmentService({
         authorize,
         withTenantTransaction: deps.tenantTransactions,
+        memberships: deps.membership,
         recording,
         execute: deps.execute ?? executeOnce,
       });
@@ -200,6 +202,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       });
       registerClinicalRoutes(app, { authenticator, clinical });
       registerClinicalRecordRoutes(app, { authenticator, clinical });
+      registerSchedulingOpRoutes(app, { authenticator, appointments });
     }
   }
 

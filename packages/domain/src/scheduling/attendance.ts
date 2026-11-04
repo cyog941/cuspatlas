@@ -184,6 +184,25 @@ async function append(
   return id;
 }
 
+/** Derived attendance states of many appointments (S16 recall basis, S17 export). */
+export async function attendanceStatesOf(
+  tx: TenantTransaction,
+  appointmentIds: readonly string[],
+): Promise<Map<string, AttendanceState>> {
+  const rows = appointmentIds.length === 0 ? [] : await loadTransitions(tx, appointmentIds);
+  const out = new Map<string, AttendanceState>();
+  for (const id of appointmentIds) out.set(id, derive(rows.filter((r) => r.appointment_id === id)));
+  return out;
+}
+
+/** Derived attendance state of one appointment (S12 visit context, S16 recall basis). */
+export async function attendanceStateOf(
+  tx: TenantTransaction,
+  appointmentId: string,
+): Promise<AttendanceState> {
+  return derive(await loadTransitions(tx, [appointmentId]));
+}
+
 /**
  * Booking-side guard (S10 cancel and reschedule): a visit that has begun cannot be cancelled or
  * moved; otherwise the booking command appends the matching attendance fact in its transaction.
@@ -231,6 +250,14 @@ export function createAttendanceOperations(base: AppointmentBase) {
         checkEnvelope(envelope, op);
         const p = envelope.payload;
         assertValid<AttendanceRecord>(validateAttendanceRecord, p, SCHEDULING_PROPERTIES);
+        // An automated confirmation is recorded by a service principal and a manual one by a person;
+        // the source is never derived from the claimed kind alone (review hardening, batch 3).
+        if (
+          (p.kind === 'confirmed_automated' && ctx.principal !== 'service') ||
+          (p.kind === 'confirmed_manual' && ctx.principal !== 'human')
+        ) {
+          throw new RefusalError({ code: 'forbidden', reasonCode: 'principal_kind_denied' });
+        }
         return deps.withTenantTransaction(ctx, async (tx) => {
           // Serializes with other transitions and with cancel/reschedule of the same booking.
           const appt = await loadAppointment(tx, decision, appointmentRef, 'FOR UPDATE OF a');

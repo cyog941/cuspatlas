@@ -8,11 +8,14 @@ import {
   type RefusalCode,
   type RefusalDetail,
   RefusalError,
+  SECURITY_REASON_CODES,
+  type SecurityReasonCode,
   type TenantTransaction,
 } from '@cuspatlas/contracts';
 import { CLINICAL_REPLAY_CODECS } from '../clinical/codecs';
 import { PATIENT_REPLAY_CODECS } from '../patients/replay-codecs';
 import { APPOINTMENT_REPLAY_CODECS, SCHEDULING_REPLAY_CODECS } from '../scheduling/codecs';
+import { EXTENDED_SCHEDULING_CODECS } from '../scheduling/ext-codecs';
 import { idempotencyKeyDigest, payloadDigest } from './digest';
 import type { CommandExecutor } from './executor';
 import { SYNTHETIC_TASK_REPLAY_CODECS } from './replay-codecs';
@@ -74,8 +77,29 @@ function refusalFrom(result: Record<string, unknown>): RefusalError {
   return new RefusalError({
     code: code as RefusalCode,
     retryable: result.retryable === true,
+    ...(typeof result.reasonCode === 'string' &&
+    (SECURITY_REASON_CODES as readonly string[]).includes(result.reasonCode)
+      ? { reasonCode: result.reasonCode as SecurityReasonCode }
+      : {}),
     ...(detail === undefined ? {} : { detail }),
   });
+}
+
+/**
+ * A stored refusal is replayed for 7 days to any reauthorized caller, whose visibility may have
+ * narrowed since: conflict entries keep their kind, resource and explanation but never the
+ * visibility-filtered `existingRef` (review hardening, batch 3).
+ */
+function withoutVisibilityRefs(detail: RefusalDetail): RefusalDetail {
+  const strip = (list: NonNullable<RefusalDetail['conflicts']>) =>
+    list.map(({ existingRef: _ref, ...c }) => c);
+  return {
+    ...detail,
+    ...(detail.conflicts ? { conflicts: strip(detail.conflicts) } : {}),
+    ...(detail.occurrences
+      ? { occurrences: detail.occurrences.map((o) => ({ ...o, conflicts: strip(o.conflicts) })) }
+      : {}),
+  };
 }
 
 /**
@@ -175,12 +199,14 @@ export function createExecuteOnce(options: ExecuteOnceOptions): CommandExecutor 
     try {
       outcome = await tx.savepoint(handler);
     } catch (err) {
-      if (!isRefusalError(err) || !TERMINAL.has(err.code) || err.retryable) throw err;
+      if (!isRefusalError(err) || !TERMINAL.has(err.code) || err.retryable || !err.replayable) throw err;
+      const detail = err.detail === undefined ? undefined : withoutVisibilityRefs(err.detail);
       const stored = {
         kind: 'refusal',
         code: err.code,
         retryable: err.retryable,
-        ...(err.detail === undefined ? {} : { detail: err.detail }),
+        ...(err.reasonCode === undefined ? {} : { reasonCode: err.reasonCode }),
+        ...(detail === undefined ? {} : { detail }),
       };
       await tx.query(
         `UPDATE cuspatlas.command_idempotency SET state = 'failed', result = $3::jsonb, updated_at = now()
@@ -212,5 +238,6 @@ export const executeOnce: CommandExecutor = createExecuteOnce({
     ...SCHEDULING_REPLAY_CODECS,
     ...APPOINTMENT_REPLAY_CODECS,
     ...CLINICAL_REPLAY_CODECS,
+    ...EXTENDED_SCHEDULING_CODECS,
   },
 });

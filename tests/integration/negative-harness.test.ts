@@ -14,7 +14,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 // Workstream C (clinical record) rows are appended below with their own fixtures.
 import { seedClinicalScopes, seedDispositions, seedPerioConfiguration } from './support/clinical-fixtures';
 import { openTestDatabase, type TestDatabase } from './support/db';
-import { seedTenancy, T_ALPHA, T_BETA, USER_A1, USER_A2, USER_A4, USER_B1 } from './support/fixtures';
+import { SVC_A1, seedTenancy, T_ALPHA, T_BETA, USER_A1, USER_A2, USER_A4, USER_B1 } from './support/fixtures';
 import { MARKER } from './support/marker';
 import { seedNoteScopes } from './support/note-fixtures';
 import { patientBody, seedPatientScopes, USER_A5 } from './support/patient-fixtures';
@@ -1686,6 +1686,47 @@ export const COMMANDS: HarnessCommand[] = [
     }),
     mcpArgs: (f) => ({ encounterRef: f.alphaEncounter }),
   },
+  // S12 visit context (every command; producers are absent, but every dimension is refused first).
+  ...visitRows(),
+  // S13 recurrence series.
+  ...seriesRows(),
+  // S14 notification intents (reads only; intents are recorded by the commands that cause them).
+  {
+    operation: 'scheduling.notifications.read',
+    tool: 'scheduling_notifications_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/scheduling/notifications/${f.alphaIntent}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ intentRef: f.alphaIntent }),
+  },
+  {
+    operation: 'scheduling.notifications.worklist',
+    tool: 'scheduling_notifications_worklist',
+    crossTenant: 'tenant_own_data',
+    downgradedTo: 'noPatientScopes',
+    rest: () => ({ method: 'GET', url: '/v1/scheduling/notifications/worklist', keyed: false, status: 200 }),
+    mcpArgs: () => ({}),
+  },
+  // S15 waitlist and PT-02 cancellation recovery with its standing policies.
+  ...waitlistRows(),
+  // S16 recall and the PT-03 follow-up worklist.
+  ...recallRows(),
+  // S17 minimal export: another tenant exports only its own records (which legitimately include the
+  // marker its own harness create wrote; that alpha records never appear in a beta export is asserted
+  // in scheduling-export.test.ts).
+  {
+    operation: 'scheduling.export',
+    tool: 'scheduling_export',
+    crossTenant: 'own_tenant_only',
+    downgradedTo: 'readOnly',
+    rest: () => ({ method: 'GET', url: '/v1/scheduling/export', keyed: false, status: 200 }),
+    mcpArgs: () => ({}),
+  },
 ];
 
 const DIGEST_A = `sha256:${'a'.repeat(64)}`;
@@ -1758,6 +1799,396 @@ function historyBody(f: HarnessFixture) {
 
 const APPT = '/v1/scheduling/appointments';
 const HOLDS = '/v1/scheduling/holds';
+/** S12 rows: reads need scheduling.read, reference commands scheduling.write. */
+function visitRows(): HarnessCommand[] {
+  const ctx = (f: HarnessFixture) => `${APPT}/${f.alphaAppointment}/visit-context`;
+  const read = (operation: string, tool: string, suffix: string): HarnessCommand => ({
+    operation,
+    tool,
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({ method: 'GET', url: `${ctx(f)}${suffix}`, keyed: false, status: 200 }),
+    mcpArgs: (f) => ({ appointmentRef: f.alphaAppointment }),
+  });
+  const write = (
+    operation: string,
+    tool: string,
+    suffix: (f: HarnessFixture) => string,
+    body: Record<string, unknown>,
+    extra: (f: HarnessFixture) => Record<string, unknown> = () => ({}),
+  ): HarnessCommand => ({
+    operation,
+    tool,
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({ method: 'POST', url: `${ctx(f)}${suffix(f)}`, body, keyed: true, status: 201 }),
+    mcpArgs: (f) => ({
+      appointmentRef: f.alphaAppointment,
+      ...extra(f),
+      ...body,
+      idempotencyKey: randomUUID(),
+    }),
+  });
+  const item = '0b0b0b0b-0000-4000-8000-000000000001';
+  return [
+    read('scheduling.visitContext.read', 'scheduling_visit_context_get', ''),
+    read('scheduling.visitContext.items', 'scheduling_visit_context_items', '/items'),
+    write(
+      'scheduling.visitContext.pinMedicalHistory',
+      'scheduling_visit_context_pin_medical_history',
+      () => '/medical-history-pin',
+      {},
+    ),
+    write('scheduling.visitContext.assignForm', 'scheduling_visit_context_assign_form', () => '/forms', {
+      formRef: item,
+    }),
+    write(
+      'scheduling.visitContext.unassignForm',
+      'scheduling_visit_context_unassign_form',
+      () => `/forms/${item}/unassign`,
+      { expectedVersion: 1, reasonCode: 'assigned_in_error' },
+      () => ({ itemRef: item }),
+    ),
+    write(
+      'scheduling.visitContext.linkLabCase',
+      'scheduling_visit_context_link_lab_case',
+      () => '/lab-cases',
+      {
+        labCaseRef: item,
+      },
+    ),
+    write(
+      'scheduling.visitContext.relinkLabCase',
+      'scheduling_visit_context_relink_lab_case',
+      () => '/lab-cases/relink',
+      {
+        labCaseRef: item,
+        reasonCode: 'wrong_visit',
+      },
+    ),
+  ];
+}
+
+/** S13 rows. */
+function seriesRows(): HarnessCommand[] {
+  const SERIES = '/v1/scheduling/series';
+  const seriesBody = (f: HarnessFixture) => ({
+    patientRef: f.alphaPatient,
+    locationRef: f.alphaLocation,
+    provider: { kind: 'provider', resourceRef: f.alphaProvider },
+    operatory: { kind: 'operatory', resourceRef: f.alphaResource },
+    pattern: { frequency: 'weekly', interval: 1 },
+    firstDate: '2030-02-04',
+    startTime: '10:00',
+    durationMinutes: 30,
+    count: 2,
+  });
+  return [
+    {
+      operation: 'scheduling.series.plan',
+      tool: 'scheduling_series_plan',
+      crossTenant: 'not_found',
+      downgradedTo: 'noPatientScopes',
+      rest: (f) => ({
+        method: 'POST',
+        url: `${SERIES}/plan`,
+        body: seriesBody(f),
+        keyed: false,
+        status: 200,
+      }),
+      mcpArgs: (f) => seriesBody(f),
+    },
+    {
+      operation: 'scheduling.series.create',
+      tool: 'scheduling_series_create',
+      crossTenant: 'not_found',
+      downgradedTo: 'readOnly',
+      rest: (f) => ({ method: 'POST', url: SERIES, body: seriesBody(f), keyed: true, status: 201 }),
+      mcpArgs: (f) => ({ ...seriesBody(f), idempotencyKey: randomUUID() }),
+    },
+    {
+      operation: 'scheduling.series.read',
+      tool: 'scheduling_series_get',
+      crossTenant: 'not_found',
+      downgradedTo: 'noPatientScopes',
+      rest: (f) => ({ method: 'GET', url: `${SERIES}/${f.alphaSeries}`, keyed: false, status: 200 }),
+      mcpArgs: (f) => ({ seriesRef: f.alphaSeries }),
+    },
+    {
+      operation: 'scheduling.series.extend',
+      tool: 'scheduling_series_extend',
+      crossTenant: 'not_found',
+      downgradedTo: 'readOnly',
+      rest: (f) => ({
+        method: 'POST',
+        url: `${SERIES}/${f.alphaSeries}/extend`,
+        body: { expectedVersion: 1, count: 1 },
+        keyed: true,
+        status: 201,
+      }),
+      mcpArgs: (f) => ({
+        seriesRef: f.alphaSeries,
+        expectedVersion: 1,
+        count: 1,
+        idempotencyKey: randomUUID(),
+      }),
+    },
+    {
+      operation: 'scheduling.series.end',
+      tool: 'scheduling_series_end',
+      crossTenant: 'not_found',
+      downgradedTo: 'readOnly',
+      rest: (f) => ({
+        method: 'POST',
+        url: `${SERIES}/${f.alphaSeries}/end`,
+        body: { expectedVersion: 1, reasonCode: 'provider_unavailable' },
+        keyed: true,
+        status: 200,
+      }),
+      mcpArgs: (f) => ({
+        seriesRef: f.alphaSeries,
+        expectedVersion: 1,
+        reasonCode: 'provider_unavailable',
+        idempotencyKey: randomUUID(),
+      }),
+    },
+  ];
+}
+
+/** S15 and PT-02 rows. */
+function offerCall(): HarnessCommand {
+  const command = waitlistRows().find((c) => c.operation === 'scheduling.waitlist.offer');
+  if (!command) throw new Error('missing offer row');
+  return command;
+}
+
+function waitlistRows(): HarnessCommand[] {
+  const W = '/v1/scheduling/waitlist';
+  const O = '/v1/scheduling/waitlist-offers';
+  const R = '/v1/scheduling/recoveries';
+  const P = '/v1/scheduling/standing-policies';
+  const write = (
+    operation: string,
+    tool: string,
+    url: (f: HarnessFixture) => string,
+    body: (f: HarnessFixture) => Record<string, unknown>,
+    params: (f: HarnessFixture) => Record<string, unknown>,
+    status: number,
+    crossTenant: HarnessCommand['crossTenant'] = 'not_found',
+  ): HarnessCommand => ({
+    operation,
+    tool,
+    crossTenant,
+    downgradedTo: 'readOnly',
+    rest: (f) => ({ method: 'POST', url: url(f), body: body(f), keyed: true, status }),
+    mcpArgs: (f) => ({ ...params(f), ...body(f), idempotencyKey: randomUUID() }),
+  });
+  const read = (
+    operation: string,
+    tool: string,
+    url: (f: HarnessFixture) => string,
+    params: (f: HarnessFixture) => Record<string, unknown>,
+    crossTenant: HarnessCommand['crossTenant'] = 'not_found',
+  ): HarnessCommand => ({
+    operation,
+    tool,
+    crossTenant,
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({ method: 'GET', url: url(f), keyed: false, status: 200 }),
+    mcpArgs: (f) => params(f),
+  });
+  const none = () => ({});
+  const offerBody = (f: HarnessFixture) => ({
+    startsAt: '2030-02-11T15:00:00Z',
+    endsAt: '2030-02-11T16:00:00Z',
+    provider: { kind: 'provider', resourceRef: f.alphaProvider },
+    operatory: { kind: 'operatory', resourceRef: f.alphaResource },
+  });
+  return [
+    write(
+      'scheduling.waitlist.add',
+      'scheduling_waitlist_add',
+      () => W,
+      (f) => ({
+        patientRef: f.alphaPatient,
+        locationRef: f.alphaLocation,
+        durationMinutes: 60,
+        desiredFrom: '2030-01-01T00:00:00Z',
+        desiredUntil: '2030-12-31T00:00:00Z',
+      }),
+      none,
+      201,
+    ),
+    read('scheduling.waitlist.list', 'scheduling_waitlist_list', () => W, none, 'tenant_own_data'),
+    write(
+      'scheduling.waitlist.remove',
+      'scheduling_waitlist_remove',
+      (f) => `${W}/${f.alphaEntry}/remove`,
+      () => ({ expectedVersion: 1, reasonCode: 'patient_request' }),
+      (f) => ({ entryRef: f.alphaEntry }),
+      200,
+    ),
+    write(
+      'scheduling.waitlist.offer',
+      'scheduling_waitlist_offer',
+      (f) => `${W}/${f.alphaEntry}/offer`,
+      offerBody,
+      (f) => ({ entryRef: f.alphaEntry }),
+      201,
+    ),
+    write(
+      'scheduling.waitlist.reconcileOffers',
+      'scheduling_waitlist_reconcile_offers',
+      () => `${W}/offers/reconcile`,
+      none,
+      none,
+      200,
+      'tenant_own_data',
+    ),
+    read(
+      'scheduling.waitlist.offers.read',
+      'scheduling_waitlist_offer_get',
+      (f) => `${O}/${f.alphaOffer}`,
+      (f) => ({
+        offerRef: f.alphaOffer,
+      }),
+    ),
+    write(
+      'scheduling.waitlist.respond',
+      'scheduling_waitlist_respond',
+      (f) => `${O}/${f.alphaOffer}/respond`,
+      () => ({ expectedVersion: 1, outcome: 'declined', reasonCode: 'patient_declined' }),
+      (f) => ({ offerRef: f.alphaOffer }),
+      200,
+    ),
+    read('scheduling.recovery.list', 'scheduling_recovery_list', () => R, none, 'tenant_own_data'),
+    read(
+      'scheduling.recovery.read',
+      'scheduling_recovery_get',
+      (f) => `${R}/${f.alphaRecovery}`,
+      (f) => ({
+        recoveryRef: f.alphaRecovery,
+      }),
+    ),
+    write(
+      'scheduling.recovery.execute',
+      'scheduling_recovery_execute',
+      (f) => `${R}/${f.alphaRecovery}/execute`,
+      () => ({ expectedVersion: 1 }),
+      (f) => ({ recoveryRef: f.alphaRecovery }),
+      201,
+    ),
+    write(
+      'scheduling.standingPolicies.grant',
+      'scheduling_standing_policies_grant',
+      () => P,
+      (f) => ({
+        operation: 'scheduling.recovery.execute',
+        granteeRef: '30000000-0000-4000-8000-0000000000a1',
+        locationRefs: [f.alphaLocation],
+        maxOffersPerRecovery: 1,
+        expiresAt: SOON,
+      }),
+      none,
+      201,
+    ),
+    read(
+      'scheduling.standingPolicies.list',
+      'scheduling_standing_policies_list',
+      () => P,
+      none,
+      'tenant_own_data',
+    ),
+    write(
+      'scheduling.standingPolicies.revoke',
+      'scheduling_standing_policies_revoke',
+      (f) => `${P}/${f.alphaPolicy}/revoke`,
+      () => ({ expectedVersion: 1, reasonCode: 'practice_request' }),
+      (f) => ({ policyRef: f.alphaPolicy }),
+      200,
+    ),
+  ];
+}
+
+/** S16 rows. The due row names a category only alpha defines, so another tenant gets 404. */
+function recallRows(): HarnessCommand[] {
+  const R = '/v1/scheduling/recall';
+  const taskBody = (f: HarnessFixture) => ({
+    patientRef: f.alphaCounterparty,
+    category: 'harness-recall',
+    locationRef: f.alphaLocation,
+    expectedPolicyVersion: 1,
+    asOf: '2031-01-01T12:00:00Z',
+  });
+  const define = { category: 'harness-define', intervalMonths: 6, basis: 'attended_visit' };
+  return [
+    {
+      operation: 'scheduling.recall.definePolicy',
+      tool: 'scheduling_recall_define_policy',
+      crossTenant: 'own_tenant_only',
+      downgradedTo: 'readOnly',
+      rest: () => ({ method: 'POST', url: `${R}/policies`, body: define, keyed: true, status: 201 }),
+      mcpArgs: () => ({ ...define, idempotencyKey: randomUUID() }),
+    },
+    {
+      operation: 'scheduling.recall.policies',
+      tool: 'scheduling_recall_policies',
+      crossTenant: 'tenant_own_data',
+      downgradedTo: 'noPatientScopes',
+      rest: () => ({ method: 'GET', url: `${R}/policies`, keyed: false, status: 200 }),
+      mcpArgs: () => ({}),
+    },
+    {
+      operation: 'scheduling.recall.due',
+      tool: 'scheduling_recall_due',
+      crossTenant: 'not_found',
+      downgradedTo: 'noPatientScopes',
+      rest: () => ({
+        method: 'GET',
+        url: `${R}/due?category=harness-recall&asOf=2031-01-01T12%3A00%3A00Z`,
+        keyed: false,
+        status: 200,
+      }),
+      mcpArgs: () => ({ category: 'harness-recall', asOf: '2031-01-01T12:00:00Z' }),
+    },
+    {
+      operation: 'scheduling.recall.createTask',
+      tool: 'scheduling_recall_create_task',
+      crossTenant: 'not_found',
+      downgradedTo: 'readOnly',
+      rest: (f) => ({ method: 'POST', url: `${R}/tasks`, body: taskBody(f), keyed: true, status: 201 }),
+      mcpArgs: (f) => ({ ...taskBody(f), idempotencyKey: randomUUID() }),
+    },
+    {
+      operation: 'scheduling.recall.resolveTask',
+      tool: 'scheduling_recall_resolve_task',
+      crossTenant: 'not_found',
+      downgradedTo: 'readOnly',
+      rest: (f) => ({
+        method: 'POST',
+        url: `${R}/tasks/${f.alphaRecallTask}/resolve`,
+        body: { expectedVersion: 1, reasonCode: 'patient_booked' },
+        keyed: true,
+        status: 200,
+      }),
+      mcpArgs: (f) => ({
+        recallTaskRef: f.alphaRecallTask,
+        expectedVersion: 1,
+        reasonCode: 'patient_booked',
+        idempotencyKey: randomUUID(),
+      }),
+    },
+    {
+      operation: 'scheduling.followUp.worklist',
+      tool: 'scheduling_follow_up_worklist',
+      crossTenant: 'tenant_own_data',
+      downgradedTo: 'noPatientScopes',
+      rest: () => ({ method: 'GET', url: '/v1/scheduling/follow-up/worklist', keyed: false, status: 200 }),
+      mcpArgs: () => ({}),
+    },
+  ];
+}
+
 function windowOf(f: HarnessFixture, startsAt: string, endsAt: string) {
   return {
     startsAt,
@@ -1862,6 +2293,7 @@ beforeAll(async () => {
     ['revoked', USER_A2, T_ALPHA],
     ['readOnly', USER_A4, T_ALPHA],
     ['noPatientScopes', USER_A5, T_ALPHA],
+    ['service', SVC_A1, T_ALPHA],
   ] as const) {
     rest[who] = await issuer.issue({ sub, tid });
     mcpTokens[who] = await issuer.issue({ sub, tid, audience: MCP_AUDIENCE });
@@ -2103,6 +2535,119 @@ beforeAll(async () => {
     providerOverrideReason: 'harness_fixture',
   });
   expect(procedure.statusCode).toBe(201);
+  // S13: one alpha series (one Monday occurrence) for the series rows.
+  const series = await owner('/v1/scheduling/series', {
+    patientRef: alphaPatient,
+    locationRef: alphaLocation,
+    provider: { kind: 'provider', resourceRef: alphaProvider },
+    operatory: { kind: 'operatory', resourceRef: alphaResource },
+    pattern: { frequency: 'weekly', interval: 1 },
+    firstDate: '2030-01-14',
+    startTime: '10:00',
+    durationMinutes: 30,
+    count: 1,
+  });
+  expect(series.statusCode).toBe(201);
+  const intents = await app.inject({
+    method: 'GET',
+    url: '/v1/scheduling/notifications/worklist',
+    headers: { authorization: `Bearer ${rest.owner}` },
+  });
+  const alphaIntent = intents
+    .json()
+    .data.items.find((i: { evidenceRefs: { ref: string }[] }) =>
+      i.evidenceRefs.some((e) => e.ref === appointment.json().data.appointmentRef),
+    ).workItemRef as string;
+  // S15/PT-02: an offer policy, one entry with a live offer, a second entry, a cancelled booking's
+  // recovery and a standing policy, all at the alpha location.
+  await db.admin.query(
+    `INSERT INTO cuspatlas.scheduling_offer_policies (tenant_id, location_id, policy_ref, offer_ttl_minutes)
+     SELECT tenant_id, id, 'waitlist-offer-pending-approval-1', 1440 FROM cuspatlas.scheduling_locations
+     WHERE location_ref = $1`,
+    [alphaLocation],
+  );
+  const entryBody = {
+    patientRef: alphaPatient,
+    locationRef: alphaLocation,
+    durationMinutes: 60,
+    desiredFrom: '2030-01-01T00:00:00Z',
+    desiredUntil: '2030-12-31T00:00:00Z',
+  };
+  const offeredEntry = await owner('/v1/scheduling/waitlist', entryBody);
+  expect(offeredEntry.statusCode).toBe(201);
+  const liveOffer = await owner(`/v1/scheduling/waitlist/${offeredEntry.json().data.entryRef}/offer`, {
+    startsAt: '2030-01-21T15:00:00Z',
+    endsAt: '2030-01-21T16:00:00Z',
+    provider: { kind: 'provider', resourceRef: alphaProvider },
+    operatory: { kind: 'operatory', resourceRef: alphaResource },
+  });
+  expect(liveOffer.statusCode).toBe(201);
+  const idleEntry = await owner('/v1/scheduling/waitlist', { ...entryBody, patientRef: alphaCounterparty });
+  expect(idleEntry.statusCode).toBe(201);
+  const toCancel = await owner('/v1/scheduling/appointments', {
+    patientRef: alphaCounterparty,
+    locationRef: alphaLocation,
+    ...slot('2030-01-28T14:00:00Z', '2030-01-28T15:00:00Z'),
+  });
+  expect(toCancel.statusCode).toBe(201);
+  const cancelledRef = toCancel.json().data.appointmentRef as string;
+  expect(
+    (
+      await owner(`/v1/scheduling/appointments/${cancelledRef}/cancel`, {
+        expectedVersion: 1,
+        reasonCode: 'patient_request',
+      })
+    ).statusCode,
+  ).toBe(200);
+  const recoveries = await app.inject({
+    method: 'GET',
+    url: '/v1/scheduling/recoveries',
+    headers: { authorization: `Bearer ${rest.owner}` },
+  });
+  const alphaRecovery = recoveries
+    .json()
+    .data.items.find((i: { evidenceRefs: { ref: string }[] }) =>
+      i.evidenceRefs.some((e) => e.ref === cancelledRef),
+    ).workItemRef as string;
+  const policy = await owner('/v1/scheduling/standing-policies', {
+    operation: 'scheduling.recovery.execute',
+    granteeRef: '30000000-0000-4000-8000-0000000000a1',
+    locationRefs: [alphaLocation],
+    maxOffersPerRecovery: 1,
+    expiresAt: SOON,
+  });
+  expect(policy.statusCode).toBe(201);
+  // S16: a recall policy, an attended visit of the counterparty and one open recall task.
+  expect(
+    (
+      await owner('/v1/scheduling/recall/policies', {
+        category: 'harness-recall',
+        intervalMonths: 6,
+        basis: 'attended_visit',
+      })
+    ).statusCode,
+  ).toBe(201);
+  const recallVisit = await owner('/v1/scheduling/appointments', {
+    patientRef: alphaCounterparty,
+    locationRef: alphaLocation,
+    ...slot('2030-02-04T14:00:00Z', '2030-02-04T15:00:00Z'),
+  });
+  expect(recallVisit.statusCode).toBe(201);
+  expect(
+    (
+      await owner(`/v1/scheduling/appointments/${recallVisit.json().data.appointmentRef}/attendance`, {
+        kind: 'arrived',
+      })
+    ).statusCode,
+  ).toBe(201);
+  const recallTask = await owner('/v1/scheduling/recall/tasks', {
+    patientRef: alphaCounterparty,
+    category: 'harness-recall',
+    locationRef: alphaLocation,
+    expectedPolicyVersion: 1,
+    asOf: '2031-01-01T12:00:00Z',
+  });
+  expect(recallTask.statusCode).toBe(201);
   fixture = {
     alphaPlan: plan.json().data.plan.planRef,
     alphaPlanVersion: planVersion,
@@ -2125,6 +2670,13 @@ beforeAll(async () => {
     alphaHistoryItem: recorded.changes[0].itemRef,
     alphaHistoryChange: recorded.changes[0].change.changeRef,
     alphaEncounter: encounter.json().data.encounter.encounterRef,
+    alphaRecallTask: recallTask.json().data.recallTaskRef,
+    alphaEntry: idleEntry.json().data.entryRef,
+    alphaOffer: liveOffer.json().data.offerRef,
+    alphaRecovery,
+    alphaPolicy: policy.json().data.policyRef,
+    alphaIntent,
+    alphaSeries: series.json().data.seriesRef,
     alphaProvider,
     alphaAppointment: appointment.json().data.appointmentRef,
     alphaHold: hold.json().data.holdRef,
@@ -2286,6 +2838,17 @@ async function state(): Promise<string> {
     await q('SELECT json_agg(n.draft_sections ORDER BY n.id)::text AS d FROM cuspatlas.clinical_notes n'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_note_versions'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_note_cosignatures'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.visit_context_items'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.appointment_series'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.appointment_series_occurrences'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.appointment_series_exceptions'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.notification_intents'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.waitlist_entries'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.waitlist_offers'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.cancellation_recoveries'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.scheduling_standing_policies'),
+    await q(`SELECT count(*)::int AS n FROM cuspatlas.recall_policies WHERE tenant_id = '${T_ALPHA}'`),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.recall_tasks'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.audit_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.outbox_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.command_idempotency'),
@@ -2402,5 +2965,43 @@ describe('negative harness: every S command, every dimension, REST and MCP', () 
       expect([cmd.operation, m.code]).toStrictEqual([cmd.operation, 'invalid_request']);
     }
     expect(logLines.join('\n')).not.toContain(MARKER);
+  });
+
+  it('S-D6: a service principal cannot accept an offer, and cannot offer without a live standing policy', async () => {
+    const respond = {
+      method: 'POST' as const,
+      url: `/v1/scheduling/waitlist-offers/${fixture.alphaOffer}/respond`,
+      body: { expectedVersion: 1, outcome: 'accepted' },
+      keyed: true,
+      status: 200,
+    };
+    const before = await state();
+    const r = await viaRest('service', respond);
+    const m = await viaMcp(
+      'service',
+      'scheduling_waitlist_respond',
+      { offerRef: fixture.alphaOffer, expectedVersion: 1, outcome: 'accepted', idempotencyKey: randomUUID() },
+      200,
+    );
+    for (const o of [r, m]) expect([o.status, o.code]).toStrictEqual([403, 'forbidden']);
+    expect(await state()).toBe(before);
+    // Revoke the harness policy (a person's command), then the same service principal has none.
+    const revoke = await viaRest('owner', {
+      method: 'POST',
+      url: `/v1/scheduling/standing-policies/${fixture.alphaPolicy}/revoke`,
+      body: { expectedVersion: 1, reasonCode: 'practice_request' },
+      keyed: true,
+      status: 200,
+    });
+    expect(revoke.status).toBe(200);
+    const offer = offerCall();
+    const afterRevoke = await state();
+    const ro = await viaRest('service', offer.rest(fixture));
+    const mo = await viaMcp('service', offer.tool, offer.mcpArgs(fixture), 201);
+    for (const o of [ro, mo]) {
+      expect([o.status, o.code]).toStrictEqual([403, 'forbidden']);
+      expect(JSON.stringify(o.body)).toContain('standing_policy_required');
+    }
+    expect(await state()).toBe(afterRevoke);
   });
 });

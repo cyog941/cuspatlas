@@ -13,6 +13,7 @@ import {
   type LocationListQuery,
   type LocationSummary,
   type LocationTimeZoneChange,
+  type MembershipSource,
   type Page,
   RefusalError,
   type Resource,
@@ -53,7 +54,9 @@ import {
   assertLocation,
 } from '../policy/authorize';
 import { assertAvailabilitySearch, searchAvailabilityIn } from './availability';
+import { releaseExpiredHolds } from './booking';
 import { createSchedulingCursorCodec, type SchedulingCursorCodec } from './cursor';
+import type { VisitContextProducers } from './visit-context';
 import { isKnownTimeZone, isRealDate, minutesOf } from './zoned-time';
 
 export interface SchedulingDeps {
@@ -64,6 +67,17 @@ export interface SchedulingDeps {
   readonly execute?: CommandExecutor;
   /** Defaults to a per-process random HMAC key. */
   readonly cursors?: SchedulingCursorCodec;
+  /**
+   * S12 clinical producers behind the visit context. None is deployed in this foundation (each item
+   * is reported `unavailable`); tests inject a synthetic stub at this port only.
+   */
+  readonly visitContextProducers?: VisitContextProducers;
+  /**
+   * Live membership lookup for principals other than the caller (RLS hides them from the runtime
+   * role inside a tenant transaction). Used to validate a standing-policy grantee; absent means no
+   * grantee can be validated, so a grant is refused.
+   */
+  readonly memberships?: MembershipSource;
 }
 
 /** Version of the reserved state-label vocabulary held by cuspatlas.scheduling_state_terms(). */
@@ -106,8 +120,13 @@ export const failedAt = (pointer: string, rule: string) =>
   new RefusalError({ code: 'validation_failed', detail: { violations: [{ pointer, rule }] } });
 const conflictAt = (pointer: string, rule: string) =>
   new RefusalError({ code: 'conflict', detail: { violations: [{ pointer, rule }] } });
+// A conflict depends on other records' current state, so a same-key retry must re-evaluate it, never replay.
 const conflicts = (list: readonly Conflict[]) =>
-  new RefusalError({ code: 'conflict', ...(list.length > 0 ? { detail: { conflicts: list } } : {}) });
+  new RefusalError({
+    code: 'conflict',
+    replayable: false,
+    ...(list.length > 0 ? { detail: { conflicts: list } } : {}),
+  });
 
 const isPgError = (err: unknown, code: string) =>
   typeof err === 'object' && err !== null && (err as { code?: unknown }).code === code;
@@ -715,6 +734,15 @@ export function createSchedulingResourceService(deps: SchedulingDeps) {
               if (r.status !== 'active') throw failedAt('/resources', 'resourceInactive');
             }
             if (location.status !== 'active') throw failedAt('/locationRef', 'locationInactive');
+            // Expired holds are hidden from scheduling_busy but still occupy the exclusion constraint
+            // until released: reap them first, as every booking path does (review hardening, batch 3).
+            if (!wide) {
+              await releaseExpiredHolds(
+                tx,
+                resources.map((r) => r.id),
+                { s: startsAt.getTime(), e: endsAt.getTime() },
+              );
+            }
             const overlapping = () =>
               tx.query<BusyRow>(
                 `SELECT b.resource_id, r.kind AS resource_kind, b.source_kind, b.source_id
@@ -755,7 +783,20 @@ export function createSchedulingResourceService(deps: SchedulingDeps) {
               } catch (err) {
                 if (!isPgError(err, '23P01')) throw err;
                 const post = await overlapping();
-                throw conflicts(post.rows.map((b) => busyConflict(b, 'resource_overlap', canRead)));
+                // Never an empty conflict list: name the contended resources when no occupant is visible.
+                throw conflicts(
+                  post.rows.length > 0
+                    ? post.rows.map((b) => busyConflict(b, 'resource_overlap', canRead))
+                    : resources.map(
+                        (r): Conflict => ({
+                          kind: 'resource_overlap',
+                          resourceRef: { kind: r.kind, resourceRef: r.id },
+                          explanation:
+                            'A concurrent booking or hold is contending for the resource in this window.',
+                          overrideable: false,
+                        }),
+                      ),
+                );
               }
             }
             await recordCommand(

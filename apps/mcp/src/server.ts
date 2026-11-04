@@ -52,6 +52,7 @@ import { CLINICAL_RECORD_TOOLS } from './tools/clinical-record';
 import { PATIENT_TOOLS } from './tools/patients';
 import { PROPOSAL_TOOLS } from './tools/proposals';
 import { SCHEDULING_TOOLS } from './tools/scheduling';
+import { SCHEDULING_OP_TOOLS } from './tools/scheduling-ops';
 import {
   compileInput,
   refuseInvalid,
@@ -128,6 +129,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   ...APPOINTMENT_TOOLS,
   ...CLINICAL_TOOLS,
   ...CLINICAL_RECORD_TOOLS,
+  ...SCHEDULING_OP_TOOLS,
 ];
 
 /** Path parameters of the REST twin. A malformed one is a 404 there, decided by the domain. */
@@ -158,6 +160,14 @@ const REF_PARAMS = [
   'templateRef',
   'templateVersionRef',
   'noteRef',
+  // S12-S16 path parameters.
+  'seriesRef',
+  'intentRef',
+  'entryRef',
+  'offerRef',
+  'recoveryRef',
+  'policyRef',
+  'recallTaskRef',
 ] as const;
 const PLACEHOLDER_REF = '00000000-0000-4000-8000-000000000000';
 
@@ -260,6 +270,7 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
   const appointments = createAppointmentService({
     authorize,
     withTenantTransaction: deps.tenantTransactions,
+    memberships: deps.membership,
     recording,
     execute: deps.execute ?? executeOnce,
   });

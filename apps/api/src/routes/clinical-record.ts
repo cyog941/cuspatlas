@@ -70,6 +70,19 @@ export function registerClinicalRecordRoutes(
   mount('clinical.perio.compare', async (r) => ({
     data: await c.comparePerioExams(requireActor(r), query(r)),
   }));
+  // C14 rendered procedures.
+  mount('clinical.procedures.render', (r) =>
+    c.renderProcedure(requireActor(r), param(r, 'encounterRef'), env('clinical.procedures.render', r)),
+  );
+  mount('clinical.procedures.list', async (r) => ({
+    data: await c.listProcedures(requireActor(r), param(r, 'encounterRef')),
+  }));
+  mount('clinical.procedures.read', async (r) => ({
+    data: await c.readProcedure(requireActor(r), param(r, 'procedureRef')),
+  }));
+  mount('clinical.procedures.correct', (r) =>
+    c.correctProcedure(requireActor(r), param(r, 'procedureRef'), env('clinical.procedures.correct', r)),
+  );
   // C13 consent capture.
   mount('clinical.consents.capture', (r) =>
     c.captureConsent(requireActor(r), env('clinical.consents.capture', r)),

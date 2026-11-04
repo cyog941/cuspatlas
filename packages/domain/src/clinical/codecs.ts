@@ -83,6 +83,9 @@ export const CLINICAL_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<Clinica
   'clinical.consents.capture': refCodec('consentRef'),
   'clinical.consents.withdraw': refCodec('consentRef'),
   'clinical.consentTemplates.register': refCodec('templateRef'),
+  // C14 rendered procedures (the procedure, or the corrected original, is re-read on replay).
+  'clinical.procedures.render': refCodec('procedureRef'),
+  'clinical.procedures.correct': refCodec('procedureRef'),
   // C9 note templates.
   'clinical.noteTemplates.define': refCodec('templateRef'),
   'clinical.noteTemplates.revise': refCodec('templateRef'),

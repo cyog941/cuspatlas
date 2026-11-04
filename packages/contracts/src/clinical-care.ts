@@ -1,6 +1,7 @@
 import type { ValidateFunction } from 'ajv/dist/2020.js';
+import type { ClinicalAuthor } from './clinical';
 import schema from './clinical.schema.json' with { type: 'json' };
-import type { PlanVersionState } from './clinical-chart';
+import type { PlanVersionState, ToothInput, ToothRef } from './clinical-chart';
 import { createAjv } from './validation';
 
 /**
@@ -187,6 +188,82 @@ export interface ConsentTemplate {
   readonly registeredAt: string;
 }
 
+/** C14 rendered procedures and the billing boundary. No amount and no narrative on any shape. */
+export type ProcedureDuplicateIntent = 'repeat_in_visit' | 'additional_visit';
+export interface ProcedureRender {
+  readonly sequence: number;
+  readonly dateOfService: string;
+  readonly renderingProviderRef: string;
+  readonly planItemRef?: string;
+  readonly codeRef?: string;
+  readonly tooth?: ToothInput;
+  readonly surfaces?: readonly string[];
+  readonly chartEntryRef?: string;
+  readonly providerOverrideReason?: string;
+  readonly duplicateIntent?: ProcedureDuplicateIntent;
+}
+export interface ProcedureReplacement {
+  readonly sequence?: number;
+  readonly dateOfService?: string;
+  readonly renderingProviderRef?: string;
+  readonly codeRef?: string;
+  readonly tooth?: ToothInput;
+  readonly surfaces?: readonly string[];
+  readonly providerOverrideReason?: string;
+}
+export interface ProcedureCorrect {
+  readonly reasonCode: string;
+  readonly replacement?: ProcedureReplacement;
+}
+/** The C14 -> B event payload (`procedure.rendered.v1` / `procedure.reversed.v1`). */
+export interface ProcedureBillingEvent {
+  readonly eventType: 'procedure.rendered.v1' | 'procedure.reversed.v1';
+  readonly procedureRef: string;
+  readonly patientRef: string;
+  readonly encounterRef: string;
+  readonly renderingProviderRef: string;
+  readonly dateOfService: string;
+  readonly codeRef: string;
+  readonly toothSurface: { readonly toothRef: string; readonly surfaces: readonly string[] | null } | null;
+  readonly planItemRef: string | null;
+  readonly reversesProcedureRef: string | null;
+  readonly replacesProcedureRef: string | null;
+  readonly version: 1;
+}
+export interface RenderedProcedure {
+  readonly procedureRef: string;
+  readonly kind: 'rendered' | 'reversal';
+  readonly state: 'active' | 'reversed' | 'reversal';
+  readonly encounterRef: string;
+  readonly patientRef: string;
+  readonly sourcePatientRef: string;
+  readonly sequence: number;
+  readonly planItemRef: string | null;
+  readonly provenance: 'planned' | 'unscheduled' | 'correction';
+  readonly codeRef: string;
+  readonly tooth: ToothRef | null;
+  readonly surfaces: readonly string[] | null;
+  readonly chartEntryRef: string | null;
+  readonly chartDiscrepancy: 'none' | 'chart_entry_superseded' | 'chart_entry_entered_in_error';
+  readonly dateOfService: string;
+  readonly renderingProviderRef: string;
+  readonly providerOverrideReason: string | null;
+  readonly duplicateIntent: ProcedureDuplicateIntent | null;
+  readonly reversesProcedureRef: string | null;
+  readonly reversedByRef: string | null;
+  readonly replacesProcedureRef: string | null;
+  readonly replacedByRef: string | null;
+  readonly reasonCode: string | null;
+  readonly recordedBy: ClinicalAuthor;
+  readonly recordedAt: string;
+  readonly billingEvent: ProcedureBillingEvent;
+}
+export interface ProcedureCorrection {
+  readonly original: RenderedProcedure;
+  readonly reversal: RenderedProcedure;
+  readonly replacement: RenderedProcedure | null;
+}
+
 const ajv = createAjv();
 ajv.addSchema(schema);
 function def(name: keyof typeof schema.$defs): ValidateFunction {
@@ -212,3 +289,10 @@ export const validateConsentCommandResult = def('ConsentCommandResult');
 export const validateConsentRead = def('ConsentRead');
 export const validateConsentList = def('ConsentList');
 export const validateConsentTemplateCommandResult = def('ConsentTemplateCommandResult');
+export const validateProcedureRender = def('ProcedureRender');
+export const validateProcedureCorrect = def('ProcedureCorrect');
+export const validateProcedureCommandResult = def('ProcedureCommandResult');
+export const validateProcedureCorrectionResult = def('ProcedureCorrectionResult');
+export const validateProcedureRead = def('ProcedureRead');
+export const validateProcedureList = def('ProcedureList');
+export const validateProcedureBillingEvent = def('ProcedureBillingEvent');

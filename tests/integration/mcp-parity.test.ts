@@ -146,6 +146,11 @@ const TOOL_NAMES = [
   'clinical_consents_get',
   'clinical_consents_list',
   'clinical_consents_withdraw',
+  // C14 rendered procedure tools (parity in clinical-procedures and negative-harness tests).
+  'clinical_procedures_correct',
+  'clinical_procedures_get',
+  'clinical_procedures_list',
+  'clinical_procedures_render',
   // C9 note template tools (parity in clinical-note-templates and negative-harness tests).
   'clinical_note_templates_applicable',
   'clinical_note_templates_define',

@@ -304,7 +304,10 @@ export type PlanTransitionCause =
   | 'direct'
   | 'detail_declined'
   | 'detail_discontinued'
-  | 'carried_forward';
+  | 'carried_forward'
+  // C14: completion by a rendered procedure, and its reversal.
+  | 'rendered'
+  | 'render_reversed';
 
 export interface TreatmentPlanCreate {
   readonly patientRef: string;

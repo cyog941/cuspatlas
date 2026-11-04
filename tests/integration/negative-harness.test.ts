@@ -1615,6 +1615,77 @@ export const COMMANDS: HarnessCommand[] = [
       idempotencyKey: randomUUID(),
     }),
   },
+  // C14 rendered procedures (workstream C batch 3).
+  {
+    operation: 'clinical.procedures.render',
+    tool: 'clinical_procedures_render',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/encounters/${f.alphaEncounter}/procedures`,
+      body: {
+        sequence: 7,
+        dateOfService: '2026-11-01',
+        renderingProviderRef: f.alphaProvider,
+        codeRef: 'SYN-HARNESS-PROC',
+      },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      encounterRef: f.alphaEncounter,
+      sequence: 7,
+      dateOfService: '2026-11-01',
+      renderingProviderRef: f.alphaProvider,
+      codeRef: 'SYN-HARNESS-PROC',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.procedures.correct',
+    tool: 'clinical_procedures_correct',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/procedures/${f.alphaProcedure}/corrections`,
+      body: { reasonCode: 'recorded_in_error' },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      procedureRef: f.alphaProcedure,
+      reasonCode: 'recorded_in_error',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.procedures.read',
+    tool: 'clinical_procedures_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/procedures/${f.alphaProcedure}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ procedureRef: f.alphaProcedure }),
+  },
+  {
+    operation: 'clinical.procedures.list',
+    tool: 'clinical_procedures_list',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/encounters/${f.alphaEncounter}/procedures`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ encounterRef: f.alphaEncounter }),
+  },
 ];
 
 const DIGEST_A = `sha256:${'a'.repeat(64)}`;
@@ -2023,6 +2094,15 @@ beforeAll(async () => {
     expectedVersion: 1,
   });
   expect(signedNote.statusCode).toBe(200);
+  // C14: one rendered alpha procedure (unscheduled; provider not assigned, so with an override reason).
+  const procedure = await owner(`/v1/clinical/encounters/${encounterRef}/procedures`, {
+    sequence: 1,
+    dateOfService: '2026-11-01',
+    renderingProviderRef: alphaProvider,
+    codeRef: 'SYN-HARNESS-PROC',
+    providerOverrideReason: 'harness_fixture',
+  });
+  expect(procedure.statusCode).toBe(201);
   fixture = {
     alphaPlan: plan.json().data.plan.planRef,
     alphaPlanVersion: planVersion,
@@ -2030,6 +2110,7 @@ beforeAll(async () => {
     alphaPlanItem: planItem.json().data.targetRef,
     alphaEstimate: estimate.json().data.estimateRef,
     alphaConsent: consent.json().data.consentRef,
+    alphaProcedure: procedure.json().data.procedureRef,
     alphaPerioExam: perioExam.examRef,
     alphaPerioMeasurement: perioExam.measurements.find(
       (m: { measure: string; site: string | null }) => m.measure === 'probing_depth' && m.site === 'b',
@@ -2198,6 +2279,7 @@ async function state(): Promise<string> {
     await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_consent_templates'),
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_consents'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_consent_withdrawals'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_rendered_procedures'),
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_note_templates'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_note_template_versions'),
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_notes'),

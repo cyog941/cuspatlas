@@ -37,6 +37,12 @@ export { NOTE_POST_MERGE_FACT_PROBE, NOTE_RESOURCE } from './notes/notes';
 export { checkAgainstTemplate, type TemplateCheck } from './notes/template-check';
 export { NOTE_TEMPLATE_RESOURCE } from './notes/templates';
 export { PERIO_DERIVATION_RESOURCE, PERIO_EXAM_RESOURCE, PROVISIONAL_SITES } from './perio';
+export {
+  loadRenderedProcedureEvent,
+  PROCEDURE_EVENT_FIELDS,
+  PROCEDURE_POST_MERGE_FACT_PROBE,
+  RENDERED_PROCEDURE_RESOURCE,
+} from './procedures';
 export { type ClinicalService, createClinicalService } from './service';
 export {
   checkSurfaces,

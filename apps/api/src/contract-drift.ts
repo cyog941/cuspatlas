@@ -165,6 +165,10 @@ export const CLINICAL_BODIES = [
   'ConsentListQuery',
   'ConsentTemplateRegister',
   'ConsentEvidence',
+  // C14 rendered procedures.
+  'ProcedureRender',
+  'ProcedureCorrect',
+  'ProcedureReplacement',
   // C9 note templates.
   'NoteTemplateDefine',
   'NoteTemplateRevise',

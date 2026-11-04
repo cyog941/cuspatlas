@@ -10,6 +10,41 @@ const QUERY = ['400', '401', '403', '404', '409', '422', '503'] as const;
  * one table. Semantics are recommended-pending-clinical-approval; synthetic data only.
  */
 export const CLINICAL_RECORD_ROUTES: readonly RouteContract[] = [
+  // C14 rendered procedures.
+  {
+    method: 'post',
+    path: '/v1/clinical/encounters/{encounterRef}/procedures',
+    operationId: 'clinical.procedures.render',
+    protected: true,
+    requestBody: C('ProcedureRender'),
+    success: { status: '201', schema: C('ProcedureCommandResult') },
+    refusals: COMMAND,
+  },
+  {
+    method: 'get',
+    path: '/v1/clinical/encounters/{encounterRef}/procedures',
+    operationId: 'clinical.procedures.list',
+    protected: true,
+    success: { status: '200', schema: C('ProcedureList') },
+    refusals: ['401', '403', '404', '503'],
+  },
+  {
+    method: 'get',
+    path: '/v1/clinical/procedures/{procedureRef}',
+    operationId: 'clinical.procedures.read',
+    protected: true,
+    success: { status: '200', schema: C('ProcedureRead') },
+    refusals: ['401', '403', '404', '503'],
+  },
+  {
+    method: 'post',
+    path: '/v1/clinical/procedures/{procedureRef}/corrections',
+    operationId: 'clinical.procedures.correct',
+    protected: true,
+    requestBody: C('ProcedureCorrect'),
+    success: { status: '201', schema: C('ProcedureCorrectionResult') },
+    refusals: COMMAND,
+  },
   // C13 consent capture.
   {
     method: 'post',

@@ -154,6 +154,7 @@ const REF_PARAMS = [
   'planItemRef',
   'estimateRef',
   'consentRef',
+  'procedureRef',
   'templateRef',
   'templateVersionRef',
   'noteRef',

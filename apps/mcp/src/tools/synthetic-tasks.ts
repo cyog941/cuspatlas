@@ -149,6 +149,7 @@ const KNOWN_PROPERTIES: ReadonlySet<string> = new Set([
   'planItemRef',
   'estimateRef',
   'consentRef',
+  'procedureRef',
   'templateRef',
   'templateVersionRef',
   'noteRef',

@@ -19,6 +19,8 @@ const TRANSPORT: Record<string, string> = {
   planItemRef: 'PlanItemRef',
   estimateRef: 'EstimateRef',
   consentRef: 'ConsentRef',
+  procedureRef: 'ProcedureRef',
+  encounterRef: 'EncounterRef',
 };
 
 /**
@@ -53,6 +55,57 @@ const SAFETY =
   'Synthetic engineering implementation; clinical semantics are recommended-pending-clinical-approval and not clinically validated. No diagnosis and no decision support.';
 
 const SPECS: readonly Spec[] = [
+  // C14 rendered procedures.
+  {
+    name: 'clinical_procedures_render',
+    operationId: 'clinical.procedures.render',
+    description: `Record that a procedure was actually performed in an open encounter: rendering provider (assigned to the encounter, or with an override reason), date of service, sequence, and either the plan item it completes (code, tooth and surfaces from the item) or an unscheduled SYN- code. A duplicate needs an explicit indicator. No amount. Publishes the billing event. ${SAFETY}`,
+    body: 'ProcedureRender',
+    transport: ['encounterRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.renderProcedure(
+        actor,
+        args.encounterRef as string,
+        envelope('clinical.procedures.render', args, 'encounterRef'),
+      ),
+  },
+  {
+    name: 'clinical_procedures_correct',
+    operationId: 'clinical.procedures.correct',
+    description: `Correct a rendered procedure by a linked reversal and an optional replacement with a reason; the original stays. A completed plan item returns to accepted when its procedure is reversed. Publishes correcting events. ${SAFETY}`,
+    body: 'ProcedureCorrect',
+    transport: ['procedureRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.correctProcedure(
+        actor,
+        args.procedureRef as string,
+        envelope('clinical.procedures.correct', args, 'procedureRef'),
+      ),
+  },
+  {
+    name: 'clinical_procedures_get',
+    operationId: 'clinical.procedures.read',
+    description: `One rendered procedure with its correction links, chart discrepancy flag and billing event payload. ${SAFETY}`,
+    body: null,
+    transport: ['procedureRef'],
+    readOnly: true,
+    run: async (d, actor, args) => ({
+      data: await d.clinical.readProcedure(actor, args.procedureRef as string),
+    }),
+  },
+  {
+    name: 'clinical_procedures_list',
+    operationId: 'clinical.procedures.list',
+    description: `Every procedure fact of an encounter (the history) and the net set still standing. ${SAFETY}`,
+    body: null,
+    transport: ['encounterRef'],
+    readOnly: true,
+    run: async (d, actor, args) => ({
+      data: await d.clinical.listProcedures(actor, args.encounterRef as string),
+    }),
+  },
   // C13 consent capture.
   {
     name: 'clinical_consents_capture',

@@ -149,6 +149,12 @@ export const ACTION_POLICIES = {
   'clinical.consents.read': { scope: 'clinical.read', principals: ['human', 'service'] },
   'clinical.consents.list': { scope: 'clinical.read', principals: ['human', 'service'] },
   'clinical.consentTemplates.register': { scope: 'admin.configure', principals: ['human'] },
+  // C14 rendered procedures. Rendering and correcting are human clinical authorship (clinical.write and a
+  // resolvable clinical author); reads are sensitive reads. No action posts money (B consumes events).
+  'clinical.procedures.render': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.procedures.correct': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.procedures.read': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.procedures.list': { scope: 'clinical.read', principals: ['human', 'service'] },
   // C9 progress-note templates (C-D4, recommended-pending-clinical-approval). Templates are practice
   // configuration (human admin only); reads need clinical.read.
   'clinical.noteTemplates.define': { scope: 'admin.configure', principals: ['human'] },

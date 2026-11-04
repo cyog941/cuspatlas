@@ -272,6 +272,11 @@ export const MERGE_EXCLUDED_REFERENCES: readonly { table: string; column: string
     column: 'signer_patient_id',
     why: 'the signer recorded at withdrawal is a historical fact (C13)',
   },
+  {
+    table: 'clinical_rendered_procedures',
+    column: 'origin_patient_id',
+    why: 'the patient a procedure was billed for when rendered is a historical fact (C14); the encounter moves',
+  },
 ];
 
 /**

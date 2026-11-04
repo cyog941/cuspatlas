@@ -2,6 +2,7 @@ import type { TenantTransaction } from '@cuspatlas/contracts';
 import type { PostMergeFactProbe } from '../patients/merge';
 import { CONSENT_POST_MERGE_FACT_PROBE } from './consents';
 import { NOTE_POST_MERGE_FACT_PROBE } from './notes/notes';
+import { PROCEDURE_POST_MERGE_FACT_PROBE } from './procedures';
 
 /**
  * S-D2 seam (ADR 0003, pending approval): clinical facts recorded on a merge survivor after the merge
@@ -95,4 +96,6 @@ export const CLINICAL_POST_MERGE_FACT_PROBES: readonly PostMergeFactProbe[] = [
   NOTE_POST_MERGE_FACT_PROBE,
   // C13: consents captured or withdrawn on the survivor after the merge.
   CONSENT_POST_MERGE_FACT_PROBE,
+  // C14: procedures rendered or corrected on the survivor's encounters after the merge.
+  PROCEDURE_POST_MERGE_FACT_PROBE,
 ];

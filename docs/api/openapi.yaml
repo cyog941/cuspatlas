@@ -3266,6 +3266,119 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/clinical/encounters/{encounterRef}/procedures:
+    post:
+      operationId: clinical.procedures.render
+      description: >-
+        Record a rendered procedure (C14) in an open encounter: sequence within the visit, date of service (not after today at the encounter location), rendering provider (a provider resource assigned to the encounter, or 409 provider_not_assigned unless providerOverrideReason is given), and either planItemRef (an accepted or scheduled item of the encounter patient; its code, tooth and surfaces are used and the item becomes completed through this command only) or an unscheduled SYN- codeRef with optional tooth, surfaces and chart entry. The same procedure twice is 409 duplicate_procedure unless duplicateIntent says so. No amount and no narrative. Publishes the outbox event billing consumes (identifier payload: the procedure row). Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/EncounterRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ProcedureRender'
+      responses:
+        '201':
+          description: Procedure recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ProcedureCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: clinical.procedures.list
+      description: >-
+        Every rendered procedure, reversal and replacement of an encounter (C14), oldest first, with the net set still standing (netRefs). A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/EncounterRef'
+      responses:
+        '200':
+          description: The procedures.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ProcedureList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/procedures/{procedureRef}:
+    get:
+      operationId: clinical.procedures.read
+      description: >-
+        One rendered procedure (C14) with its correction links, the chart discrepancy flag (the recorded chart entry later superseded or marked in error) and the billing event payload. A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/ProcedureRef'
+      responses:
+        '200':
+          description: The procedure.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ProcedureRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/procedures/{procedureRef}/corrections:
+    post:
+      operationId: clinical.procedures.correct
+      description: >-
+        Correct a rendered procedure (C14) by a reversal and an optional replacement, both linked, with a reason; nothing is updated. A completed plan item returns to accepted (render_reversed) and is completed again by a replacement with the same code. A reversed procedure is 409 procedure_reversed. Publishes correcting events. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/ProcedureRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ProcedureCorrect'
+      responses:
+        '201':
+          description: Reversal (and replacement) recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ProcedureCorrectionResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
 components:
   securitySchemes:
     bearer:
@@ -3514,6 +3627,12 @@ components:
       required: false
       schema:
         $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PlanVersionRef'
+    ProcedureRef:
+      name: procedureRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ProcedureRef'
     TreatmentPlanRef:
       name: planRef
       in: path

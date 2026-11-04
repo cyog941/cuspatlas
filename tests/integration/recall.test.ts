@@ -7,6 +7,7 @@ import {
   openAppointmentHarness,
   seedLocation,
   setPatientStatus,
+  T_ALPHA,
 } from './support/appointment-fixtures';
 import { openTestDatabase, type TestDatabase } from './support/db';
 
@@ -215,6 +216,36 @@ describe('S16 acceptance', () => {
     expect([reasons[d], reasons[i]]).toStrictEqual(['patient_deceased', 'patient_inactive']);
   });
 
+  it('patient status reasons and the no-baseline patient list need patients.read; others get counts only', async () => {
+    const dead = await createPatient(h, 'Synthetic Recall Hidden Deceased');
+    const idle = await createPatient(h, 'Synthetic Recall Hidden Inactive');
+    const fresh = await createPatient(h, 'Synthetic Recall Hidden Baseline');
+    await visit(dead);
+    await visit(idle);
+    await setPatientStatus(h, dead, 'deceased');
+    await setPatientStatus(h, idle, 'inactive');
+    const scheduler = randomUUID();
+    await db.admin.query(
+      `INSERT INTO cuspatlas.principals (id, kind, handle) VALUES ($1, 'human', 'user-scheduler-only')`,
+      [scheduler],
+    );
+    await db.admin.query(
+      `INSERT INTO cuspatlas.memberships (tenant_id, principal_id, scopes) VALUES ($1, $2, ARRAY['scheduling.read'])`,
+      [T_ALPHA, scheduler],
+    );
+    const token = await h.issuer.issue({ sub: scheduler, tid: T_ALPHA });
+    const full = await dueData('hygiene');
+    expect(full.noBaseline.map((x) => x.patientRef)).toContain(fresh);
+    const limited = h.ok<{ data: Due }>(await due('hygiene', '2030-10-01T12:00:00Z', token)).data;
+    const named = JSON.stringify([limited.excluded, limited.noBaseline]);
+    for (const id of [dead, idle, fresh]) expect(named).not.toContain(id);
+    expect(named).not.toMatch(/patient_deceased|patient_inactive/);
+    // The counts still say how many were left out of the lists.
+    expect(limited.counts.noBaseline).toBe(full.counts.noBaseline);
+    expect(limited.counts.excluded).toBe(full.counts.excluded);
+    expect(limited.noBaseline).toStrictEqual([]);
+  });
+
   it('the completion basis is refused until C14 exists (no substitute basis is invented)', async () => {
     const res = await h.call('a1', 'POST', `${RECALL}/policies`, {
       category: 'perio',
@@ -406,6 +437,46 @@ describe('PT-03 follow-up worklist (S part: recall and unbooked requests)', () =
     ).data;
     expect(a3.items.map((i) => i.workItemRef)).not.toContain(open);
     expect(north.locationRef).toBe('loc-north');
+  });
+});
+
+describe('S16 races on unique records (review hardening)', () => {
+  it('concurrent task creation for one patient returns the one recorded open task, never a 500', async () => {
+    await policy('race-task');
+    const p = await createPatient(h, 'Synthetic Recall Racer');
+    await visit(p);
+    const results = await Promise.all(
+      Array.from({ length: 6 }, () =>
+        h.call('a1', 'POST', `${RECALL}/tasks`, {
+          patientRef: p,
+          category: 'race-task',
+          locationRef: loc.locationRef,
+          expectedPolicyVersion: 1,
+          asOf: '2030-10-01T12:00:00Z',
+        }),
+      ),
+    );
+    expect(results.map((r) => r.statusCode)).toStrictEqual(results.map(() => 201));
+    const data = results.map((r) => r.json().data as { recallTaskRef: string; created: boolean });
+    expect(new Set(data.map((d) => d.recallTaskRef)).size).toBe(1);
+    expect(data.filter((d) => d.created)).toHaveLength(1);
+  });
+
+  it('concurrent policy definitions for one category are serialized or refused as a typed retryable 409, never a 500', async () => {
+    const results = await Promise.all(
+      Array.from({ length: 6 }, () =>
+        h.call('a1', 'POST', `${RECALL}/policies`, {
+          category: 'race-policy',
+          intervalMonths: 6,
+          basis: 'attended_visit',
+        }),
+      ),
+    );
+    for (const r of results) expect([201, 409]).toContain(r.statusCode);
+    for (const r of results.filter((x) => x.statusCode === 409)) expect(r.json().retryable).toBe(true);
+    const versions = results.filter((r) => r.statusCode === 201).map((r) => r.json().data.version as number);
+    expect(versions.length).toBeGreaterThan(0);
+    expect(new Set(versions).size).toBe(versions.length);
   });
 });
 

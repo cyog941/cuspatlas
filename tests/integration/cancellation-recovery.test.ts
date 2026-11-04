@@ -6,9 +6,10 @@ import {
   createPatient,
   openAppointmentHarness,
   seedLocation,
+  T_ALPHA,
 } from './support/appointment-fixtures';
 import { openTestDatabase, type TestDatabase } from './support/db';
-import { SVC_A1 } from './support/fixtures';
+import { SVC_A1, SVC_B1, USER_A1 } from './support/fixtures';
 
 /**
  * PT-02 cancellation recovery (docs/PRACTICE-TIME-AND-AUTOMATION.md): a cancelled future booking
@@ -294,7 +295,7 @@ describe('PT-02 cancellation recovery', () => {
     );
     try {
       await db.admin.query(
-        `UPDATE cuspatlas.scheduling_standing_policies SET expires_at = now() - interval '1 minute' WHERE id = $1`,
+        `UPDATE cuspatlas.scheduling_standing_policies SET expires_at = now() - interval '1 minute', version = version + 1 WHERE id = $1`,
         [granted.policyRef],
       );
     } finally {
@@ -306,6 +307,153 @@ describe('PT-02 cancellation recovery', () => {
     await waitlist({ priority: 1 });
     const res = await h.call('svcA1', 'POST', `${REC}/${freed.recoveryRef}/execute`, { expectedVersion: 1 });
     expect([res.statusCode, res.json().detail?.reason]).toStrictEqual([403, 'standing_policy_required']);
+  });
+
+  it('a service principal cannot offer a slot directly or accept an offer without a person (S-D6 standing-policy gate)', async () => {
+    const w = await waitlist({ priority: 1 });
+    const slot = (n: number) => ({
+      startsAt: new Date(Date.UTC(2031, 1, 3 + n, 14)).toISOString(),
+      endsAt: new Date(Date.UTC(2031, 1, 3 + n, 15)).toISOString(),
+      provider: { kind: 'provider', resourceRef: loc.provider },
+      operatory: { kind: 'operatory', resourceRef: loc.operatory },
+    });
+    const holds = await count(db, 'scheduling_holds');
+    const denied = await h.call('svcA1', 'POST', `${WAIT}/${w.entryRef}/offer`, slot(0));
+    expect([denied.statusCode, denied.json().detail?.reason]).toStrictEqual([
+      403,
+      'standing_policy_required',
+    ]);
+    expect(await count(db, 'scheduling_holds')).toBe(holds);
+    const person = h.ok<{ data: { offerRef: string } }>(
+      await h.call('a1', 'POST', `${WAIT}/${w.entryRef}/offer`, slot(1)),
+      201,
+    ).data;
+    const appts = await count(db, 'appointments');
+    const accept = await h.call(
+      'svcA1',
+      'POST',
+      `/v1/scheduling/waitlist-offers/${person.offerRef}/respond`,
+      {
+        expectedVersion: 1,
+        outcome: 'accepted',
+      },
+    );
+    expect(accept.statusCode).toBe(403);
+    expect(await count(db, 'appointments')).toBe(appts);
+    const granted = h.ok<{ data: { policyRef: string } }>(
+      await h.call('a1', 'POST', POL, {
+        operation: 'scheduling.recovery.execute',
+        granteeRef: SVC_A1,
+        locationRefs: [loc.locationRef],
+        maxOffersPerRecovery: 1,
+        expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+      }),
+      201,
+    ).data;
+    const w2 = await waitlist({ priority: 1 });
+    const allowed = h.ok<{
+      data: { offerRef: string; standingPolicyRef: string; standingPolicyVersion: number };
+    }>(await h.call('svcA1', 'POST', `${WAIT}/${w2.entryRef}/offer`, slot(2)), 201).data;
+    expect([allowed.standingPolicyRef, allowed.standingPolicyVersion]).toStrictEqual([granted.policyRef, 1]);
+    const accept2 = await h.call(
+      'svcA1',
+      'POST',
+      `/v1/scheduling/waitlist-offers/${allowed.offerRef}/respond`,
+      {
+        expectedVersion: 1,
+        outcome: 'accepted',
+      },
+    );
+    expect(accept2.statusCode).toBe(403);
+    h.ok(
+      await h.call('a1', 'POST', `/v1/scheduling/waitlist-offers/${allowed.offerRef}/respond`, {
+        expectedVersion: 1,
+        outcome: 'declined',
+        reasonCode: 'patient_declined',
+      }),
+    );
+    const over = await h.call('svcA1', 'POST', `${WAIT}/${w2.entryRef}/offer`, slot(3));
+    expect([over.statusCode, over.json().detail?.reason]).toStrictEqual([409, 'standing_policy_limit']);
+    h.ok(
+      await h.call('a1', 'POST', `${POL}/${granted.policyRef}/revoke`, {
+        expectedVersion: 1,
+        reasonCode: 'practice_request',
+      }),
+    );
+  });
+
+  it('an expired offer is not live in the recovery list or its candidates', async () => {
+    const freed = await freedSlot();
+    const w = await waitlist({ priority: 1 });
+    const made = h.ok<{ data: { holdRef: string; offerRef: string } }>(
+      await h.call('a1', 'POST', `${REC}/${freed.recoveryRef}/execute`, {
+        expectedVersion: 1,
+        entryRef: w.entryRef,
+      }),
+      201,
+    ).data;
+    const itemOf = async () =>
+      h
+        .ok<{ data: { items: { workItemRef: string; reasonCode: string }[] } }>(
+          await h.call('a1', 'GET', `${REC}?locationRef=${loc.locationRef}`),
+        )
+        .data.items.find((i) => i.workItemRef === freed.recoveryRef);
+    expect((await itemOf())?.reasonCode).toBe('offer_awaiting_answer');
+    await db.admin.query(
+      `UPDATE cuspatlas.scheduling_holds SET expires_at = now() - interval '1 minute', version = version + 1 WHERE id = $1`,
+      [made.holdRef],
+    );
+    expect((await itemOf())?.reasonCode).toBe('slot_freed_by_cancellation');
+    const r = await read(freed.recoveryRef);
+    expect(r.candidates.map((c) => c.entryRef)).toContain(w.entryRef);
+    expect(r.excluded.find((e) => e.entryRef === w.entryRef)).toBeUndefined();
+    // Executing again reaps the expired offer first and offers the slot to the same entry.
+    const next = await h.call('a1', 'POST', `${REC}/${freed.recoveryRef}/execute`, {
+      expectedVersion: 2,
+      entryRef: w.entryRef,
+    });
+    expect(next.statusCode).toBe(201);
+  });
+
+  it('a standing policy is granted only to a service principal with a live membership in this tenant', async () => {
+    const revoked = randomUUID();
+    await db.admin.query(
+      `INSERT INTO cuspatlas.principals (id, kind, handle) VALUES ($1, 'service', 'svc-a-revoked')`,
+      [revoked],
+    );
+    await db.admin.query(
+      `INSERT INTO cuspatlas.memberships (tenant_id, principal_id, scopes, revoked_at)
+       VALUES ($1, $2, ARRAY['scheduling.write'], now())`,
+      [T_ALPHA, revoked],
+    );
+    const policies = await count(db, 'scheduling_standing_policies');
+    const grant = (granteeRef: string) =>
+      h.call('a1', 'POST', POL, {
+        operation: 'scheduling.recovery.execute',
+        granteeRef,
+        locationRefs: [loc.locationRef],
+        maxOffersPerRecovery: 1,
+        expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+      });
+    const cases: [string, string][] = [
+      ['a human', USER_A1],
+      ['another tenant’s service principal', SVC_B1],
+      ['an unknown principal', randomUUID()],
+      ['a service principal whose membership is revoked', revoked],
+    ];
+    for (const [label, who] of cases) {
+      const res = await grant(who);
+      expect([label, res.statusCode, res.json().code]).toStrictEqual([label, 422, 'validation_failed']);
+    }
+    expect(await count(db, 'scheduling_standing_policies')).toBe(policies);
+    const ok = await grant(SVC_A1);
+    expect(ok.statusCode).toBe(201);
+    h.ok(
+      await h.call('a1', 'POST', `${POL}/${ok.json().data.policyRef}/revoke`, {
+        expectedVersion: 1,
+        reasonCode: 'practice_request',
+      }),
+    );
   });
 
   it('race-safe: two concurrent executions for one freed slot produce one offer and one refusal', async () => {

@@ -381,6 +381,46 @@ describe('S14 failure and recovery', () => {
   });
 });
 
+describe('S14 worklist relevance (review hardening)', () => {
+  it('closed or past-due subjects leave the worklist and never crowd out new intents beyond the limit', async () => {
+    const crowd = await seedLocation(h, 'loc-crowd');
+    const { rows: l } = await db.admin.query(
+      `SELECT id, tenant_id FROM cuspatlas.scheduling_locations WHERE location_ref = 'loc-crowd'`,
+    );
+    // 505 stale intents (subjects gone or closed, due long ago) sort ahead of everything by due time.
+    await db.admin.query(
+      `INSERT INTO cuspatlas.notification_intents (tenant_id, subject_kind, subject_id, location_id, purpose, channel,
+         delivery_key, policy_ref, due_at, source_operation, actor_id)
+       SELECT $1, 'appointment', g.id, $2, 'reminder', 'none', 'reminder:' || g.id, 'notification-intent-pending-approval-1',
+         timestamptz '2000-01-01', 'scheduling.appointments.book', $3
+       FROM (SELECT gen_random_uuid() AS id FROM generate_series(1, 505)) g`,
+      [l[0].tenant_id, l[0].id, USER_A1],
+    );
+    const fresh = await book(crowd);
+    const [freshRow] = await intentsFor(fresh.ref);
+    const items = (await worklist('a1', `?locationRef=${crowd.locationRef}`)).items;
+    expect(items.map((i) => i.workItemRef)).toContain(freshRow?.id);
+    expect(items.length).toBe(1);
+  });
+
+  it('an attended appointment, a decided offer and a cancelled-then-past subject drop off; a future cancellation stays', async () => {
+    const attended = await book();
+    const [row] = await intentsFor(attended.ref);
+    expect((await worklist()).items.map((i) => i.workItemRef)).toContain(row?.id);
+    h.ok(await h.call('a1', 'POST', `${APPT}/${attended.ref}/attendance`, { kind: 'arrived' }), 201);
+    expect((await worklist()).items.map((i) => i.workItemRef)).not.toContain(row?.id);
+    const cancelled = await book();
+    h.ok(
+      await h.call('a1', 'POST', `${APPT}/${cancelled.ref}/cancel`, {
+        expectedVersion: 1,
+        reasonCode: 'patient_request',
+      }),
+    );
+    const cancelIntent = (await intentsFor(cancelled.ref)).find((r) => r.purpose === 'cancellation');
+    expect((await worklist()).items.map((i) => i.workItemRef)).toContain(cancelIntent?.id);
+  });
+});
+
 describe('S14 cases owned by E (closed by E6/E7)', () => {
   it('E6: booking with a suppressed decision stores E6 decision reference and reason, enqueues nothing', async () => {
     const before = await count(db, 'delivery_receipts');

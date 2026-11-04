@@ -109,3 +109,27 @@ export const validateRecallEnrollmentsQuery = def('RecallEnrollmentsQuery');
 // E7 delivery.
 export const validateDeliveryResolve = def('DeliveryResolve');
 export const validateReceiptInput = def('ReceiptInput');
+
+/**
+ * E9 minimal engagement export (E scope; M1 owns the full export contract). Every E table of a
+ * tenant in foreign-key order, tenant column removed. E rows reference S rows (patients, intents,
+ * recall policies) and S intents reference E decisions, so the round trip imports both documents
+ * together (`importExports`), which validates every foreign key across both before the commit.
+ */
+export const ENGAGEMENT_EXPORT_FORMAT = 'cuspatlas-engagement-export/1';
+export const ENGAGEMENT_EXPORT_TABLES = [
+  'communication_consents',
+  'message_templates',
+  'channel_policies',
+  'suppression_decisions',
+  'recall_enrollments',
+  'outbound_messages',
+  'delivery_attempts',
+  'message_receipts',
+] as const;
+export type EngagementExportTable = (typeof ENGAGEMENT_EXPORT_TABLES)[number];
+export interface EngagementExport {
+  readonly format: typeof ENGAGEMENT_EXPORT_FORMAT;
+  readonly exportedAt: string;
+  readonly tables: Readonly<Record<string, readonly Record<string, unknown>[]>>;
+}

@@ -219,16 +219,23 @@ async function check(
   occurrences: readonly Planned[],
   canReadBookings: boolean,
   canReadPatients: boolean,
+  lock = true,
 ) {
   const patient = await patientConflicts(tx, shape.patientRef, canReadPatients);
   const out: { o: Planned; conflicts: Conflict[]; prepared: Awaited<ReturnType<typeof prepareWindow>> }[] =
     [];
   for (const o of occurrences) {
-    const prepared = await prepareWindow(tx, decision, location, {
-      ...shape.window,
-      startsAt: new Date(o.s).toISOString(),
-      endsAt: new Date(o.e).toISOString(),
-    });
+    const prepared = await prepareWindow(
+      tx,
+      decision,
+      location,
+      {
+        ...shape.window,
+        startsAt: new Date(o.s).toISOString(),
+        endsAt: new Date(o.e).toISOString(),
+      },
+      lock,
+    );
     const ids = prepared.resources.map((r) => r.id);
     const conflicts = [
       ...patient,
@@ -378,6 +385,7 @@ export function createRecurrenceOperations(base: AppointmentBase) {
             occurrences,
             canReadBookings,
             canReadPatients,
+            false, // planning is a read: no row locks on the resources
           );
           return {
             limit: { name: SERIES_LIMIT_NAME, value: limit, ceiling: SERIES_LIMIT_CEILING },
@@ -478,6 +486,7 @@ export function createRecurrenceOperations(base: AppointmentBase) {
                 requested: p.count,
                 created: made.appointmentRefs.length,
                 skipped: made.skippedOccurrences.length,
+                partial: made.skippedOccurrences.length > 0,
                 appointmentRefs: made.appointmentRefs,
                 skippedOccurrences: made.skippedOccurrences,
                 openOccurrenceRefs: [],
@@ -559,6 +568,7 @@ export function createRecurrenceOperations(base: AppointmentBase) {
                   requested: p.count,
                   created: made.appointmentRefs.length,
                   skipped: made.skippedOccurrences.length,
+                  partial: made.skippedOccurrences.length > 0,
                   appointmentRefs: made.appointmentRefs,
                   skippedOccurrences: made.skippedOccurrences,
                   openOccurrenceRefs: [],
@@ -623,6 +633,7 @@ export function createRecurrenceOperations(base: AppointmentBase) {
                   requested: 0,
                   created: 0,
                   skipped: 0,
+                  partial: false,
                   appointmentRefs: [],
                   skippedOccurrences: [],
                   openOccurrenceRefs: open.map((c) => c.currentRef),

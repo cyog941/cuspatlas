@@ -59,6 +59,8 @@ export interface EngagementBase {
   readonly deps: EngagementDeps;
   guarded<T>(ctx: ActorContext, operation: string, work: () => Promise<T>): Promise<T>;
   authorize(ctx: ActorContext, action: ActionName): Promise<AuthorizationDecision>;
+  /** True when the caller holds the action; a refusal other than `forbidden` propagates. */
+  can(ctx: ActorContext, action: ActionName): Promise<boolean>;
 }
 
 export function createEngagementBase(deps: EngagementDeps): EngagementBase {
@@ -66,6 +68,15 @@ export function createEngagementBase(deps: EngagementDeps): EngagementBase {
     deps,
     guarded: (ctx, operation, work) => withAttemptRecording(deps.recording, who(ctx, operation), work),
     authorize: (ctx, action) => deps.authorize(ctx, action, { tenantId: ctx.tenantId, id: 'engagement' }),
+    async can(ctx, action) {
+      try {
+        await deps.authorize(ctx, action, { tenantId: ctx.tenantId, id: 'engagement' });
+        return true;
+      } catch (err) {
+        if (err instanceof RefusalError && err.code === 'forbidden') return false;
+        throw err;
+      }
+    },
   };
 }
 

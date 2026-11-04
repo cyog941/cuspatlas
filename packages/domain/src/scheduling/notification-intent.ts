@@ -207,6 +207,9 @@ export function createNotificationOperations(base: AppointmentBase) {
         const q = query as NotificationWorklistQuery;
         assertValid<NotificationWorklistQuery>(validateNotificationWorklistQuery, q, SCHEDULING_PROPERTIES);
         if (q.locationRef !== undefined) assertLocation(decision.locationRefs, q.locationRef);
+        // Only intents whose subject is still open and not past due (a review finding): an attended or
+        // past appointment, a decided or expired offer and a resolved recall task are history and must not
+        // crowd newer intents out of the page.
         return deps.withTenantTransaction(ctx, async (tx) => {
           const { rows } = await tx.query<IntentRow>(
             `${INTENT_SELECT}
@@ -214,6 +217,20 @@ export function createNotificationOperations(base: AppointmentBase) {
                AND NOT EXISTS (SELECT 1 FROM cuspatlas.notification_intents n WHERE n.superseded_intent_id = i.id)
                AND NOT EXISTS (SELECT 1 FROM cuspatlas.suppression_decisions d
                  WHERE d.id = i.suppression_decision_ref AND d.outcome = 'allowed')
+               AND CASE i.subject_kind
+                 WHEN 'appointment' THEN EXISTS (
+                   SELECT 1 FROM cuspatlas.appointments a
+                   WHERE a.id = i.subject_id AND a.tenant_id = i.tenant_id AND a.starts_at > now()
+                     AND NOT EXISTS (SELECT 1 FROM cuspatlas.appointment_attendance_transitions t
+                       WHERE t.appointment_id = a.id AND t.tenant_id = a.tenant_id
+                         AND t.kind NOT IN ('cancelled', 'rescheduled')))
+                 WHEN 'waitlist_offer' THEN EXISTS (
+                   SELECT 1 FROM cuspatlas.waitlist_offers o
+                   WHERE o.id = i.subject_id AND o.tenant_id = i.tenant_id AND o.outcome IS NULL AND o.expires_at > now())
+                 WHEN 'recall_task' THEN EXISTS (
+                   SELECT 1 FROM cuspatlas.recall_tasks r
+                   WHERE r.id = i.subject_id AND r.tenant_id = i.tenant_id AND r.state = 'open')
+                 ELSE false END
                AND ($1::text[] IS NULL OR l.location_ref = ANY ($1::text[]))
                AND ($2::text IS NULL OR l.location_ref = $2)
              ORDER BY i.due_at NULLS LAST, i.id LIMIT 500`,

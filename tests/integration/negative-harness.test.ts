@@ -12,7 +12,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { openTestDatabase, type TestDatabase } from './support/db';
-import { seedTenancy, T_ALPHA, T_BETA, USER_A1, USER_A2, USER_A4, USER_B1 } from './support/fixtures';
+import { SVC_A1, seedTenancy, T_ALPHA, T_BETA, USER_A1, USER_A2, USER_A4, USER_B1 } from './support/fixtures';
 import { MARKER } from './support/marker';
 import { patientBody, seedPatientScopes, USER_A5 } from './support/patient-fixtures';
 import { seedSchedulingScopes } from './support/scheduling-fixtures';
@@ -918,6 +918,12 @@ function seriesRows(): HarnessCommand[] {
 }
 
 /** S15 and PT-02 rows. */
+function offerCall(): HarnessCommand {
+  const command = waitlistRows().find((c) => c.operation === 'scheduling.waitlist.offer');
+  if (!command) throw new Error('missing offer row');
+  return command;
+}
+
 function waitlistRows(): HarnessCommand[] {
   const W = '/v1/scheduling/waitlist';
   const O = '/v1/scheduling/waitlist-offers';
@@ -1244,6 +1250,7 @@ beforeAll(async () => {
     ['revoked', USER_A2, T_ALPHA],
     ['readOnly', USER_A4, T_ALPHA],
     ['noPatientScopes', USER_A5, T_ALPHA],
+    ['service', SVC_A1, T_ALPHA],
   ] as const) {
     rest[who] = await issuer.issue({ sub, tid });
     mcpTokens[who] = await issuer.issue({ sub, tid, audience: MCP_AUDIENCE });
@@ -1757,5 +1764,43 @@ describe('negative harness: every S command, every dimension, REST and MCP', () 
       expect([cmd.operation, m.code]).toStrictEqual([cmd.operation, 'invalid_request']);
     }
     expect(logLines.join('\n')).not.toContain(MARKER);
+  });
+
+  it('S-D6: a service principal cannot accept an offer, and cannot offer without a live standing policy', async () => {
+    const respond = {
+      method: 'POST' as const,
+      url: `/v1/scheduling/waitlist-offers/${fixture.alphaOffer}/respond`,
+      body: { expectedVersion: 1, outcome: 'accepted' },
+      keyed: true,
+      status: 200,
+    };
+    const before = await state();
+    const r = await viaRest('service', respond);
+    const m = await viaMcp(
+      'service',
+      'scheduling_waitlist_respond',
+      { offerRef: fixture.alphaOffer, expectedVersion: 1, outcome: 'accepted', idempotencyKey: randomUUID() },
+      200,
+    );
+    for (const o of [r, m]) expect([o.status, o.code]).toStrictEqual([403, 'forbidden']);
+    expect(await state()).toBe(before);
+    // Revoke the harness policy (a person's command), then the same service principal has none.
+    const revoke = await viaRest('owner', {
+      method: 'POST',
+      url: `/v1/scheduling/standing-policies/${fixture.alphaPolicy}/revoke`,
+      body: { expectedVersion: 1, reasonCode: 'practice_request' },
+      keyed: true,
+      status: 200,
+    });
+    expect(revoke.status).toBe(200);
+    const offer = offerCall();
+    const afterRevoke = await state();
+    const ro = await viaRest('service', offer.rest(fixture));
+    const mo = await viaMcp('service', offer.tool, offer.mcpArgs(fixture), 201);
+    for (const o of [ro, mo]) {
+      expect([o.status, o.code]).toStrictEqual([403, 'forbidden']);
+      expect(JSON.stringify(o.body)).toContain('standing_policy_required');
+    }
+    expect(await state()).toBe(afterRevoke);
   });
 });

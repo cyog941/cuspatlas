@@ -32,11 +32,19 @@ export function createRecallEnrollmentOperations(base: EngagementBase) {
         checkEnvelope(envelope, op);
         assertValid(validateRecallEnroll, envelope.payload, ENGAGEMENT_PROPERTIES);
         const p = envelope.payload as { category: string; asOf: string; patientRefs: string[] };
+        // Patient status (deceased, inactive) is a patient-record fact: the S16 exclusion reason is
+        // disclosed only to a caller holding patients.read; others see `not_disclosed`.
+        const canReadPatients = await base.can(ctx, 'patients.read');
         return deps.withTenantTransaction(ctx, async (tx) => {
-          const due = await recallDueFor(tx, decision.locationRefs, p.category, Date.parse(p.asOf));
+          const due = await recallDueFor(tx, decision.locationRefs, p.category, Date.parse(p.asOf), true);
           return execute(ctx, envelope, tx, async () => {
             const dueBy = new Map(due.due.map((d) => [d.patientRef, d]));
-            const excluded = new Map(due.excluded.map((x) => [x.patientRef, x.reason]));
+            const excluded = new Map(
+              due.excluded.map((x) => [
+                x.patientRef,
+                canReadPatients || x.reason === 'already_booked' ? x.reason : 'not_disclosed',
+              ]),
+            );
             let enrolled = 0;
             const skipped: { ref: string; reason: 'recall_not_due'; exclusion: string }[] = [];
             const alreadyEnrolled: string[] = [];
@@ -46,7 +54,7 @@ export function createRecallEnrollmentOperations(base: EngagementBase) {
                 skipped.push({
                   ref,
                   reason: 'recall_not_due',
-                  exclusion: excluded.get(ref) ?? 'no_baseline',
+                  exclusion: excluded.get(ref) ?? (canReadPatients ? 'no_baseline' : 'not_disclosed'),
                 });
                 continue;
               }
@@ -92,7 +100,7 @@ export function createRecallEnrollmentOperations(base: EngagementBase) {
         const q = query as { category: string };
         return deps.withTenantTransaction(ctx, async (tx: TenantTransaction) => {
           // The category must exist in this tenant (another tenant's category is indistinguishable).
-          await recallDueFor(tx, decision.locationRefs, q.category, Date.now());
+          await recallDueFor(tx, decision.locationRefs, q.category, Date.now(), false);
           const { rows } = await tx.query<{
             id: string;
             patient_id: string;

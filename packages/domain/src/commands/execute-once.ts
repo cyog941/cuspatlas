@@ -8,6 +8,8 @@ import {
   type RefusalCode,
   type RefusalDetail,
   RefusalError,
+  SECURITY_REASON_CODES,
+  type SecurityReasonCode,
   type TenantTransaction,
 } from '@cuspatlas/contracts';
 import { ENGAGEMENT_REPLAY_CODECS } from '../engagement/codecs';
@@ -75,6 +77,10 @@ function refusalFrom(result: Record<string, unknown>): RefusalError {
   return new RefusalError({
     code: code as RefusalCode,
     retryable: result.retryable === true,
+    ...(typeof result.reasonCode === 'string' &&
+    (SECURITY_REASON_CODES as readonly string[]).includes(result.reasonCode)
+      ? { reasonCode: result.reasonCode as SecurityReasonCode }
+      : {}),
     ...(detail === undefined ? {} : { detail }),
   });
 }
@@ -199,6 +205,7 @@ export function createExecuteOnce(options: ExecuteOnceOptions): CommandExecutor 
         kind: 'refusal',
         code: err.code,
         retryable: err.retryable,
+        ...(err.reasonCode === undefined ? {} : { reasonCode: err.reasonCode }),
         ...(detail === undefined ? {} : { detail }),
       };
       await tx.query(

@@ -225,6 +225,8 @@ interface OfferRow extends Record<string, unknown> {
   standing_policy_id: string | null;
   standing_policy_version: number | null;
   version: number;
+  /** The live offer's hold lapsed and no reconcile has recorded the expiry yet. */
+  hold_expired: boolean;
 }
 async function loadOffer(
   tx: TenantTransaction,
@@ -236,7 +238,9 @@ async function loadOffer(
   const { rows } = await tx.query<OfferRow>(
     `SELECT o.id, o.entry_id, o.hold_id, o.recovery_id, l.location_ref, o.starts_at, o.ends_at, o.provider_id,
        o.operatory_id, o.no_operatory_reason, o.expires_at, o.outcome, o.outcome_reason, o.appointment_id,
-       o.standing_policy_id, o.standing_policy_version, o.version
+       o.standing_policy_id, o.standing_policy_version, o.version,
+       (o.outcome IS NULL AND EXISTS (SELECT 1 FROM cuspatlas.scheduling_holds h WHERE h.id = o.hold_id
+         AND h.tenant_id = o.tenant_id AND h.state = 'active' AND h.expires_at <= now())) AS hold_expired
      FROM cuspatlas.waitlist_offers o
      JOIN cuspatlas.scheduling_locations l ON l.id = o.location_id AND l.tenant_id = o.tenant_id
      WHERE o.id = $1 ${lock}`,
@@ -326,8 +330,14 @@ export async function openRecoveryIn(tx: TenantTransaction, appointmentId: strin
 
 /** Ranked, explained candidates for a freed window (consent is E6's and is referenced only). */
 async function candidatesFor(tx: TenantTransaction, r: RecoveryRow) {
-  const { rows } = await tx.query<EntryRow & { patient_status: string; merged: boolean }>(
-    `SELECT ${ENTRY_COLUMNS}, p.status AS patient_status, (p.merged_into IS NOT NULL) AS merged ${ENTRY_FROM}
+  const { rows } = await tx.query<
+    EntryRow & { patient_status: string; merged: boolean; live_offer: boolean }
+  >(
+    `SELECT ${ENTRY_COLUMNS}, p.status AS patient_status, (p.merged_into IS NOT NULL) AS merged,
+       EXISTS (SELECT 1 FROM cuspatlas.waitlist_offers o
+         JOIN cuspatlas.scheduling_holds h ON h.id = o.hold_id AND h.tenant_id = o.tenant_id
+         WHERE o.entry_id = e.id AND o.outcome IS NULL AND NOT (h.state = 'active' AND h.expires_at <= now())) AS live_offer
+       ${ENTRY_FROM}
      JOIN cuspatlas.patients p ON p.id = e.subject_patient_id AND p.tenant_id = e.tenant_id
      WHERE e.location_id = $1 AND e.state IN ('active', 'offered')
      ORDER BY e.priority, e.created_at, e.id LIMIT 200`,
@@ -340,7 +350,8 @@ async function candidatesFor(tx: TenantTransaction, r: RecoveryRow) {
   for (const e of rows) {
     const end = slotStart + e.duration_minutes * MINUTE;
     let reason: string | null = null;
-    if (e.state === 'offered') reason = 'offer_pending';
+    // An offer whose hold lapsed is not live (lazy expiry); executing reaps it before offering.
+    if (e.state === 'offered' && e.live_offer) reason = 'offer_pending';
     else if (e.expired) reason = 'entry_expired';
     else if (e.duration_minutes > slotMinutes) reason = 'duration_exceeds_slot';
     else if (slotStart < e.desired_from.getTime() || end > e.desired_until.getTime())
@@ -379,6 +390,31 @@ interface PolicyRow extends Record<string, unknown> {
 }
 const POLICY_COLUMNS = `id, owner_principal_id, grantee_principal_id, location_refs, max_offers_per_recovery, expires_at,
   revoked_at, (expires_at <= now()) AS expired, version, created_at`;
+
+/**
+ * Lazy reconciliation (review hardening): records the expiry of live offers whose hold lapsed, for one
+ * entry or one location, so an expired offer is never treated as live by a write path. The lock order is
+ * hold, offer, entry (`expireHolds`), the same as the response command; callers run this before
+ * locking the entry or the recovery.
+ */
+async function reapExpiredOffers(
+  tx: TenantTransaction,
+  scope: { entryId?: string; locationId?: string },
+): Promise<void> {
+  const { rows } = await tx.query<{ id: string }>(
+    `SELECT h.id FROM cuspatlas.waitlist_offers o
+     JOIN cuspatlas.scheduling_holds h ON h.id = o.hold_id AND h.tenant_id = o.tenant_id
+     WHERE o.outcome IS NULL AND h.state = 'active' AND h.expires_at <= now()
+       AND ($1::uuid IS NULL OR o.entry_id = $1) AND ($2::uuid IS NULL OR o.location_id = $2)
+     ORDER BY h.id LIMIT 200`,
+    [scope.entryId ?? null, scope.locationId ?? null],
+  );
+  if (rows.length > 0)
+    await expireHolds(
+      tx,
+      rows.map((r) => r.id),
+    );
+}
 
 /** S15 waitlist and PT-02 cancellation recovery with its standing-policy gate. */
 export function createWaitlistOperations(base: AppointmentBase) {
@@ -533,6 +569,19 @@ export function createWaitlistOperations(base: AppointmentBase) {
     return rows[0] ?? null;
   }
 
+  /** The live policy for a service principal, or the `standing_policy_required` refusal. */
+  async function requireLivePolicy(tx: TenantTransaction, ctx: ActorContext, locationRef: string) {
+    const policy = await livePolicyFor(tx, ctx.actorId, locationRef);
+    if (policy === null) {
+      throw new RefusalError({
+        code: 'forbidden',
+        reasonCode: 'scope_missing',
+        detail: { reason: 'standing_policy_required' },
+      });
+    }
+    return policy;
+  }
+
   return {
     addToWaitlist(ctx: ActorContext, envelope: CommandEnvelope<unknown>) {
       const op = 'scheduling.waitlist.add';
@@ -601,6 +650,7 @@ export function createWaitlistOperations(base: AppointmentBase) {
         const p = envelope.payload as WaitlistRemove;
         assertValid<WaitlistRemove>(validateWaitlistRemove, p, SCHEDULING_PROPERTIES);
         return deps.withTenantTransaction(ctx, async (tx) => {
+          if (validateSchedulingEntityRef(entryRef)) await reapExpiredOffers(tx, { entryId: entryRef });
           const e = await loadEntry(tx, decision, entryRef, 'FOR UPDATE OF e');
           return execute<{ entryRef: string; state: WaitlistState }>(
             ctx,
@@ -663,14 +713,33 @@ export function createWaitlistOperations(base: AppointmentBase) {
         const canReadBookings = await base.can(ctx, 'scheduling.appointments.read');
         const canReadPatients = await base.can(ctx, 'patients.read');
         return deps.withTenantTransaction(ctx, async (tx) => {
+          if (validateSchedulingEntityRef(entryRef)) await reapExpiredOffers(tx, { entryId: entryRef });
           const e = await loadEntry(tx, decision, entryRef, 'FOR UPDATE OF e');
-          return execute<OfferCommandData>(ctx, { ...envelope, payload: { entryRef, ...p } }, tx, () =>
-            offerIn(tx, op, decision, e, p, {
-              recoveryId: null,
-              policy: null,
-              canReadBookings,
-              canReadPatients,
-            }),
+          // S-D6: a direct offer by a service principal needs the same live standing policy as
+          // recovery execution (rechecked here, FOR SHARE), limited per entry, and records its version.
+          const policy =
+            ctx.principal === 'service' ? await requireLivePolicy(tx, ctx, e.location_ref) : null;
+          return execute<OfferCommandData>(
+            ctx,
+            { ...envelope, payload: { entryRef, ...p } },
+            tx,
+            async () => {
+              if (policy !== null) {
+                const used = await tx.query<{ n: number }>(
+                  `SELECT count(*)::int AS n FROM cuspatlas.waitlist_offers
+                 WHERE entry_id = $1 AND recovery_id IS NULL AND standing_policy_id = $2`,
+                  [e.id, policy.id],
+                );
+                if ((used.rows[0]?.n ?? 0) >= policy.max_offers_per_recovery)
+                  throw refused('standing_policy_limit');
+              }
+              return offerIn(tx, op, decision, e, p, {
+                recoveryId: null,
+                policy,
+                canReadBookings,
+                canReadPatients,
+              });
+            },
           );
         });
       });
@@ -690,8 +759,8 @@ export function createWaitlistOperations(base: AppointmentBase) {
             startsAt: o.starts_at.toISOString(),
             endsAt: o.ends_at.toISOString(),
             expiresAt: o.expires_at.toISOString(),
-            outcome: o.outcome,
-            outcomeReason: o.outcome_reason,
+            outcome: o.hold_expired ? 'expired' : o.outcome,
+            outcomeReason: o.hold_expired ? 'hold_expired' : o.outcome_reason,
             appointmentRef: o.appointment_id,
             standingPolicyRef: o.standing_policy_id,
             standingPolicyVersion: o.standing_policy_version,
@@ -712,12 +781,23 @@ export function createWaitlistOperations(base: AppointmentBase) {
         checkEnvelope(envelope, op);
         const p = envelope.payload as OfferRespond;
         assertValid<OfferRespond>(validateOfferRespond, p, SCHEDULING_PROPERTIES);
+        // S-D6: an offer books only on explicit acceptance. Acceptance by staff is a person's command;
+        // acceptance by the patient arrives later through the E portal principals (seam: a patient
+        // principal kind will be admitted here). A service principal never accepts.
+        if (p.outcome === 'accepted' && ctx.principal !== 'human') {
+          throw new RefusalError({ code: 'forbidden', reasonCode: 'principal_kind_denied' });
+        }
         const canReadBookings = await base.can(ctx, 'scheduling.appointments.read');
         const canReadPatients = await base.can(ctx, 'patients.read');
         return deps.withTenantTransaction(ctx, async (tx) => {
+          // One lock order everywhere: recovery, hold, offer, entry (expireHolds takes hold, offer, entry).
+          // The bindings read here are immutable, so they are safe to read before the locks.
+          const peek = await loadOffer(tx, decision, offerRef);
+          if (peek.recovery_id !== null)
+            await loadRecovery(tx, decision, peek.recovery_id, 'FOR UPDATE OF r');
+          const hold: HoldRow = await loadHold(tx, decision, peek.hold_id, 'FOR UPDATE OF h');
           const o = await loadOffer(tx, decision, offerRef, 'FOR UPDATE OF o');
           const entry = await loadEntry(tx, decision, o.entry_id, 'FOR UPDATE OF e');
-          const hold: HoldRow = await loadHold(tx, decision, o.hold_id, 'FOR UPDATE OF h');
           return execute<OfferRespondData>(
             ctx,
             { ...envelope, payload: { offerRef, ...p } },
@@ -880,7 +960,9 @@ export function createWaitlistOperations(base: AppointmentBase) {
           const { rows } = await tx.query<RecoveryRow & { live_offers: number }>(
             `SELECT r.id, r.appointment_id, r.location_id, l.location_ref, r.starts_at, r.ends_at, r.provider_id,
                r.operatory_id, r.state, r.version,
-               (SELECT count(*)::int FROM cuspatlas.waitlist_offers o WHERE o.recovery_id = r.id AND o.outcome IS NULL)
+               (SELECT count(*)::int FROM cuspatlas.waitlist_offers o
+                 JOIN cuspatlas.scheduling_holds h ON h.id = o.hold_id AND h.tenant_id = o.tenant_id
+                WHERE o.recovery_id = r.id AND o.outcome IS NULL AND NOT (h.state = 'active' AND h.expires_at <= now()))
                  AS live_offers
              FROM cuspatlas.cancellation_recoveries r
              JOIN cuspatlas.scheduling_locations l ON l.id = r.location_id AND l.tenant_id = r.tenant_id
@@ -935,7 +1017,11 @@ export function createWaitlistOperations(base: AppointmentBase) {
             [r.location_ref],
           );
           const offers = await tx.query<{ id: string; outcome: OfferOutcome | null }>(
-            'SELECT id, outcome FROM cuspatlas.waitlist_offers WHERE recovery_id = $1 ORDER BY created_at, id LIMIT 20',
+            `SELECT o.id, CASE WHEN o.outcome IS NULL AND h.state = 'active' AND h.expires_at <= now() THEN 'expired'
+                ELSE o.outcome END AS outcome
+             FROM cuspatlas.waitlist_offers o
+             JOIN cuspatlas.scheduling_holds h ON h.id = o.hold_id AND h.tenant_id = o.tenant_id
+             WHERE o.recovery_id = $1 ORDER BY o.created_at, o.id LIMIT 20`,
             [r.id],
           );
           const policyRef = policy.rows[0]?.id ?? null;
@@ -974,21 +1060,15 @@ export function createWaitlistOperations(base: AppointmentBase) {
         const canReadBookings = await base.can(ctx, 'scheduling.appointments.read');
         const canReadPatients = await base.can(ctx, 'patients.read');
         return deps.withTenantTransaction(ctx, async (tx) => {
+          // Expired offers of this location are reaped before the recovery is locked (lock order).
+          const peek = await loadRecovery(tx, decision, recoveryRef);
+          await reapExpiredOffers(tx, { locationId: peek.location_id });
           const r = await loadRecovery(tx, decision, recoveryRef, 'FOR UPDATE OF r');
           // Automation authority (PT-02): a person executing is the approval of the prepared offer; a
           // service principal needs a live standing policy naming it, this operation and this location,
           // rechecked here (FOR SHARE serializes with revocation) and recorded on the offer.
-          let policy: PolicyRow | null = null;
-          if (ctx.principal === 'service') {
-            policy = await livePolicyFor(tx, ctx.actorId, r.location_ref);
-            if (policy === null) {
-              throw new RefusalError({
-                code: 'forbidden',
-                reasonCode: 'scope_missing',
-                detail: { reason: 'standing_policy_required' },
-              });
-            }
-          }
+          const policy =
+            ctx.principal === 'service' ? await requireLivePolicy(tx, ctx, r.location_ref) : null;
           return execute<OfferCommandData>(
             ctx,
             { ...envelope, payload: { recoveryRef, ...p } },
@@ -1062,9 +1142,16 @@ export function createWaitlistOperations(base: AppointmentBase) {
         const p = envelope.payload as StandingPolicyGrant;
         assertValid<StandingPolicyGrant>(validateStandingPolicyGrant, p, SCHEDULING_PROPERTIES);
         for (const l of p.locationRefs) assertLocation(decision.locationRefs, l);
+        // The grantee must be a service principal with a live membership in this tenant. Anything else
+        // (a person, another tenant's principal, an unknown or revoked one) is one indistinguishable 422.
+        const grantee = validateSchedulingEntityRef(p.granteeRef)
+          ? await deps.memberships?.load(p.granteeRef, ctx.tenantId)
+          : null;
         return deps.withTenantTransaction(ctx, async (tx) => {
           for (const l of p.locationRefs) await loadLocation(tx, l);
           return execute<{ policyRef: string; state: 'active' | 'revoked' }>(ctx, envelope, tx, async () => {
+            if (!grantee?.active || grantee.principal !== 'service')
+              throw failedAt('/granteeRef', 'notServicePrincipal');
             const expires = Date.parse(p.expiresAt);
             if (expires <= Date.now()) throw failedAt('/expiresAt', 'inThePast');
             if (expires > Date.now() + MAX_POLICY_DAYS * 86_400_000)

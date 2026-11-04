@@ -13,6 +13,7 @@ import {
   type LocationListQuery,
   type LocationSummary,
   type LocationTimeZoneChange,
+  type MembershipSource,
   type Page,
   RefusalError,
   type Resource,
@@ -71,6 +72,12 @@ export interface SchedulingDeps {
    * is reported `unavailable`); tests inject a synthetic stub at this port only.
    */
   readonly visitContextProducers?: VisitContextProducers;
+  /**
+   * Live membership lookup for principals other than the caller (RLS hides them from the runtime
+   * role inside a tenant transaction). Used to validate a standing-policy grantee; absent means no
+   * grantee can be validated, so a grant is refused.
+   */
+  readonly memberships?: MembershipSource;
 }
 
 /** Version of the reserved state-label vocabulary held by cuspatlas.scheduling_state_terms(). */
@@ -113,8 +120,13 @@ export const failedAt = (pointer: string, rule: string) =>
   new RefusalError({ code: 'validation_failed', detail: { violations: [{ pointer, rule }] } });
 const conflictAt = (pointer: string, rule: string) =>
   new RefusalError({ code: 'conflict', detail: { violations: [{ pointer, rule }] } });
+// A conflict depends on other records' current state, so a same-key retry must re-evaluate it, never replay.
 const conflicts = (list: readonly Conflict[]) =>
-  new RefusalError({ code: 'conflict', ...(list.length > 0 ? { detail: { conflicts: list } } : {}) });
+  new RefusalError({
+    code: 'conflict',
+    replayable: false,
+    ...(list.length > 0 ? { detail: { conflicts: list } } : {}),
+  });
 
 const isPgError = (err: unknown, code: string) =>
   typeof err === 'object' && err !== null && (err as { code?: unknown }).code === code;

@@ -362,3 +362,9 @@ Independent of every worker run above, the branch at `170cbd9` was cloned fresh 
 Observed limitation: an identical clone placed under the user's `%TEMP%` directory failed at PostgreSQL initialisation with Windows status `0xC0000006` on every attempt; the same binaries work from a normal path. Treat the Temp directory as unsupported for the embedded server's binaries on this host (likely an execution policy on that folder; not root-caused). Each failed initialisation left its `cuspatlas-pg-*` data directory behind; cleanup on init failure is a known gap in the test global setup, listed under residual limitations.
 
 Linux CI remains unverified until the first push.
+
+## First GitHub Actions run (PR #9, 2026-11-04)
+
+- `verify (linux)` on ubuntu-24.04: **pass** on both the push and the pull_request run. The log shows 19 files / 342 tests passed against embedded PostgreSQL on Linux, privacy scan ok (162 tracked files), SBOM 270 components, evidence and evidence-verify steps executed. Runs 41785906511 and 41785906515.
+- `windows-smoke` on windows-2022: **fail** on both runs. The integration global setup threw `Unknown Error: undefined` after about 9 s, before any test ran. The identical command passes on the local Windows host. Cause not yet known.
+- Response: global setup now reports the embedded server's phase and log tail on failure and removes its data directory. windows-smoke now gates on install, typecheck and the unit project. The embedded PostgreSQL step stays as a non-blocking diagnostic until the cause is found.

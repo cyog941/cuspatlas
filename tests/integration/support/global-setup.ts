@@ -52,8 +52,20 @@ export default async function setup(): Promise<() => Promise<void>> {
     onError: (m) => serverLog.push(String(m)),
   });
 
-  await server.initialise();
-  await server.start();
+  // Surface the server's own log on failure and never leave a data directory behind.
+  for (const phase of ['initialise', 'start'] as const) {
+    try {
+      await server[phase]();
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      const tail = serverLog.slice(-8).join(' | ');
+      try {
+        await server.stop();
+      } catch {}
+      rmSync(dataDir, { recursive: true, force: true });
+      throw new Error(`embedded PostgreSQL failed to ${phase}: ${reason}; server log tail: ${tail}`);
+    }
+  }
 
   const admin = { host: '127.0.0.1', port, user: 'postgres', password: adminPassword };
   const root = new pg.Client({ ...admin, database: 'postgres' });

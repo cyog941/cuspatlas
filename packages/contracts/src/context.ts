@@ -152,6 +152,8 @@ export const SECURITY_REASON_CODES = [
   'clinical_author_self_definition',
   // C10: amending another clinician's signed note without the clinical-oversight scope (C-D5).
   'clinical_oversight_required',
+  // C13: a patient recorded as a minor cannot consent alone (a guardian with the consent scope can).
+  'consent_signer_minor',
 ] as const;
 export type SecurityReasonCode = (typeof SECURITY_REASON_CODES)[number];
 

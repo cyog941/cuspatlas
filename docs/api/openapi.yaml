@@ -3113,6 +3113,159 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/clinical/consents:
+    post:
+      operationId: clinical.consents.capture
+      description: >-
+        Record a treatment consent (C13, C-D6 recommended-pending-approval): scope (treatment_plan with planVersionRef, procedure with planVersionRef and planItemRef, or general_treatment), method, consent template reference and digest, structured attestation code, optional witness, and an evidence artifact reference and digest (required for paper and portal; no bytes or signature image are accepted). Signer authority is evaluated now: the patient (403 consent_signer_minor when recorded as a minor) or a related person holding an active S5 relationship with the consent scope (403 relationship_* otherwise). A method configured to need a witness is 409 witness_required without one; a superseded plan version is 409 plan_version_superseded naming the current one. Treatment consent only, never E's messaging consent. Requires clinical.write (human).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ConsentCapture'
+      responses:
+        '201':
+          description: Consent recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ConsentCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/consents/{consentRef}:
+    get:
+      operationId: clinical.consents.read
+      description: >-
+        One consent (C13) with its signer authority as recorded, evidence reference, template digest status (registered or unresolved; an unresolved digest is retained and flagged) and withdrawal. A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/ConsentRef'
+      responses:
+        '200':
+          description: The consent.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ConsentRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/consents/{consentRef}/withdrawal:
+    post:
+      operationId: clinical.consents.withdraw
+      description: >-
+        Withdraw a consent (C13) as a new record with reason, instant, optional evidence and the signer authority evaluated now; the consent row and care already delivered are never rewritten. expectedVersion guards concurrency (409 stale_version); a second withdrawal is 409 consent_withdrawn. Requires clinical.write (human).
+      parameters:
+        - $ref: '#/components/parameters/ConsentRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ConsentWithdraw'
+      responses:
+        '201':
+          description: Withdrawal recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ConsentCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/patients/{patientRef}/consents:
+    get:
+      operationId: clinical.consents.list
+      description: >-
+        A patient's consents (C13) as of an instant (asOf, default now; a withdrawal after asOf is not shown), optionally for one plan version, oldest first, each with its source patient. A merged-away patient is 409 patient_merged. A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/PatientRef'
+        - $ref: '#/components/parameters/ConsentAsOf'
+        - $ref: '#/components/parameters/ConsentPlanVersion'
+      responses:
+        '200':
+          description: The consents.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ConsentList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/consent-templates:
+    post:
+      operationId: clinical.consentTemplates.register
+      description: >-
+        Register a consent text version by reference and SHA-256 digest (C13 practice configuration; the text is held elsewhere). A text change is a new digest; earlier consents keep theirs. A duplicate is 409 template_registered. Requires admin.configure (human).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ConsentTemplateRegister'
+      responses:
+        '201':
+          description: Template version registered.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ConsentTemplateCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
 components:
   securitySchemes:
     bearer:
@@ -3343,6 +3496,24 @@ components:
       required: true
       schema:
         $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EstimateRef'
+    ConsentRef:
+      name: consentRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ConsentRef'
+    ConsentAsOf:
+      name: asOf
+      in: query
+      required: false
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/Instant'
+    ConsentPlanVersion:
+      name: planVersionRef
+      in: query
+      required: false
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PlanVersionRef'
     TreatmentPlanRef:
       name: planRef
       in: path

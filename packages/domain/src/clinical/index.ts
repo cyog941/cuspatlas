@@ -9,6 +9,7 @@ export {
   toothOnChart,
 } from './chart';
 export { CLINICAL_REPLAY_CODECS } from './codecs';
+export { CONSENT_POST_MERGE_FACT_PROBE, CONSENT_RESOURCE, CONSENT_TEMPLATE_RESOURCE } from './consents';
 export {
   ENCOUNTER_RESOURCE,
   loadClinicalPatient,

@@ -1,5 +1,6 @@
 import type { TenantTransaction } from '@cuspatlas/contracts';
 import type { PostMergeFactProbe } from '../patients/merge';
+import { CONSENT_POST_MERGE_FACT_PROBE } from './consents';
 import { NOTE_POST_MERGE_FACT_PROBE } from './notes/notes';
 
 /**
@@ -92,4 +93,6 @@ export const CLINICAL_POST_MERGE_FACT_PROBES: readonly PostMergeFactProbe[] = [
   },
   // C10: notes drafted, signed, amended, addended or co-signed on the survivor after the merge.
   NOTE_POST_MERGE_FACT_PROBE,
+  // C13: consents captured or withdrawn on the survivor after the merge.
+  CONSENT_POST_MERGE_FACT_PROBE,
 ];

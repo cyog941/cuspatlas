@@ -141,6 +141,14 @@ export const ACTION_POLICIES = {
   'clinical.estimates.list': { scope: 'clinical.read', principals: ['human', 'service'] },
   'clinical.treatmentPlans.createAlternative': { scope: 'clinical.write', principals: ['human'] },
   'clinical.treatmentPlans.alternatives': { scope: 'clinical.read', principals: ['human', 'service'] },
+  // C13 consent (C-D6 recommended-pending-approval). Capturing and withdrawing are human staff actions
+  // under clinical.write; the signer's own authority is evaluated separately (S5, scope consent).
+  // Registering a consent text version is practice configuration.
+  'clinical.consents.capture': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.consents.withdraw': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.consents.read': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.consents.list': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.consentTemplates.register': { scope: 'admin.configure', principals: ['human'] },
   // C9 progress-note templates (C-D4, recommended-pending-clinical-approval). Templates are practice
   // configuration (human admin only); reads need clinical.read.
   'clinical.noteTemplates.define': { scope: 'admin.configure', principals: ['human'] },

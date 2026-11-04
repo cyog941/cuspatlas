@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cuspatlas.invalid/schemas/clinical/v1",
-  "title": "Clinical record contract v1 (C5 encounters and authorship, C6 chart, C7 perio, C8 medical history, C9 note templates, C10 notes, C11 treatment plans, C12 estimates; synthetic data only; recommended-pending-clinical-approval)",
+  "title": "Clinical record contract v1 (C5 encounters and authorship, C6 chart, C7 perio, C8 medical history, C9 note templates, C10 notes, C11 treatment plans, C12 estimates, C13 consent; synthetic data only; recommended-pending-clinical-approval)",
   "$defs": {
     "AcceptanceRef": {
       "type": "string",
@@ -231,6 +231,16 @@
     },
     "AppointmentStatus": {
       "enum": ["booked", "cancelled", "rescheduled"]
+    },
+    "ArtifactDigest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "SHA-256 of an artifact held elsewhere; never the bytes."
+    },
+    "ArtifactRef": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+      "description": "Reference to an evidence artifact held elsewhere (scan, portal record); no bytes or signature image are stored here."
     },
     "Assignee": {
       "type": "object",
@@ -842,10 +852,448 @@
       "enum": ["dentist", "hygienist", "assistant", "other_clinical"],
       "description": "Configured clinical role of an author (recommended-pending-clinical-approval)."
     },
+    "Consent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "consentRef",
+        "patientRef",
+        "sourcePatientRef",
+        "scope",
+        "planVersionRef",
+        "planItemRef",
+        "acceptanceRef",
+        "method",
+        "templateRef",
+        "templateDigest",
+        "templateStatus",
+        "attestationCode",
+        "evidence",
+        "signer",
+        "witnessRef",
+        "recordedBy",
+        "effectiveAt",
+        "version",
+        "state",
+        "withdrawal"
+      ],
+      "properties": {
+        "consentRef": {
+          "$ref": "#/$defs/ConsentRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "sourcePatientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "scope": {
+          "$ref": "#/$defs/ConsentScope"
+        },
+        "planVersionRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanVersionRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "planItemRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanItemRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "acceptanceRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AcceptanceRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "method": {
+          "$ref": "#/$defs/ConsentMethod"
+        },
+        "templateRef": {
+          "$ref": "#/$defs/ConsentTemplateRef"
+        },
+        "templateDigest": {
+          "$ref": "#/$defs/ArtifactDigest"
+        },
+        "templateStatus": {
+          "type": "string",
+          "enum": ["registered", "unresolved"],
+          "description": "Whether the template digest resolves in the tenant registry now; an unresolved digest is retained and flagged, never cleared."
+        },
+        "attestationCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "evidence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ConsentEvidence"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "signer": {
+          "$ref": "#/$defs/ConsentSignerRecord"
+        },
+        "witnessRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ActorRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recordedBy": {
+          "$ref": "#/$defs/ActorRef"
+        },
+        "effectiveAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "state": {
+          "type": "string",
+          "enum": ["active", "withdrawn"]
+        },
+        "withdrawal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ConsentWithdrawal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "description": "A treatment consent record (C13). State and withdrawal are as of the read instant (or the asOf of a list)."
+    },
+    "ConsentCapture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "patientRef",
+        "scope",
+        "method",
+        "templateRef",
+        "templateDigest",
+        "attestationCode",
+        "signer"
+      ],
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "scope": {
+          "$ref": "#/$defs/ConsentScope"
+        },
+        "planVersionRef": {
+          "$ref": "#/$defs/PlanVersionRef"
+        },
+        "planItemRef": {
+          "$ref": "#/$defs/PlanItemRef"
+        },
+        "method": {
+          "$ref": "#/$defs/ConsentMethod"
+        },
+        "templateRef": {
+          "$ref": "#/$defs/ConsentTemplateRef"
+        },
+        "templateDigest": {
+          "$ref": "#/$defs/ArtifactDigest"
+        },
+        "attestationCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "signer": {
+          "$ref": "#/$defs/ConsentSigner"
+        },
+        "witnessRef": {
+          "$ref": "#/$defs/ActorRef"
+        },
+        "evidence": {
+          "$ref": "#/$defs/ConsentEvidence"
+        }
+      }
+    },
+    "ConsentCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/Consent"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ConsentEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifactRef", "digest"],
+      "properties": {
+        "artifactRef": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "digest": {
+          "$ref": "#/$defs/ArtifactDigest"
+        }
+      }
+    },
+    "ConsentList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "asOf"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "$ref": "#/$defs/Consent"
+          }
+        },
+        "asOf": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "ConsentListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "asOf": {
+          "$ref": "#/$defs/Instant"
+        },
+        "planVersionRef": {
+          "$ref": "#/$defs/PlanVersionRef"
+        }
+      }
+    },
+    "ConsentMethod": {
+      "type": "string",
+      "enum": ["in_person", "portal", "paper", "verbal_attested"]
+    },
+    "ConsentRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/Consent"
+        }
+      }
+    },
     "ConsentRef": {
       "type": "string",
       "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
       "description": "Opaque consent record reference (C13)."
+    },
+    "ConsentScope": {
+      "type": "string",
+      "enum": ["treatment_plan", "procedure", "general_treatment"],
+      "description": "What the treatment consent covers. Not E's messaging consent."
+    },
+    "ConsentSigner": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": {
+            "kind": {
+              "const": "patient"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "personRef"],
+          "properties": {
+            "kind": {
+              "const": "related_person"
+            },
+            "personRef": {
+              "$ref": "#/$defs/PatientRef"
+            }
+          }
+        }
+      ],
+      "description": "Who gives or withdraws consent: the patient, or a related person whose authority is evaluated now through S5 (scope consent)."
+    },
+    "ConsentSignerRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "personRef", "basis", "relationshipRefs", "policyVersion", "evaluatedAt"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["patient", "related_person"]
+        },
+        "personRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "basis": {
+          "type": "string",
+          "enum": ["self_adult", "self_age_unknown", "relationship_consent_scope"]
+        },
+        "relationshipRefs": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "policyVersion": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._:-]{1,64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evaluatedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      },
+      "description": "The signer authority as evaluated when this fact was recorded (never re-derived later)."
+    },
+    "ConsentTemplate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["templateRef", "digest", "registeredBy", "registeredAt"],
+      "properties": {
+        "templateRef": {
+          "$ref": "#/$defs/ConsentTemplateRef"
+        },
+        "digest": {
+          "$ref": "#/$defs/ArtifactDigest"
+        },
+        "registeredBy": {
+          "$ref": "#/$defs/ActorRef"
+        },
+        "registeredAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "ConsentTemplateCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/ConsentTemplate"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ConsentTemplateRef": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+      "description": "Reference to a consent text held outside this module; versioned by digest."
+    },
+    "ConsentTemplateRegister": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["templateRef", "digest"],
+      "properties": {
+        "templateRef": {
+          "$ref": "#/$defs/ConsentTemplateRef"
+        },
+        "digest": {
+          "$ref": "#/$defs/ArtifactDigest"
+        }
+      }
+    },
+    "ConsentWithdraw": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "reasonCode", "signer"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "signer": {
+          "$ref": "#/$defs/ConsentSigner"
+        },
+        "evidence": {
+          "$ref": "#/$defs/ConsentEvidence"
+        }
+      }
+    },
+    "ConsentWithdrawal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasonCode", "signer", "evidence", "recordedBy", "effectiveAt"],
+      "properties": {
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "signer": {
+          "$ref": "#/$defs/ConsentSignerRecord"
+        },
+        "evidence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ConsentEvidence"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recordedBy": {
+          "$ref": "#/$defs/ActorRef"
+        },
+        "effectiveAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
     },
     "ContentDigest": {
       "type": "string",

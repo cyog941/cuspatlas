@@ -10,6 +10,50 @@ const QUERY = ['400', '401', '403', '404', '409', '422', '503'] as const;
  * one table. Semantics are recommended-pending-clinical-approval; synthetic data only.
  */
 export const CLINICAL_RECORD_ROUTES: readonly RouteContract[] = [
+  // C13 consent capture.
+  {
+    method: 'post',
+    path: '/v1/clinical/consents',
+    operationId: 'clinical.consents.capture',
+    protected: true,
+    requestBody: C('ConsentCapture'),
+    success: { status: '201', schema: C('ConsentCommandResult') },
+    refusals: COMMAND,
+  },
+  {
+    method: 'get',
+    path: '/v1/clinical/consents/{consentRef}',
+    operationId: 'clinical.consents.read',
+    protected: true,
+    success: { status: '200', schema: C('ConsentRead') },
+    refusals: ['401', '403', '404', '503'],
+  },
+  {
+    method: 'post',
+    path: '/v1/clinical/consents/{consentRef}/withdrawal',
+    operationId: 'clinical.consents.withdraw',
+    protected: true,
+    requestBody: C('ConsentWithdraw'),
+    success: { status: '201', schema: C('ConsentCommandResult') },
+    refusals: COMMAND,
+  },
+  {
+    method: 'get',
+    path: '/v1/clinical/patients/{patientRef}/consents',
+    operationId: 'clinical.consents.list',
+    protected: true,
+    success: { status: '200', schema: C('ConsentList') },
+    refusals: ['400', '401', '403', '404', '409', '503'],
+  },
+  {
+    method: 'post',
+    path: '/v1/clinical/consent-templates',
+    operationId: 'clinical.consentTemplates.register',
+    protected: true,
+    requestBody: C('ConsentTemplateRegister'),
+    success: { status: '201', schema: C('ConsentTemplateCommandResult') },
+    refusals: COMMAND,
+  },
   // C12 estimates, alternatives and acceptance.
   {
     method: 'post',

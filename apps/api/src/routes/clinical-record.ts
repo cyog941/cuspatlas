@@ -70,6 +70,20 @@ export function registerClinicalRecordRoutes(
   mount('clinical.perio.compare', async (r) => ({
     data: await c.comparePerioExams(requireActor(r), query(r)),
   }));
+  // C13 consent capture.
+  mount('clinical.consents.capture', (r) =>
+    c.captureConsent(requireActor(r), env('clinical.consents.capture', r)),
+  );
+  mount('clinical.consents.read', async (r) => ({
+    data: await c.readConsent(requireActor(r), param(r, 'consentRef')),
+  }));
+  mount('clinical.consents.withdraw', (r) =>
+    c.withdrawConsent(requireActor(r), param(r, 'consentRef'), env('clinical.consents.withdraw', r)),
+  );
+  mount('clinical.consents.list', (r) => c.listConsents(requireActor(r), param(r, 'patientRef'), query(r)));
+  mount('clinical.consentTemplates.register', (r) =>
+    c.registerConsentTemplate(requireActor(r), env('clinical.consentTemplates.register', r)),
+  );
   // C12 estimates, alternatives and acceptance.
   mount('clinical.estimates.generate', (r) =>
     c.generateEstimate(requireActor(r), param(r, 'planVersionRef'), env('clinical.estimates.generate', r)),

@@ -54,7 +54,9 @@ export interface MergeRecordClass {
     // C6/C7/C11 clinical classes (workstream C batch 2a).
     | 'clinical_charts'
     | 'clinical_perio_streams'
-    | 'clinical_treatment_plans';
+    | 'clinical_treatment_plans'
+    // C13 consent (workstream C batch 3).
+    | 'clinical_consents';
   readonly column: 'subject_patient_id' | 'counterparty_patient_id';
   /** Public name of the reference in the record's contract. */
   readonly referenceField: string;
@@ -204,6 +206,17 @@ export const MERGE_RECORD_CLASSES: readonly MergeRecordClass[] = [
     factKind: 'clinical',
     digestExclude: ['subject_patient_id', 'head_version', 'version', 'updated_at'],
   },
+  // C13: a consent follows its patient; its content, signer authority and bindings never change
+  // (a withdrawal is a separate record), so the digest covers everything but the reference and
+  // bookkeeping.
+  {
+    recordClass: 'clinicalConsent',
+    table: 'clinical_consents',
+    column: 'subject_patient_id',
+    referenceField: 'patientRef',
+    factKind: 'clinical',
+    digestExclude: ['subject_patient_id', 'version', 'updated_at'],
+  },
 ];
 
 /** Foreign keys to patients that a merge deliberately does not move, with the reason. */
@@ -243,6 +256,21 @@ export const MERGE_EXCLUDED_REFERENCES: readonly { table: string; column: string
     table: 'clinical_treatment_plans',
     column: 'origin_patient_id',
     why: 'a treatment plan keeps its source patient (C11)',
+  },
+  {
+    table: 'clinical_consents',
+    column: 'origin_patient_id',
+    why: 'a consent keeps its source patient (C13)',
+  },
+  {
+    table: 'clinical_consents',
+    column: 'signer_patient_id',
+    why: 'the signer recorded at capture is a historical fact (C13)',
+  },
+  {
+    table: 'clinical_consent_withdrawals',
+    column: 'signer_patient_id',
+    why: 'the signer recorded at withdrawal is a historical fact (C13)',
   },
 ];
 

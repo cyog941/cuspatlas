@@ -105,6 +105,88 @@ export interface PlanAlternative {
   readonly selection: 'accepted' | 'unselected' | 'undecided';
 }
 
+/** C13 consent capture (C-D6 recommended-pending-approval). Treatment consent, not E's messaging consent. */
+export type ConsentScope = 'treatment_plan' | 'procedure' | 'general_treatment';
+export type ConsentMethod = 'in_person' | 'portal' | 'paper' | 'verbal_attested';
+export type ConsentSigner =
+  | { readonly kind: 'patient' }
+  | { readonly kind: 'related_person'; readonly personRef: string };
+export interface ConsentEvidence {
+  readonly artifactRef: string;
+  readonly digest: string;
+}
+export interface ConsentCapture {
+  readonly patientRef: string;
+  readonly scope: ConsentScope;
+  readonly planVersionRef?: string;
+  readonly planItemRef?: string;
+  readonly method: ConsentMethod;
+  readonly templateRef: string;
+  readonly templateDigest: string;
+  readonly attestationCode: string;
+  readonly signer: ConsentSigner;
+  readonly witnessRef?: string;
+  readonly evidence?: ConsentEvidence;
+}
+export interface ConsentWithdraw {
+  readonly expectedVersion: number;
+  readonly reasonCode: string;
+  readonly signer: ConsentSigner;
+  readonly evidence?: ConsentEvidence;
+}
+export interface ConsentListQuery {
+  readonly asOf?: string;
+  readonly planVersionRef?: string;
+}
+export interface ConsentTemplateRegister {
+  readonly templateRef: string;
+  readonly digest: string;
+}
+export type ConsentSignerBasis = 'self_adult' | 'self_age_unknown' | 'relationship_consent_scope';
+export interface ConsentSignerRecord {
+  readonly kind: 'patient' | 'related_person';
+  readonly personRef: string;
+  readonly basis: ConsentSignerBasis;
+  readonly relationshipRefs: readonly string[];
+  readonly policyVersion: string | null;
+  readonly evaluatedAt: string;
+}
+export interface ConsentWithdrawal {
+  readonly reasonCode: string;
+  readonly signer: ConsentSignerRecord;
+  readonly evidence: ConsentEvidence | null;
+  readonly recordedBy: string;
+  readonly effectiveAt: string;
+}
+export interface Consent {
+  readonly consentRef: string;
+  readonly patientRef: string;
+  readonly sourcePatientRef: string;
+  readonly scope: ConsentScope;
+  readonly planVersionRef: string | null;
+  readonly planItemRef: string | null;
+  readonly acceptanceRef: string | null;
+  readonly method: ConsentMethod;
+  readonly templateRef: string;
+  readonly templateDigest: string;
+  readonly templateStatus: 'registered' | 'unresolved';
+  readonly attestationCode: string;
+  readonly evidence: ConsentEvidence | null;
+  readonly signer: ConsentSignerRecord;
+  readonly witnessRef: string | null;
+  readonly recordedBy: string;
+  readonly effectiveAt: string;
+  readonly version: number;
+  readonly state: 'active' | 'withdrawn';
+  readonly withdrawal: ConsentWithdrawal | null;
+}
+export interface ConsentTemplate {
+  readonly templateRef: string;
+  readonly digest: string;
+  readonly registeredBy: string;
+  readonly registeredAt: string;
+}
+
 const ajv = createAjv();
 ajv.addSchema(schema);
 function def(name: keyof typeof schema.$defs): ValidateFunction {
@@ -122,3 +204,11 @@ export const validateEstimateCommandResult = def('EstimateCommandResult');
 export const validateEstimateRead = def('EstimateRead');
 export const validateEstimateList = def('EstimateList');
 export const validatePlanAlternativeList = def('PlanAlternativeList');
+export const validateConsentCapture = def('ConsentCapture');
+export const validateConsentWithdraw = def('ConsentWithdraw');
+export const validateConsentListQuery = def('ConsentListQuery');
+export const validateConsentTemplateRegister = def('ConsentTemplateRegister');
+export const validateConsentCommandResult = def('ConsentCommandResult');
+export const validateConsentRead = def('ConsentRead');
+export const validateConsentList = def('ConsentList');
+export const validateConsentTemplateCommandResult = def('ConsentTemplateCommandResult');

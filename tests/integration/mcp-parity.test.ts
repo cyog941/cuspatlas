@@ -140,6 +140,12 @@ const TOOL_NAMES = [
   'clinical_estimates_present',
   'clinical_treatment_plans_create_alternative',
   'clinical_treatment_plans_list_alternatives',
+  // C13 consent tools (parity in clinical-consents and negative-harness tests).
+  'clinical_consent_templates_register',
+  'clinical_consents_capture',
+  'clinical_consents_get',
+  'clinical_consents_list',
+  'clinical_consents_withdraw',
   // C9 note template tools (parity in clinical-note-templates and negative-harness tests).
   'clinical_note_templates_applicable',
   'clinical_note_templates_define',

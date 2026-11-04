@@ -79,6 +79,10 @@ export const CLINICAL_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<Clinica
   'clinical.estimates.present': refCodec('estimateRef'),
   'clinical.estimates.accept': refCodec('estimateRef'),
   'clinical.treatmentPlans.createAlternative': refCodec('planRef'),
+  // C13 consents (the consent is re-read on replay).
+  'clinical.consents.capture': refCodec('consentRef'),
+  'clinical.consents.withdraw': refCodec('consentRef'),
+  'clinical.consentTemplates.register': refCodec('templateRef'),
   // C9 note templates.
   'clinical.noteTemplates.define': refCodec('templateRef'),
   'clinical.noteTemplates.revise': refCodec('templateRef'),

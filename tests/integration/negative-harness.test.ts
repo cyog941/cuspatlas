@@ -1517,7 +1517,108 @@ export const COMMANDS: HarnessCommand[] = [
     }),
     mcpArgs: (f) => ({ planRef: f.alphaPlan }),
   },
+  // C13 consent capture (workstream C batch 3).
+  {
+    operation: 'clinical.consents.capture',
+    tool: 'clinical_consents_capture',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: '/v1/clinical/consents',
+      body: {
+        patientRef: f.alphaPatient,
+        scope: 'general_treatment',
+        method: 'in_person',
+        templateRef: 'synthetic-harness-consent',
+        templateDigest: DIGEST_A,
+        attestationCode: 'signed_in_person',
+        signer: { kind: 'patient' },
+      },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      ...{
+        patientRef: f.alphaPatient,
+        scope: 'general_treatment',
+        method: 'in_person',
+        templateRef: 'synthetic-harness-consent',
+        templateDigest: DIGEST_A,
+        attestationCode: 'signed_in_person',
+        signer: { kind: 'patient' },
+      },
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.consents.read',
+    tool: 'clinical_consents_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/consents/${f.alphaConsent}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ consentRef: f.alphaConsent }),
+  },
+  {
+    operation: 'clinical.consents.list',
+    tool: 'clinical_consents_list',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/patients/${P(f)}/consents`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ patientRef: P(f) }),
+  },
+  {
+    operation: 'clinical.consents.withdraw',
+    tool: 'clinical_consents_withdraw',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/consents/${f.alphaConsent}/withdrawal`,
+      body: { expectedVersion: 1, reasonCode: 'patient_request', signer: { kind: 'patient' } },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      consentRef: f.alphaConsent,
+      expectedVersion: 1,
+      reasonCode: 'patient_request',
+      signer: { kind: 'patient' },
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.consentTemplates.register',
+    tool: 'clinical_consent_templates_register',
+    crossTenant: 'own_tenant_only',
+    downgradedTo: 'readOnly',
+    rest: () => ({
+      method: 'POST',
+      url: '/v1/clinical/consent-templates',
+      body: { templateRef: 'synthetic-harness-consent', digest: randomDigest() },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: () => ({
+      templateRef: 'synthetic-harness-consent',
+      digest: randomDigest(),
+      idempotencyKey: randomUUID(),
+    }),
+  },
 ];
+
+const DIGEST_A = `sha256:${'a'.repeat(64)}`;
+const randomDigest = () => `sha256:${randomUUID().replaceAll('-', '')}${randomUUID().replaceAll('-', '')}`;
 
 function perioBody(f: HarnessFixture) {
   return {
@@ -1887,6 +1988,17 @@ beforeAll(async () => {
     lines: [],
   });
   expect(estimate.statusCode).toBe(201);
+  // C13: one active alpha consent (general treatment, signed by the adult alpha patient).
+  const consent = await owner('/v1/clinical/consents', {
+    patientRef: alphaPatient,
+    scope: 'general_treatment',
+    method: 'in_person',
+    templateRef: 'synthetic-harness-consent',
+    templateDigest: DIGEST_A,
+    attestationCode: 'signed_in_person',
+    signer: { kind: 'patient' },
+  });
+  expect(consent.statusCode).toBe(201);
   // C9: one active alpha note template (version 1).
   const template = await owner('/v1/clinical/note-templates', templateBody());
   expect(template.statusCode).toBe(201);
@@ -1917,6 +2029,7 @@ beforeAll(async () => {
     alphaPlanDetail: planDetail.json().data.targetRef,
     alphaPlanItem: planItem.json().data.targetRef,
     alphaEstimate: estimate.json().data.estimateRef,
+    alphaConsent: consent.json().data.consentRef,
     alphaPerioExam: perioExam.examRef,
     alphaPerioMeasurement: perioExam.measurements.find(
       (m: { measure: string; site: string | null }) => m.measure === 'probing_depth' && m.site === 'b',
@@ -2082,6 +2195,9 @@ async function state(): Promise<string> {
     await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_estimate_assumptions'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_estimate_presentations'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_plan_acceptances'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_consent_templates'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_consents'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_consent_withdrawals'),
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_note_templates'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_note_template_versions'),
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_notes'),

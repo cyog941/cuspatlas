@@ -18,6 +18,7 @@ const TRANSPORT: Record<string, string> = {
   planDetailRef: 'PlanDetailRef',
   planItemRef: 'PlanItemRef',
   estimateRef: 'EstimateRef',
+  consentRef: 'ConsentRef',
 };
 
 /**
@@ -52,6 +53,59 @@ const SAFETY =
   'Synthetic engineering implementation; clinical semantics are recommended-pending-clinical-approval and not clinically validated. No diagnosis and no decision support.';
 
 const SPECS: readonly Spec[] = [
+  // C13 consent capture.
+  {
+    name: 'clinical_consents_capture',
+    operationId: 'clinical.consents.capture',
+    description: `Record a treatment consent (structured attestation; paper and portal captures name an artifact reference and digest, never bytes) bound to a plan version, a plan item or general treatment. The signer is the patient (refused when recorded as a minor) or a related person whose S5 consent-scope authority is evaluated now. Not messaging consent. ${SAFETY}`,
+    body: 'ConsentCapture',
+    transport: ['idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) => d.clinical.captureConsent(actor, envelope('clinical.consents.capture', args)),
+  },
+  {
+    name: 'clinical_consents_get',
+    operationId: 'clinical.consents.read',
+    description: `One consent with its signer authority as recorded, evidence reference, template digest status and withdrawal. ${SAFETY}`,
+    body: null,
+    transport: ['consentRef'],
+    readOnly: true,
+    run: async (d, actor, args) => ({ data: await d.clinical.readConsent(actor, args.consentRef as string) }),
+  },
+  {
+    name: 'clinical_consents_withdraw',
+    operationId: 'clinical.consents.withdraw',
+    description: `Withdraw a consent as a new record with reason, instant and the signer's authority evaluated now; the consent itself and care already delivered are never rewritten. ${SAFETY}`,
+    body: 'ConsentWithdraw',
+    transport: ['consentRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.withdrawConsent(
+        actor,
+        args.consentRef as string,
+        envelope('clinical.consents.withdraw', args, 'consentRef'),
+      ),
+  },
+  {
+    name: 'clinical_consents_list',
+    operationId: 'clinical.consents.list',
+    description: `A patient's consents as of an instant (default now), optionally for one plan version. ${SAFETY}`,
+    body: 'ConsentListQuery',
+    transport: ['patientRef'],
+    readOnly: true,
+    run: (d, actor, args) =>
+      d.clinical.listConsents(actor, args.patientRef as string, without(args, 'patientRef')),
+  },
+  {
+    name: 'clinical_consent_templates_register',
+    operationId: 'clinical.consentTemplates.register',
+    description: `Register a consent text version by reference and digest (practice configuration; the text lives elsewhere). ${SAFETY}`,
+    body: 'ConsentTemplateRegister',
+    transport: ['idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.registerConsentTemplate(actor, envelope('clinical.consentTemplates.register', args)),
+  },
   // C12 estimates, alternatives and acceptance.
   {
     name: 'clinical_estimates_generate',

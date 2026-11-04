@@ -159,6 +159,12 @@ export const CLINICAL_BODIES = [
   'EstimateAccept',
   'PlanAlternativeCreate',
   'Money',
+  // C13 consent capture.
+  'ConsentCapture',
+  'ConsentWithdraw',
+  'ConsentListQuery',
+  'ConsentTemplateRegister',
+  'ConsentEvidence',
   // C9 note templates.
   'NoteTemplateDefine',
   'NoteTemplateRevise',

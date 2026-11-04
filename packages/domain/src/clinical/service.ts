@@ -1,6 +1,7 @@
 import { createAuthorshipOperations } from './authorship';
 import { type ClinicalDeps, createClinicalBase } from './base';
 import { createChartOperations } from './chart';
+import { createConsentOperations } from './consents';
 import { createEncounterOperations } from './encounters';
 import { createEstimateOperations } from './estimates';
 import { createHistoryOperations } from './history';
@@ -24,6 +25,7 @@ export function createClinicalService(deps: ClinicalDeps) {
     ...createPerioOperations(base),
     ...createTreatmentPlanOperations(base),
     ...createEstimateOperations(base),
+    ...createConsentOperations(base),
     ...createNoteTemplateOperations(base),
     ...createNoteOperations(base),
   };

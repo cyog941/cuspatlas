@@ -27,15 +27,16 @@ import { type AppointmentBase, assertVisibleLocation } from './appointment-base'
 import { attendanceStatesOf } from './attendance';
 import { currentIntentOf, recordNotificationIntent } from './notification-intent';
 import { occurrenceDate } from './recurrence';
-import { checkEnvelope, loadLocation, notFound } from './resources';
+import { type CompletedProcedureReader, checkEnvelope, failedAt, loadLocation, notFound } from './resources';
 import { formatLocal, localToInstant } from './zoned-time';
 
 /**
  * S16: recall policy and due computation (ADR 0009 S-D7, recommended-pending-approval). The due list
  * is computed from stored state on every read and writes nothing; it states the policy version and
  * its freshness basis. The implementable qualifying event is an attended visit (the latest booking
- * whose derived S11 attendance reached arrival: arrived, waiting or in care); the completed-procedure
- * basis is refused until C14 exists. Whether a due patient may be contacted is E6's decision; this
+ * whose derived S11 attendance reached arrival: arrived, waiting or in care) or, for the
+ * completed-procedure basis, the latest active C14 rendered procedure with one of the policy's codes
+ * (read through the C14 seam; that due list also needs clinical.read). Whether a due patient may be contacted is E6's decision; this
  * module evaluates no consent. PT-03 (S part): the follow-up worklist of open recall tasks and
  * unbooked or lost-booking requests; treatment, lab and referral follow-up are C-owned and reported as
  * not covered.
@@ -50,8 +51,9 @@ export interface RecallPolicyRecord {
   readonly category: string;
   readonly version: number;
   readonly intervalMonths: number;
-  readonly basis: 'attended_visit';
+  readonly basis: 'attended_visit' | 'completed_procedure';
   readonly appointmentTypeCodes: string[];
+  readonly procedureCodeRefs: string[];
   readonly excludeBooked: boolean;
   readonly createdAt: string;
 }
@@ -94,13 +96,14 @@ interface PolicyRow extends Record<string, unknown> {
   category: string;
   version: number;
   interval_months: number;
-  basis: 'attended_visit';
+  basis: 'attended_visit' | 'completed_procedure';
   appointment_type_codes: string[];
+  procedure_code_refs: string[];
   exclude_booked: boolean;
   created_at: Date;
 }
 const POLICY_COLUMNS =
-  'id, category, version, interval_months, basis, appointment_type_codes, exclude_booked, created_at';
+  'id, category, version, interval_months, basis, appointment_type_codes, procedure_code_refs, exclude_booked, created_at';
 const policyRecord = (p: PolicyRow): RecallPolicyRecord => ({
   policyRef: p.id,
   category: p.category,
@@ -108,6 +111,7 @@ const policyRecord = (p: PolicyRow): RecallPolicyRecord => ({
   intervalMonths: p.interval_months,
   basis: p.basis,
   appointmentTypeCodes: p.appointment_type_codes,
+  procedureCodeRefs: p.procedure_code_refs,
   excludeBooked: p.exclude_booked,
   createdAt: p.created_at.toISOString(),
 });
@@ -136,6 +140,7 @@ async function computeDue(
   policy: PolicyRow,
   asOf: number,
   canReadPatients: boolean,
+  procedures: CompletedProcedureReader | undefined,
 ): Promise<RecallDueData> {
   const types = policy.appointment_type_codes.length > 0 ? policy.appointment_type_codes : null;
   const past = await tx.query<{
@@ -155,10 +160,30 @@ async function computeDue(
     tx,
     past.rows.map((r) => r.id),
   );
-  const lastEvent = new Map<string, (typeof past.rows)[number]>();
-  for (const r of past.rows) {
-    if (lastEvent.has(r.subject_patient_id)) continue;
-    if (ATTENDED.has(states.get(r.id) ?? 'scheduled')) lastEvent.set(r.subject_patient_id, r);
+  const lastEvent = new Map<string, { id: string; eventDate: string; at: number; timeZone: string }>();
+  if (policy.basis === 'completed_procedure') {
+    // The C14 seam: the latest active rendered procedure with a qualifying code, per current patient.
+    if (!procedures) throw basisUnavailable();
+    for (const e of await procedures(tx, { codeRefs: policy.procedure_code_refs, asOf, locations })) {
+      lastEvent.set(e.patientRef, {
+        id: e.procedureRef,
+        eventDate: e.dateOfService,
+        at: localToInstant(e.dateOfService, 0, e.timeZone),
+        timeZone: e.timeZone,
+      });
+    }
+  } else {
+    for (const r of past.rows) {
+      if (lastEvent.has(r.subject_patient_id)) continue;
+      if (ATTENDED.has(states.get(r.id) ?? 'scheduled')) {
+        lastEvent.set(r.subject_patient_id, {
+          id: r.id,
+          eventDate: formatLocal(r.starts_at.getTime(), r.time_zone).slice(0, 10),
+          at: r.starts_at.getTime(),
+          timeZone: r.time_zone,
+        });
+      }
+    }
   }
   const future = await tx.query<{ id: string; subject_patient_id: string }>(
     `SELECT DISTINCT ON (a.subject_patient_id) a.id, a.subject_patient_id FROM cuspatlas.appointments a
@@ -207,9 +232,8 @@ async function computeDue(
       continue;
     }
     // Interval in the visit's own zone; month-end clamps as in S-S3-R1.
-    const eventDate = formatLocal(ev.starts_at.getTime(), ev.time_zone).slice(0, 10);
-    const dueDate = occurrenceDate(eventDate, 'monthly', policy.interval_months, 1);
-    if (dueDate > formatLocal(asOf, ev.time_zone).slice(0, 10)) continue;
+    const dueDate = occurrenceDate(ev.eventDate, 'monthly', policy.interval_months, 1);
+    if (dueDate > formatLocal(asOf, ev.timeZone).slice(0, 10)) continue;
     const futureRef = booked.get(p.id) ?? null;
     if (futureRef !== null && policy.exclude_booked) {
       excluded.push({ patientRef: p.id, reason: 'already_booked' });
@@ -218,7 +242,7 @@ async function computeDue(
     due.push({
       patientRef: p.id,
       lastEventRef: ev.id,
-      lastEventAt: ev.starts_at.toISOString(),
+      lastEventAt: new Date(ev.at).toISOString(),
       dueDate,
       reason: 'interval_elapsed',
       futureBookingRef: futureRef,
@@ -251,6 +275,14 @@ const NOT_COVERED = [
   { area: 'referral_responses', owner: 'C17', reason: 'producer_not_deployed' },
 ];
 
+const basisUnavailable = () =>
+  new RefusalError({
+    code: 'conflict',
+    reasonCode: 'booking_refused',
+    replayable: false,
+    detail: { reason: 'basis_unavailable' },
+  });
+
 const isUniqueViolation = (err: unknown) =>
   typeof err === 'object' && err !== null && (err as { code?: unknown }).code === '23505';
 
@@ -266,14 +298,15 @@ export function createRecallOperations(base: AppointmentBase) {
         assertValid<RecallPolicyDefine>(validateRecallPolicyDefine, p, SCHEDULING_PROPERTIES);
         return deps.withTenantTransaction(ctx, (tx) =>
           execute<{ policyRef: string; category: string; version: number }>(ctx, envelope, tx, async () => {
-            if (p.basis !== 'attended_visit') {
-              // C14 completion events do not exist; no substitute basis is invented.
-              throw new RefusalError({
-                code: 'conflict',
-                reasonCode: 'booking_refused',
-                replayable: false,
-                detail: { reason: 'basis_unavailable' },
-              });
+            const codes = [...(p.procedureCodeRefs ?? [])].sort();
+            if (p.basis === 'completed_procedure') {
+              // The C14 seam must be deployed; no substitute basis is invented.
+              if (!deps.completedProcedures) throw basisUnavailable();
+              if (codes.length === 0) throw failedAt('/procedureCodeRefs', 'required');
+              if ((p.appointmentTypeCodes ?? []).length > 0)
+                throw failedAt('/appointmentTypeCodes', 'notForBasis');
+            } else if (codes.length > 0) {
+              throw failedAt('/procedureCodeRefs', 'notForBasis');
             }
             // Versions of one category serialize on the latest row (a concurrent define gets 23505).
             const latest = await tx.query<{ version: number }>(
@@ -286,8 +319,9 @@ export function createRecallOperations(base: AppointmentBase) {
               inserted = await tx.savepoint(() =>
                 tx.query<{ id: string }>(
                   `INSERT INTO cuspatlas.recall_policies (tenant_id, category, version, interval_months, basis,
-                     appointment_type_codes, exclude_booked, created_by)
-                   VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5::text[], $6, cuspatlas.current_actor_id())
+                     appointment_type_codes, exclude_booked, created_by, procedure_code_refs)
+                   VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5::text[], $6, cuspatlas.current_actor_id(),
+                     $7::text[])
                    RETURNING id`,
                   [
                     p.category,
@@ -296,6 +330,7 @@ export function createRecallOperations(base: AppointmentBase) {
                     p.basis,
                     [...(p.appointmentTypeCodes ?? [])].sort(),
                     p.excludeBooked ?? true,
+                    codes,
                   ],
                 ),
               );
@@ -343,10 +378,22 @@ export function createRecallOperations(base: AppointmentBase) {
         assertValid<RecallDueQuery>(validateRecallDueQuery, q, SCHEDULING_PROPERTIES);
         if (q.locationRef !== undefined) assertLocation(decision.locationRefs, q.locationRef);
         const canReadPatients = await base.can(ctx, 'patients.read');
+        const canReadClinical = await base.can(ctx, 'clinical.procedures.list');
         return deps.withTenantTransaction(ctx, async (tx) => {
           const policy = await currentPolicy(tx, q.category);
+          // S-owned policy: a due list computed from clinical procedure facts is a clinical read too.
+          if (policy.basis === 'completed_procedure' && !canReadClinical) {
+            throw new RefusalError({ code: 'forbidden', reasonCode: 'scope_missing' });
+          }
           const asOf = q.asOf === undefined ? Date.now() : Date.parse(q.asOf);
-          return computeDue(tx, scopeOf(decision, q.locationRef), policy, asOf, canReadPatients);
+          return computeDue(
+            tx,
+            scopeOf(decision, q.locationRef),
+            policy,
+            asOf,
+            canReadPatients,
+            deps.completedProcedures,
+          );
         });
       });
     },
@@ -388,8 +435,21 @@ export function createRecallOperations(base: AppointmentBase) {
                 version: open.version,
               };
             }
+            if (
+              policy.basis === 'completed_procedure' &&
+              !(await base.can(ctx, 'clinical.procedures.list'))
+            ) {
+              throw new RefusalError({ code: 'forbidden', reasonCode: 'scope_missing' });
+            }
             const asOf = p.asOf === undefined ? Date.now() : Date.parse(p.asOf);
-            const list = await computeDue(tx, decision.locationRefs, policy, asOf, false);
+            const list = await computeDue(
+              tx,
+              decision.locationRefs,
+              policy,
+              asOf,
+              false,
+              deps.completedProcedures,
+            );
             const item = list.due.find((d) => d.patientRef === p.patientRef);
             if (!item) {
               throw new RefusalError({
@@ -403,8 +463,8 @@ export function createRecallOperations(base: AppointmentBase) {
               inserted = await tx.savepoint(() =>
                 tx.query<{ id: string }>(
                   `INSERT INTO cuspatlas.recall_tasks (tenant_id, subject_patient_id, location_id, policy_id, category,
-                     policy_version, due_date, last_event_appointment_id, created_by)
-                   VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6::date, $7, cuspatlas.current_actor_id())
+                     policy_version, due_date, last_event_appointment_id, created_by, last_event_procedure_id)
+                   VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6::date, $7, cuspatlas.current_actor_id(), $8)
                    RETURNING id`,
                   [
                     p.patientRef,
@@ -413,7 +473,8 @@ export function createRecallOperations(base: AppointmentBase) {
                     policy.category,
                     policy.version,
                     item.dueDate,
-                    item.lastEventRef,
+                    policy.basis === 'attended_visit' ? item.lastEventRef : null,
+                    policy.basis === 'completed_procedure' ? item.lastEventRef : null,
                   ],
                 ),
               );

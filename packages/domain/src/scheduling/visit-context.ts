@@ -43,6 +43,8 @@ export interface VisitProducerRecord {
   readonly version: number;
   readonly provenanceRef: string;
   readonly status: 'resolved' | 'voided';
+  /** The record's current patient, when the producer knows it: a record of another patient is refused. */
+  readonly patientRef?: string;
 }
 
 /**
@@ -51,6 +53,11 @@ export interface VisitProducerRecord {
  * another tenant's record is `null` (indistinguishable from missing).
  */
 export interface VisitContextProducer {
+  /**
+   * The producer's own policy for this caller (for example clinical.read). False: the slot is reported
+   * unavailable on read and a command is refused 403; the producer is not asked for any record.
+   */
+  available?(tx: TenantTransaction): Promise<boolean>;
   resolve(tx: TenantTransaction, ref: string): Promise<VisitProducerRecord | null>;
   /** The current record for a patient (medical history): what a pin captures. */
   current?(tx: TenantTransaction, patientRef: string): Promise<VisitProducerRecord | null>;
@@ -222,10 +229,17 @@ export function createVisitContextOperations(base: AppointmentBase) {
     if (!p) throw refused('producer_unavailable');
     return p;
   };
-  const resolveOrHide = async (tx: TenantTransaction, p: VisitContextProducer, ref: string) => {
+  const resolveOrHide = async (
+    tx: TenantTransaction,
+    p: VisitContextProducer,
+    ref: string,
+    appt: AppointmentRow,
+  ) => {
     if (!validateSchedulingEntityRef(ref)) throw notFound();
     const rec = await p.resolve(tx, ref);
     if (rec === null) throw notFound();
+    if (rec.patientRef !== undefined && rec.patientRef !== appt.subject_patient_id)
+      throw refused('producer_record_other_patient');
     if (rec.status === 'voided') throw refused('producer_record_voided');
     return rec;
   };
@@ -265,6 +279,9 @@ export function createVisitContextOperations(base: AppointmentBase) {
       return deps.withTenantTransaction(ctx, async (tx) => {
         const appt = await loadAppointment(tx, decision, appointmentRef, 'FOR UPDATE OF a');
         const producer = producerFor(key);
+        if (producer.available && !(await producer.available(tx))) {
+          throw new RefusalError({ code: 'forbidden', reasonCode: 'scope_missing' });
+        }
         return execute<VisitItemCommandData>(
           ctx,
           { ...envelope, payload: { appointmentRef, ...payloadExtra, ...(p as object) } },
@@ -284,6 +301,8 @@ export function createVisitContextOperations(base: AppointmentBase) {
     const owner = VISIT_PRODUCER_OWNERS[key];
     const p = producers[key];
     if (!p) return { status: 'unavailable', owner, reason: 'producer_not_deployed' };
+    if (p.available && !(await p.available(tx)))
+      return { status: 'unavailable', owner, reason: 'producer_access_denied' };
     const entries: VisitContextEntry[] = [];
     for (const r of rows) {
       if (KIND_OF[r.item_kind].key !== key) continue;
@@ -413,7 +432,7 @@ export function createVisitContextOperations(base: AppointmentBase) {
             (r) => r.item_kind === 'form_assignment' && r.item_ref === p.formRef && r.state === 'active',
           );
           if (existing) return { data: commandData(existing, false), version: existing.version };
-          const rec = await resolveOrHide(tx, producer, p.formRef);
+          const rec = await resolveOrHide(tx, producer, p.formRef, appt);
           const row = await insertItem(tx, op, {
             appointmentId: appt.id,
             kind: 'form_assignment',
@@ -468,7 +487,7 @@ export function createVisitContextOperations(base: AppointmentBase) {
         'labCases',
         async (tx, appt, p, producer, decision) => {
           assertOpen(appt);
-          const rec = await resolveOrHide(tx, producer, p.labCaseRef);
+          const rec = await resolveOrHide(tx, producer, p.labCaseRef, appt);
           const bound = await boundLab(tx, p.labCaseRef);
           if (bound) {
             if (bound.appointment_id === appt.id)
@@ -503,7 +522,7 @@ export function createVisitContextOperations(base: AppointmentBase) {
         'labCases',
         async (tx, appt, p, producer) => {
           assertOpen(appt);
-          const rec = await resolveOrHide(tx, producer, p.labCaseRef);
+          const rec = await resolveOrHide(tx, producer, p.labCaseRef, appt);
           const bound = await boundLab(tx, p.labCaseRef);
           if (!bound) throw refused('lab_case_not_bound');
           if (bound.appointment_id === appt.id) throw refused('lab_case_already_here');

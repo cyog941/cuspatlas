@@ -30,11 +30,13 @@ import {
   createAppointmentService,
   createAuthorize,
   createClinicalService,
+  createClinicalVisitContextProducers,
   createPatientService,
   createProposalService,
   createSchedulingResourceService,
   createSyntheticTaskService,
   executeOnce,
+  readLatestCompletedProcedures,
   resolveMatchKeyPepper,
 } from '@cuspatlas/domain';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -273,6 +275,10 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     memberships: deps.membership,
     recording,
     execute: deps.execute ?? executeOnce,
+    // S12 visit context: the C producers through S12's domain port (C8, C10, C11, C13; C16 when built).
+    visitContextProducers: createClinicalVisitContextProducers({ authorize }),
+    // S16 completed-procedure recall basis: the C14 read (S keeps recall policy and due computation).
+    completedProcedures: readLatestCompletedProcedures,
   });
   const clinical = createClinicalService({
     authorize,

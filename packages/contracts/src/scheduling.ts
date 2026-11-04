@@ -566,7 +566,7 @@ export type VisitContextSlot =
   | {
       readonly status: 'unavailable';
       readonly owner: VisitProducerOwner;
-      readonly reason: 'producer_not_deployed';
+      readonly reason: 'producer_not_deployed' | 'producer_access_denied';
     }
   | {
       readonly status: 'available';
@@ -854,6 +854,7 @@ export interface RecallPolicyDefine {
   readonly intervalMonths: number;
   readonly basis: RecallBasis;
   readonly appointmentTypeCodes?: readonly string[];
+  readonly procedureCodeRefs?: readonly string[];
   readonly excludeBooked?: boolean;
 }
 export interface RecallDueQuery {

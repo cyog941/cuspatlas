@@ -59,6 +59,23 @@ import { createSchedulingCursorCodec, type SchedulingCursorCodec } from './curso
 import type { VisitContextProducers } from './visit-context';
 import { isKnownTimeZone, isRealDate, minutesOf } from './zoned-time';
 
+/** One patient's latest qualifying completed procedure (C14), as the recall computation needs it. */
+export interface CompletedProcedureEvent {
+  readonly patientRef: string;
+  readonly procedureRef: string;
+  readonly dateOfService: string;
+  readonly timeZone: string;
+}
+/** C14 seam for S16: the latest active (non-reversed) rendered procedure per current patient. */
+export type CompletedProcedureReader = (
+  tx: TenantTransaction,
+  query: {
+    readonly codeRefs: readonly string[];
+    readonly asOf: number;
+    readonly locations: readonly string[] | null;
+  },
+) => Promise<CompletedProcedureEvent[]>;
+
 export interface SchedulingDeps {
   readonly authorize: Authorize;
   readonly withTenantTransaction: WithTenantTransaction;
@@ -68,10 +85,15 @@ export interface SchedulingDeps {
   /** Defaults to a per-process random HMAC key. */
   readonly cursors?: SchedulingCursorCodec;
   /**
-   * S12 clinical producers behind the visit context. None is deployed in this foundation (each item
-   * is reported `unavailable`); tests inject a synthetic stub at this port only.
+   * S12 clinical producers behind the visit context. The API and MCP deploy the C producers; a missing
+   * producer is reported `unavailable`; domain tests may inject a synthetic stub at this port.
    */
   readonly visitContextProducers?: VisitContextProducers;
+  /**
+   * S16 completed-procedure recall basis: the C14 read of qualifying procedures. Absent means the basis
+   * is unavailable (refused), never substituted.
+   */
+  readonly completedProcedures?: CompletedProcedureReader;
   /**
    * Live membership lookup for principals other than the caller (RLS hides them from the runtime
    * role inside a tenant transaction). Used to validate a standing-policy grantee; absent means no

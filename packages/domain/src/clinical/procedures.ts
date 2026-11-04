@@ -794,3 +794,40 @@ export function createProcedureOperations(base: ClinicalBase) {
     },
   };
 }
+
+/**
+ * C14 seam for S16 (completed-procedure recall basis): per current patient (the encounter's, which
+ * follows merges), the latest active rendered procedure (never reversed) with one of the codes, on or
+ * before the as-of date at its location, optionally at the named locations. Read in the caller's own
+ * tenant transaction; identifiers and dates only. The caller (S16) owns recall policy and applies the
+ * clinical-read gate before calling.
+ */
+export async function readLatestCompletedProcedures(
+  tx: TenantTransaction,
+  query: {
+    readonly codeRefs: readonly string[];
+    readonly asOf: number;
+    readonly locations: readonly string[] | null;
+  },
+): Promise<{ patientRef: string; procedureRef: string; dateOfService: string; timeZone: string }[]> {
+  const { rows } = await tx.query<{ patient: string; id: string; dos: string; time_zone: string }>(
+    `SELECT DISTINCT ON (e.subject_patient_id) e.subject_patient_id AS patient, p.id,
+       to_char(p.date_of_service, 'YYYY-MM-DD') AS dos, l.time_zone
+     FROM cuspatlas.clinical_rendered_procedures p
+     JOIN cuspatlas.clinical_encounters e ON e.id = p.encounter_id AND e.tenant_id = p.tenant_id
+     JOIN cuspatlas.scheduling_locations l ON l.id = e.location_id AND l.tenant_id = e.tenant_id
+     WHERE p.kind = 'rendered' AND p.code_ref = ANY ($1::text[])
+       AND p.date_of_service <= ($2::timestamptz AT TIME ZONE l.time_zone)::date
+       AND ($3::text[] IS NULL OR l.location_ref = ANY ($3::text[]))
+       AND NOT EXISTS (SELECT 1 FROM cuspatlas.clinical_rendered_procedures r
+                       WHERE r.reverses_procedure_id = p.id AND r.tenant_id = p.tenant_id)
+     ORDER BY e.subject_patient_id, p.date_of_service DESC, p.recorded_at DESC, p.id`,
+    [query.codeRefs, new Date(query.asOf), query.locations],
+  );
+  return rows.map((r) => ({
+    patientRef: r.patient,
+    procedureRef: r.id,
+    dateOfService: r.dos,
+    timeZone: r.time_zone,
+  }));
+}

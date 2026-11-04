@@ -8,14 +8,18 @@ import {
   seedLocation,
   setPatientStatus,
   T_ALPHA,
+  USER_A1,
 } from './support/appointment-fixtures';
+import { seedClinicalScopes } from './support/clinical-fixtures';
 import { openTestDatabase, type TestDatabase } from './support/db';
+import { actorFor, domainAppointments, envelope } from './support/domain-harness';
+import { SCHED_READ } from './support/scheduling-fixtures';
 
 /**
  * S16: recall policy (interval per practice and category, already-booked exclusion default on,
  * versioned) and a read-only due computation stating its policy version and freshness. The
- * implementable basis is an attended visit (S11 attendance); the completed-procedure basis waits for
- * C14. Producing the list creates no outreach; a contact task is a separate audited command that
+ * bases are an attended visit (S11 attendance) and, since C14, a completed procedure read through the
+ * C14 seam (that due list is also a clinical read). Producing the list creates no outreach; a contact task is a separate audited command that
  * records an intent with channel none. Synthetic visits are dated in 2030 because bookings refuse a
  * past start; every computation names an explicit as-of instant.
  */
@@ -32,6 +36,7 @@ beforeAll(async () => {
   h = await openAppointmentHarness(db, { mcp: true });
   loc = await seedLocation(h, 'loc-recall');
   north = await seedLocation(h, 'loc-north');
+  await seedClinicalScopes(db.admin);
 });
 
 afterAll(async () => {
@@ -246,13 +251,29 @@ describe('S16 acceptance', () => {
     expect(limited.noBaseline).toStrictEqual([]);
   });
 
-  it('the completion basis is refused until C14 exists (no substitute basis is invented)', async () => {
+  it('the completion basis needs qualifying codes and the deployed C14 seam (no substitute basis is invented)', async () => {
     const res = await h.call('a1', 'POST', `${RECALL}/policies`, {
       category: 'perio',
       intervalMonths: 3,
       basis: 'completed_procedure',
     });
-    expect([res.statusCode, res.json().detail?.reason]).toStrictEqual([409, 'basis_unavailable']);
+    expect([res.statusCode, res.json().detail?.violations?.[0]]).toStrictEqual([
+      422,
+      { pointer: '/procedureCodeRefs', rule: 'required' },
+    ]);
+    // Without the C14 seam (a domain service built without it) the basis is refused, typed.
+    const a1 = await actorFor(db, USER_A1, T_ALPHA);
+    await expect(
+      domainAppointments(db).defineRecallPolicy(
+        a1,
+        envelope('scheduling.recall.definePolicy', {
+          category: 'perio',
+          intervalMonths: 3,
+          basis: 'completed_procedure',
+          procedureCodeRefs: ['SYN-PROC-RCL'],
+        }),
+      ),
+    ).rejects.toMatchObject({ code: 'conflict', detail: { reason: 'basis_unavailable' } });
   });
 });
 
@@ -480,8 +501,110 @@ describe('S16 races on unique records (review hardening)', () => {
   });
 });
 
-describe('S16 cases bound to C14 (open)', () => {
-  it.todo(
-    'C14: a completed-procedure basis computes the last qualifying procedure from C14 completion events',
-  );
+describe('S16 cases bound to C14', () => {
+  const USER_FRONT_DESK = '20000000-0000-4000-8000-0000000000c7';
+  let frontDesk: string;
+  beforeAll(async () => {
+    await db.admin.query(
+      `INSERT INTO cuspatlas.principals (id, kind, handle) VALUES ($1, 'human', 'user-recall-desk')`,
+      [USER_FRONT_DESK],
+    );
+    await db.admin.query(
+      'INSERT INTO cuspatlas.memberships (tenant_id, principal_id, scopes) VALUES ($1, $2, $3)',
+      [T_ALPHA, USER_FRONT_DESK, [SCHED_READ, 'scheduling.write']],
+    );
+    frontDesk = await h.issuer.issue({ sub: USER_FRONT_DESK, tid: T_ALPHA });
+  });
+  /** An encounter at the recall location with its treating provider, and one rendered procedure. */
+  async function rendered(patientRef: string, codeRef: string, dateOfService: string) {
+    const e = h.ok<{ data: { encounter: { encounterRef: string; version: number } } }>(
+      await h.call('a1', 'POST', '/v1/clinical/encounters', { patientRef, locationRef: loc.locationRef }),
+      201,
+    ).data.encounter;
+    h.ok(
+      await h.call('a1', 'POST', `/v1/clinical/encounters/${e.encounterRef}/assignments`, {
+        expectedVersion: e.version,
+        role: 'treating_provider',
+        assignee: { kind: 'provider', resourceRef: loc.provider },
+      }),
+      201,
+    );
+    return h.ok<{ data: { procedureRef: string } }>(
+      await h.call(
+        'a1',
+        'POST',
+        `/v1/clinical/encounters/${e.encounterRef}/procedures`,
+        { sequence: 1, dateOfService, renderingProviderRef: loc.provider, codeRef },
+        randomUUID(),
+      ),
+      201,
+    ).data.procedureRef;
+  }
+
+  it('C14: a completed-procedure basis computes the last qualifying procedure from C14 completion events', async () => {
+    const category = 'perio-maint';
+    const pol = h.ok<{ data: { policyRef: string; version: number } }>(
+      await h.call('a1', 'POST', `${RECALL}/policies`, {
+        category,
+        intervalMonths: 6,
+        basis: 'completed_procedure',
+        procedureCodeRefs: ['SYN-PROC-RCL'],
+      }),
+      201,
+    ).data;
+    const due = await createPatient(h, 'Synthetic Recall Procedure');
+    await rendered(due, 'SYN-PROC-RCL', '2025-12-01');
+    const latest = await rendered(due, 'SYN-PROC-RCL', '2026-01-15');
+    // Another code does not qualify; a reversed procedure does not count.
+    const otherCode = await createPatient(h, 'Synthetic Recall Other Code');
+    await rendered(otherCode, 'SYN-PROC-XYZ', '2026-01-15');
+    const reversed = await createPatient(h, 'Synthetic Recall Reversed');
+    const gone = await rendered(reversed, 'SYN-PROC-RCL', '2026-01-15');
+    h.ok(
+      await h.call('a1', 'POST', `/v1/clinical/procedures/${gone}/corrections`, {
+        reasonCode: 'recorded_in_error',
+      }),
+      201,
+    );
+    const asOf = '2026-11-01T12:00:00Z';
+    const list = h.ok<{
+      data: {
+        policy: { version: number; basis: string; procedureCodeRefs: string[] };
+        due: { patientRef: string; lastEventRef: string; dueDate: string }[];
+        noBaseline: { patientRef: string }[];
+      };
+    }>(await h.call('a1', 'GET', `${RECALL}/due?category=${category}&asOf=${encodeURIComponent(asOf)}`)).data;
+    expect([list.policy.basis, list.policy.procedureCodeRefs]).toStrictEqual([
+      'completed_procedure',
+      ['SYN-PROC-RCL'],
+    ]);
+    expect(list.due.filter((d) => [due, otherCode, reversed].includes(d.patientRef))).toMatchObject([
+      { patientRef: due, lastEventRef: latest, dueDate: '2026-07-15' },
+    ]);
+    const baseline = list.noBaseline.map((n) => n.patientRef);
+    expect([baseline.includes(otherCode), baseline.includes(reversed)]).toStrictEqual([true, true]);
+    // The due list is a clinical read as well: a scheduling-only member is refused (403), typed.
+    const denied = await h.call(
+      frontDesk,
+      'GET',
+      `${RECALL}/due?category=${category}&asOf=${encodeURIComponent(asOf)}`,
+    );
+    expect([denied.statusCode, denied.json().code]).toStrictEqual([403, 'forbidden']);
+    // A contact task records the procedure it was computed from (not an appointment).
+    const task = h.ok<{ data: { recallTaskRef: string } }>(
+      await h.call('a1', 'POST', `${RECALL}/tasks`, {
+        patientRef: due,
+        category,
+        locationRef: loc.locationRef,
+        expectedPolicyVersion: pol.version,
+        asOf,
+      }),
+      201,
+    ).data;
+    const row = await db.admin.query(
+      'SELECT last_event_procedure_id, last_event_appointment_id FROM cuspatlas.recall_tasks WHERE id = $1',
+      [task.recallTaskRef],
+    );
+    expect(row.rows).toStrictEqual([{ last_event_procedure_id: latest, last_event_appointment_id: null }]);
+  });
 });

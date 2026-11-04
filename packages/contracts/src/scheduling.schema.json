@@ -2326,7 +2326,7 @@
               "$ref": "#/$defs/VisitProducerOwner"
             },
             "reason": {
-              "enum": ["producer_not_deployed"]
+              "enum": ["producer_not_deployed", "producer_access_denied"]
             }
           }
         },
@@ -4344,7 +4344,22 @@
     },
     "RecallBasis": {
       "enum": ["attended_visit", "completed_procedure"],
-      "description": "attended_visit is implemented (S11 attendance); completed_procedure is refused until C14 exists."
+      "description": "attended_visit: the latest booking whose S11 attendance reached arrival. completed_procedure: the latest active (non-reversed) C14 rendered procedure with one of the policy's procedure codes, read through the C14 seam; the due list then also needs clinical.read."
+    },
+    "RecallEventRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "The qualifying event: an appointment (attended_visit) or a C14 rendered procedure (completed_procedure)."
+    },
+    "RecallProcedureCodes": {
+      "type": "array",
+      "maxItems": 20,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^SYN-[A-Z0-9-]{1,40}$"
+      },
+      "description": "Provisional synthetic procedure codes that qualify (completed_procedure only; required there)."
     },
     "RecallPolicyDefine": {
       "type": "object",
@@ -4371,6 +4386,9 @@
             "$ref": "#/$defs/AppointmentTypeCode"
           }
         },
+        "procedureCodeRefs": {
+          "$ref": "#/$defs/RecallProcedureCodes"
+        },
         "excludeBooked": {
           "type": "boolean",
           "description": "Already-booked exclusion rule (default true)."
@@ -4387,6 +4405,7 @@
         "intervalMonths",
         "basis",
         "appointmentTypeCodes",
+        "procedureCodeRefs",
         "excludeBooked",
         "createdAt"
       ],
@@ -4404,7 +4423,10 @@
           "type": "integer"
         },
         "basis": {
-          "const": "attended_visit"
+          "$ref": "#/$defs/RecallBasis"
+        },
+        "procedureCodeRefs": {
+          "$ref": "#/$defs/RecallProcedureCodes"
         },
         "appointmentTypeCodes": {
           "type": "array",
@@ -4538,7 +4560,7 @@
                     "$ref": "#/$defs/PatientRef"
                   },
                   "lastEventRef": {
-                    "$ref": "#/$defs/AppointmentRef"
+                    "$ref": "#/$defs/RecallEventRef"
                   },
                   "lastEventAt": {
                     "$ref": "#/$defs/Instant"

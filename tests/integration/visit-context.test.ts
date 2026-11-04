@@ -13,22 +13,27 @@ import {
   USER_A1,
   USER_B1,
 } from './support/appointment-fixtures';
+import { seedClinicalScopes } from './support/clinical-fixtures';
 import { openTestDatabase, type TestDatabase } from './support/db';
 import { actorFor, domainAppointments, envelope } from './support/domain-harness';
+import { SCHED_READ, SCHED_WRITE } from './support/scheduling-fixtures';
 
 /**
- * S12: the visit context is a container of references. No clinical producer (C8 medical history,
- * C10 notes, C13 consent/forms, C11 treatment plan, C16 lab) exists yet, so through the deployed
- * transports every producer-bound item is an explicit `unavailable` with its owner and reason, never
- * an empty success, and nothing unavailable counts toward completion. Container mechanics (pin,
- * idempotent assignment, relink history, voided resolution) are exercised against a synthetic
- * producer stub injected at the domain port only; the producer-bound acceptance cases stay open
- * (it.todo) until the named C task exists.
+ * S12: the visit context is a container of references. The deployed transports carry the C producers
+ * (C8 medical history, C10 notes, C13 consent/forms, C11 treatment plan) through S12's domain port; a
+ * producer not yet built (C16 lab until it exists) is an explicit `unavailable` with its owner and
+ * reason, never an empty success, and a caller without `clinical.read` sees every C slot unavailable
+ * (`producer_access_denied`). Nothing unavailable counts toward completion. Container mechanics (pin,
+ * idempotent assignment, relink history, voided resolution) are also exercised against a synthetic
+ * producer stub injected at the domain port.
  */
 let db: TestDatabase;
 let h: AppointmentHarness;
 let loc: { locationRef: string; provider: string; operatory: string };
 let slot = 0;
+let frontDesk: string;
+const USER_FRONT_DESK = '20000000-0000-4000-8000-0000000000c6';
+const C_PRODUCERS = ['medicalHistory', 'forms', 'noteDrafts', 'treatmentPlanItems'] as const;
 const APPT = '/v1/scheduling/appointments';
 const ctxUrl = (ref: string) => `${APPT}/${ref}/visit-context`;
 
@@ -36,6 +41,17 @@ beforeAll(async () => {
   db = await openTestDatabase('visit_context');
   h = await openAppointmentHarness(db, { mcp: true });
   loc = await seedLocation(h, 'loc-visit-ctx');
+  await seedClinicalScopes(db.admin);
+  // A front-desk member: scheduling read and write, no clinical scope.
+  await db.admin.query(
+    `INSERT INTO cuspatlas.principals (id, kind, handle) VALUES ($1, 'human', 'user-front-desk')`,
+    [USER_FRONT_DESK],
+  );
+  await db.admin.query(
+    'INSERT INTO cuspatlas.memberships (tenant_id, principal_id, scopes) VALUES ($1, $2, $3)',
+    [T_ALPHA, USER_FRONT_DESK, [SCHED_READ, SCHED_WRITE]],
+  );
+  frontDesk = await h.issuer.issue({ sub: USER_FRONT_DESK, tid: T_ALPHA });
 });
 
 afterAll(async () => {
@@ -73,8 +89,8 @@ const OWNERS = {
   treatmentPlanItems: 'C11',
 };
 
-describe('S12 container through the deployed transports (no clinical producer deployed)', () => {
-  it('5. every producer-bound item is an explicit unavailable with owner and reason; none counts toward completion', async () => {
+describe('S12 container through the deployed transports (C producers deployed; C16 not yet)', () => {
+  it('5. a deployed producer slot is available; a missing one is an explicit unavailable with owner and reason; none counts toward completion', async () => {
     const { ref, patient } = await appointment();
     const rest = h.ok<{ data: Record<string, unknown> }>(await h.call('a1', 'GET', ctxUrl(ref)));
     const m = await h.mcp('a1', 'scheduling_visit_context_get', { appointmentRef: ref });
@@ -91,14 +107,16 @@ describe('S12 container through the deployed transports (no clinical producer de
     expect(data.patient).toMatchObject({ status: 'resolved', patientRef: patient });
     expect(data.attendance).toStrictEqual({ status: 'resolved', state: 'scheduled' });
     expect(data.appointment).toMatchObject({ status: 'booked', acceptsChanges: true });
-    for (const p of PRODUCERS) {
-      expect(data.items[p]).toStrictEqual({
-        status: 'unavailable',
-        owner: OWNERS[p],
-        reason: 'producer_not_deployed',
-      });
+    for (const p of C_PRODUCERS) {
+      expect(data.items[p]).toStrictEqual({ status: 'available', owner: OWNERS[p], entries: [] });
     }
-    expect(data.readiness).toStrictEqual({ resolved: 0, unavailable: [...PRODUCERS], complete: false });
+    expect(data.items.labCases).toStrictEqual({
+      status: 'unavailable',
+      owner: OWNERS.labCases,
+      reason: 'producer_not_deployed',
+    });
+    expect(data.readiness).toStrictEqual({ resolved: 0, unavailable: ['labCases'], complete: false });
+    expect(PRODUCERS).toContain('labCases');
     // REST and MCP return the same container (asOf differs per call).
     const mData = (m.body as { data: Record<string, unknown> }).data;
     expect({ ...mData, asOf: null }).toStrictEqual({ ...data, asOf: null });
@@ -108,8 +126,6 @@ describe('S12 container through the deployed transports (no clinical producer de
     const { ref } = await appointment();
     const before = [await count(db, 'visit_context_items'), await count(db, 'audit_events')];
     const calls: [string, unknown][] = [
-      [`${ctxUrl(ref)}/medical-history-pin`, {}],
-      [`${ctxUrl(ref)}/forms`, { formRef: randomUUID() }],
       [`${ctxUrl(ref)}/lab-cases`, { labCaseRef: randomUUID() }],
       [`${ctxUrl(ref)}/lab-cases/relink`, { labCaseRef: randomUUID(), reasonCode: 'wrong_visit' }],
     ];
@@ -127,9 +143,9 @@ describe('S12 container through the deployed transports (no clinical producer de
       );
       expect(attempts.rows.length).toBe(1);
     }
-    const m = await h.mcp('a1', 'scheduling_visit_context_assign_form', {
+    const m = await h.mcp('a1', 'scheduling_visit_context_link_lab_case', {
       appointmentRef: ref,
-      formRef: randomUUID(),
+      labCaseRef: randomUUID(),
       idempotencyKey: randomUUID(),
     });
     expect([m.status, (m.body.detail as { reason?: string })?.reason]).toStrictEqual([
@@ -412,15 +428,245 @@ describe('S12 container mechanics against a synthetic producer stub (domain port
   });
 });
 
-describe('S12 producer-bound cases (open until the clinical producer exists)', () => {
-  it.todo(
-    'C8: a context pins a real C8 medical-history version with provenance; a later C8 change leaves the pin',
-  );
-  it.todo('C8: a change made in the visit calls the C8 command and produces a new version (pin unchanged)');
-  it.todo('C13: assigning a real consent or intake form twice returns the recorded assignment once');
-  it.todo('C10: note drafts for the visit resolve to C10 references, never copied content');
+describe('S12 producer-bound cases (C producers through the S12 domain port)', () => {
+  const DIGEST = `sha256:${'d'.repeat(64)}`;
+  const historyChange = (patientRef: string, text: string, encounterRef?: string) =>
+    h.call('a1', 'POST', '/v1/clinical/history/changes', {
+      patientRef,
+      provenance: 'staff',
+      reportedBy: 'clinician',
+      ...(encounterRef ? { encounterRef } : {}),
+      changes: [{ kind: 'allergy', state: 'active', displayText: text }],
+    });
+  const consent = async (patientRef: string, who = 'a1') =>
+    h.ok<{ data: { consentRef: string } }>(
+      await h.call(
+        who,
+        'POST',
+        '/v1/clinical/consents',
+        {
+          patientRef,
+          scope: 'general_treatment',
+          method: 'in_person',
+          templateRef: 'synthetic-visit-consent',
+          templateDigest: DIGEST,
+          attestationCode: 'signed_in_person',
+          signer: { kind: 'patient' },
+        },
+        randomUUID(),
+      ),
+      201,
+    ).data.consentRef;
+  const encounterFor = async (patientRef: string, appointmentRef: string) =>
+    h.ok<{ data: { encounter: { encounterRef: string } } }>(
+      await h.call('a1', 'POST', '/v1/clinical/encounters', { patientRef, appointmentRef }),
+      201,
+    ).data.encounter.encounterRef;
+  type Slot = { status: string; reason?: string; entries?: Record<string, unknown>[] };
+  const context = async (ref: string, who = 'a1') =>
+    h.ok<{ data: { items: Record<string, Slot> } }>(await h.call(who, 'GET', ctxUrl(ref))).data;
+
+  it('C8: a context pins a real C8 medical-history version with provenance; a later C8 change leaves the pin', async () => {
+    const { ref, patient } = await appointment();
+    h.ok(await historyChange(patient, 'Synthetic visit allergen'), 201);
+    const versionRef = (
+      await db.admin.query(
+        `SELECT v.id FROM cuspatlas.clinical_history_versions v JOIN cuspatlas.clinical_history_streams s
+         ON s.id = v.stream_id WHERE s.subject_patient_id = $1 AND v.sequence = 1`,
+        [patient],
+      )
+    ).rows[0].id as string;
+    const pinned = h.ok<{ data: Record<string, unknown> }>(
+      await h.call('a1', 'POST', `${ctxUrl(ref)}/medical-history-pin`, {}),
+      201,
+    ).data;
+    expect(pinned).toMatchObject({
+      itemKind: 'medical_history_pin',
+      producerRef: versionRef,
+      itemVersion: 1,
+    });
+    const row = await db.admin.query(
+      'SELECT producer, provenance_ref FROM cuspatlas.visit_context_items WHERE item_ref = $1',
+      [versionRef],
+    );
+    expect(row.rows).toStrictEqual([{ producer: 'C8', provenance_ref: 'C8:staff' }]);
+    h.ok(await historyChange(patient, 'Synthetic later allergen'), 201);
+    const ctx = await context(ref);
+    expect(ctx.items.medicalHistory?.entries).toMatchObject([
+      {
+        producerRef: versionRef,
+        version: 1,
+        currentVersion: 2,
+        provenanceRef: 'C8:staff',
+        resolution: 'resolved',
+        state: 'active',
+      },
+    ]);
+    expect(JSON.stringify(ctx)).not.toContain('Synthetic');
+  });
+
+  it('C8: a change made in the visit calls the C8 command and produces a new version (pin unchanged)', async () => {
+    const { ref, patient } = await appointment();
+    h.ok(await historyChange(patient, 'Synthetic first allergen'), 201);
+    const pin = h.ok<{ data: { producerRef: string } }>(
+      await h.call('a1', 'POST', `${ctxUrl(ref)}/medical-history-pin`, {}),
+      201,
+    ).data;
+    const encounterRef = await encounterFor(patient, ref);
+    const changed = h.ok<{ data: { header: { historyVersionRef: string; sequence: number } } }>(
+      await historyChange(patient, 'Synthetic in-visit allergen', encounterRef),
+      201,
+    ).data;
+    expect(changed.header.historyVersionRef).not.toBe(pin.producerRef);
+    const again = await h.call('a1', 'POST', `${ctxUrl(ref)}/medical-history-pin`, {});
+    expect([again.statusCode, again.json().detail?.reason]).toStrictEqual([409, 'already_pinned']);
+    const ctx = await context(ref);
+    expect(ctx.items.medicalHistory?.entries).toMatchObject([
+      { producerRef: pin.producerRef, version: 1, currentVersion: 2 },
+    ]);
+  });
+
+  it('C13: assigning a real consent or intake form twice returns the recorded assignment once', async () => {
+    const { ref, patient } = await appointment();
+    const consentRef = await consent(patient);
+    const first = h.ok<{ data: { itemRef: string; created: boolean } }>(
+      await h.call('a1', 'POST', `${ctxUrl(ref)}/forms`, { formRef: consentRef }),
+      201,
+    ).data;
+    const second = h.ok<{ data: { itemRef: string; created: boolean } }>(
+      await h.call('a1', 'POST', `${ctxUrl(ref)}/forms`, { formRef: consentRef }),
+      201,
+    ).data;
+    expect([first.created, second.created, second.itemRef]).toStrictEqual([true, false, first.itemRef]);
+    expect((await context(ref)).items.forms?.entries).toMatchObject([
+      {
+        itemRef: first.itemRef,
+        producerRef: consentRef,
+        provenanceRef: 'C13:in_person',
+        resolution: 'resolved',
+      },
+    ]);
+    // Another patient's consent is refused; another tenant's is indistinguishable from missing.
+    const other = await createPatient(h, 'Synthetic Context Other');
+    const otherConsent = await consent(other);
+    const wrong = await h.call('a1', 'POST', `${ctxUrl(ref)}/forms`, { formRef: otherConsent });
+    expect([wrong.statusCode, wrong.json().detail?.reason]).toStrictEqual([
+      409,
+      'producer_record_other_patient',
+    ]);
+    const betaPatient = await createPatient(h, 'Synthetic Context Beta', 'b1');
+    const betaConsent = await consent(betaPatient, 'b1');
+    const foreign = await h.call('a1', 'POST', `${ctxUrl(ref)}/forms`, { formRef: betaConsent });
+    const missing = await h.call('a1', 'POST', `${ctxUrl(ref)}/forms`, { formRef: randomUUID() });
+    expect([foreign.statusCode, missing.statusCode]).toStrictEqual([404, 404]);
+    // A withdrawn consent resolves as voided in the context; nothing is copied.
+    h.ok(
+      await h.call('a1', 'POST', `/v1/clinical/consents/${consentRef}/withdrawal`, {
+        expectedVersion: 1,
+        reasonCode: 'patient_request',
+        signer: { kind: 'patient' },
+      }),
+      201,
+    );
+    const ctx = await context(ref);
+    expect(ctx.items.forms?.entries).toMatchObject([{ producerRef: consentRef, resolution: 'voided' }]);
+  });
+
+  it('C10: note drafts for the visit resolve to C10 references, never copied content', async () => {
+    const { ref, patient } = await appointment();
+    const encounterRef = await encounterFor(patient, ref);
+    const note = h.ok<{ data: { noteRef: string } }>(
+      await h.call('a1', 'POST', `/v1/clinical/encounters/${encounterRef}/notes`, {
+        noteType: 'progress',
+        content: {
+          sections: [{ sectionKey: 'subjective', text: 'Synthetic visit note text' }],
+          procedureCodeRefs: [],
+        },
+      }),
+      201,
+    ).data;
+    const ctx = await context(ref);
+    expect(ctx.items.noteDrafts?.entries).toStrictEqual([
+      {
+        itemRef: null,
+        producerRef: note.noteRef,
+        version: 1,
+        currentVersion: 1,
+        provenanceRef: 'C10:draft',
+        resolution: 'resolved',
+        state: 'active',
+      },
+    ]);
+    expect(JSON.stringify(ctx)).not.toContain('Synthetic visit note text');
+  });
+
+  it('C11: treatment-plan items proposed for the visit resolve to C11 references', async () => {
+    const { ref, patient } = await appointment();
+    const PLANS = '/v1/clinical/treatment-plans';
+    const plan = h.ok<{ data: { plan: { planRef: string; headVersionRef: string } } }>(
+      await h.call('a1', 'POST', PLANS, { patientRef: patient }, randomUUID()),
+      201,
+    ).data.plan;
+    const detail = h.ok<{ data: { targetRef: string } }>(
+      await h.call('a1', 'POST', `${PLANS}/versions/${plan.headVersionRef}/details`, {
+        expectedRevision: 1,
+        scope: 'whole_mouth',
+      }),
+      201,
+    ).data.targetRef;
+    const item = h.ok<{ data: { targetRef: string } }>(
+      await h.call('a1', 'POST', `${PLANS}/details/${detail}/items`, {
+        expectedRevision: 2,
+        procedureCodeRef: 'SYN-PROC-901',
+        sequence: 1,
+      }),
+      201,
+    ).data.targetRef;
+    h.ok(
+      await h.call('a1', 'POST', `${PLANS}/items/${item}/state`, { expectedRevision: 3, state: 'accepted' }),
+    );
+    h.ok(
+      await h.call('a1', 'POST', `${PLANS}/items/${item}/state`, {
+        expectedRevision: 4,
+        state: 'scheduled',
+        appointmentRef: ref,
+      }),
+    );
+    const ctx = await context(ref);
+    expect(ctx.items.treatmentPlanItems?.entries).toMatchObject([
+      { itemRef: null, producerRef: item, provenanceRef: 'C11:scheduled', resolution: 'resolved' },
+    ]);
+  });
+
+  it('a caller without clinical.read sees every C slot unavailable and cannot pin or assign (403, nothing written)', async () => {
+    const { ref, patient } = await appointment();
+    h.ok(await historyChange(patient, 'Synthetic hidden allergen'), 201);
+    const consentRef = await consent(patient);
+    const ctx = await context(ref, frontDesk);
+    for (const p of C_PRODUCERS) {
+      expect(ctx.items[p]).toStrictEqual({
+        status: 'unavailable',
+        owner: OWNERS[p],
+        reason: 'producer_access_denied',
+      });
+    }
+    const before = await count(db, 'visit_context_items');
+    for (const [url, body] of [
+      [`${ctxUrl(ref)}/medical-history-pin`, {}],
+      [`${ctxUrl(ref)}/forms`, { formRef: consentRef }],
+    ] as const) {
+      const res = await h.call(frontDesk, 'POST', url, body);
+      expect([res.statusCode, res.json().code]).toStrictEqual([403, 'forbidden']);
+      const attempts = await db.admin.query(
+        'SELECT reason_code FROM cuspatlas.security_attempt_events WHERE correlation_id = $1',
+        [res.headers['x-correlation-id']],
+      );
+      expect(attempts.rows.map((r) => r.reason_code)).toStrictEqual(['scope_missing']);
+    }
+    expect(await count(db, 'visit_context_items')).toBe(before);
+  });
+
   it.todo(
     'C16: a real lab case bound elsewhere requires the relink command; a foreign-tenant C16 case is refused',
   );
-  it.todo('C11: treatment-plan items proposed for the visit resolve to C11 references');
 });

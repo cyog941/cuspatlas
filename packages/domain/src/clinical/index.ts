@@ -42,6 +42,7 @@ export {
   PROCEDURE_EVENT_FIELDS,
   PROCEDURE_POST_MERGE_FACT_PROBE,
   RENDERED_PROCEDURE_RESOURCE,
+  readLatestCompletedProcedures,
 } from './procedures';
 export { type ClinicalService, createClinicalService } from './service';
 export {
@@ -58,3 +59,4 @@ export {
   recordPlanVersionAcceptance,
   TREATMENT_PLAN_RESOURCE,
 } from './treatment-plans';
+export { type ClinicalVisitProducerDeps, createClinicalVisitContextProducers } from './visit-producers';

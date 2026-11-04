@@ -22,6 +22,8 @@
 
 ## Research gate before executing this plan
 
+Apply the [hardware and claims qualification gates](../../HARDWARE-AND-CLAIMS-QUALIFICATION.md) to follow-on I/B plans. Foundation adapters must support protected external references, versioned payload digests, partial/unknown outcomes, deduplicated receipts and reconciliation. Task 6's fake-provider tests must include timeout after acceptance and duplicate/out-of-order delivery. Do not infer clearinghouse or device readiness from foundation tests. H1/H2/C1/C2/R1 can be researched before implementation; actual integrations need their own reviewed plans and build authorization.
+
 Consult [Tab32 analysis coverage](../../TAB32-ANALYSIS-COVERAGE.md). The authenticated REA/Craft analysis is incomplete; do not represent this plan as validated against every Tab32 workflow. Complete supported tool attachment and bounded capture, then inspect clinical workflows using a clearly synthetic demo record if needed. Do not sign notes, post money, submit claims or send messages in production to test behavior. Capture those transitions in a vendor sandbox or staff-validated scenarios.
 
 Translate the observed workflow states into synthetic acceptance cases: payment-plan missing signature/default/void versus collection, statement generation versus delivery/freshness, claims assignment versus appeal status, and audit search versus restoration. Test authorization separately for each operation across UI/API/MCP/jobs. Record unresolved vendor behavior explicitly and obtain clinical/financial validation before replacement release.

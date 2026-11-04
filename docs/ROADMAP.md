@@ -16,6 +16,8 @@ UI is the final **planning** stage, not the last coding task after backend lock-
 
 ## Implementation sequence after explicit authorization
 
+Integration qualification runs during P1/P2 using the [hardware and claims backlog](HARDWARE-AND-CLAIMS-QUALIFICATION.md): H1/H2 establish pilot configurations and vendor interface rights; C1/C2 establish clearinghouse access, payer coverage, costs and enrollment; R1 establishes regulatory responsibilities. H3/C3 supply reviewed contracts. H4/C4 require real device and partner qualification during implementation. Synthetic foundation work can proceed after authorization, but workstreams I/B and release R cannot claim production support from mocked adapters. Vendor outreach drafts are prepared, not sent.
+
 | Workstream | Depends on | Independently verifiable result |
 |---|---|---|
 | F: platform core | Approved design/contracts | Tenant isolation, identity, audit, contracts, job/idempotency framework; detailed plan below |

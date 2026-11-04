@@ -14,6 +14,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "lint": "biome check .",
     "migrate": "tsx packages/db/src/migrate-cli.ts",
+    "backup": "tsx packages/db/src/backup-cli.ts",
+    "restore": "tsx packages/db/src/restore-cli.ts",
     "contract:check": "tsx apps/api/src/contract-drift-cli.ts",
     "start": "tsx apps/api/src/main.ts",
     "sbom": "node scripts/sbom.mjs",

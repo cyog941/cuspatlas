@@ -163,6 +163,10 @@ export const ACTION_POLICIES = {
   'rcm.remittances.settle': { scope: 'billing.write', principals: ['human'] },
   'rcm.remittances.reverse': { scope: 'billing.correct', principals: ['human'] },
   'rcm.remittances.read': { scope: 'paymentDistribution.read', principals: ['human', 'service'] },
+  // B7 review-line resolution (a second human approves adjustments and write-offs) and B8/CL policy data.
+  'rcm.remittances.resolveLine': { scope: 'billing.write', principals: ['human'] },
+  'rcm.remittances.decideResolution': { scope: 'billing.correct', principals: ['human'] },
+  'rcm.workflowPolicies.publish': { scope: 'billing.correct', principals: ['human'] },
   // C5 encounters and clinical authorship (recommended-pending-clinical-approval). Clinical
   // mutations are human-only: a model or integration is never a clinical author. Every mutation
   // additionally needs a resolvable clinical author profile (clinical/authorship.ts). Reads are

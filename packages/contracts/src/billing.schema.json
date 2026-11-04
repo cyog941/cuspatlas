@@ -4326,7 +4326,7 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["lineNo", "claimRef", "status", "reviewReason", "denialCode"],
+            "required": ["lineNo", "claimRef", "status", "reviewReason", "denialCode", "resolution"],
             "properties": {
               "lineNo": {
                 "type": "integer"
@@ -4361,6 +4361,29 @@
                   },
                   {
                     "type": "string"
+                  }
+                ]
+              },
+              "resolution": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["resolutionRef", "action", "state"],
+                    "properties": {
+                      "resolutionRef": {
+                        "$ref": "#/$defs/Uuid"
+                      },
+                      "action": {
+                        "enum": ["match_claim_line", "post_with_adjustment", "route_to_appeal", "write_off"]
+                      },
+                      "state": {
+                        "enum": ["posted", "pending_approval", "routed", "rejected"]
+                      }
+                    }
                   }
                 ]
               }
@@ -4471,6 +4494,184 @@
               }
             }
           }
+        }
+      }
+    },
+    "NonNegativeMoney": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Money of zero or more minor units (a limit that may be zero).",
+      "required": ["currency", "minor"],
+      "properties": {
+        "currency": {
+          "$ref": "#/$defs/CurrencyCode"
+        },
+        "minor": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 99999999999
+        }
+      }
+    },
+    "RemittanceLineResolve": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Resolve one remittance review line as a separate fact. match_claim_line posts an unmatched line against the named transmitted claim line; post_with_adjustment and write_off post the reported amounts plus the residual (billed minus reported) once another human approves (write_off also needs a workflow policy limit); route_to_appeal posts only the paid amount and leaves the rest insurer responsibility.",
+      "required": ["action", "reasonCode"],
+      "properties": {
+        "action": {
+          "enum": ["match_claim_line", "post_with_adjustment", "route_to_appeal", "write_off"]
+        },
+        "claimRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "claimLineNo": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "RemittanceResolutionDecide": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Approve (posts) or reject a resolution that needs approval; never by its requester.",
+      "required": ["decision"],
+      "properties": {
+        "decision": {
+          "enum": ["approved", "rejected"]
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "RemittanceResolutionCommandData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resolutionRef", "remittanceRef", "lineNo", "action", "state", "entryRefs"],
+      "properties": {
+        "resolutionRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "remittanceRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "lineNo": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "action": {
+          "enum": ["match_claim_line", "post_with_adjustment", "route_to_appeal", "write_off"]
+        },
+        "state": {
+          "enum": ["posted", "pending_approval", "routed", "rejected"]
+        },
+        "entryRefs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Uuid"
+          }
+        }
+      }
+    },
+    "WorkflowPolicyPublish": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A new version of the claims-workflow policy data for one synthetic payer (or the tenant default): partner-aware deadlines in minutes, bounded escalation and the residual write-off limit. Earlier versions are never changed.",
+      "required": [
+        "acknowledgementDueMinutes",
+        "followUpMinutes",
+        "exceptionDueMinutes",
+        "maxEscalations",
+        "writeOffLimit"
+      ],
+      "properties": {
+        "payerRef": {
+          "$ref": "#/$defs/PayerRef"
+        },
+        "acknowledgementDueMinutes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 525600
+        },
+        "followUpMinutes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 525600
+        },
+        "exceptionDueMinutes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 525600
+        },
+        "maxEscalations": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "writeOffLimit": {
+          "$ref": "#/$defs/NonNegativeMoney"
+        }
+      }
+    },
+    "WorkflowPolicyCommandData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policyRef", "versionNo"],
+      "properties": {
+        "policyRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "versionNo": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "RemittanceResolutionRef": {
+      "$ref": "#/$defs/Uuid"
+    },
+    "RemittanceResolutionCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/RemittanceResolutionCommandData"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "WorkflowPolicyCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/WorkflowPolicyCommandData"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
         }
       }
     }

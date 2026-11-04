@@ -239,6 +239,9 @@ export const BILLING_FLAT_OPERATIONS: readonly string[] = [
   'rcm.remittances.ingest',
   'rcm.remittances.settle',
   'rcm.remittances.reverse',
+  'rcm.remittances.resolveLine',
+  'rcm.remittances.decideResolution',
+  'rcm.workflowPolicies.publish',
 ];
 
 /** Every billing operation that runs through executeOnce (B1 and B2). */

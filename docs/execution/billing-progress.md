@@ -352,6 +352,20 @@ SHOULD:
 - The contract drift check renders the block from `BILLING_OPS` and `billing.schema.json` and fails (`generated BILLING_OPS block differs ...`) when the committed block differs: a hand edit, a changed operation or a changed query definition without regeneration.
 - Red: `corepack pnpm test -- contract-drift` with the new case before the change → exit 1, 1 failed, 8 passed. Green: exit 0, 9 passed; regeneration changed only the header line (the committed block was already exactly the generator's output).
 
+### B7 follow-up: remittance review-line resolution and workflow policy data
+
+Tests: `tests/integration/rcm-remittance-resolution.test.ts` (5). Red first (operations absent): `corepack pnpm test -- rcm-remittance-resolution` → exit 1, 5 failed. Green: exit 0, 5 passed; billing/rcm/harness/parity/isolation/drift suites → exit 0, 22 files, 984 passed. Migration `20261120110000_rcm_remittance_resolution.sql`.
+
+- `rcm.remittances.resolveLine` (POST `/v1/rcm/remittances/{remittanceRef}/lines/{lineNo}/resolutions`, human `billing.write`): one resolution fact per review line (a rejected one may be followed by another; 409 `line_already_resolved` otherwise; a posted line is 409 `line_not_in_review`). The line row is never edited (tested byte-identical).
+  - `match_claim_line` (unmatched lines only; needs `claimRef` + `claimLineNo` of a transmitted claim line of the same payer): the standard checks (amount, underpayment, insurer balance under the charge lock) then the same postings as a matched line.
+  - `post_with_adjustment`: the reported paid / contractual / PR plus the residual (billed − reported, never negative: 409 `residual_negative`) as an `adjustment` entry `remittance_residual_adjustment`; pending until another human approves.
+  - `write_off`: as above with a `writeOff` entry `remittance_residual_write_off`, only under the latest workflow policy of the payer (or the default) whose `writeOffLimit` covers the residual (409 `write_off_policy_required` / `write_off_limit_exceeded`), rechecked at approval (a lowered limit refuses the approval), and another human's approval.
+  - `route_to_appeal`: posts the paid amount only (clearing); the rest stays insurer responsibility and is never moved to the patient (CL-11); the appeal itself is a workflow exception (no denial event exists for an underpayment, so no B6 appeal draft).
+- `rcm.remittances.decideResolution` (POST `/v1/rcm/remittance-resolutions/{resolutionRef}/decision`, human `billing.correct`): never the requester (domain and trigger), once (409 `already_decided`), balances and limit rechecked under the charge lock.
+- Every posting is a balanced entry tagged with the remittance and linked in `rcm_remittance_resolution_postings`; a remittance reversal reverses them with the rest. The remittance view reports each line's latest `resolution` (`posted | pending_approval | routed | rejected`, derived). A resolved line lets the settlement match the ERA total (tested).
+- `rcm.workflowPolicies.publish` (POST `/v1/rcm/workflow-policies`, human `billing.correct`): versioned per payer or tenant default (acknowledgement, payer follow-up and exception due minutes, maximum escalations, residual write-off limit as Money); earlier versions are never changed. The CL workflow reads the same rows.
+- RLS binds `created_by`, `requested_by`, `decided_by` to the transaction actor. Remittance helpers (`loadRemittanceForUpdate`, `matchClaimLine`, `insurerOpen`, `postRemittanceLine`) are module exports shared by ingestion and resolution.
+
 ## Seams for later tasks
 
 - C14: drive `billing.charges.post` as a service principal with the rendered-procedure reference in place of `syn-proc-...` (a new `source` value) and the procedure code once B-S4 settles; one original charge per procedure is already enforced.
@@ -380,7 +394,7 @@ SHOULD:
 
 ## Unresolved
 
-- B6/B7/B9: claims and remittance are fake-clearinghouse only (B-S2 blocked); fee content and code sets synthetic (B-S4); review lines of a remittance have no resolution command yet; the BILLING_OPS operations are not yet rows of the shared negative harness (their suites test cross-tenant, role, revoked and service-kind denials directly).
+- B6/B7/B9: claims and remittance are fake-clearinghouse only (B-S2 blocked); fee content and code sets synthetic (B-S4); the BILLING_OPS operations are not yet rows of the shared negative harness (their suites test cross-tenant, role, revoked and service-kind denials directly).
 
 - B5: no carrier catalog (unknown payer aliases are just synthetic references); eligibility freshness uses UTC dates; per-group provenance is per record (a later partial record does not merge groups); the overlap rule is domain-only.
 

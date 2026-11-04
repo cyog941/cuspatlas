@@ -33,7 +33,19 @@ import { type ClaimsPartnerPort, createFakeClearinghouse, type RemittanceAdvice 
 
 export const REMITTANCE_RESOURCE = 'rcmRemittance';
 
-interface MatchRow extends Record<string, unknown> {
+/** The state of a review-line resolution, derived from its facts (never stored). */
+export function resolutionState(r: {
+  action: string | null;
+  needs_approval: boolean | null;
+  decision: 'approved' | 'rejected' | null;
+}): 'posted' | 'pending_approval' | 'routed' | 'rejected' {
+  if (r.decision === 'rejected') return 'rejected';
+  if (r.decision === 'approved') return 'posted';
+  if (r.needs_approval) return 'pending_approval';
+  return r.action === 'route_to_appeal' ? 'routed' : 'posted';
+}
+
+export interface MatchRow extends Record<string, unknown> {
   charge_id: string;
   patient_id: string;
   coverage_id: string;
@@ -41,6 +53,146 @@ interface MatchRow extends Record<string, unknown> {
   billed: string;
   allowance: string | null;
   insurer_open: string;
+}
+
+export async function loadRemittanceForUpdate(tx: TenantTransaction, ref: string) {
+  assertRef(ref);
+  const { rows } = await tx.query<{
+    id: string;
+    payer_ref: string;
+    currency: string;
+    version: number;
+    reversed: boolean;
+    external: string;
+    total: string;
+  }>(
+    `SELECT r.id, r.payer_ref, r.currency, r.version, r.remittance_ref AS external, r.total_paid_minor::text AS total,
+       EXISTS (SELECT 1 FROM cuspatlas.rcm_remittance_reversals x WHERE x.remittance_id = r.id) AS reversed
+     FROM cuspatlas.rcm_remittances r WHERE r.id = $1 FOR UPDATE`,
+    [ref],
+  );
+  if (!rows[0]) throw notFound();
+  return rows[0];
+}
+
+export async function insurerOpen(tx: TenantTransaction, chargeId: string, coverageId: string) {
+  const { rows } = await tx.query<{ s: string }>(
+    `SELECT coalesce(sum(amount_minor), 0)::text AS s FROM cuspatlas.billing_journal_lines
+     WHERE charge_id = $1 AND account = 'insurer_receivable' AND coverage_id = $2`,
+    [chargeId, coverageId],
+  );
+  return BigInt(rows[0]?.s ?? '0');
+}
+
+export async function matchClaimLine(
+  tx: TenantTransaction,
+  claimRef: string,
+  lineNo: number,
+): Promise<MatchRow | null> {
+  if (!/^[0-9a-f-]{36}$/.test(claimRef)) return null;
+  const { rows } = await tx.query<MatchRow>(
+    `SELECT l.charge_id, c.patient_id, c.coverage_id, c.payer_ref, l.billed_minor::text AS billed,
+       l.allowance_minor::text AS allowance,
+       (SELECT coalesce(sum(j.amount_minor), 0) FROM cuspatlas.billing_journal_lines j
+        WHERE j.charge_id = l.charge_id AND j.account = 'insurer_receivable' AND j.coverage_id = c.coverage_id)::text
+         AS insurer_open
+     FROM cuspatlas.rcm_claims c
+     JOIN cuspatlas.rcm_claim_submissions s ON s.claim_id = c.id AND s.outcome = 'transmitted'
+     JOIN cuspatlas.rcm_claim_lines l ON l.version_id = s.version_id AND l.line_no = $2
+     WHERE c.id = $1`,
+    [claimRef, lineNo],
+  );
+  return rows.length === 1 ? (rows[0] as MatchRow) : null;
+}
+
+/** The amounts of one remittance line (integer minor units as numbers or exact decimal text). */
+export interface RemittanceLineAmounts {
+  readonly paidMinor: number | string;
+  readonly contractualMinor: number | string;
+  readonly patientResponsibilityMinor: number | string;
+}
+
+/**
+ * Posts one matched line: insurer payment to clearing (never cash), the contractual adjustment and the
+ * patient responsibility, each a balanced entry tagged with the remittance. Returns the entry refs.
+ */
+export async function postRemittanceLine(
+  tx: TenantTransaction,
+  remId: string,
+  m: MatchRow,
+  l: RemittanceLineAmounts,
+  currency: string,
+): Promise<string[]> {
+  const amt = (n: bigint) => moneyFromMinorText(currency, n.toString());
+  const insurer = (n: bigint): LineInput => ({
+    account: 'insurer_receivable',
+    amount: amt(-n),
+    patientId: m.patient_id,
+    chargeId: m.charge_id,
+    payerRef: m.payer_ref,
+    coverageId: m.coverage_id,
+  });
+  const paid = BigInt(String(l.paidMinor));
+  const contractual = BigInt(String(l.contractualMinor));
+  const pr = BigInt(String(l.patientResponsibilityMinor));
+  const entries: string[] = [];
+  if (paid > 0n) {
+    entries.push(
+      await postEntry(tx, {
+        kind: 'insurerPayment',
+        currency,
+        chargeId: m.charge_id,
+        remittanceId: remId,
+        reasonCode: 'remittance_paid',
+        lines: [
+          {
+            account: 'insurer_clearing',
+            amount: amt(paid),
+            patientId: m.patient_id,
+            payerRef: m.payer_ref,
+            remittanceId: remId,
+          },
+          insurer(paid),
+        ],
+      }),
+    );
+  }
+  if (contractual > 0n) {
+    entries.push(
+      await postEntry(tx, {
+        kind: 'adjustment',
+        currency,
+        chargeId: m.charge_id,
+        remittanceId: remId,
+        reasonCode: 'contractual_allowance',
+        lines: [
+          {
+            account: 'adjustment_expense',
+            amount: amt(contractual),
+            patientId: m.patient_id,
+            chargeId: m.charge_id,
+          },
+          insurer(contractual),
+        ],
+      }),
+    );
+  }
+  if (pr > 0n) {
+    entries.push(
+      await postEntry(tx, {
+        kind: 'responsibilityTransfer',
+        currency,
+        chargeId: m.charge_id,
+        remittanceId: remId,
+        reasonCode: 'remittance_patient_responsibility',
+        lines: [
+          { account: 'patient_receivable', amount: amt(pr), patientId: m.patient_id, chargeId: m.charge_id },
+          insurer(pr),
+        ],
+      }),
+    );
+  }
+  return entries;
 }
 
 /**
@@ -63,25 +215,6 @@ export function createRemittanceOperations(
       { operation: op, resourceType: REMITTANCE_RESOURCE, resourceRef: id, resourceVersion: version },
       { changedFields: [field] },
     );
-  const load = async (tx: TenantTransaction, ref: string) => {
-    assertRef(ref);
-    const { rows } = await tx.query<{
-      id: string;
-      payer_ref: string;
-      currency: string;
-      version: number;
-      reversed: boolean;
-      external: string;
-      total: string;
-    }>(
-      `SELECT r.id, r.payer_ref, r.currency, r.version, r.remittance_ref AS external, r.total_paid_minor::text AS total,
-         EXISTS (SELECT 1 FROM cuspatlas.rcm_remittance_reversals x WHERE x.remittance_id = r.id) AS reversed
-       FROM cuspatlas.rcm_remittances r WHERE r.id = $1 FOR UPDATE`,
-      [ref],
-    );
-    if (!rows[0]) throw notFound();
-    return rows[0];
-  };
   const clearing = async (
     tx: TenantTransaction,
     id: string,
@@ -101,110 +234,6 @@ export function createRemittanceOperations(
         [id],
       )
     ).rows[0]?.version as number;
-
-  async function insurerOpen(tx: TenantTransaction, chargeId: string, coverageId: string) {
-    const { rows } = await tx.query<{ s: string }>(
-      `SELECT coalesce(sum(amount_minor), 0)::text AS s FROM cuspatlas.billing_journal_lines
-       WHERE charge_id = $1 AND account = 'insurer_receivable' AND coverage_id = $2`,
-      [chargeId, coverageId],
-    );
-    return BigInt(rows[0]?.s ?? '0');
-  }
-
-  async function matchLine(
-    tx: TenantTransaction,
-    claimRef: string,
-    lineNo: number,
-  ): Promise<MatchRow | null> {
-    if (!/^[0-9a-f-]{36}$/.test(claimRef)) return null;
-    const { rows } = await tx.query<MatchRow>(
-      `SELECT l.charge_id, c.patient_id, c.coverage_id, c.payer_ref, l.billed_minor::text AS billed,
-         l.allowance_minor::text AS allowance,
-         (SELECT coalesce(sum(j.amount_minor), 0) FROM cuspatlas.billing_journal_lines j
-          WHERE j.charge_id = l.charge_id AND j.account = 'insurer_receivable' AND j.coverage_id = c.coverage_id)::text
-           AS insurer_open
-       FROM cuspatlas.rcm_claims c
-       JOIN cuspatlas.rcm_claim_submissions s ON s.claim_id = c.id AND s.outcome = 'transmitted'
-       JOIN cuspatlas.rcm_claim_lines l ON l.version_id = s.version_id AND l.line_no = $2
-       WHERE c.id = $1`,
-      [claimRef, lineNo],
-    );
-    return rows.length === 1 ? (rows[0] as MatchRow) : null;
-  }
-
-  async function post(
-    tx: TenantTransaction,
-    remId: string,
-    m: MatchRow,
-    l: RemittanceAdvice['lines'][number],
-    currency: string,
-  ) {
-    const amt = (n: number) => moneyFromMinorText(currency, String(n));
-    const neg = (n: number) => moneyFromMinorText(currency, String(-n));
-    const insurer = (n: number): LineInput => ({
-      account: 'insurer_receivable',
-      amount: neg(n),
-      patientId: m.patient_id,
-      chargeId: m.charge_id,
-      payerRef: m.payer_ref,
-      coverageId: m.coverage_id,
-    });
-    if (l.paidMinor > 0) {
-      await postEntry(tx, {
-        kind: 'insurerPayment',
-        currency,
-        chargeId: m.charge_id,
-        remittanceId: remId,
-        reasonCode: 'remittance_paid',
-        lines: [
-          {
-            account: 'insurer_clearing',
-            amount: amt(l.paidMinor),
-            patientId: m.patient_id,
-            payerRef: m.payer_ref,
-            remittanceId: remId,
-          },
-          insurer(l.paidMinor),
-        ],
-      });
-    }
-    if (l.contractualMinor > 0) {
-      await postEntry(tx, {
-        kind: 'adjustment',
-        currency,
-        chargeId: m.charge_id,
-        remittanceId: remId,
-        reasonCode: 'contractual_allowance',
-        lines: [
-          {
-            account: 'adjustment_expense',
-            amount: amt(l.contractualMinor),
-            patientId: m.patient_id,
-            chargeId: m.charge_id,
-          },
-          insurer(l.contractualMinor),
-        ],
-      });
-    }
-    if (l.patientResponsibilityMinor > 0) {
-      await postEntry(tx, {
-        kind: 'responsibilityTransfer',
-        currency,
-        chargeId: m.charge_id,
-        remittanceId: remId,
-        reasonCode: 'remittance_patient_responsibility',
-        lines: [
-          {
-            account: 'patient_receivable',
-            amount: amt(l.patientResponsibilityMinor),
-            patientId: m.patient_id,
-            chargeId: m.charge_id,
-          },
-          insurer(l.patientResponsibilityMinor),
-        ],
-      });
-    }
-  }
 
   return {
     ingestRemittance(
@@ -282,7 +311,7 @@ export function createRemittanceOperations(
             const remId = rows[0].id;
             const counts = { posted: 0, review: 0, denied: 0 };
             for (const l of advice.lines) {
-              const m = await matchLine(tx, l.claimRef, l.claimLineNo);
+              const m = await matchClaimLine(tx, l.claimRef, l.claimLineNo);
               let status: 'posted' | 'denied' | 'review' = 'posted';
               let why: string | null = null;
               const sum =
@@ -305,7 +334,7 @@ export function createRemittanceOperations(
                 if (open < sum) [status, why] = ['review', 'insurer_balance_mismatch'];
                 else {
                   try {
-                    await post(tx, remId, m, l, advice.currency);
+                    await postRemittanceLine(tx, remId, m, l, advice.currency);
                   } catch (err) {
                     if (err instanceof SignViolation) throw conflict('remittance_line_not_postable');
                     throw err;
@@ -351,7 +380,7 @@ export function createRemittanceOperations(
         const p = envelope.payload;
         validate<{ settlementRef: string; amount: Money }>(validateRemittanceSettle, p);
         return deps.withTenantTransaction(ctx, async (tx) => {
-          const rem = await load(tx, remittanceRef);
+          const rem = await loadRemittanceForUpdate(tx, remittanceRef);
           return execute<RemittanceCommandData>(
             ctx,
             { ...envelope, payload: { remittanceRef, ...p } },
@@ -427,7 +456,7 @@ export function createRemittanceOperations(
         const p = envelope.payload;
         validate<{ reasonCode: string }>(validateRemittanceReverse, p);
         return deps.withTenantTransaction(ctx, async (tx) => {
-          const rem = await load(tx, remittanceRef);
+          const rem = await loadRemittanceForUpdate(tx, remittanceRef);
           return execute<RemittanceCommandData>(
             ctx,
             { ...envelope, payload: { remittanceRef, ...p } },
@@ -505,8 +534,19 @@ export function createRemittanceOperations(
             status: 'posted' | 'denied' | 'review';
             review_reason: string | null;
             denial_code: string | null;
+            resolution_id: string | null;
+            action: 'match_claim_line' | 'post_with_adjustment' | 'route_to_appeal' | 'write_off' | null;
+            needs_approval: boolean | null;
+            decision: 'approved' | 'rejected' | null;
           }>(
-            'SELECT line_no, claim_id, status, review_reason, denial_code FROM cuspatlas.rcm_remittance_lines WHERE remittance_id = $1 ORDER BY line_no',
+            `SELECT l.line_no, l.claim_id, l.status, l.review_reason, l.denial_code, x.id AS resolution_id, x.action,
+               x.needs_approval, d.decision
+             FROM cuspatlas.rcm_remittance_lines l
+             LEFT JOIN LATERAL (SELECT r.id, r.action, r.needs_approval FROM cuspatlas.rcm_remittance_line_resolutions r
+                                WHERE r.remittance_id = l.remittance_id AND r.line_no = l.line_no
+                                ORDER BY r.created_at DESC, r.id DESC LIMIT 1) x ON true
+             LEFT JOIN cuspatlas.rcm_remittance_resolution_decisions d ON d.resolution_id = x.id
+             WHERE l.remittance_id = $1 ORDER BY l.line_no`,
             [rem.id],
           );
           await recordSensitiveRead(tx, {
@@ -530,6 +570,10 @@ export function createRemittanceOperations(
               status: l.status,
               reviewReason: l.review_reason,
               denialCode: l.denial_code,
+              resolution:
+                l.resolution_id === null || l.action === null
+                  ? null
+                  : { resolutionRef: l.resolution_id, action: l.action, state: resolutionState(l) },
             })),
           };
         });

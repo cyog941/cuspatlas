@@ -20,6 +20,7 @@ export const BILLING_PARAM_DEFS: Readonly<Record<string, string>> = {
   submissionRef: 'Uuid',
   remittanceRef: 'RemittanceRef',
   lineNo: 'RemittanceLineNo',
+  resolutionRef: 'Uuid',
 };
 
 type Defs = Record<string, { properties?: Record<string, { $ref?: string }>; required?: string[] }>;

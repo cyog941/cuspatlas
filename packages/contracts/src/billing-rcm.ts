@@ -201,3 +201,43 @@ export const validateRemittanceSettle = billingDef('RemittanceSettle');
 export const validateRemittanceReverse = billingDef('RemittanceReverse');
 /** Shape of a fetched advice: every amount a non-negative integer (a malformed advice is 422). */
 export const validateRemittanceAdvice = billingDef('RemittanceAdvice');
+
+// ---- B7 review-line resolution and claims-workflow policy data.
+export type RemittanceResolutionAction =
+  | 'match_claim_line'
+  | 'post_with_adjustment'
+  | 'route_to_appeal'
+  | 'write_off';
+export interface RemittanceLineResolve {
+  readonly action: RemittanceResolutionAction;
+  readonly claimRef?: string;
+  readonly claimLineNo?: number;
+  readonly reasonCode: string;
+}
+export interface RemittanceResolutionDecide {
+  readonly decision: 'approved' | 'rejected';
+  readonly reasonCode?: string;
+}
+export interface RemittanceResolutionCommandData {
+  readonly resolutionRef: string;
+  readonly remittanceRef: string;
+  readonly lineNo: number;
+  readonly action: RemittanceResolutionAction;
+  readonly state: 'posted' | 'pending_approval' | 'routed' | 'rejected';
+  readonly entryRefs: readonly string[];
+}
+export interface WorkflowPolicyPublish {
+  readonly payerRef?: string;
+  readonly acknowledgementDueMinutes: number;
+  readonly followUpMinutes: number;
+  readonly exceptionDueMinutes: number;
+  readonly maxEscalations: number;
+  readonly writeOffLimit: Money;
+}
+export interface WorkflowPolicyCommandData {
+  readonly policyRef: string;
+  readonly versionNo: number;
+}
+export const validateRemittanceLineResolve = billingDef('RemittanceLineResolve');
+export const validateRemittanceResolutionDecide = billingDef('RemittanceResolutionDecide');
+export const validateWorkflowPolicyPublish = billingDef('WorkflowPolicyPublish');

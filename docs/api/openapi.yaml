@@ -6124,6 +6124,131 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/rcm/remittances/{remittanceRef}/lines/{lineNo}/resolutions:
+    post:
+      operationId: rcm.remittances.resolveLine
+      description: >-
+        B7 (CL-10): resolve one review line as a separate fact: match an unmatched line to a transmitted
+        claim line (posts), post the reported amounts with the residual as an adjustment or write it off
+        (both after another human approves; a write-off also under a workflow policy limit), or route it to
+        appeal (only the paid amount posts; the rest stays insurer responsibility). The line is never
+        edited.
+      parameters:
+        - name: remittanceRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/RemittanceRef'
+        - name: lineNo
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/RemittanceLineNo'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/RemittanceLineResolve'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/RemittanceResolutionCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/remittance-resolutions/{resolutionRef}/decision:
+    post:
+      operationId: rcm.remittances.decideResolution
+      description: >-
+        B7: approve (posts the reported amounts and the residual entry) or reject a residual adjustment or
+        write-off. Human-only billing.correct, never the requester; the write-off limit and balances are
+        rechecked now.
+      parameters:
+        - name: resolutionRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/RemittanceResolutionDecide'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/RemittanceResolutionCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/workflow-policies:
+    post:
+      operationId: rcm.workflowPolicies.publish
+      description: >-
+        CL-08 policy data: a new version of the claims-workflow deadlines (acknowledgement, payer follow-up,
+        exception due), bounded escalation and the residual write-off limit for one synthetic payer or the
+        tenant default. Earlier versions are never changed.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/WorkflowPolicyPublish'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/WorkflowPolicyCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   # END generated: BILLING_OPS
 components:
   securitySchemes:

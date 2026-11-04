@@ -157,6 +157,10 @@ const TOOL_NAMES = [
   'rcm_remittances_ingest',
   'rcm_remittances_reverse',
   'rcm_remittances_settle',
+  // B7 review-line resolution and claims-workflow policy data.
+  'rcm_remittances_resolve_line',
+  'rcm_remittances_decide_resolution',
+  'rcm_workflow_policies_publish',
   // C5 encounter and authorship tools (parity in clinical-encounters and negative-harness tests).
   'clinical_author_context',
   'clinical_authors_define',

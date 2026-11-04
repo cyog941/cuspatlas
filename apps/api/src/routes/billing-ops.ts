@@ -322,6 +322,56 @@ export const BILLING_OPS: BillingOp[] = [
     invoke: (svc, actor, i) =>
       svc.reverseRemittance(actor, param(i, 'remittanceRef'), env('rcm.remittances.reverse', i)),
   },
+  {
+    method: 'post',
+    path: '/v1/rcm/remittances/{remittanceRef}/lines/{lineNo}/resolutions',
+    operationId: 'rcm.remittances.resolveLine',
+    protected: true,
+    requestBody: B('RemittanceLineResolve'),
+    success: { status: '201', schema: B('RemittanceResolutionCommandResult') },
+    refusals: COMMAND,
+    tool: 'rcm_remittances_resolve_line',
+    description:
+      'B7 (CL-10): resolve one review line as a separate fact: match an unmatched line to a transmitted claim line (posts), post the reported amounts with the residual as an adjustment or write it off (both after another human approves; a write-off also under a workflow policy limit), or route it to appeal (only the paid amount posts; the rest stays insurer responsibility). The line is never edited.',
+    invoke: (svc, actor, i) =>
+      svc.resolveRemittanceLine(
+        actor,
+        param(i, 'remittanceRef'),
+        param(i, 'lineNo'),
+        env('rcm.remittances.resolveLine', i),
+      ),
+  },
+  {
+    method: 'post',
+    path: '/v1/rcm/remittance-resolutions/{resolutionRef}/decision',
+    operationId: 'rcm.remittances.decideResolution',
+    protected: true,
+    requestBody: B('RemittanceResolutionDecide'),
+    success: { status: '201', schema: B('RemittanceResolutionCommandResult') },
+    refusals: COMMAND,
+    tool: 'rcm_remittances_decide_resolution',
+    description:
+      'B7: approve (posts the reported amounts and the residual entry) or reject a residual adjustment or write-off. Human-only billing.correct, never the requester; the write-off limit and balances are rechecked now.',
+    invoke: (svc, actor, i) =>
+      svc.decideRemittanceResolution(
+        actor,
+        param(i, 'resolutionRef'),
+        env('rcm.remittances.decideResolution', i),
+      ),
+  },
+  {
+    method: 'post',
+    path: '/v1/rcm/workflow-policies',
+    operationId: 'rcm.workflowPolicies.publish',
+    protected: true,
+    requestBody: B('WorkflowPolicyPublish'),
+    success: { status: '201', schema: B('WorkflowPolicyCommandResult') },
+    refusals: COMMAND,
+    tool: 'rcm_workflow_policies_publish',
+    description:
+      'CL-08 policy data: a new version of the claims-workflow deadlines (acknowledgement, payer follow-up, exception due), bounded escalation and the residual write-off limit for one synthetic payer or the tenant default. Earlier versions are never changed.',
+    invoke: (svc, actor, i) => svc.publishWorkflowPolicy(actor, env('rcm.workflowPolicies.publish', i)),
+  },
 ];
 
 export const BILLING_OP_ROUTES = (): readonly RouteContract[] =>

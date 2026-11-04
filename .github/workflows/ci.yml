@@ -1,0 +1,80 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - 'codex/**'
+
+# Least privilege: the workflow only reads the repository. No secrets, no pull_request_target,
+# no deployment, no cloud credentials. Synthetic data only.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: 'true'
+  CUSPATLAS_ENV: synthetic-test
+
+jobs:
+  verify:
+    name: verify (linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      # Actions are pinned by full commit SHA; the comment names the release.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        # pnpm version comes from "packageManager" in package.json.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.x # package.json engines: >=24.13 <25
+          cache: pnpm # keyed on pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm contract:check
+      - name: test (unit + integration against embedded PostgreSQL, synthetic only)
+        run: pnpm test -- --reporter=default --reporter=json --outputFile.json="${{ runner.temp }}/vitest-raw.json"
+      - name: reduce test report to counts and file status (no test titles)
+        run: node scripts/test-summary.mjs "${{ runner.temp }}/vitest-raw.json" artifacts/test-summary.json
+      - run: pnpm scan:privacy
+      - run: pnpm sbom
+      - name: scan generated artifacts for the synthetic marker
+        run: |
+          node scripts/privacy-scan.mjs artifacts
+          if grep -rIl 'SYNTHETIC_SECRET_42' artifacts; then
+            echo 'synthetic marker found in artifact set' >&2
+            exit 1
+          fi
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: verify-evidence
+          path: |
+            artifacts/sbom.cdx.json
+            artifacts/evidence-manifest.json
+            artifacts/test-summary.json
+          if-no-files-found: error
+          retention-days: 14
+
+  windows-smoke:
+    name: windows-smoke (service-boundary)
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:integration -- service-boundary

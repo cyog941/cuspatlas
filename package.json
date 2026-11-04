@@ -15,7 +15,10 @@
     "lint": "biome check .",
     "migrate": "tsx packages/db/src/migrate-cli.ts",
     "contract:check": "tsx apps/api/src/contract-drift-cli.ts",
-    "start": "tsx apps/api/src/main.ts"
+    "start": "tsx apps/api/src/main.ts",
+    "sbom": "node scripts/sbom.mjs",
+    "scan:privacy": "node scripts/privacy-scan.mjs",
+    "ci": "tsc -p tsconfig.json && biome check . && tsx apps/api/src/contract-drift-cli.ts && node scripts/run-vitest.mjs && node scripts/privacy-scan.mjs && node scripts/sbom.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.4",

@@ -427,6 +427,15 @@ async function placement(
     }
     if (tooth !== null && entry.tooth?.canonicalRef !== tooth)
       throw failedAt('/tooth', 'toothMismatchWithChartEntry');
+    const named = tooth ?? entry.tooth?.canonicalRef ?? null;
+    if (named !== null) {
+      const state = (await chartToothStates(tx, patientId)).get(named);
+      if (state?.status === 'missing' && !state.missingEntryRefs.includes(entry.entryRef)) {
+        throw conflict('tooth_absent_on_chart', {
+          blockingRefs: state.missingEntryRefs.slice(0, 20).map((ref) => ({ kind: 'chartEntry', ref })),
+        });
+      }
+    }
     return { tooth, surfaces, chartEntryId: entry.entryRef };
   }
   if (tooth !== null && tooth !== detailTooth) {

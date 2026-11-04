@@ -154,6 +154,8 @@ export const SECURITY_REASON_CODES = [
   'clinical_oversight_required',
   // C13: a patient recorded as a minor cannot consent alone (a guardian with the consent scope can).
   'consent_signer_minor',
+  // Review hardening: a frozen note version whose digest no longer verifies (alert, read or command).
+  'clinical_note_tampered',
 ] as const;
 export type SecurityReasonCode = (typeof SECURITY_REASON_CODES)[number];
 

@@ -461,11 +461,16 @@ export const NOTE_POST_MERGE_FACT_PROBE: PostMergeFactProbe = {
     const { rows } = await tx.query<{ n: number }>(
       `SELECT (SELECT count(*) FROM cuspatlas.clinical_notes n
                 JOIN cuspatlas.clinical_encounters e ON e.id = n.encounter_id AND e.tenant_id = n.tenant_id
-                WHERE e.subject_patient_id = $1 AND n.created_at > $2)
+                WHERE e.subject_patient_id = $1 AND (n.created_at >= $2 OR n.draft_updated_at >= $2))
             + (SELECT count(*) FROM cuspatlas.clinical_note_versions v
                 JOIN cuspatlas.clinical_notes n ON n.id = v.note_id AND n.tenant_id = v.tenant_id
                 JOIN cuspatlas.clinical_encounters e ON e.id = n.encounter_id AND e.tenant_id = n.tenant_id
-                WHERE e.subject_patient_id = $1 AND v.authored_at > $2) AS n`,
+                WHERE e.subject_patient_id = $1 AND v.authored_at >= $2)
+            + (SELECT count(*) FROM cuspatlas.clinical_note_cosignatures c
+                JOIN cuspatlas.clinical_note_versions v ON v.id = c.note_version_id AND v.tenant_id = c.tenant_id
+                JOIN cuspatlas.clinical_notes n ON n.id = v.note_id AND n.tenant_id = v.tenant_id
+                JOIN cuspatlas.clinical_encounters e ON e.id = n.encounter_id AND e.tenant_id = n.tenant_id
+                WHERE e.subject_patient_id = $1 AND c.cosigned_at >= $2) AS n`,
       [survivorRef, mergedAt],
     );
     return Number(rows[0]?.n ?? 0);
@@ -480,6 +485,37 @@ type Ack = { readonly ref: string };
  * content; template enforcement runs at signing and amendment (C-D4). Nothing generates note text.
  */
 export function createNoteOperations(base: ClinicalBase) {
+  /**
+   * 7. Tamper detection: a frozen version whose stored digest no longer matches its recomputed
+   * content writes a security attempt (alert) row through the independent sink, on reads as on
+   * commands; commands that build on the note (amend, addendum, co-sign) are then refused.
+   */
+  async function reportTamper(ctx: ActorContext, operation: string): Promise<void> {
+    await base.deps.recording.sink.record({
+      correlationId: ctx.correlationId,
+      tenantId: ctx.tenantId,
+      actorId: ctx.actorId,
+      operation,
+      reasonCode: 'clinical_note_tampered',
+    });
+  }
+  async function assertIntact(
+    ctx: ActorContext,
+    operation: string,
+    n: NoteRow,
+    rows: readonly VersionRow[],
+  ): Promise<void> {
+    if (rows.every((v) => noteVersionDigest(digestInputOf(n, v)) === v.content_digest)) return;
+    await reportTamper(ctx, operation);
+    throw conflict('note_integrity_failed', { blockingRefs: [{ kind: NOTE_RESOURCE, ref: n.id }] });
+  }
+  async function alertIfTampered(
+    ctx: ActorContext,
+    operation: string,
+    notes: readonly Note[],
+  ): Promise<void> {
+    if (notes.some((n) => n.versions.some((v) => !v.digestVerified))) await reportTamper(ctx, operation);
+  }
   const { deps, execute } = base;
 
   /** Whether the caller holds an additional capability, checked before the transaction. */
@@ -711,6 +747,7 @@ export function createNoteOperations(base: ClinicalBase) {
           const r = await execute<Ack>(ctx, { ...envelope, payload: { noteRef, ...p } }, tx, async () => {
             const n = await loadNote(tx, located.note.id, 'FOR UPDATE');
             if (n.state === 'draft') throw notSigned(n.id);
+            await assertIntact(ctx, op, n, await versionRows(tx, n.id));
             if (n.version !== p.expectedVersion) throw stale(n.version);
             const content = contentOf(p.content.sections, p.content.procedureCodeRefs ?? []);
             if (!hasText(content)) throw conflict('note_empty');
@@ -757,6 +794,7 @@ export function createNoteOperations(base: ClinicalBase) {
           const r = await execute<Ack>(ctx, { ...envelope, payload: { noteRef, ...p } }, tx, async () => {
             const n = await loadNote(tx, located.note.id, 'FOR UPDATE');
             if (n.state === 'draft') throw notSigned(n.id);
+            await assertIntact(ctx, op, n, await versionRows(tx, n.id));
             if (n.version !== p.expectedVersion) throw stale(n.version);
             if (p.text.trim().length === 0) throw failedAt('/text', 'blank');
             await freeze(tx, { ...located, note: n }, author, {
@@ -802,10 +840,15 @@ export function createNoteOperations(base: ClinicalBase) {
           const author = await resolveClinicalAuthor(tx);
           const r = await execute<Ack>(ctx, { ...envelope, payload: { noteRef, ...p } }, tx, async () => {
             const n = await loadNote(tx, located.note.id, 'FOR UPDATE');
-            const v = (await versionRows(tx, n.id)).find((x) => x.sequence === p.sequence);
+            const all = await versionRows(tx, n.id);
+            const v = all.find((x) => x.sequence === p.sequence);
             if (!v) throw failedAt('/sequence', 'unknownVersion');
+            // The digest compared is the one recomputed from the stored content, not only the stored one.
+            await assertIntact(ctx, op, n, all);
             if (!v.cosign_required) throw conflict('cosignature_not_required');
             if (v.authored_by === ctx.actorId) throw conflict('cosigner_is_author');
+            if (all.find((x) => x.sequence === 1)?.authored_by === ctx.actorId)
+              throw conflict('cosigner_is_signer');
             if (v.content_digest !== p.contentDigest) throw conflict('content_digest_mismatch');
             if (v.cosigned_by !== null) throw conflict('already_cosigned');
             const { rows: cosigned } = await tx.query<{ id: string }>(
@@ -841,6 +884,7 @@ export function createNoteOperations(base: ClinicalBase) {
         const decision = await base.authorize(ctx, op);
         return deps.withTenantTransaction(ctx, async (tx) => {
           const note = await project(tx, await locate(tx, decision, noteRef));
+          await alertIfTampered(ctx, op, [note]);
           await recordSensitiveRead(tx, {
             operation: op,
             resourceType: NOTE_RESOURCE,
@@ -866,6 +910,7 @@ export function createNoteOperations(base: ClinicalBase) {
           );
           const notes: Note[] = [];
           for (const note of rows) notes.push(await project(tx, { note, encounter }));
+          await alertIfTampered(ctx, op, notes);
           await recordSensitiveRead(tx, {
             operation: op,
             resourceType: NOTE_RESOURCE,

@@ -267,9 +267,11 @@ describe('S14 acceptance (no verified channel; E6 decides through its seam)', ()
       `SELECT table_name FROM information_schema.tables WHERE table_schema = 'cuspatlas'
        AND table_name ~ '(consent|opt_?out|suppression)' ORDER BY 1`,
     );
-    // The only consent and suppression tables are E6's.
+    // The only consent and suppression tables are E's (E6 facts and decisions; E4's link of an intake
+    // submission to the E6 facts it recorded).
     expect(tables.rows.map((r) => r.table_name)).toStrictEqual([
       'communication_consents',
+      'intake_submission_consents',
       'suppression_decisions',
     ]);
     const cols = await db.admin.query(

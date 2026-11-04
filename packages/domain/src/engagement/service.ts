@@ -2,6 +2,7 @@ import { createEngagementBase, type EngagementDeps } from './common';
 import { createConsentOperations } from './communications/consent';
 import { createDeliveryOperations } from './communications/deliveries';
 import { createRecallEnrollmentOperations } from './communications/recall-enrollment';
+import { createIntakeOperations } from './intake/forms';
 import { createPortalOfferOperations } from './portal/offers';
 import { createPortalPrincipalOperations } from './portal/principals';
 import { createPortalRequestOperations } from './portal/requests';
@@ -25,6 +26,7 @@ export function createEngagementService(deps: EngagementDeps) {
     ...createConsentOperations(base),
     ...createRecallEnrollmentOperations(base),
     ...createDeliveryOperations(base),
+    ...createIntakeOperations(base),
   };
 }
 

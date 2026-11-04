@@ -85,6 +85,22 @@ const TEMPLATE = {
   channel: 'email',
   body: 'It is time to plan your next visit. Sign in to the patient portal.',
 };
+const INTAKE_FORM = {
+  formRef: 'e-harness-intake',
+  title: 'Synthetic harness intake',
+  fields: [
+    { key: 'agree', label: 'Agree', kind: 'boolean', required: true },
+    {
+      key: 'nickname',
+      label: 'Nickname',
+      kind: 'text',
+      required: false,
+      target: 'demographics.preferredName',
+    },
+  ],
+};
+const OTHER_FORM = { ...INTAKE_FORM, formRef: 'e-harness-other-form' };
+const INTAKE_ANSWERS = { formRef: 'e-harness-intake', formVersion: 1, answers: { agree: true } };
 
 export const COMMANDS: HarnessCommand[] = [
   // E1 portal principals (staff side).
@@ -409,9 +425,116 @@ export const COMMANDS: HarnessCommand[] = [
       idempotencyKey: randomUUID(),
     }),
   },
+  // E4 intake forms.
+  {
+    operation: 'intake.forms.publish',
+    tool: 'intake_forms_publish',
+    crossTenant: 'own_tenant_only',
+    downgradedTo: 'readOnly',
+    rest: () => ({ method: 'POST', url: '/v1/intake/forms', body: OTHER_FORM, keyed: true, status: 201 }),
+    mcpArgs: () => ({ ...OTHER_FORM, idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'intake.forms.retire',
+    tool: 'intake_forms_retire',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: () => ({
+      method: 'POST',
+      url: '/v1/intake/forms/e-harness-intake/retire',
+      body: { expectedVersion: 1 },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: () => ({ formRef: 'e-harness-intake', expectedVersion: 1, idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'intake.forms.list',
+    tool: 'intake_forms_list',
+    crossTenant: 'tenant_own_data',
+    downgradedTo: 'noScopes',
+    rest: () => ({ method: 'GET', url: '/v1/intake/forms', keyed: false, status: 200 }),
+    mcpArgs: () => ({}),
+  },
+  {
+    operation: 'intake.submissions.submit',
+    tool: 'intake_submissions_submit',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/patients/${f.parent}/intake-submissions`,
+      body: INTAKE_ANSWERS,
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({ patientRef: f.parent, ...INTAKE_ANSWERS, idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'intake.submissions.list',
+    tool: 'intake_submissions_list',
+    crossTenant: 'not_found',
+    downgradedTo: 'noScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/patients/${f.parent}/intake-submissions`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ patientRef: f.parent }),
+  },
+  {
+    operation: 'intake.submissions.read',
+    tool: 'intake_submissions_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/intake/submissions/${f.submission}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ submissionRef: f.submission }),
+  },
+  {
+    operation: 'intake.reviews.worklist',
+    tool: 'intake_reviews_worklist',
+    crossTenant: 'tenant_own_data',
+    downgradedTo: 'noScopes',
+    rest: () => ({ method: 'GET', url: '/v1/intake/reviews/worklist', keyed: false, status: 200 }),
+    mcpArgs: () => ({}),
+  },
+  {
+    operation: 'intake.reviews.read',
+    tool: 'intake_reviews_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noScopes',
+    rest: (f) => ({ method: 'GET', url: `/v1/intake/reviews/${f.review}`, keyed: false, status: 200 }),
+    mcpArgs: (f) => ({ reviewRef: f.review }),
+  },
+  {
+    operation: 'intake.reviews.resolve',
+    tool: 'intake_reviews_resolve',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/intake/reviews/${f.review}/resolve`,
+      body: { decision: 'reject', expectedVersion: 1, reasonCode: 'duplicate' },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({
+      reviewRef: f.review,
+      decision: 'reject',
+      expectedVersion: 1,
+      reasonCode: 'duplicate',
+      idempotencyKey: randomUUID(),
+    }),
+  },
 ];
 
-/** Every portal-audience route (E1-E3, E6). */
+/** Every portal-audience route (E1-E4, E6, the S15 seam). */
 export const PORTAL_CALLS: PortalCall[] = [
   {
     operation: 'portal.session.read',
@@ -463,6 +586,20 @@ export const PORTAL_CALLS: PortalCall[] = [
       body: { expectedVersion: 1, outcome: 'declined' },
       keyed: true,
       status: 200,
+    }),
+  },
+  {
+    operation: 'portal.forms.describe',
+    rest: () => ({ method: 'GET', url: '/portal/v1/forms/e-harness-intake', keyed: false, status: 200 }),
+  },
+  {
+    operation: 'portal.forms.submit',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/portal/v1/patients/${f.child}/intake-submissions`,
+      body: INTAKE_ANSWERS,
+      keyed: true,
+      status: 201,
     }),
   },
 ];
@@ -640,7 +777,23 @@ beforeAll(async () => {
     )
   ).rows[0];
   expect(sent?.provider_ref).toMatch(/^fake-msg-/);
+  // E4 fixtures: a published form, one staff-entered submission and its demographics review item.
+  h.ok(await h.call('a1', 'POST', '/v1/intake/forms', INTAKE_FORM), 201);
+  const submission = h.ok<{ data: { submissionRef: string } }>(
+    await h.call('a1', 'POST', `/v1/patients/${parent}/intake-submissions`, {
+      ...INTAKE_ANSWERS,
+      answers: { agree: true, nickname: 'Harness' },
+    }),
+    201,
+  ).data.submissionRef;
+  const review = (
+    await db.admin.query('SELECT id FROM cuspatlas.intake_review_items WHERE submission_id = $1', [
+      submission,
+    ])
+  ).rows[0].id as string;
   fixture = {
+    submission,
+    review,
     message: sent.id as string,
     providerRef: sent.provider_ref as string,
     decision,
@@ -743,7 +896,7 @@ async function state(): Promise<string> {
       `SELECT table_name FROM information_schema.tables WHERE table_schema = 'cuspatlas'
        AND table_name IN ('portal_principals', 'principals', 'appointment_requests', 'communication_consents',
          'suppression_decisions', 'channel_policies', 'message_templates', 'outbound_messages', 'delivery_attempts',
-         'message_receipts', 'recall_enrollments', 'contact_verifications', 'audit_events', 'outbox_events', 'command_idempotency')
+         'message_receipts', 'recall_enrollments', 'contact_verifications', 'intake_form_versions', 'intake_submissions', 'intake_submission_consents', 'intake_review_items', 'audit_events', 'outbox_events', 'command_idempotency')
        ORDER BY table_name`,
     )
   ).rows.map((r) => r.table_name as string);

@@ -13,6 +13,9 @@ export const ENGAGEMENT_TRANSPORT: Record<string, string> = {
   templateRef: 'TemplateRef',
   decisionRef: 'EntityRef',
   messageRef: 'EntityRef',
+  formRef: 'FormRef',
+  submissionRef: 'EntityRef',
+  reviewRef: 'EntityRef',
 };
 
 function schemaFor(body: string | null, transport: readonly string[]) {

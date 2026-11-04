@@ -591,6 +591,193 @@
           "enum": ["accepted", "declined"]
         }
       }
+    },
+    "FormRef": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,64}$"
+    },
+    "FormFieldKey": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,39}$"
+    },
+    "FormLabel": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "pattern": "^[^{}<>\u0000-\u001f]+$"
+    },
+    "FormField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "label", "kind", "required"],
+      "description": "One question of a form version. A target maps the answer to a record the submission never writes: S4 demographics (staff review, applied through S4) or C8 medical history (hand-off by reference).",
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/FormFieldKey"
+        },
+        "label": {
+          "$ref": "#/$defs/FormLabel"
+        },
+        "kind": {
+          "enum": ["text", "choice", "date", "boolean"]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "maxLength": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500
+        },
+        "options": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]{1,40}$"
+          }
+        },
+        "target": {
+          "enum": [
+            "demographics.preferredName",
+            "demographics.pronouns",
+            "demographics.language",
+            "medical_history"
+          ]
+        }
+      }
+    },
+    "FormConsent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "label", "channel", "purpose", "consentVersion"],
+      "description": "A communications or portal consent question (E6). Clinical treatment consent is C13 and is never captured on an intake form.",
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/FormFieldKey"
+        },
+        "label": {
+          "$ref": "#/$defs/FormLabel"
+        },
+        "channel": {
+          "$ref": "#/$defs/ConsentChannel"
+        },
+        "purpose": {
+          "enum": ["reminders", "recall", "messaging"]
+        },
+        "consentVersion": {
+          "$ref": "#/$defs/ConsentVersion"
+        }
+      }
+    },
+    "FormPublish": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["formRef", "title", "fields"],
+      "description": "E4: publish the next version of a form (synthetic content; clinical sign-off pending). The latest published version is the only one that accepts new submissions.",
+      "properties": {
+        "formRef": {
+          "$ref": "#/$defs/FormRef"
+        },
+        "title": {
+          "$ref": "#/$defs/FormLabel"
+        },
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/FormField"
+          }
+        },
+        "consents": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "$ref": "#/$defs/FormConsent"
+          }
+        },
+        "validUntil": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "FormRetire": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "FormSubmissionInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["formRef", "formVersion", "answers"],
+      "description": "E4 submission bound to one form version. Answer keys are checked against that version (unknown keys and missing required answers are refused with field-level detail only).",
+      "properties": {
+        "formRef": {
+          "$ref": "#/$defs/FormRef"
+        },
+        "formVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "answers": {
+          "type": "object",
+          "maxProperties": 50,
+          "propertyNames": {
+            "$ref": "#/$defs/FormFieldKey"
+          },
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500,
+                "pattern": "^[^\u0000-\b\u000b\f\u000e-\u001f]+$"
+              },
+              {
+                "type": "boolean"
+              }
+            ]
+          }
+        },
+        "consents": {
+          "type": "object",
+          "maxProperties": 8,
+          "propertyNames": {
+            "$ref": "#/$defs/FormFieldKey"
+          },
+          "additionalProperties": {
+            "enum": ["granted", "denied"]
+          }
+        }
+      }
+    },
+    "IntakeReviewResolve": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision", "expectedVersion"],
+      "description": "Staff resolution of an intake review item. apply (demographics only) calls S4's own update with the patient version the reviewer saw; reject records a reason. Medical-history hand-offs cannot be applied here (C8).",
+      "properties": {
+        "decision": {
+          "enum": ["apply", "reject"]
+        },
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "patientVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reasonCode": {
+          "type": "string",
+          "pattern": "^[a-z_]{1,64}$"
+        }
+      }
     }
   }
 }

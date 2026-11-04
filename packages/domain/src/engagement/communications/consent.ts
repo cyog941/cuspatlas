@@ -60,7 +60,7 @@ const consentRecord = (r: ConsentRow, patientRef: string) => ({
   recordedAt: r.recorded_at.toISOString(),
 });
 
-async function insertConsent(
+export async function insertConsent(
   tx: TenantTransaction,
   operation: string,
   c: {

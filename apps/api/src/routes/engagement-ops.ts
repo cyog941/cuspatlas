@@ -312,6 +312,124 @@ export const ENGAGEMENT_OPS: readonly EngagementOp[] = [
       'Record a normalized provider receipt (receipts integration principal only). Deduplicated on the provider event, monotonic, and never resurrects a suppressed or abandoned message.',
     invoke: (svc, actor, i) => svc.recordReceipt(actor, env('communications.receipts.record', i)),
   },
+  // E4 intake forms: versioned definitions, staff entry, submissions and the staff review queue.
+  {
+    method: 'post',
+    path: '/v1/intake/forms',
+    operationId: 'intake.forms.publish',
+    protected: true,
+    requestBody: E('FormPublish'),
+    success: { status: '201', schema: E('EngagementCommandResult') },
+    refusals: COMMAND,
+    tool: 'intake_forms_publish',
+    description:
+      'Publish the next version of an intake form (synthetic content; clinical sign-off pending). Only the latest published version accepts new submissions; earlier submissions stay bound to theirs. Human administrators only.',
+    invoke: (svc, actor, i) => svc.publishForm(actor, env('intake.forms.publish', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/intake/forms/{formRef}/retire',
+    operationId: 'intake.forms.retire',
+    protected: true,
+    requestBody: E('FormRetire'),
+    success: { status: '200', schema: E('EngagementCommandResult') },
+    refusals: COMMAND,
+    tool: 'intake_forms_retire',
+    description:
+      'Retire the current version of a form: new submissions are refused (form_version_expired); stored submissions are kept.',
+    invoke: (svc, actor, i) => svc.retireForm(actor, param(i, 'formRef'), env('intake.forms.retire', i)),
+  },
+  {
+    method: 'get',
+    path: '/v1/intake/forms',
+    operationId: 'intake.forms.list',
+    protected: true,
+    query: 'EmptyQuery',
+    success: { status: '200', schema: E('EngagementRead') },
+    refusals: ['400', '401', '403', '503'],
+    tool: 'intake_forms_list',
+    description:
+      'Current version of every intake form with its fields, consent questions, state and content-review status.',
+    invoke: (svc, actor, i) => data(svc.listForms(actor, i.body)),
+  },
+  {
+    method: 'post',
+    path: '/v1/patients/{patientRef}/intake-submissions',
+    operationId: 'intake.submissions.submit',
+    protected: true,
+    requestBody: E('FormSubmissionInput'),
+    success: { status: '201', schema: E('EngagementCommandResult') },
+    refusals: COMMAND,
+    tool: 'intake_submissions_submit',
+    description:
+      'Enter a completed intake form for a patient (front desk or paper). Same rules as a portal submission: bound to the current version, idempotent on its key, consents recorded once, record changes only as review items. Human staff only.',
+    invoke: (svc, actor, i) =>
+      svc.submitStaffForm(actor, param(i, 'patientRef'), env('intake.submissions.submit', i)),
+  },
+  {
+    method: 'get',
+    path: '/v1/patients/{patientRef}/intake-submissions',
+    operationId: 'intake.submissions.list',
+    protected: true,
+    query: 'EmptyQuery',
+    success: { status: '200', schema: E('EngagementRead') },
+    refusals: READ,
+    tool: 'intake_submissions_list',
+    description:
+      'Intake submissions of a patient with provenance, linked consent facts and review status (no answers).',
+    invoke: (svc, actor, i) => data(svc.listSubmissions(actor, param(i, 'patientRef'), i.body)),
+  },
+  {
+    method: 'get',
+    path: '/v1/intake/submissions/{submissionRef}',
+    operationId: 'intake.submissions.read',
+    protected: true,
+    success: { status: '200', schema: E('EngagementRead') },
+    refusals: ['401', '403', '404', '503'],
+    tool: 'intake_submissions_get',
+    description:
+      'One intake submission with its answers against the form version it answered (sensitive-read logged).',
+    invoke: (svc, actor, i) => data(svc.readSubmission(actor, param(i, 'submissionRef'))),
+  },
+  {
+    method: 'get',
+    path: '/v1/intake/reviews/worklist',
+    operationId: 'intake.reviews.worklist',
+    protected: true,
+    query: 'EmptyQuery',
+    success: { status: '200', schema: 'scheduling:WorkItemList' },
+    refusals: ['400', '401', '403', '503'],
+    tool: 'intake_reviews_worklist',
+    description:
+      'Open intake review items as work items: demographics changes awaiting staff review, and medical-history hand-offs held by reference for C8 (blocked on C8).',
+    invoke: (svc, actor, i) => data(svc.reviewWorklist(actor, i.body)),
+  },
+  {
+    method: 'get',
+    path: '/v1/intake/reviews/{reviewRef}',
+    operationId: 'intake.reviews.read',
+    protected: true,
+    success: { status: '200', schema: E('EngagementRead') },
+    refusals: ['401', '403', '404', '503'],
+    tool: 'intake_reviews_get',
+    description:
+      'One intake review item with the live difference between the patient record and the proposed values.',
+    invoke: (svc, actor, i) => data(svc.readReview(actor, param(i, 'reviewRef'))),
+  },
+  {
+    method: 'post',
+    path: '/v1/intake/reviews/{reviewRef}/resolve',
+    operationId: 'intake.reviews.resolve',
+    protected: true,
+    requestBody: E('IntakeReviewResolve'),
+    success: { status: '200', schema: E('EngagementCommandResult') },
+    refusals: COMMAND,
+    tool: 'intake_reviews_resolve',
+    description:
+      'Apply a demographics review through the patient record (with the patient version the reviewer saw; a changed record is stale) or reject a review item. Medical-history hand-offs cannot be applied here. Human staff only.',
+    invoke: (svc, actor, i) =>
+      svc.resolveReview(actor, param(i, 'reviewRef'), env('intake.reviews.resolve', i)),
+  },
 ];
 
 export const ENGAGEMENT_OP_ROUTES: readonly RouteContract[] = ENGAGEMENT_OPS.map((o) => ({

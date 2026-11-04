@@ -230,6 +230,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       registerAttendanceRoutes(app, { authenticator, appointments });
       registerSchedulingOpRoutes(app, { authenticator, appointments });
       const engagement = createEngagementService({
+        patients,
         appointments,
         matchKeyPepper: resolveMatchKeyPepper(deps.env, deps.matchKeyPepper),
         authorize,

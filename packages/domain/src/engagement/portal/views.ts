@@ -9,6 +9,7 @@ import {
 } from '@cuspatlas/contracts';
 import { recordSensitiveRead } from '../../events/record-sensitive-read';
 import type { EngagementBase } from '../common';
+import { formsView } from '../intake/forms';
 import { requirePortalAccess } from './access';
 
 /**
@@ -180,10 +181,10 @@ export const PORTAL_VIEWS: Readonly<Record<PortalViewName, ViewDefinition>> = {
   },
   forms: {
     requiredScope: ['demographics', 'consent'],
-    fields: [],
-    itemFields: [],
-    redactions: [],
-    unavailable: { owner: 'E4', reason: 'producer_not_deployed' },
+    fields: ['submissions'],
+    itemFields: ['submissionRef', 'formRef', 'formVersion', 'submittedAt', 'status'],
+    redactions: ['answers', 'consentRefs', 'reviewItems', 'submittedBy', 'viaRelationship'],
+    project: formsView,
   },
 };
 

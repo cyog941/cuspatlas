@@ -725,7 +725,10 @@ export type WorkItemKind =
   | 'request_unbooked'
   | 'request_booking_lost'
   // E7: a failed or unknown delivery (owned by E; listed by communications.deliveries.worklist).
-  | 'delivery_exception';
+  | 'delivery_exception'
+  // E4/E5: an intake review item and a secure-message thread awaiting the practice.
+  | 'intake_review'
+  | 'message_awaiting_reply';
 export interface WorkItem {
   readonly workItemRef: string;
   readonly kind: WorkItemKind;

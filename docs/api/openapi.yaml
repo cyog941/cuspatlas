@@ -3311,6 +3311,285 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/intake/forms:
+    post:
+      operationId: intake.forms.publish
+      description: >-
+        Publish the next version of an intake form (synthetic content; clinical sign-off pending). Only the
+        latest published version accepts new submissions; earlier submissions stay bound to theirs. Human
+        administrators only.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/FormPublish'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: intake.forms.list
+      description: >-
+        Current version of every intake form with its fields, consent questions, state and content-review
+        status.
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/intake/forms/{formRef}/retire:
+    post:
+      operationId: intake.forms.retire
+      description: >-
+        Retire the current version of a form: new submissions are refused (form_version_expired); stored
+        submissions are kept.
+      parameters:
+        - name: formRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/FormRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/FormRetire'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/patients/{patientRef}/intake-submissions:
+    post:
+      operationId: intake.submissions.submit
+      description: >-
+        Enter a completed intake form for a patient (front desk or paper). Same rules as a portal
+        submission: bound to the current version, idempotent on its key, consents recorded once, record
+        changes only as review items. Human staff only.
+      parameters:
+        - name: patientRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/PatientRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/FormSubmissionInput'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: intake.submissions.list
+      description: >-
+        Intake submissions of a patient with provenance, linked consent facts and review status (no
+        answers).
+      parameters:
+        - name: patientRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/PatientRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/intake/submissions/{submissionRef}:
+    get:
+      operationId: intake.submissions.read
+      description: >-
+        One intake submission with its answers against the form version it answered (sensitive-read logged).
+      parameters:
+        - name: submissionRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EntityRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/intake/reviews/worklist:
+    get:
+      operationId: intake.reviews.worklist
+      description: >-
+        Open intake review items as work items: demographics changes awaiting staff review, and
+        medical-history hand-offs held by reference for C8 (blocked on C8).
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/WorkItemList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/intake/reviews/{reviewRef}:
+    get:
+      operationId: intake.reviews.read
+      description: >-
+        One intake review item with the live difference between the patient record and the proposed values.
+      parameters:
+        - name: reviewRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EntityRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/intake/reviews/{reviewRef}/resolve:
+    post:
+      operationId: intake.reviews.resolve
+      description: >-
+        Apply a demographics review through the patient record (with the patient version the reviewer saw; a
+        changed record is stale) or reject a review item. Medical-history hand-offs cannot be applied here.
+        Human staff only.
+      parameters:
+        - name: reviewRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EntityRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/IntakeReviewResolve'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   /portal/v1/session:
     get:
       operationId: portal.session.read
@@ -3433,6 +3712,75 @@ paths:
               $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/PortalOfferRespond'
       responses:
         '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /portal/v1/forms/{formRef}:
+    get:
+      operationId: portal.forms.describe
+      description: >-
+        Portal-audience operation portal.forms.describe (portal principals only; never a staff or MCP
+        surface).
+      parameters:
+        - name: formRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/FormRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /portal/v1/patients/{patientRef}/intake-submissions:
+    post:
+      operationId: portal.forms.submit
+      description: >-
+        Portal-audience operation portal.forms.submit (portal principals only; never a staff or MCP
+        surface).
+      parameters:
+        - name: patientRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/PatientRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/FormSubmissionInput'
+      responses:
+        '201':
           description: Success.
           content:
             application/json:

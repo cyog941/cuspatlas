@@ -9,6 +9,7 @@ import {
 } from '@cuspatlas/contracts';
 import { type AttemptRecordingDeps, withAttemptRecording } from '../commands/boundary';
 import type { CommandExecutor } from '../commands/executor';
+import type { PatientService } from '../patients/service';
 import type { ActionName, AuthorizationDecision, Authorize } from '../policy/authorize';
 import type { AppointmentService } from '../scheduling/appointments';
 
@@ -20,6 +21,8 @@ export interface EngagementDeps {
   readonly execute?: CommandExecutor;
   /** S8/S10 appointment service: the one request aggregate the portal delegates to (E3). */
   readonly appointments?: AppointmentService;
+  /** S4 patient service: reviewed intake demographics are applied through its own update (E4). */
+  readonly patients?: Pick<PatientService, 'updatePatientDemographics'>;
   /** S4 match-key pepper: enrollment compares contact digests, never plaintext values. */
   readonly matchKeyPepper: Uint8Array;
 }

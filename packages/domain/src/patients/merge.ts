@@ -218,6 +218,18 @@ export const MERGE_EXCLUDED_REFERENCES: readonly { table: string; column: string
     column: 'patient_id',
     why: 'a verification attests a contact value of that identity; the survivor verifies its own contacts',
   },
+  // E4/E5/E8 (recommended-pending-approval): submissions, review items, threads and call links are
+  // facts about the identity they were recorded for; a merge never re-addresses them silently.
+  {
+    table: 'intake_submissions',
+    column: 'patient_id',
+    why: 'a submission is a fact given for that identity; staff re-enter what the survivor still needs',
+  },
+  {
+    table: 'intake_review_items',
+    column: 'patient_id',
+    why: 'a review item proposes a change to that identity; an open one is rejected and re-proposed',
+  },
   {
     table: 'outbound_messages',
     column: 'patient_id',

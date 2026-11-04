@@ -3152,7 +3152,9 @@
             "recall_task_open",
             "request_unbooked",
             "request_booking_lost",
-            "delivery_exception"
+            "delivery_exception",
+            "intake_review",
+            "message_awaiting_reply"
           ]
         },
         "reasonCode": {

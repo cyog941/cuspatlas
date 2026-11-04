@@ -263,6 +263,7 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     execute: deps.execute ?? executeOnce,
   });
   const engagement = createEngagementService({
+    patients,
     appointments,
     matchKeyPepper: resolveMatchKeyPepper(deps.env, deps.matchKeyPepper),
     authorize,

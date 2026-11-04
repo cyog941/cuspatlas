@@ -171,6 +171,18 @@ export const ACTION_POLICIES = {
   'communications.deliveries.worklist': { scope: 'communications.read', principals: ['human', 'service'] },
   'communications.deliveries.read': { scope: 'communications.read', principals: ['human', 'service'] },
   'communications.deliveries.resolve': { scope: 'communications.write', principals: ['human'] },
+  // E4 intake forms. Form content is practice configuration (admin.configure, a person); submissions
+  // and review items are patient data (patients.read / patients.write). A reviewed demographics change
+  // is applied through S4's own update, which authorizes the reviewer again.
+  'intake.forms.publish': { scope: 'admin.configure', principals: ['human'] },
+  'intake.forms.retire': { scope: 'admin.configure', principals: ['human'] },
+  'intake.forms.list': { scope: 'patients.read', principals: ['human', 'service'] },
+  'intake.submissions.submit': { scope: 'patients.write', principals: ['human'] },
+  'intake.submissions.list': { scope: 'patients.read', principals: ['human', 'service'] },
+  'intake.submissions.read': { scope: 'patients.read', principals: ['human', 'service'] },
+  'intake.reviews.worklist': { scope: 'patients.read', principals: ['human', 'service'] },
+  'intake.reviews.read': { scope: 'patients.read', principals: ['human', 'service'] },
+  'intake.reviews.resolve': { scope: 'patients.write', principals: ['human'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

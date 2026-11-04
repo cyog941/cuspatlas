@@ -20,6 +20,11 @@ const E_OPERATIONS = [
   'communications.recall.enroll',
   'communications.deliveries.resolve',
   'communications.receipts.record',
+  'intake.forms.publish',
+  'intake.forms.retire',
+  'intake.submissions.submit',
+  'portal.forms.submit',
+  'intake.reviews.resolve',
 ] as const;
 
 // biome-ignore lint/suspicious/noExplicitAny: codecs are heterogeneous per operation.

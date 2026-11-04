@@ -111,6 +111,10 @@ export const validateDeliveryResolve = def('DeliveryResolve');
 export const validateReceiptInput = def('ReceiptInput');
 export const validateContactVerify = def('ContactVerify');
 export const validatePortalOfferRespond = def('PortalOfferRespond');
+export const validateFormPublish = def('FormPublish');
+export const validateFormRetire = def('FormRetire');
+export const validateFormSubmissionInput = def('FormSubmissionInput');
+export const validateIntakeReviewResolve = def('IntakeReviewResolve');
 
 /**
  * E9 minimal engagement export (E scope; M1 owns the full export contract). Every E table of a
@@ -129,6 +133,10 @@ export const ENGAGEMENT_EXPORT_TABLES = [
   'outbound_messages',
   'delivery_attempts',
   'message_receipts',
+  'intake_form_versions',
+  'intake_submissions',
+  'intake_submission_consents',
+  'intake_review_items',
 ] as const;
 export type EngagementExportTable = (typeof ENGAGEMENT_EXPORT_TABLES)[number];
 export interface EngagementExport {

@@ -72,6 +72,32 @@ export const PORTAL_OPS: readonly PortalOp[] = [
         payload: i.body,
       }),
   },
+  // E4 intake forms through the portal (self, or a relationship holding demographics and consent).
+  {
+    method: 'get',
+    path: '/portal/v1/forms/{formRef}',
+    operationId: 'portal.forms.describe',
+    protected: true,
+    query: 'EmptyQuery',
+    success: { status: '200', schema: E('EngagementRead') },
+    refusals: ['400', '401', '403', '404', '503'],
+    invoke: (svc, actor, i) => data(svc.describePortalForm(actor, i.params.formRef ?? '', i.body)),
+  },
+  {
+    method: 'post',
+    path: '/portal/v1/patients/{patientRef}/intake-submissions',
+    operationId: 'portal.forms.submit',
+    protected: true,
+    requestBody: E('FormSubmissionInput'),
+    success: { status: '201', schema: E('EngagementCommandResult') },
+    refusals: ['400', '401', '403', '404', '409', '422', '503'],
+    invoke: (svc, actor, i) =>
+      svc.submitPortalForm(actor, i.params.patientRef ?? '', {
+        operation: 'portal.forms.submit',
+        idempotencyKey: i.key,
+        payload: i.body,
+      }),
+  },
   // E6 consent through the portal (self, or a relationship holding the consent scope).
   {
     method: 'post',

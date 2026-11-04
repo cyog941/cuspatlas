@@ -129,12 +129,15 @@ describe('E2 acceptance', () => {
     for (const [view, owner] of [
       ['documents', 'C15'],
       ['messages', 'E5'],
-      ['forms', 'E4'],
     ] as const) {
       const v = h.ok<{ data: View }>(await read(parentP, parent, view)).data;
       expect(v.coverage).toStrictEqual({ status: 'unavailable', reason: 'producer_not_deployed', owner });
       expect(v.fields).toBeNull();
     }
+    // E4 deployed the forms producer: available, and an empty list is not the unavailable state.
+    const forms = h.ok<{ data: View }>(await read(parentP, parent, 'forms')).data;
+    expect(forms.coverage).toStrictEqual({ status: 'available' });
+    expect(forms.fields).toStrictEqual({ submissions: [] });
     // The guarantor relationship holds `financial`: balances is reachable and explicitly unavailable.
     const bal = h.ok<{ data: View }>(await read(parentP, guarantee, 'balances')).data;
     expect(bal.coverage).toStrictEqual({

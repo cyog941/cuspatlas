@@ -455,6 +455,16 @@ export const PORTAL_CALLS: PortalCall[] = [
     operation: 'portal.views.describe',
     rest: () => ({ method: 'GET', url: '/portal/v1/views/appointments', keyed: false, status: 200 }),
   },
+  {
+    operation: 'portal.offers.respond',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/portal/v1/patients/${f.child}/waitlist-offers/00000000-0000-4000-8000-0000000000f1/respond`,
+      body: { expectedVersion: 1, outcome: 'declined' },
+      keyed: true,
+      status: 200,
+    }),
+  },
 ];
 
 beforeAll(async () => {

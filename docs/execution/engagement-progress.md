@@ -151,6 +151,17 @@ The vocabulary additions were made in the plan's Shared interfaces first. Existi
 - Green: same command exit 0, 10 passed; `corepack pnpm run ci` exit 0 (49 files / 1096 passed / 7 todo; typecheck, lint with one pre-existing warning, contract drift, privacy scan, SBOM, evidence).
 - Test-infrastructure fix in the same commit: `tests/integration/restore-smoke.test.ts` case (e) failed intermittently on this Windows host with EBUSY when embedded-postgres removed its data directory immediately on stop; the cluster is now kept on stop and removed by the scratch cleanup with retries (assertions unchanged).
 
+## S15 seam: portal answers to waitlist offers
+
+Files: `packages/domain/src/scheduling/waitlist.ts` (S file: `respondToOffer` takes an optional `PortalOfferAuthority`), `packages/domain/src/engagement/portal/offers.ts`, `PortalOfferRespond` in `engagement.schema.json`, one portal route, `tests/integration/portal-offers.test.ts` (5 tests), one portal harness row.
+
+Design. `portal.offers.respond` (`POST /portal/v1/patients/{patientRef}/waitlist-offers/{offerRef}/respond`, `accepted` or `declined`) calls S's own `respondToOffer` with operation `scheduling.waitlist.respond` and a portal authority. S admits a portal principal only with that authority (and a staff call can never carry it), runs it after loading the offer and entry and before the idempotency executor (a replay is reauthorized), still refuses acceptance by a service principal and refuses withdrawal by the portal. The authority requires the offer's patient to be the path patient (else the same 404 as a missing offer) and `scheduling` through E1. Acceptance books through S10's insert path from the hold, exactly as a staff acceptance.
+
+Acceptance cases: a guardian with `scheduling` accepts the minor's offer (one booked appointment from the offer, audit principal `portal`); a decline releases the hold and a same-key replay returns the stored result; a proxy without `scheduling` is 403; a stranger, an offer of another patient and a random offer give identical 404 bodies and nothing changes; `withdrawn` is 400 at the portal; a revoked guardian is 403 at the next answer; a service principal on the staff route is 403 and a portal token on the staff route 401.
+
+- Red: `corepack pnpm test -- tests/integration/portal-offers.test.ts` with the implementation stashed: exit 1, 4 failed / 1 passed (5) (the service and staff-route case passed because it describes unchanged S behaviour).
+- Green: same command exit 0, 5 passed; `corepack pnpm test` exit 0, 50 files / 1102 passed / 7 todo; typecheck, lint, contract:check exit 0.
+
 ## Pending decisions
 
 | Decision | Recommendation implemented (pending approval) | Settles it |

@@ -110,6 +110,7 @@ export const validateRecallEnrollmentsQuery = def('RecallEnrollmentsQuery');
 export const validateDeliveryResolve = def('DeliveryResolve');
 export const validateReceiptInput = def('ReceiptInput');
 export const validateContactVerify = def('ContactVerify');
+export const validatePortalOfferRespond = def('PortalOfferRespond');
 
 /**
  * E9 minimal engagement export (E scope; M1 owns the full export contract). Every E table of a

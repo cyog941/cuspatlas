@@ -577,6 +577,20 @@
           "enum": ["synthetic_attested"]
         }
       }
+    },
+    "PortalOfferRespond": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "outcome"],
+      "description": "S15 offer answer through the portal (patient, or a relationship holding scheduling). Acceptance books from the hold; withdrawal is staff only.",
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "outcome": {
+          "enum": ["accepted", "declined"]
+        }
+      }
     }
   }
 }

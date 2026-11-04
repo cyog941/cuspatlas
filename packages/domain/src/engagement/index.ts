@@ -6,6 +6,7 @@ export * from './communications/delivery';
 export * from './communications/recall-enrollment';
 export * from './communications/suppression';
 export * from './portal/access';
+export * from './portal/offers';
 export * from './portal/principals';
 export * from './portal/requests';
 export * from './portal/session';

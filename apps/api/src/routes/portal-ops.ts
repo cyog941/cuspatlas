@@ -56,6 +56,22 @@ export const PORTAL_OPS: readonly PortalOp[] = [
         payload: i.body,
       }),
   },
+  // S15 seam: the patient or a guardian holding scheduling answers a waitlist offer (never a service).
+  {
+    method: 'post',
+    path: '/portal/v1/patients/{patientRef}/waitlist-offers/{offerRef}/respond',
+    operationId: 'portal.offers.respond',
+    protected: true,
+    requestBody: E('PortalOfferRespond'),
+    success: { status: '200', schema: E('EngagementCommandResult') },
+    refusals: ['400', '401', '403', '404', '409', '422', '503'],
+    invoke: (svc, actor, i) =>
+      svc.respondToPortalOffer(actor, i.params.patientRef ?? '', i.params.offerRef ?? '', {
+        operation: 'portal.offers.respond',
+        idempotencyKey: i.key,
+        payload: i.body,
+      }),
+  },
   // E6 consent through the portal (self, or a relationship holding the consent scope).
   {
     method: 'post',

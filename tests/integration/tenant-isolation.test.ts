@@ -108,6 +108,11 @@ describe('runtime database role', () => {
       'memberships',
       'outbox_events',
       'principals',
+      'scheduling_availability_versions',
+      'scheduling_locations',
+      'scheduling_occupancy',
+      'scheduling_resources',
+      'scheduling_time_blocks',
       'security_attempt_events',
       'synthetic_tasks',
       'tenants',
@@ -128,6 +133,12 @@ describe('runtime database role', () => {
       'delivery_receipts',
       'action_proposals',
       'action_proposal_provenance',
+      'scheduling_locations',
+      'scheduling_resources',
+      'scheduling_availability_versions',
+      'scheduling_time_blocks',
+      'scheduling_occupancy',
+      'scheduling_busy',
     ]) {
       const { rows } = await db.app.query(`SELECT count(*)::int AS n FROM cuspatlas.${t}`);
       expect([t, rows[0].n]).toStrictEqual([t, 0]);

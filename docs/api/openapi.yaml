@@ -10,7 +10,8 @@ info:
     verified bearer token and a live membership; no path, query, header or body field selects a
     tenant. Refusals use the shared Refusal body and the transport mapping in docs/SHARED-CONTRACTS.md.
     Hidden cross-tenant and missing resources return the same 404 body. Proposal bodies are defined
-    by packages/contracts/src/action-proposal.schema.json.
+    by packages/contracts/src/action-proposal.schema.json. Scheduling resource and availability
+    bodies (S7, S9) are defined by packages/contracts/src/scheduling.schema.json.
   license:
     name: AGPL-3.0-or-later
     identifier: AGPL-3.0-or-later
@@ -286,6 +287,275 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/scheduling/locations:
+    post:
+      operationId: scheduling.locations.define
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/LocationDefine'
+      responses:
+        '201':
+          description: Location defined with its IANA zone (admin.configure).
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/LocationCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: scheduling.locations.list
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Locations visible to the caller (scheduling.read), one bounded page.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/LocationList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/locations/{locationRef}/time-zone:
+    post:
+      operationId: scheduling.locations.changeTimeZone
+      parameters:
+        - $ref: '#/components/parameters/SchedulingLocationRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/LocationTimeZoneChange'
+      responses:
+        '200':
+          description: Zone changed. Refused (409, conflict list) while the location has future occupied time.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/LocationCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/resources:
+    post:
+      operationId: scheduling.resources.define
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/ResourceDefine'
+      responses:
+        '201':
+          description: Resource defined (admin.configure). A label naming an appointment state is 422 reservedStateLabel.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/ResourceCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: scheduling.resources.list
+      parameters:
+        - $ref: '#/components/parameters/ResourceListLocation'
+        - $ref: '#/components/parameters/ResourceListKind'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Resources visible to the caller (scheduling.read), one bounded page.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/ResourceList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/resources/{resourceRef}:
+    get:
+      operationId: scheduling.resources.read
+      parameters:
+        - $ref: '#/components/parameters/ResourceRef'
+      responses:
+        '200':
+          description: One resource with every effective-dated availability version.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/ResourceRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/resources/{resourceRef}/availability:
+    post:
+      operationId: scheduling.resources.setAvailability
+      parameters:
+        - $ref: '#/components/parameters/ResourceRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/AvailabilitySet'
+      responses:
+        '201':
+          description: New availability version from effectiveFrom (append-only; an overlapping version is 409).
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/AvailabilityCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/resources/{resourceRef}/deactivate:
+    post:
+      operationId: scheduling.resources.deactivate
+      parameters:
+        - $ref: '#/components/parameters/ResourceRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/ResourceDeactivate'
+      responses:
+        '200':
+          description: Resource deactivated. Refused (409, bookings enumerated) while it has future bookings or holds.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/ResourceCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/time-blocks:
+    post:
+      operationId: scheduling.timeBlocks.create
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/TimeBlockCreate'
+      responses:
+        '201':
+          description: Unavailable time with a reason and no patient. Overlap with an occupant is 409 with the conflict list.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/TimeBlockCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/data-quality/state-labelled-resources:
+    get:
+      operationId: scheduling.resources.dataQuality
+      responses:
+        '200':
+          description: Data-quality report of resources whose label resembles an appointment state (admin.configure).
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/StateLabelReport'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
 components:
   securitySchemes:
     bearer:
@@ -319,6 +589,44 @@ components:
         corrected request needs a new key.
       schema:
         $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/IdempotencyKey'
+    ResourceRef:
+      name: resourceRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/ResourceRefId'
+    SchedulingLocationRef:
+      name: locationRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/LocationRef'
+    ResourceListLocation:
+      name: locationRef
+      in: query
+      required: false
+      schema:
+        $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/LocationRef'
+    ResourceListKind:
+      name: kind
+      in: query
+      required: false
+      schema:
+        $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/ResourceKind'
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: Page size 1-100 (default 25). Larger values are refused, not clamped.
+      schema:
+        type: string
+        pattern: '^([1-9]|[1-9][0-9]|100)$'
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/Cursor'
   responses:
     Refusal:
       description: Typed refusal (code, retryable, correlationId, optional safe detail).

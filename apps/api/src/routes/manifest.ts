@@ -9,8 +9,8 @@ export interface RouteContract {
   readonly operationId: string;
   readonly protected: boolean;
   /**
-   * `$defs` name in synthetic-task.schema.json, `proposal:<name>` for action-proposal.schema.json, or a
-   * local `#/components/schemas/<name>`.
+   * `$defs` name in synthetic-task.schema.json, `proposal:<name>` for action-proposal.schema.json,
+   * `scheduling:<name>` for scheduling.schema.json, or a local `#/components/schemas/<name>`.
    */
   readonly requestBody?: string;
   readonly success: { readonly status: '200' | '201'; readonly schema: string };
@@ -20,6 +20,7 @@ export interface RouteContract {
 
 export const SCHEMA_FILE = 'synthetic-task.schema.json';
 export const PROPOSAL_SCHEMA_FILE = 'action-proposal.schema.json';
+export const SCHEDULING_SCHEMA_FILE = 'scheduling.schema.json';
 
 export const ROUTES: readonly RouteContract[] = [
   {
@@ -107,6 +108,93 @@ export const ROUTES: readonly RouteContract[] = [
     requestBody: 'proposal:ProposalCommit',
     success: { status: '200', schema: 'SyntheticTaskCommandResult' },
     refusals: ['400', '401', '403', '404', '409', '503'],
+  },
+  // S7 scheduling resources (resources track).
+  {
+    method: 'post',
+    path: '/v1/scheduling/locations',
+    operationId: 'scheduling.locations.define',
+    protected: true,
+    requestBody: 'scheduling:LocationDefine',
+    success: { status: '201', schema: 'scheduling:LocationCommandResult' },
+    refusals: ['400', '401', '403', '409', '422', '503'],
+  },
+  {
+    method: 'get',
+    path: '/v1/scheduling/locations',
+    operationId: 'scheduling.locations.list',
+    protected: true,
+    success: { status: '200', schema: 'scheduling:LocationList' },
+    refusals: ['400', '401', '403', '503'],
+  },
+  {
+    method: 'post',
+    path: '/v1/scheduling/locations/{locationRef}/time-zone',
+    operationId: 'scheduling.locations.changeTimeZone',
+    protected: true,
+    requestBody: 'scheduling:LocationTimeZoneChange',
+    success: { status: '200', schema: 'scheduling:LocationCommandResult' },
+    refusals: ['400', '401', '403', '404', '409', '422', '503'],
+  },
+  {
+    method: 'post',
+    path: '/v1/scheduling/resources',
+    operationId: 'scheduling.resources.define',
+    protected: true,
+    requestBody: 'scheduling:ResourceDefine',
+    success: { status: '201', schema: 'scheduling:ResourceCommandResult' },
+    refusals: ['400', '401', '403', '404', '409', '422', '503'],
+  },
+  {
+    method: 'get',
+    path: '/v1/scheduling/resources',
+    operationId: 'scheduling.resources.list',
+    protected: true,
+    success: { status: '200', schema: 'scheduling:ResourceList' },
+    refusals: ['400', '401', '403', '503'],
+  },
+  {
+    method: 'get',
+    path: '/v1/scheduling/resources/{resourceRef}',
+    operationId: 'scheduling.resources.read',
+    protected: true,
+    success: { status: '200', schema: 'scheduling:ResourceRead' },
+    refusals: ['401', '403', '404', '503'],
+  },
+  {
+    method: 'post',
+    path: '/v1/scheduling/resources/{resourceRef}/availability',
+    operationId: 'scheduling.resources.setAvailability',
+    protected: true,
+    requestBody: 'scheduling:AvailabilitySet',
+    success: { status: '201', schema: 'scheduling:AvailabilityCommandResult' },
+    refusals: ['400', '401', '403', '404', '409', '422', '503'],
+  },
+  {
+    method: 'post',
+    path: '/v1/scheduling/resources/{resourceRef}/deactivate',
+    operationId: 'scheduling.resources.deactivate',
+    protected: true,
+    requestBody: 'scheduling:ResourceDeactivate',
+    success: { status: '200', schema: 'scheduling:ResourceCommandResult' },
+    refusals: ['400', '401', '403', '404', '409', '503'],
+  },
+  {
+    method: 'post',
+    path: '/v1/scheduling/time-blocks',
+    operationId: 'scheduling.timeBlocks.create',
+    protected: true,
+    requestBody: 'scheduling:TimeBlockCreate',
+    success: { status: '201', schema: 'scheduling:TimeBlockCommandResult' },
+    refusals: ['400', '401', '403', '404', '409', '422', '503'],
+  },
+  {
+    method: 'get',
+    path: '/v1/scheduling/data-quality/state-labelled-resources',
+    operationId: 'scheduling.resources.dataQuality',
+    protected: true,
+    success: { status: '200', schema: 'scheduling:StateLabelReport' },
+    refusals: ['401', '403', '503'],
   },
 ];
 

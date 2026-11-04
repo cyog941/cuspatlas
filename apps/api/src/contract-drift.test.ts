@@ -57,6 +57,27 @@ describe('contract drift check', () => {
     expect(checkContractDrift({ ...src, openapiText }).join('\n')).toMatch(/ProposalApproveV0/);
   });
 
+  it('fails when the scheduling contract loosens a body, drifts a shared definition or loses a route', () => {
+    const src = loadContractSources(root);
+    const scheduling = JSON.parse(src.schedulingSchemaText);
+    scheduling.$defs.ResourceDefine.additionalProperties = true;
+    scheduling.$defs.LocationRef.pattern = '^.*$';
+    const problems = checkContractDrift({ ...src, schedulingSchemaText: JSON.stringify(scheduling) }).join(
+      '\n',
+    );
+    expect(problems).toMatch(/ResourceDefine must set additionalProperties/);
+    expect(problems).toMatch(/scheduling.schema.json LocationRef differs/);
+    const openapiText = src.openapiText.replace('#/$defs/TimeBlockCreate', '#/$defs/TimeBlockCreateV0');
+    expect(checkContractDrift({ ...src, openapiText }).join('\n')).toMatch(/TimeBlockCreateV0/);
+    const missing = src.openapiText.replace(
+      /operationId: scheduling\.resources\.deactivate/,
+      'operationId: scheduling.resources.retire',
+    );
+    expect(checkContractDrift({ ...src, openapiText: missing }).join('\n')).toMatch(
+      /scheduling\.resources\.deactivate/,
+    );
+  });
+
   it('fails when the refusal code enum diverges from the shared contract', () => {
     const src = loadContractSources(root);
     const schema = JSON.parse(src.schemaText);

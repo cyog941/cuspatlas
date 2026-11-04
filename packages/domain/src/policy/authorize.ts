@@ -28,6 +28,20 @@ export const ACTION_POLICIES = {
   'syntheticTasks.proposals.prepare': { scope: 'syntheticTasks.read', principals: ['human', 'service'] },
   'syntheticTasks.proposals.read': { scope: 'syntheticTasks.read', principals: ['human', 'service'] },
   'syntheticTasks.proposals.approve': { scope: 'syntheticTasks.approve', principals: ['human'] },
+  // S7/S9 scheduling resources (resources track). Configuration of locations, resources and hours
+  // is practice administration (`admin.configure`); blocking time is a scheduling act
+  // (`scheduling.write`); every read and the availability search need `scheduling.read`.
+  'scheduling.locations.define': { scope: 'admin.configure', principals: ['human', 'service'] },
+  'scheduling.locations.changeTimeZone': { scope: 'admin.configure', principals: ['human', 'service'] },
+  'scheduling.locations.list': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  'scheduling.resources.define': { scope: 'admin.configure', principals: ['human', 'service'] },
+  'scheduling.resources.setAvailability': { scope: 'admin.configure', principals: ['human', 'service'] },
+  'scheduling.resources.deactivate': { scope: 'admin.configure', principals: ['human', 'service'] },
+  'scheduling.resources.list': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  'scheduling.resources.read': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  'scheduling.resources.dataQuality': { scope: 'admin.configure', principals: ['human', 'service'] },
+  'scheduling.timeBlocks.create': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.availability.search': { scope: 'scheduling.read', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

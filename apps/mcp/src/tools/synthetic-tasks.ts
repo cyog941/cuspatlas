@@ -3,6 +3,7 @@ import {
   type ActorContext,
   createAjv,
   RefusalError,
+  SCHEDULING_PROPERTIES,
   SYNTHETIC_TASK_PROPERTIES,
   safeViolations,
   syntheticTaskSchema,
@@ -12,6 +13,7 @@ import {
   type AttemptRecordingDeps,
   type Authorize,
   type ProposalService,
+  type SchedulingResourceService,
   type SyntheticTaskService,
   withAttemptRecording,
   withRefusalRecording,
@@ -80,6 +82,8 @@ type Violations = { pointer: string; rule: string }[];
 export interface ToolDeps {
   readonly service: SyntheticTaskService;
   readonly proposals: ProposalService;
+  /** S7/S9 scheduling resources and availability (resources track). */
+  readonly scheduling: SchedulingResourceService;
   readonly authorize: Authorize;
   readonly recording: AttemptRecordingDeps;
 }
@@ -113,6 +117,7 @@ export interface ToolDefinition {
 const KNOWN_PROPERTIES: ReadonlySet<string> = new Set([
   ...SYNTHETIC_TASK_PROPERTIES,
   ...ACTION_PROPOSAL_PROPERTIES,
+  ...SCHEDULING_PROPERTIES,
   'idempotencyKey',
   'proposalRef',
 ]);

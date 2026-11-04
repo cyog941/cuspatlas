@@ -8,4 +8,5 @@ export * from './cursor';
 export * from './events/record-command';
 export * from './integrations/adapter';
 export * from './policy/authorize';
+export * from './scheduling';
 export * from './synthetic-tasks';

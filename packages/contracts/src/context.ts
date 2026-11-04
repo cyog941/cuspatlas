@@ -137,10 +137,38 @@ export const SECURITY_REASON_CODES = [
 ] as const;
 export type SecurityReasonCode = (typeof SECURITY_REASON_CODES)[number];
 
+/** S7/S10 shared ResourceRef: the only composite reference; its inner identifier is itself a ref. */
+export type ResourceKind = 'provider' | 'operatory' | 'equipment' | 'staff';
+export interface ResourceRef {
+  readonly kind: ResourceKind;
+  readonly resourceRef: string;
+}
+
+/** Conflict kinds fixed by the scheduling plan's Shared interfaces. */
+export type ConflictKind =
+  | 'resource_overlap'
+  | 'provider_assignment'
+  | 'outside_availability'
+  | 'insufficient_duration'
+  | 'patient_unavailable'
+  | 'patient_inactive'
+  | 'policy_override_required';
+
+/** One inspectable conflict. Server-authored only, filtered to what the caller may see. */
+export interface Conflict {
+  readonly kind: ConflictKind;
+  readonly resourceRef?: ResourceRef;
+  readonly existingRef?: string;
+  readonly explanation: string;
+  readonly overrideable: boolean;
+}
+
 /** Safe, server-authored detail only. Never request payload text. */
 export interface RefusalDetail {
   readonly currentVersion?: number;
   readonly violations?: readonly { readonly pointer: string; readonly rule: string }[];
+  /** S7 addition: the conflicts behind a `conflict` refusal (at most 50). */
+  readonly conflicts?: readonly Conflict[];
 }
 
 export interface DomainRefusal {

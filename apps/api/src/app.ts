@@ -6,6 +6,7 @@ import {
   type CursorCodec,
   createAuthorize,
   createProposalService,
+  createSchedulingResourceService,
   createSyntheticTaskService,
   executeOnce,
 } from '@cuspatlas/domain';
@@ -18,6 +19,7 @@ import Fastify, {
 import { createAuthenticator, type IdentityVerifierConfig, isConfiguredIdentity, isTestIssuer } from './auth';
 import { mapErrorToRefusal, safeErrorKind } from './errors';
 import { registerProposalRoutes } from './routes/proposals';
+import { registerSchedulingRoutes } from './routes/scheduling';
 import { registerSessionRoutes } from './routes/session';
 import { registerSyntheticTaskRoutes } from './routes/synthetic-tasks';
 
@@ -147,6 +149,13 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         ...(deps.proposalPolicyVersion ? { policyVersion: deps.proposalPolicyVersion } : {}),
       });
       registerProposalRoutes(app, { authenticator, proposals });
+      const scheduling = createSchedulingResourceService({
+        authorize,
+        withTenantTransaction: deps.tenantTransactions,
+        recording,
+        execute: deps.execute ?? executeOnce,
+      });
+      registerSchedulingRoutes(app, { authenticator, scheduling });
     }
   }
 

@@ -2,12 +2,13 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { REFUSAL_CODES } from '@cuspatlas/contracts';
 import { parse } from 'yaml';
-import { PROPOSAL_SCHEMA_FILE, ROUTES, SCHEMA_FILE } from './routes/manifest';
+import { PROPOSAL_SCHEMA_FILE, ROUTES, SCHEDULING_SCHEMA_FILE, SCHEMA_FILE } from './routes/manifest';
 
 export interface ContractSources {
   readonly openapiText: string;
   readonly schemaText: string;
   readonly proposalSchemaText: string;
+  readonly schedulingSchemaText: string;
 }
 
 export const OPENAPI_PATH = 'docs/api/openapi.yaml';
@@ -15,12 +16,15 @@ export const SCHEMA_PATH = `packages/contracts/src/${SCHEMA_FILE}`;
 const SCHEMA_REF_PREFIX = `../../${SCHEMA_PATH}#`;
 export const PROPOSAL_SCHEMA_PATH = `packages/contracts/src/${PROPOSAL_SCHEMA_FILE}`;
 const PROPOSAL_REF_PREFIX = `../../${PROPOSAL_SCHEMA_PATH}#`;
+export const SCHEDULING_SCHEMA_PATH = `packages/contracts/src/${SCHEDULING_SCHEMA_FILE}`;
+const SCHEDULING_REF_PREFIX = `../../${SCHEDULING_SCHEMA_PATH}#`;
 
 export function loadContractSources(root: string): ContractSources {
   return {
     openapiText: readFileSync(resolve(root, OPENAPI_PATH), 'utf8'),
     schemaText: readFileSync(resolve(root, SCHEMA_PATH), 'utf8'),
     proposalSchemaText: readFileSync(resolve(root, PROPOSAL_SCHEMA_PATH), 'utf8'),
+    schedulingSchemaText: readFileSync(resolve(root, SCHEDULING_SCHEMA_PATH), 'utf8'),
   };
 }
 
@@ -54,7 +58,25 @@ const schemaRef = (name: string) =>
     ? name
     : name.startsWith('proposal:')
       ? `${PROPOSAL_REF_PREFIX}/$defs/${name.slice('proposal:'.length)}`
-      : `${SCHEMA_REF_PREFIX}/$defs/${name}`;
+      : name.startsWith('scheduling:')
+        ? `${SCHEDULING_REF_PREFIX}/$defs/${name.slice('scheduling:'.length)}`
+        : `${SCHEMA_REF_PREFIX}/$defs/${name}`;
+
+/** Definitions the scheduling contract copies from the task contract; they must stay byte-identical. */
+const SCHEDULING_SHARED_DEFS = ['LocationRef', 'Version', 'IdempotencyKey'] as const;
+/** Scheduling request bodies and queries: closed objects only. */
+const SCHEDULING_BODIES = [
+  'LocationDefine',
+  'LocationTimeZoneChange',
+  'LocationListQuery',
+  'ResourceDefine',
+  'ResourceListQuery',
+  'AvailabilitySet',
+  'ResourceDeactivate',
+  'TimeBlockCreate',
+  'ResourceRef',
+  'WeeklyInterval',
+] as const;
 
 /** Definitions the proposal contract copies from the task contract; they must stay byte-identical. */
 const SHARED_DEFS = ['TaskRef', 'LocationRef', 'Label', 'Version', 'IdempotencyKey'] as const;
@@ -68,16 +90,22 @@ export function checkContractDrift(src: ContractSources): string[] {
   let api: Json;
   let schema: Json;
   let proposal: Json;
+  let scheduling: Json;
   try {
     api = parse(src.openapiText) as Json;
     schema = JSON.parse(src.schemaText) as Json;
     proposal = JSON.parse(src.proposalSchemaText) as Json;
+    scheduling = JSON.parse(src.schedulingSchemaText) as Json;
   } catch {
     return ['OpenAPI or JSON Schema does not parse'];
   }
 
   for (const ref of collectRefs(api)) {
-    if (ref.startsWith(SCHEMA_REF_PREFIX)) {
+    if (ref.startsWith(SCHEDULING_REF_PREFIX)) {
+      if (pointer(scheduling, ref.slice(SCHEDULING_REF_PREFIX.length)) === undefined) {
+        problems.push(`OpenAPI $ref does not resolve in ${SCHEDULING_SCHEMA_FILE}: ${ref}`);
+      }
+    } else if (ref.startsWith(SCHEMA_REF_PREFIX)) {
       if (pointer(schema, ref.slice(SCHEMA_REF_PREFIX.length)) === undefined) {
         problems.push(`OpenAPI $ref does not resolve in ${SCHEMA_FILE}: ${ref}`);
       }
@@ -176,6 +204,22 @@ export function checkContractDrift(src: ContractSources): string[] {
     JSON.stringify(pointer(def('SyntheticTaskCreate'), '/properties'))
   ) {
     problems.push('CreatePayload must match SyntheticTaskCreate');
+  }
+  const sdef = (name: string) => pointer(scheduling, `/$defs/${name}`);
+  for (const name of SCHEDULING_BODIES) {
+    if (pointer(sdef(name), '/additionalProperties') !== false) {
+      problems.push(`${name} must set additionalProperties: false`);
+    }
+  }
+  for (const name of SCHEDULING_SHARED_DEFS) {
+    if (JSON.stringify(sdef(name)) !== JSON.stringify(def(name))) {
+      problems.push(`${SCHEDULING_SCHEMA_FILE} ${name} differs from ${SCHEMA_FILE}`);
+    }
+  }
+  for (const name of ['ResourceListQuery', 'LocationListQuery']) {
+    if (pointer(sdef(name), '/properties/limit/pattern') !== '^([1-9]|[1-9][0-9]|100)$') {
+      problems.push(`${name}.limit must be bounded to 1..100`);
+    }
   }
   const codes = pointer(def('Refusal'), '/properties/code/enum');
   if (!Array.isArray(codes) || codes.join(',') !== REFUSAL_CODES.join(',')) {

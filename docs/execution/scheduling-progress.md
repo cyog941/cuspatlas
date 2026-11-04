@@ -505,3 +505,7 @@ No deadlock-reproduction test (S10); no reinstate command for a cancelled appoin
 - Not consumed (owner): PT-01 huddle preparation (S/E with B for balances and eligibility, C for forms and labs); PT-03 treatment, lab and referral parts (C11, C16, C17); PT-04 documentation drafting (C); PT-05 balances and reconciliation (B); PT-06 analytics (A reporting); UX-01/UX-02 interaction design (deferred UI); UX-03 role-based usability measurement (R); waitlist offer outcomes as measured filled or attended cancellations (R, with E for outreach); MG-01..MG-05 (M), CL-01..CL-12 (B).
 
 Head at the time of this entry: the commit containing it (`git log -1`); the batch 3 gate is recorded below.
+
+### Batch 3 gate
+
+`corepack pnpm run ci` at 4524362: exit 0 (typecheck, lint, contract drift, 42 files / 953 passed / 13 todo, privacy scan of 254 tracked files and the artifacts, SBOM 270 components, evidence manifest and verification: unreviewed, not certified). Commits of batch 3: cdf756c (merge of origin/main), b873e98 (S12), d2d139a (S13), d43a9e8 (S14), 26faa00 (S15 and PT-02), 9a45f56 (S16 and PT-03), a22cfcf (S17), 4524362 (review hardening of S8-S11 and the handoff). Re-run on the commit containing this entry. Not pushed. Nothing here is approved, deployed, compliant or clinically validated.

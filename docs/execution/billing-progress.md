@@ -18,7 +18,8 @@ Authorization basis: user instruction to build every backend workstream on synth
 | B1 Money and append-only journal | verified on synthetic data (Windows host); decisions pending billing approval | a342b6d | 706 tests |
 | B2 Payments, allocations, undistributed funds | verified on synthetic data (Windows host); decisions pending billing approval; provider execution blocked-on-discovery (B-S1) | 66ea613 | 759 tests |
 | B3 Payment plans, expired-card and failed-auto-pay worklists | verified on synthetic data (Windows host); decisions pending billing approval; card and auto-pay execution blocked-on-discovery (B-S1, PAY-02..04, PAY-07) | 31f9cd6 | 805 tests |
-| B4 Audited statements, snapshot and staleness | verified on synthetic data (Windows host); decisions pending billing approval; delivery not built (E7) | (this commit) | 823 tests |
+| B4 Audited statements, snapshot and staleness | verified on synthetic data (Windows host); decisions pending billing approval; delivery not built (E7) | 2542e00 | 823 tests |
+| B5 Coverage, eligibility records, coverage provenance | verified on synthetic data (Windows host); decisions pending billing approval; live eligibility blocked-on-discovery (B-S3); fee schedules B9 (B-S4) | (this commit) | 853 tests |
 
 ## Pending decisions
 
@@ -45,6 +46,12 @@ Authorization basis: user instruction to build every backend workstream on synth
 | ST-3 | Credit and zero totals | explicit `totalClass` (`due`/`zero`/`credit`) with `amountDue` and `creditBalance`; never a silent negative amount due | recommended-pending-billing-approval | billing reviewer | user-facing release |
 | ST-4 | Staleness | derived on read: a net-nonzero posting after the cutoff, a changed account membership, or a newer version; never stored | recommended-pending-billing-approval | billing reviewer | E7 delivery gate |
 | B-D5 | Statement delivery | not built here: channel `none`, owner E7 (portal plus recorded manual print recommended) | open (E7) | operator | delivery |
+| CV-1 | Coverage overlap | two coverages of one rank in the patient account may not overlap (any payer; stricter than the plan's same-payer rule) unless an override names a reason | recommended-pending-billing-approval | billing reviewer | COB (B8) |
+| CV-2 | Coverage history | a change is a new version of the whole changeable field set; the payer is fixed per coverage (a new payer is a new coverage); effective-until inclusive | recommended-pending-billing-approval | billing reviewer | migration of coverage history (M) |
+| CV-3 | Eligibility freshness | current for a service date within the record's window either side of its capture date (UTC dates); default window 168 hours | recommended-pending-billing-approval | billing operations lead | CL-01 visit preparation |
+| CV-4 | Coverage status for estimates | `entered` when the latest usable (verified or unverified) record is current for the service date, `stale` outside it, `unknown` otherwise; a later timeout keeps the earlier usable record and is reported as `latestAttempt` | recommended-pending-billing-approval | billing reviewer, C12 owner | estimate presentation |
+| CV-5 | Staff-entered eligibility | always `unverified` (B-S3 stop condition) | recommended-pending-billing-approval | billing operations lead | live eligibility |
+| CV-6 | Insurer responsibility seam | `billing.responsibility.transfer` names a coverage of the charge patient's account effective on the service date; legacy payer-only lines stay readable | recommended-pending-billing-approval | billing reviewer | B6 claims |
 | B-loc | Location-scoped financial access | tenant-wide (like S-D8) | recommended-pending-billing-approval | practice owner | location-restricted roles |
 
 ## Command log
@@ -211,6 +218,40 @@ Shared files touched in B4 (append-only lines): `policy/authorize.ts` (2 rows), 
 
 Deviations: `StatementRecord.state` (`generated | reissued | voided`) is replaced by the version chain (`statementVersion`, `supersedesStatementRef`, `supersededByStatementRef`); there is no void command (a statement is superseded, never voided, pending billing approval). `recordStatementDelivery` is not built: delivery, print and the suppression decision belong to E7. `deriveStatementFreshness(record, currentBalance)` is the read's `freshness` (it also reports later postings, membership changes and supersession, not only a balance difference). The refusal `garantor_unresolved` is spelled `guarantor_unresolved`. The domain statement guard forbids `pg_*` function calls, so generation serializes on the guarantor's patient row instead of an advisory lock.
 
+### B5 (coverage, eligibility records and coverage provenance)
+
+Acceptance and failure cases (tests/integration/rcm-eligibility.test.ts, 10 tests, REST and MCP under the runtime role; plus B2 case 12 re-expressed on a coverage):
+
+1. coverage is effective-dated; resolution for a service date returns primary then secondary with effective dates, coverage status `unknown` without eligibility and `paymentAssurance: none`; a date outside a range drops that coverage; before every range nothing resolves; a missing service date is 400;
+2. a second primary overlapping the first is 409 `overlapping_coverage` naming it; an inverted range is 422 `invalid_effective_range`; nothing changes; an explicit override with a reason is recorded on the version; another rank never overlaps;
+3. a change is version 2 (end date, fee schedule, member); a stale expected version is 409 `stale_version`; version 1 stays byte-identical in the history; resolution follows the latest version (no coverage after its end date);
+4. a subscriber who is another patient is a separate reference with its relationship; self with a relationship other than `self`, or another subscriber with `self`, is 422 `subscriber_relationship_mismatch`; another tenant's subscriber is 404 identical to a missing one;
+5. a staff-entered record is `unverified`, its status, limits and frequencies groups each carry provenance (source, capture, recorder); it is current for today (`coverageStatus: entered`) and stale for a service date outside its window in the same query; a future capture is 422 `retrieved_in_future`; adapter requests may not carry benefits (422 `benefits_not_allowed`);
+6. the fake adapter maps a response to verified limits and frequencies; the same key replays the same record; a timeout records `unknown` with no benefit fields; an unmappable response records `unparsed` with raw evidence and its digest and no benefit fields; an inactive answer is a verified status, not a claim outcome; statuses resolve as entered, unknown, unknown;
+7. a second record never rewrites the first; the runtime role cannot update or delete eligibility records, coverage versions or coverage facts (42501);
+8. responsibility moves to a coverage of the charge patient effective on the service date (charge shows coverage, payer and amount; the journal line names the coverage); another patient's coverage is 422 `coverage_patient_mismatch`, one not yet effective 422 `coverage_not_effective`, another tenant's 404 identical to a missing one; a bare `payerRef` is now 400;
+9. a merged identity's coverage resolves under the survivor; recording coverage for the merged identity is 409 `patient_merged`; another tenant's read, eligibility, change and resolution are 404; a member without billing scopes is 403; the read-only reader can read but not record eligibility;
+10. MCP record, overlap conflict, resolution and hidden read match REST; marker text in every caller string, a float freshness window and a caller `tenantId` are 400; the marker never reaches a row (billing and rcm tables) or a log.
+
+- Red: `corepack pnpm test -- rcm-eligibility billing-allocations` before any B5 code → exit 1, 11 failed (10 B5 + B2 case 12), 16 passed.
+- Green: `corepack pnpm test -- rcm-eligibility billing-allocations billing-journal` → exit 0, 42 passed; full `corepack pnpm test` → exit 0, 40 files, 853 tests (823 + 10 B5 + 15 negative-harness rows + 5 billing tool drift).
+- `corepack pnpm typecheck` → exit 0; `corepack pnpm lint` → exit 0; `corepack pnpm contract:check` → exit 0.
+
+Invariants and where they are enforced:
+
+| Invariant | Database | Domain |
+|---|---|---|
+| Coverage history never rewritten | versions and eligibility append-only (grants, triggers); coverage row version only | new version per change |
+| No overlap of one rank without a reason | (domain only: "latest version" overlap is not expressible as an exclusion constraint) | patient row lock (`FOR NO KEY UPDATE`) then overlap query over the merge set |
+| Timeout never ineligible; unparsed never interpreted | CHECK: unknown/unparsed carry no benefits; unparsed iff raw evidence and digest | port outcome mapping, exact v1 mapper |
+| Staff entry is unverified | CHECK (entered iff unverified) | fixed state |
+| Freshness and coverage status never stored | no such column | derived per service date |
+| New insurer lines name a coverage | NOT VALID CHECK (new rows), FK to coverage, dimension CHECK; sign rule and reversal negation key on the coverage | `loadCoverageForCharge`, account and effective-date checks |
+
+Shared files touched in B5 (append-only lines): `policy/authorize.ts` (5 rows), `patients/merge.ts` (2 exclusion rows), `billing/base.ts` (eligibility port dependency), `billing/journal.ts`, `billing/charges.ts`, `billing/allocations.ts` (coverage dimension), `contract-drift.ts` (6 bodies), `docs/api/openapi.yaml`, `docs/SHARED-CONTRACTS.md` (scopes `coverage.read`, `coverage.write`), `negative-harness.test.ts` (5 rows, fixture coverage, state), `tenant-isolation.test.ts` (+3 tables), `mcp-parity.test.ts` (+5 tools), `billing-tool-drift.test.ts` (`rcm.` operations), `no-float-money.test.ts` (scans `packages/domain/src/rcm`), `billing-allocations.test.ts` (case 12 on a coverage), `support/billing-fixtures.ts` (coverage scopes, `recordCoverage`, rcm tables in the digest and leak surface).
+
+Deviations: the RCM operations live in `packages/domain/src/rcm/coverage.ts` but are served by the billing service and contract (`rcm.*` operation names, `/v1/rcm/...` routes, `rcm_*` tools) instead of a second contract file. `recordEligibility` takes `source` (`entered` or `fake_adapter`); state `unparsed` is added beside `verified | unverified | unknown`. `assessEligibilityFreshness` is the per-record `freshness` of the resolution (`current | stale`; no record is `unknown` status). The overlap rule is stricter than the plan (any payer of the same rank). `stale_eligibility` and `unparsed_response` are not refusals: both are recorded, visible states. The `ResponsibilityTransfer` body replaced `payerRef` with `coverageRef` (pre-release contract change; legacy rows untouched).
+
 ## Seams for later tasks
 
 - C14: drive `billing.charges.post` as a service principal with the rendered-procedure reference in place of `syn-proc-...` (a new `source` value) and the procedure code once B-S4 settles; one original charge per procedure is already enforced.
@@ -219,12 +260,16 @@ Deviations: `StatementRecord.state` (`generated | reissued | voided`) is replace
 - B5 (coverage): `insurer_receivable` lines carry `payer_ref` (`syn-payer-...`); B5 replaces it with a coverage reference (migration adds the column and dimension rule).
 - B6/B7 (claims, remittance, CL-10): add insurer payment sources and contractual-adjustment accounts by replacing the account and dimension CHECKs and `billing_check_signs`; remittance lines post insurer payments against `insurer_receivable`; ERA posting never touches `settled_cash` (settlement stays its own command).
 - B9 (adjustments, write-offs, reports): `adjustment` and `writeOff` kinds are reserved; reasons and accounts to add; the reads already use the report scopes.
+- C12 (estimates): read `rcm.coverages.resolve` (`GET /v1/rcm/patients/{patientRef}/coverage?serviceDate=`) and copy `coverageRefs` as (coverageRef, coverageVersion) pairs plus `coverageStatus` into `EstimateView`; never compute coverage. `paymentAssurance` is always `none`; an estimate with no usable record is `unknown`. `feeScheduleRef` is a synthetic B9 placeholder (B-S4). B does not edit C code; this is the published read.
+- B6 (claims): a claim names (coverageRef, coverageVersion) and the eligibility record it relied on; insurer receivable lines already carry the coverage. B8 (secondary/COB): `rank` and effective dates order coverages; secondary eligibility is a separate record.
 - E7 (statement delivery): read `billing.statements.read`; deliver only a statement whose `freshness.state` is `fresh` and that is not superseded; a stale one needs a new `billing.statements.generate` (the reissue names the superseded version). Record delivery, print and suppression as E7 events keyed by `statementRef`; never update the statement row.
 - E (portal/messaging) and S read plan state through `billing.plans.read` / the plan worklist only; a reminder for a `missing_signature` or `expired_card` item cites the item, it does not evaluate it.
 - Scheduler (worker): call `billing.plans.collect` as a service principal for each due period with key `plan:<planRef>:t<terms>:p<period>`; a rerun replays, and the provider key is period-bound regardless of the caller key.
 - CL-12 closure: a charge closes only when patient and insurer responsibility are zero by payment, approved adjustment or transfer; the journal already distinguishes allocation, transfer and (later) adjustment kinds, and unapplied credit is a first-class worklist item.
 
 ## Unresolved
+
+- B5: no carrier catalog (unknown payer aliases are just synthetic references); eligibility freshness uses UTC dates; per-group provenance is per record (a later partial record does not merge groups); the overlap rule is domain-only.
 
 - B3: plan collection only by synthetic card (no cash installment link); a payment reversed after an amendment leaves the new basis stale (balance stays exact, the schedule does not re-spread); the plan worklist computes every plan per request (no projection, no performance evidence); due dates are evaluated at query time in the plan's IANA zone.
 

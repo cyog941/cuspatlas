@@ -147,6 +147,13 @@ export const BILLING_BODIES = [
   'PlanWorklistQuery',
   // B4.
   'StatementGenerate',
+  // B5.
+  'CoverageRecord',
+  'CoverageChange',
+  'OverlapOverride',
+  'EnteredBenefits',
+  'EligibilityRecord',
+  'CoverageQuery',
 ] as const;
 
 /** Definitions the proposal contract copies from the task contract; they must stay byte-identical. */

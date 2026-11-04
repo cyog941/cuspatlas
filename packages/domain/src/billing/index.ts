@@ -1,3 +1,9 @@
+export {
+  createFakeEligibilityAdapter,
+  type EligibilityAnswer,
+  type EligibilityPort,
+  type EligibilityRequest,
+} from '../rcm/coverage';
 export { type BillingDeps, mergeSet } from './base';
 export { BILLING_REPLAY_CODECS } from './codecs';
 export { assertBalancedEntry, type EntryInput, type LineInput } from './journal';

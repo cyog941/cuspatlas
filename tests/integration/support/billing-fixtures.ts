@@ -16,20 +16,21 @@ export const BILLING_READS = [
   'paymentDistribution.read',
   'undistributedFunds.read',
   'receivables.read',
+  'coverage.read',
 ];
-export const BILLING_WRITE = 'billing.write';
+export const BILLING_WRITE = ['billing.write', 'coverage.write'];
 export const BILLING_CORRECT = 'billing.correct';
-export const BILLING_ALL = [...BILLING_READS, BILLING_WRITE, BILLING_CORRECT];
+export const BILLING_ALL = [...BILLING_READS, ...BILLING_WRITE, BILLING_CORRECT];
 
 export async function seedBillingScopes(admin: pg.Pool): Promise<void> {
   const add: [string, string[]][] = [
     [USER_A1, BILLING_ALL],
     [USER_A2, BILLING_ALL],
-    [USER_A3, [...BILLING_READS, BILLING_WRITE]],
+    [USER_A3, [...BILLING_READS, ...BILLING_WRITE]],
     [USER_A4, BILLING_READS],
-    [SVC_A1, [...BILLING_READS, BILLING_WRITE, BILLING_CORRECT]],
+    [SVC_A1, [...BILLING_READS, ...BILLING_WRITE, BILLING_CORRECT]],
     [USER_B1, BILLING_ALL],
-    [SVC_B1, [...BILLING_READS, BILLING_WRITE]],
+    [SVC_B1, [...BILLING_READS, ...BILLING_WRITE]],
   ];
   for (const [principal, scopes] of add) {
     await admin.query(
@@ -99,6 +100,30 @@ export async function addGuarantor(
   );
 }
 
+let memberSeq = 0;
+/** Records a synthetic coverage (primary, self, effective 2026-01-01) and returns its reference. */
+export async function recordCoverage(
+  h: AppointmentHarness,
+  patientRef: string,
+  extra: Record<string, unknown> = {},
+  who = 'a1',
+): Promise<string> {
+  memberSeq += 1;
+  const r = h.ok<{ data: { coverageRef: string } }>(
+    await h.call(who, 'POST', '/v1/rcm/coverages', {
+      patientRef,
+      payerRef: 'syn-payer-default',
+      rank: 'primary',
+      relationshipToSubscriber: 'self',
+      memberRef: `syn-member-${Date.now().toString(36)}-${memberSeq}`,
+      effectiveFrom: '2026-01-01',
+      ...extra,
+    }),
+    201,
+  );
+  return r.data.coverageRef;
+}
+
 export async function balanceOf(
   h: AppointmentHarness,
   patientRef: string,
@@ -125,7 +150,7 @@ export async function billingDigest(db: TestDatabase): Promise<string> {
 export async function billingTables(db: TestDatabase): Promise<string[]> {
   const { rows } = await db.admin.query<{ relname: string }>(
     `SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-     WHERE n.nspname = 'cuspatlas' AND c.relkind = 'r' AND c.relname LIKE 'billing\\_%' AND c.relname <> 'billing_settings'
+     WHERE n.nspname = 'cuspatlas' AND c.relkind = 'r' AND (c.relname LIKE 'billing\\_%' OR c.relname LIKE 'rcm\\_%') AND c.relname <> 'billing_settings'
      ORDER BY 1`,
   );
   return rows.map((r) => r.relname);

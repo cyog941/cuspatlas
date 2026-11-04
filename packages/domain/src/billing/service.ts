@@ -1,3 +1,4 @@
+import { createCoverageOperations } from '../rcm/coverage';
 import { createAllocationOperations } from './allocations';
 import { type BillingDeps, createBillingBase } from './base';
 import { createChargeOperations } from './charges';
@@ -23,6 +24,7 @@ export function createBillingService(deps: BillingDeps) {
     ...createPaymentOperations(base, provider),
     ...createPlanOperations(base, provider),
     ...createStatementOperations(base),
+    ...createCoverageOperations(base, deps.eligibility),
     ...createAllocationOperations(base),
     ...createWorklistOperations(base),
   };

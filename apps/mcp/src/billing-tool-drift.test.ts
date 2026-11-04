@@ -17,7 +17,8 @@ function resolve(schema: unknown, local: Record<string, Schema>): unknown {
   return schema;
 }
 
-const isBilling = (operationId: string) => operationId.startsWith('billing.');
+const isBilling = (operationId: string) =>
+  operationId.startsWith('billing.') || operationId.startsWith('rcm.');
 const routes = ROUTES.filter((r) => isBilling(r.operationId));
 const tools = TOOLS.filter((t) => isBilling(t.operationId));
 
@@ -27,6 +28,7 @@ const QUERIES: Record<string, string> = {
   'billing.balances.read': 'BalanceQuery',
   'billing.worklist.list': 'WorklistQuery',
   'billing.plans.worklist': 'PlanWorklistQuery',
+  'rcm.coverages.resolve': 'CoverageQuery',
 };
 function restShape(route: (typeof routes)[number]): { properties: Schema; required?: string[] } {
   if (route.requestBody !== undefined) {
@@ -49,7 +51,7 @@ describe('REST/MCP contract drift (billing)', () => {
     expect(routes.length).toBeGreaterThan(0);
     expect(tools.map((t) => t.operationId).sort()).toStrictEqual(routes.map((r) => r.operationId).sort());
     expect(new Set(tools.map((t) => t.name)).size).toBe(tools.length);
-    for (const t of tools) expect(t.name).toMatch(/^billing_[a-z_]+$/);
+    for (const t of tools) expect(t.name).toMatch(/^(billing|rcm)_[a-z_]+$/);
   });
 
   it.each(tools.map((t) => [t.name, t] as const))('%s mirrors its REST input schema', (_n, tool) => {

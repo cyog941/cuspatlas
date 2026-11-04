@@ -132,6 +132,9 @@ describe('runtime database role', () => {
       'patient_status_history',
       'patients',
       'principals',
+      'rcm_coverage_versions',
+      'rcm_coverages',
+      'rcm_eligibility_records',
       'scheduling_attendance_reasons',
       'scheduling_availability_versions',
       'scheduling_holds',
@@ -199,6 +202,10 @@ describe('runtime database role', () => {
       'billing_payment_plan_attempts',
       // B4 statements.
       'billing_statements',
+      // B5 coverage and eligibility.
+      'rcm_coverages',
+      'rcm_coverage_versions',
+      'rcm_eligibility_records',
     ]) {
       const { rows } = await db.app.query(`SELECT count(*)::int AS n FROM cuspatlas.${t}`);
       expect([t, rows[0].n]).toStrictEqual([t, 0]);

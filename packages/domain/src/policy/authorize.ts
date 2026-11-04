@@ -126,6 +126,13 @@ export const ACTION_POLICIES = {
   // statement with its derived freshness needs receivables.read. Delivery is E7's.
   'billing.statements.generate': { scope: 'billing.write', principals: ['human', 'service'] },
   'billing.statements.read': { scope: 'receivables.read', principals: ['human', 'service'] },
+  // B5 coverage and eligibility (registry scopes coverage.read / coverage.write). Front desk and billing
+  // record coverage and eligibility; C (estimates) and S read coverage state, never compute it.
+  'rcm.coverages.record': { scope: 'coverage.write', principals: ['human', 'service'] },
+  'rcm.coverages.change': { scope: 'coverage.write', principals: ['human', 'service'] },
+  'rcm.coverages.read': { scope: 'coverage.read', principals: ['human', 'service'] },
+  'rcm.coverages.resolve': { scope: 'coverage.read', principals: ['human', 'service'] },
+  'rcm.eligibility.record': { scope: 'coverage.write', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

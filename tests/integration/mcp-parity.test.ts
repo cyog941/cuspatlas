@@ -126,6 +126,12 @@ const TOOL_NAMES = [
   // B4 statement tools.
   'billing_statements_generate',
   'billing_statements_get',
+  // B5 coverage and eligibility tools.
+  'rcm_coverages_change',
+  'rcm_coverages_get',
+  'rcm_coverages_record',
+  'rcm_coverages_resolve',
+  'rcm_eligibility_record',
 ].sort();
 
 let db: TestDatabase;

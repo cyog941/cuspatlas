@@ -2324,6 +2324,157 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/rcm/coverages:
+    post:
+      operationId: rcm.coverages.record
+      description: >-
+        Record a coverage (B5; synthetic data only; pending billing approval): synthetic payer and member references, rank, subscriber (a separate patient; relationship self only for the patient), inclusive effective dates and an optional synthetic fee schedule reference. Overlap of one rank in the patient account is 409 overlapping_coverage unless overlapOverride names a reason; 422 subscriber_relationship_mismatch or invalid_effective_range; 409 patient_merged. Requires coverage.write.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/CoverageRecord'
+      responses:
+        '201':
+          description: The coverage and its first version.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/CoverageCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/coverages/{coverageRef}:
+    get:
+      operationId: rcm.coverages.read
+      description: >-
+        A coverage with its full version history and every eligibility record (source, capture instant, freshness window, field groups with provenance, raw evidence digest). Requires coverage.read.
+      parameters:
+        - $ref: '#/components/parameters/CoverageRef'
+      responses:
+        '200':
+          description: The coverage, its history and its eligibility records.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/CoverageRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/coverages/{coverageRef}/versions:
+    post:
+      operationId: rcm.coverages.change
+      description: >-
+        Record a new coverage version (changing coverage history); earlier versions are never rewritten and stay citable by version. 409 stale_version or overlapping_coverage. Requires coverage.write.
+      parameters:
+        - $ref: '#/components/parameters/CoverageRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/CoverageChange'
+      responses:
+        '201':
+          description: The new coverage version.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/CoverageCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/coverages/{coverageRef}/eligibility:
+    post:
+      operationId: rcm.eligibility.record
+      description: >-
+        Record eligibility for the current coverage version: staff-entered (always unverified) or one request through the fake adapter (B-S3 blocked-on-discovery): verified when mapped, unknown on timeout (never ineligible), unparsed with raw evidence when unmappable. Never a payment guarantee (CL-01). 422 retrieved_in_future, benefits_not_allowed or currency_mismatch. Requires coverage.write.
+      parameters:
+        - $ref: '#/components/parameters/CoverageRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/EligibilityRecord'
+      responses:
+        '201':
+          description: The eligibility record.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/EligibilityCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/patients/{patientRef}/coverage:
+    get:
+      operationId: rcm.coverages.resolve
+      description: >-
+        Coverages of the patient account (merge set) effective on the service date in benefit order, each with its latest usable eligibility record, its freshness for that date and the derived coverageStatus (entered, unknown, stale): the read C12 estimates use. Requires coverage.read.
+      parameters:
+        - $ref: '#/components/parameters/PatientRef'
+        - $ref: '#/components/parameters/RcmServiceDate'
+      responses:
+        '200':
+          description: The ordered coverages and their status for the service date.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/CoverageResolution'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
 components:
   securitySchemes:
     bearer:
@@ -2331,6 +2482,18 @@ components:
       scheme: bearer
       bearerFormat: JWT (EdDSA; claims sub, tid, sid, iss, aud, exp, iat)
   parameters:
+    CoverageRef:
+      name: coverageRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/billing.schema.json#/$defs/CoverageRef'
+    RcmServiceDate:
+      name: serviceDate
+      in: query
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/billing.schema.json#/$defs/LocalDate'
     StatementRef:
       name: statementRef
       in: path

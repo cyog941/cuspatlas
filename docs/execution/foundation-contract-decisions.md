@@ -292,3 +292,13 @@ Additions only; no frozen row changed. ADR 0008 (recommended-pending-billing-app
 - Storage (migration `20261109030000_billing_statements.sql`): `billing_statements`, written once per generation (grants SELECT/INSERT, append-only trigger): guarantor, version chain (unique version and unique supersedes per guarantor; no self foreign key for restore order), cutoff, basis `posted_through_cutoff`, signed snapshot total with class, covered identities, canonical snapshot JSON (references, kinds, dates, integer amounts only) and its sha256 digest, delivery channel fixed to `none`.
 - Operations: `billing.statements.generate` (`billing.write`) and `billing.statements.read` (`receivables.read`); freshness is derived on read. Delivery is E7.
 - Merge: `billing_statements.guarantor_id` is a deliberate exclusion; covered identities are a snapshot array, not foreign keys.
+
+## Task record: B5 coverage and eligibility (workstream B)
+
+Additions only; no frozen row changed. ADR 0008 (recommended-pending-billing-approval); live eligibility blocked-on-discovery (B-S3).
+
+- Storage (migration `20261109040000_billing_rcm_coverage.sql`): `rcm_coverages` (patient, synthetic payer; version only), `rcm_coverage_versions` (rank, subscriber patient and relationship, synthetic member, group and fee schedule references, inclusive effective dates, overlap override reason) and `rcm_eligibility_records` (source `entered|fake_adapter`, state `verified|unverified|unknown|unparsed`, service date, capture instant, freshness window, field groups with provenance, raw evidence and digest); all append-only.
+- Journal seam: `billing_journal_lines.coverage_id` (FK to coverage); new insurer receivable lines must name a coverage (NOT VALID CHECK); the sign rule and reversal negation key on the coverage (functions replaced, no posted row updated). `billing.responsibility.transfer` takes `coverageRef`.
+- Operations: `rcm.coverages.record|change|read|resolve`, `rcm.eligibility.record` under the new registry scopes `coverage.read` / `coverage.write`. `rcm.coverages.resolve` is the coverage-status read for C12 (`entered|unknown|stale`; `paymentAssurance: none`).
+- Eligibility port (`packages/domain/src/rcm/coverage.ts`): stable request key, outcomes `confirmed|declined|unknown`; only a deterministic fake adapter exists.
+- Merge: `rcm_coverages.patient_id` and `rcm_coverage_versions.subscriber_patient_id` are deliberate exclusions; resolution follows the merge set.

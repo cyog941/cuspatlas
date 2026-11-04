@@ -1,6 +1,8 @@
 import type {
   AllocationCommandData,
   ChargeCommandData,
+  CoverageCommandData,
+  EligibilityCommandData,
   EntryCommandData,
   PaymentCommandData,
   PlanCollectData,
@@ -168,6 +170,34 @@ const statement: ReplayCodec<StatementCommandData> = {
   },
 };
 
+// ---- B5.
+const coverage: ReplayCodec<CoverageCommandData> = {
+  persist: (d): StoredResult => ({
+    kind: 'success',
+    coverageRef: d.coverageRef,
+    coverageVersion: d.coverageVersion,
+  }),
+  restore(stored) {
+    success(stored);
+    return {
+      coverageRef: storedRef(stored.coverageRef),
+      coverageVersion: storedVersion(stored.coverageVersion),
+    };
+  },
+};
+const ELIGIBILITY_STATES = new Set(['verified', 'unverified', 'unknown', 'unparsed']);
+const eligibilityCodec: ReplayCodec<EligibilityCommandData> = {
+  persist: (d): StoredResult => ({ kind: 'success', eligibilityRef: d.eligibilityRef, state: d.state }),
+  restore(stored) {
+    success(stored);
+    if (typeof stored.state !== 'string' || !ELIGIBILITY_STATES.has(stored.state)) throw malformed();
+    return {
+      eligibilityRef: storedRef(stored.eligibilityRef),
+      state: stored.state as EligibilityCommandData['state'],
+    };
+  },
+};
+
 export const BILLING_PLAN_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<unknown>>> = {
   'billing.plans.create': plan as ReplayCodec<unknown>,
   'billing.plans.authorize': plan as ReplayCodec<unknown>,
@@ -176,6 +206,9 @@ export const BILLING_PLAN_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<unk
   'billing.plans.close': plan as ReplayCodec<unknown>,
   'billing.plans.collect': collect as ReplayCodec<unknown>,
   'billing.statements.generate': statement as ReplayCodec<unknown>,
+  'rcm.coverages.record': coverage as ReplayCodec<unknown>,
+  'rcm.coverages.change': coverage as ReplayCodec<unknown>,
+  'rcm.eligibility.record': eligibilityCodec as ReplayCodec<unknown>,
 };
 
 export const BILLING_PAYMENT_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<unknown>>> = {

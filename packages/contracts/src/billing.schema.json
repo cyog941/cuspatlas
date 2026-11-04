@@ -109,7 +109,7 @@
     },
     "PayerRef": {
       "type": "string",
-      "description": "Synthetic payer reference until B5 coverage records exist.",
+      "description": "Synthetic payer reference (B5 coverage records carry it; no carrier catalog).",
       "pattern": "^syn-payer-[a-z0-9-]{1,40}$"
     },
     "EntryKind": {
@@ -203,7 +203,16 @@
     "JournalLine": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["lineNo", "account", "amount", "patientRef", "chargeRef", "paymentRef", "payerRef"],
+      "required": [
+        "lineNo",
+        "account",
+        "amount",
+        "patientRef",
+        "chargeRef",
+        "paymentRef",
+        "payerRef",
+        "coverageRef"
+      ],
       "properties": {
         "lineNo": {
           "type": "integer",
@@ -243,6 +252,16 @@
           "anyOf": [
             {
               "$ref": "#/$defs/PayerRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "coverageRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CoverageRef"
             },
             {
               "type": "null"
@@ -402,8 +421,18 @@
     "PayerAmount": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["payerRef", "amount"],
+      "required": ["coverageRef", "payerRef", "amount"],
       "properties": {
+        "coverageRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CoverageRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "payerRef": {
           "$ref": "#/$defs/PayerRef"
         },
@@ -782,13 +811,13 @@
     "ResponsibilityTransfer": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["direction", "payerRef", "amount", "reasonCode"],
+      "required": ["direction", "coverageRef", "amount", "reasonCode"],
       "properties": {
         "direction": {
           "enum": ["to_insurer", "to_patient"]
         },
-        "payerRef": {
-          "$ref": "#/$defs/PayerRef"
+        "coverageRef": {
+          "$ref": "#/$defs/CoverageRef"
         },
         "amount": {
           "$ref": "#/$defs/PositiveMoney"
@@ -796,7 +825,8 @@
         "reasonCode": {
           "$ref": "#/$defs/ReasonCode"
         }
-      }
+      },
+      "description": "Moves open responsibility for a charge between the patient and a coverage of the charge patient effective on its service date (B5 seam)."
     },
     "AttemptReconcile": {
       "type": "object",
@@ -2331,6 +2361,786 @@
       "properties": {
         "data": {
           "$ref": "#/$defs/Statement"
+        }
+      }
+    },
+    "CoverageRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "EligibilityRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "BenefitRank": {
+      "enum": ["primary", "secondary", "tertiary"]
+    },
+    "SubscriberRelationship": {
+      "enum": ["self", "spouse", "child", "other"]
+    },
+    "MemberRef": {
+      "type": "string",
+      "description": "Synthetic member reference (never a real member id).",
+      "pattern": "^syn-member-[a-z0-9-]{1,40}$"
+    },
+    "GroupRef": {
+      "type": "string",
+      "pattern": "^syn-group-[a-z0-9-]{1,40}$"
+    },
+    "FeeScheduleRef": {
+      "type": "string",
+      "description": "Synthetic fee schedule version reference (B9 owns fee schedules; B-S4).",
+      "pattern": "^syn-fee-[a-z0-9-]{1,40}$"
+    },
+    "OverlapOverride": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasonCode"],
+      "properties": {
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "CoverageRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "B5 coverage: effective-dated (until inclusive), ranked, with the subscriber as a separate patient. Overlap of one rank is 409 unless overridden with a reason.",
+      "required": [
+        "patientRef",
+        "payerRef",
+        "rank",
+        "relationshipToSubscriber",
+        "memberRef",
+        "effectiveFrom"
+      ],
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "payerRef": {
+          "$ref": "#/$defs/PayerRef"
+        },
+        "rank": {
+          "$ref": "#/$defs/BenefitRank"
+        },
+        "subscriberRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "relationshipToSubscriber": {
+          "$ref": "#/$defs/SubscriberRelationship"
+        },
+        "memberRef": {
+          "$ref": "#/$defs/MemberRef"
+        },
+        "groupRef": {
+          "$ref": "#/$defs/GroupRef"
+        },
+        "feeScheduleRef": {
+          "$ref": "#/$defs/FeeScheduleRef"
+        },
+        "effectiveFrom": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "effectiveUntil": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "overlapOverride": {
+          "$ref": "#/$defs/OverlapOverride"
+        }
+      }
+    },
+    "CoverageChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A new coverage version (the full changeable field set); earlier versions are never rewritten. The payer is fixed per coverage.",
+      "required": [
+        "expectedVersion",
+        "rank",
+        "relationshipToSubscriber",
+        "memberRef",
+        "effectiveFrom",
+        "reasonCode"
+      ],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "rank": {
+          "$ref": "#/$defs/BenefitRank"
+        },
+        "subscriberRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "relationshipToSubscriber": {
+          "$ref": "#/$defs/SubscriberRelationship"
+        },
+        "memberRef": {
+          "$ref": "#/$defs/MemberRef"
+        },
+        "groupRef": {
+          "$ref": "#/$defs/GroupRef"
+        },
+        "feeScheduleRef": {
+          "$ref": "#/$defs/FeeScheduleRef"
+        },
+        "effectiveFrom": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "effectiveUntil": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "overlapOverride": {
+          "$ref": "#/$defs/OverlapOverride"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "EnteredBenefits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "activeStatus": {
+          "enum": ["active", "inactive", "unknown"]
+        },
+        "limits": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "amount"],
+            "properties": {
+              "kind": {
+                "enum": ["annual_maximum", "deductible", "remaining_maximum"]
+              },
+              "amount": {
+                "$ref": "#/$defs/Money"
+              }
+            }
+          }
+        },
+        "frequencies": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["categoryCode", "count", "periodMonths"],
+            "properties": {
+              "categoryCode": {
+                "$ref": "#/$defs/SyntheticProcedureCode"
+              },
+              "count": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 99
+              },
+              "periodMonths": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 120
+              }
+            }
+          }
+        }
+      }
+    },
+    "EligibilityRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "B5 eligibility: staff-entered (always unverified) or from the fake adapter (verified, unknown on timeout, unparsed when unmappable). Never a payment guarantee.",
+      "required": ["source", "serviceDate"],
+      "properties": {
+        "source": {
+          "enum": ["entered", "fake_adapter"]
+        },
+        "serviceDate": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "freshnessHours": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8760
+        },
+        "retrievedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "benefits": {
+          "$ref": "#/$defs/EnteredBenefits"
+        }
+      }
+    },
+    "CoverageQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["serviceDate"],
+      "properties": {
+        "serviceDate": {
+          "$ref": "#/$defs/LocalDate"
+        }
+      }
+    },
+    "CoverageCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["coverageRef", "coverageVersion"],
+          "properties": {
+            "coverageRef": {
+              "$ref": "#/$defs/CoverageRef"
+            },
+            "coverageVersion": {
+              "$ref": "#/$defs/Version"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "EligibilityCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["eligibilityRef", "state"],
+          "properties": {
+            "eligibilityRef": {
+              "$ref": "#/$defs/EligibilityRef"
+            },
+            "state": {
+              "enum": ["verified", "unverified", "unknown", "unparsed"]
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "Benefits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "status": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value", "provenance"],
+          "properties": {
+            "value": {
+              "enum": ["active", "inactive", "unknown"]
+            },
+            "provenance": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["source", "capturedAt", "recordedByRef", "receiptRef"],
+              "properties": {
+                "source": {
+                  "enum": ["entered", "fake_adapter"]
+                },
+                "capturedAt": {
+                  "$ref": "#/$defs/Instant"
+                },
+                "recordedByRef": {
+                  "$ref": "#/$defs/PrincipalRef"
+                },
+                "receiptRef": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^syn-elig-[a-z0-9]{1,64}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["items", "provenance"],
+          "properties": {
+            "items": {
+              "type": "array",
+              "maxItems": 10,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind", "amount"],
+                "properties": {
+                  "kind": {
+                    "enum": ["annual_maximum", "deductible", "remaining_maximum"]
+                  },
+                  "amount": {
+                    "$ref": "#/$defs/Money"
+                  }
+                }
+              }
+            },
+            "provenance": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["source", "capturedAt", "recordedByRef", "receiptRef"],
+              "properties": {
+                "source": {
+                  "enum": ["entered", "fake_adapter"]
+                },
+                "capturedAt": {
+                  "$ref": "#/$defs/Instant"
+                },
+                "recordedByRef": {
+                  "$ref": "#/$defs/PrincipalRef"
+                },
+                "receiptRef": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^syn-elig-[a-z0-9]{1,64}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "frequencies": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["items", "provenance"],
+          "properties": {
+            "items": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["categoryCode", "count", "periodMonths"],
+                "properties": {
+                  "categoryCode": {
+                    "$ref": "#/$defs/SyntheticProcedureCode"
+                  },
+                  "count": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 99
+                  },
+                  "periodMonths": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 120
+                  }
+                }
+              }
+            },
+            "provenance": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["source", "capturedAt", "recordedByRef", "receiptRef"],
+              "properties": {
+                "source": {
+                  "enum": ["entered", "fake_adapter"]
+                },
+                "capturedAt": {
+                  "$ref": "#/$defs/Instant"
+                },
+                "recordedByRef": {
+                  "$ref": "#/$defs/PrincipalRef"
+                },
+                "receiptRef": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^syn-elig-[a-z0-9]{1,64}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Eligibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eligibilityRef",
+        "coverageVersion",
+        "source",
+        "state",
+        "serviceDate",
+        "retrievedAt",
+        "freshUntil",
+        "freshnessHours",
+        "benefits",
+        "rawEvidenceDigest",
+        "recordedByRef"
+      ],
+      "properties": {
+        "eligibilityRef": {
+          "$ref": "#/$defs/EligibilityRef"
+        },
+        "coverageVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "source": {
+          "enum": ["entered", "fake_adapter"]
+        },
+        "state": {
+          "enum": ["verified", "unverified", "unknown", "unparsed"]
+        },
+        "serviceDate": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "retrievedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "freshUntil": {
+          "$ref": "#/$defs/Instant"
+        },
+        "freshnessHours": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8760
+        },
+        "benefits": {
+          "$ref": "#/$defs/Benefits"
+        },
+        "rawEvidenceDigest": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recordedByRef": {
+          "$ref": "#/$defs/PrincipalRef"
+        }
+      }
+    },
+    "CoverageVersion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "coverageVersion",
+        "rank",
+        "subscriberRef",
+        "relationshipToSubscriber",
+        "memberRef",
+        "groupRef",
+        "feeScheduleRef",
+        "effectiveFrom",
+        "effectiveUntil",
+        "overlapOverrideReasonCode",
+        "reasonCode",
+        "recordedAt",
+        "recordedByRef"
+      ],
+      "properties": {
+        "coverageVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "rank": {
+          "$ref": "#/$defs/BenefitRank"
+        },
+        "subscriberRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "relationshipToSubscriber": {
+          "$ref": "#/$defs/SubscriberRelationship"
+        },
+        "memberRef": {
+          "$ref": "#/$defs/MemberRef"
+        },
+        "groupRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GroupRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "feeScheduleRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FeeScheduleRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "effectiveFrom": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "effectiveUntil": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalDate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "overlapOverrideReasonCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reasonCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recordedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "recordedByRef": {
+          "$ref": "#/$defs/PrincipalRef"
+        }
+      }
+    },
+    "Coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["coverageRef", "patientRef", "payerRef", "current", "history", "eligibility", "version"],
+      "properties": {
+        "coverageRef": {
+          "$ref": "#/$defs/CoverageRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "payerRef": {
+          "$ref": "#/$defs/PayerRef"
+        },
+        "current": {
+          "$ref": "#/$defs/CoverageVersion"
+        },
+        "history": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "#/$defs/CoverageVersion"
+          }
+        },
+        "eligibility": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "#/$defs/Eligibility"
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "CoverageRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/Coverage"
+        }
+      }
+    },
+    "CoverageSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The coverage state C12 estimates read (EstimateView.coverageStatus): entered when a usable eligibility record is current for the service date, stale outside its window, unknown otherwise.",
+      "required": [
+        "coverageRef",
+        "coverageVersion",
+        "payerRef",
+        "rank",
+        "subscriberRef",
+        "relationshipToSubscriber",
+        "feeScheduleRef",
+        "effectiveFrom",
+        "effectiveUntil",
+        "coverageStatus",
+        "eligibility",
+        "latestAttempt",
+        "paymentAssurance"
+      ],
+      "properties": {
+        "coverageRef": {
+          "$ref": "#/$defs/CoverageRef"
+        },
+        "coverageVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "payerRef": {
+          "$ref": "#/$defs/PayerRef"
+        },
+        "rank": {
+          "$ref": "#/$defs/BenefitRank"
+        },
+        "subscriberRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "relationshipToSubscriber": {
+          "$ref": "#/$defs/SubscriberRelationship"
+        },
+        "feeScheduleRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FeeScheduleRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "effectiveFrom": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "effectiveUntil": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalDate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "coverageStatus": {
+          "enum": ["entered", "unknown", "stale"]
+        },
+        "eligibility": {
+          "anyOf": [
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/Eligibility"
+                }
+              ],
+              "unevaluatedProperties": false,
+              "properties": {
+                "freshness": {
+                  "enum": ["current", "stale"]
+                }
+              },
+              "required": ["freshness"]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "latestAttempt": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["eligibilityRef", "state", "retrievedAt"],
+              "properties": {
+                "eligibilityRef": {
+                  "$ref": "#/$defs/EligibilityRef"
+                },
+                "state": {
+                  "enum": ["verified", "unverified", "unknown", "unparsed"]
+                },
+                "retrievedAt": {
+                  "$ref": "#/$defs/Instant"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "paymentAssurance": {
+          "const": "none",
+          "description": "Eligibility never implies that a claim will be paid (CL-01)."
+        }
+      }
+    },
+    "CoverageResolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["patientRef", "serviceDate", "coverages", "checkedAt"],
+          "properties": {
+            "patientRef": {
+              "$ref": "#/$defs/PatientRef"
+            },
+            "serviceDate": {
+              "$ref": "#/$defs/LocalDate"
+            },
+            "coverages": {
+              "type": "array",
+              "maxItems": 10,
+              "items": {
+                "$ref": "#/$defs/CoverageSummary"
+              }
+            },
+            "checkedAt": {
+              "$ref": "#/$defs/Instant"
+            }
+          }
         }
       }
     }

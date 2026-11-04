@@ -54,6 +54,8 @@ export interface JournalLine {
   readonly chargeRef: string | null;
   readonly paymentRef: string | null;
   readonly payerRef: string | null;
+  /** B5: the coverage an insurer receivable line names (null for legacy payer-only lines). */
+  readonly coverageRef: string | null;
 }
 export interface JournalEntry {
   readonly entryRef: string;
@@ -71,6 +73,7 @@ export interface JournalEntry {
   readonly lines: readonly JournalLine[];
 }
 export interface PayerAmount {
+  readonly coverageRef: string | null;
   readonly payerRef: string;
   readonly amount: Money;
 }
@@ -163,7 +166,7 @@ export interface FundsTransfer {
 }
 export interface ResponsibilityTransfer {
   readonly direction: 'to_insurer' | 'to_patient';
-  readonly payerRef: string;
+  readonly coverageRef: string;
   readonly amount: Money;
   readonly reasonCode: string;
 }
@@ -490,3 +493,143 @@ export interface StatementView {
 }
 
 export const validateStatementGenerate = def('StatementGenerate');
+
+// ---- B5 coverage and eligibility (recommended-pending-billing-approval; live eligibility B-S3).
+export type BenefitRank = 'primary' | 'secondary' | 'tertiary';
+export type SubscriberRelationship = 'self' | 'spouse' | 'child' | 'other';
+export type EligibilitySource = 'entered' | 'fake_adapter';
+export type EligibilityState = 'verified' | 'unverified' | 'unknown' | 'unparsed';
+export type CoverageStatus = 'entered' | 'unknown' | 'stale';
+export interface CoverageRecordInput {
+  readonly patientRef: string;
+  readonly payerRef: string;
+  readonly rank: BenefitRank;
+  readonly subscriberRef?: string;
+  readonly relationshipToSubscriber: SubscriberRelationship;
+  readonly memberRef: string;
+  readonly groupRef?: string;
+  readonly feeScheduleRef?: string;
+  readonly effectiveFrom: string;
+  readonly effectiveUntil?: string;
+  readonly overlapOverride?: { readonly reasonCode: string };
+}
+export interface CoverageChangeInput extends Omit<CoverageRecordInput, 'patientRef' | 'payerRef'> {
+  readonly expectedVersion: number;
+  readonly reasonCode: string;
+}
+export interface BenefitLimit {
+  readonly kind: 'annual_maximum' | 'deductible' | 'remaining_maximum';
+  readonly amount: Money;
+}
+export interface BenefitFrequency {
+  readonly categoryCode: string;
+  readonly count: number;
+  readonly periodMonths: number;
+}
+export interface EligibilityInput {
+  readonly source: EligibilitySource;
+  readonly serviceDate: string;
+  readonly freshnessHours?: number;
+  readonly retrievedAt?: string;
+  readonly benefits?: {
+    readonly activeStatus?: 'active' | 'inactive' | 'unknown';
+    readonly limits?: readonly BenefitLimit[];
+    readonly frequencies?: readonly BenefitFrequency[];
+  };
+}
+export interface CoverageQuery {
+  readonly serviceDate: string;
+}
+export interface CoverageCommandData {
+  readonly coverageRef: string;
+  readonly coverageVersion: number;
+}
+export interface EligibilityCommandData {
+  readonly eligibilityRef: string;
+  readonly state: EligibilityState;
+}
+export interface BenefitProvenance {
+  readonly source: EligibilitySource;
+  readonly capturedAt: string;
+  readonly recordedByRef: string;
+  readonly receiptRef: string | null;
+}
+export interface Benefits {
+  readonly status?: {
+    readonly value: 'active' | 'inactive' | 'unknown';
+    readonly provenance: BenefitProvenance;
+  };
+  readonly limits?: { readonly items: readonly BenefitLimit[]; readonly provenance: BenefitProvenance };
+  readonly frequencies?: {
+    readonly items: readonly BenefitFrequency[];
+    readonly provenance: BenefitProvenance;
+  };
+}
+export interface EligibilityView {
+  readonly eligibilityRef: string;
+  readonly coverageVersion: number;
+  readonly source: EligibilitySource;
+  readonly state: EligibilityState;
+  readonly serviceDate: string;
+  readonly retrievedAt: string;
+  readonly freshUntil: string;
+  readonly freshnessHours: number;
+  readonly benefits: Benefits;
+  readonly rawEvidenceDigest: string | null;
+  readonly recordedByRef: string;
+}
+export interface CoverageVersionView {
+  readonly coverageVersion: number;
+  readonly rank: BenefitRank;
+  readonly subscriberRef: string;
+  readonly relationshipToSubscriber: SubscriberRelationship;
+  readonly memberRef: string;
+  readonly groupRef: string | null;
+  readonly feeScheduleRef: string | null;
+  readonly effectiveFrom: string;
+  readonly effectiveUntil: string | null;
+  readonly overlapOverrideReasonCode: string | null;
+  readonly reasonCode: string | null;
+  readonly recordedAt: string;
+  readonly recordedByRef: string;
+}
+export interface CoverageView {
+  readonly coverageRef: string;
+  readonly patientRef: string;
+  readonly payerRef: string;
+  readonly current: CoverageVersionView;
+  readonly history: readonly CoverageVersionView[];
+  readonly eligibility: readonly EligibilityView[];
+  readonly version: number;
+}
+/** The read C12 estimates use (EstimateView.coverageStatus); B never constructs an estimate. */
+export interface CoverageSummary {
+  readonly coverageRef: string;
+  readonly coverageVersion: number;
+  readonly payerRef: string;
+  readonly rank: BenefitRank;
+  readonly subscriberRef: string;
+  readonly relationshipToSubscriber: SubscriberRelationship;
+  readonly feeScheduleRef: string | null;
+  readonly effectiveFrom: string;
+  readonly effectiveUntil: string | null;
+  readonly coverageStatus: CoverageStatus;
+  readonly eligibility: (EligibilityView & { readonly freshness: 'current' | 'stale' }) | null;
+  readonly latestAttempt: {
+    readonly eligibilityRef: string;
+    readonly state: EligibilityState;
+    readonly retrievedAt: string;
+  } | null;
+  readonly paymentAssurance: 'none';
+}
+export interface CoverageResolution {
+  readonly patientRef: string;
+  readonly serviceDate: string;
+  readonly coverages: readonly CoverageSummary[];
+  readonly checkedAt: string;
+}
+
+export const validateCoverageRecord = def('CoverageRecord');
+export const validateCoverageChange = def('CoverageChange');
+export const validateEligibilityRecord = def('EligibilityRecord');
+export const validateCoverageQuery = def('CoverageQuery');

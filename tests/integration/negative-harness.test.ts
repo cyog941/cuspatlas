@@ -869,11 +869,11 @@ export const COMMANDS: HarnessCommand[] = [
     rest: (f) => ({
       method: 'POST',
       url: `/v1/billing/charges/${f.alphaCharge}/responsibility`,
-      body: responsibilityBody(),
+      body: responsibilityBody(f),
       keyed: true,
       status: 201,
     }),
-    mcpArgs: (f) => ({ chargeRef: f.alphaCharge, ...responsibilityBody(), idempotencyKey: randomUUID() }),
+    mcpArgs: (f) => ({ chargeRef: f.alphaCharge, ...responsibilityBody(f), idempotencyKey: randomUUID() }),
   },
   {
     operation: 'billing.payments.reconcile',
@@ -989,6 +989,69 @@ export const COMMANDS: HarnessCommand[] = [
     rest: (f) => ({ method: 'GET', url: `${STATEMENTS}/${f.alphaStatement}`, keyed: false, status: 200 }),
     mcpArgs: (f) => ({ statementRef: f.alphaStatement }),
   },
+  // B5 coverage and eligibility.
+  {
+    operation: 'rcm.coverages.record',
+    tool: 'rcm_coverages_record',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({ method: 'POST', url: COVERAGES, body: coverageBody(f), keyed: true, status: 201 }),
+    mcpArgs: (f) => ({ ...coverageBody(f), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'rcm.coverages.read',
+    tool: 'rcm_coverages_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({ method: 'GET', url: `${COVERAGES}/${f.alphaCoverage}`, keyed: false, status: 200 }),
+    mcpArgs: (f) => ({ coverageRef: f.alphaCoverage }),
+  },
+  {
+    operation: 'rcm.coverages.change',
+    tool: 'rcm_coverages_change',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `${COVERAGES}/${f.alphaCoverage}/versions`,
+      body: coverageChangeBody(),
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({ coverageRef: f.alphaCoverage, ...coverageChangeBody(), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'rcm.eligibility.record',
+    tool: 'rcm_eligibility_record',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `${COVERAGES}/${f.alphaCoverage}/eligibility`,
+      body: { source: 'entered', serviceDate: '2026-10-01' },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      coverageRef: f.alphaCoverage,
+      source: 'entered',
+      serviceDate: '2026-10-01',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'rcm.coverages.resolve',
+    tool: 'rcm_coverages_resolve',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/rcm/patients/${P(f)}/coverage?serviceDate=2026-10-01`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ patientRef: P(f), serviceDate: '2026-10-01' }),
+  },
   {
     operation: 'billing.plans.worklist',
     tool: 'billing_plans_worklist',
@@ -1001,6 +1064,27 @@ export const COMMANDS: HarnessCommand[] = [
 
 const PLANS = '/v1/billing/payment-plans';
 const STATEMENTS = '/v1/billing/statements';
+const COVERAGES = '/v1/rcm/coverages';
+function coverageBody(f: HarnessFixture) {
+  return {
+    patientRef: P(f),
+    payerRef: 'syn-payer-harness',
+    rank: 'secondary',
+    relationshipToSubscriber: 'self',
+    memberRef: 'syn-member-harness',
+    effectiveFrom: '2027-01-01',
+  };
+}
+function coverageChangeBody() {
+  return {
+    expectedVersion: 1,
+    rank: 'primary',
+    relationshipToSubscriber: 'self',
+    memberRef: 'syn-member-harness-2',
+    effectiveFrom: '2026-01-01',
+    reasonCode: 'plan_year_end',
+  };
+}
 function statementBody(f: HarnessFixture) {
   return {
     guarantorRef: f.alphaCounterparty,
@@ -1032,10 +1116,10 @@ function transferBody(f: HarnessFixture) {
     reasonCode: 'family_account',
   };
 }
-function responsibilityBody() {
+function responsibilityBody(f: HarnessFixture) {
   return {
     direction: 'to_insurer',
-    payerRef: 'syn-payer-harness',
+    coverageRef: f.alphaCoverage,
     amount: { currency: 'USD', minor: 100 },
     reasonCode: 'coverage_expected',
   };
@@ -1295,6 +1379,13 @@ beforeAll(async () => {
     ttlMinutes: 1440,
   });
   expect(hold.statusCode).toBe(201);
+  // B5: one primary coverage for the alpha patient (the insurer dimension of responsibility moves).
+  const coverage = await owner(COVERAGES, {
+    ...coverageBody({ alphaPatient } as HarnessFixture),
+    rank: 'primary',
+    effectiveFrom: '2026-01-01',
+  });
+  expect(coverage.statusCode).toBe(201);
   // B1: one posted charge for the alpha patient.
   const charge = await owner('/v1/billing/charges', chargeBody({ alphaPatient } as HarnessFixture));
   expect(charge.statusCode).toBe(201);
@@ -1318,6 +1409,7 @@ beforeAll(async () => {
   expect(statement.statusCode).toBe(201);
   fixture = {
     alphaPlan: plan.json().data.planRef,
+    alphaCoverage: coverage.json().data.coverageRef,
     alphaStatement: statement.json().data.statementRef,
     alphaPayment: cashPayment.json().data.paymentRef,
     alphaAttempt: attempt.json().data.attemptRef,
@@ -1456,6 +1548,9 @@ async function state(): Promise<string> {
     await q('SELECT count(*)::int AS n FROM cuspatlas.billing_payment_plan_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.billing_payment_plan_attempts'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.billing_statements'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.rcm_coverages'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.rcm_coverage_versions'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.rcm_eligibility_records'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.audit_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.outbox_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.command_idempotency'),

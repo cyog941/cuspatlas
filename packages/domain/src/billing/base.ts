@@ -16,6 +16,7 @@ import { type AttemptRecordingDeps, withAttemptRecording } from '../commands/bou
 import { executeOnce } from '../commands/execute-once';
 import type { CommandExecutor } from '../commands/executor';
 import type { ActionName, Authorize } from '../policy/authorize';
+import type { EligibilityPort } from '../rcm/coverage';
 import { createSchedulingCursorCodec, type SchedulingCursorCodec } from '../scheduling/cursor';
 import type { PaymentProviderPort } from './payment-port';
 
@@ -29,6 +30,8 @@ export interface BillingDeps {
   readonly cursors?: SchedulingCursorCodec;
   /** Payment provider port (B2). Defaults to the in-process synthetic provider (B-S1 open). */
   readonly payments?: PaymentProviderPort;
+  /** Eligibility source port (B5). Defaults to the in-process fake adapter (B-S3 open). */
+  readonly eligibility?: EligibilityPort;
 }
 
 export interface BillingBase {

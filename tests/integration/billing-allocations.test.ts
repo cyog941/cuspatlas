@@ -9,6 +9,7 @@ import {
   billingLeakSurface,
   openBillingHarness,
   postCharge,
+  recordCoverage,
   usd,
 } from './support/billing-fixtures';
 import { openTestDatabase, type TestDatabase } from './support/db';
@@ -499,18 +500,19 @@ describe('B2 payment facts, provider outcomes and settlement', () => {
 
   it('12. responsibility moves between patient and insurer without over-transfer; a charge with dependents cannot be reversed', async () => {
     const patient = await createPatient(h, 'Synthetic Responsibility');
+    const coverageRef = await recordCoverage(h, patient, { payerRef: 'syn-payer-alpha' });
     const c = await postCharge(h, patient, 10000);
     const url = `/v1/billing/charges/${c.chargeRef}/responsibility`;
     const body = (direction: string, minor: number) => ({
       direction,
-      payerRef: 'syn-payer-alpha',
+      coverageRef,
       amount: usd(minor),
       reasonCode: 'coverage_expected',
     });
     h.ok(await h.call('a1', 'POST', url, body('to_insurer', 4000)), 201);
     expect(await charge(c.chargeRef)).toMatchObject({
       patientResponsibility: usd(6000),
-      insurerResponsibility: [{ payerRef: 'syn-payer-alpha', amount: usd(4000) }],
+      insurerResponsibility: [{ coverageRef, payerRef: 'syn-payer-alpha', amount: usd(4000) }],
     });
     expect(reason(await h.call('a1', 'POST', url, body('to_insurer', 6001)))).toStrictEqual([
       409,

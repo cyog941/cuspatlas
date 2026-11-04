@@ -73,30 +73,40 @@ export async function loadCharge(
 
 /** Open patient and insurer responsibility and the allocated amount, derived from the lines. */
 export async function chargeView(tx: TenantTransaction, row: ChargeRow): Promise<ChargeView> {
-  const { rows } = await tx.query<{ account: string; payer_ref: string | null; kind: string; s: string }>(
-    `SELECT l.account, l.payer_ref, e.kind, sum(l.amount_minor)::text AS s
+  const { rows } = await tx.query<{
+    account: string;
+    payer_ref: string | null;
+    coverage_id: string | null;
+    kind: string;
+    s: string;
+  }>(
+    `SELECT l.account, l.payer_ref, l.coverage_id, e.kind, sum(l.amount_minor)::text AS s
      FROM cuspatlas.billing_journal_lines l
      JOIN cuspatlas.billing_journal_entries e ON e.id = l.entry_id AND e.tenant_id = l.tenant_id
      WHERE l.charge_id = $1 AND l.account IN ('patient_receivable', 'insurer_receivable')
-     GROUP BY l.account, l.payer_ref, e.kind ORDER BY l.account, l.payer_ref, e.kind`,
+     GROUP BY l.account, l.payer_ref, l.coverage_id, e.kind ORDER BY l.account, l.coverage_id, l.payer_ref, e.kind`,
     [row.id],
   );
   const m = (s: string) => moneyFromMinorText(row.currency, s);
   let patient = BigInt(0);
   let allocated = BigInt(0);
-  const insurer = new Map<string, bigint>();
+  const insurer = new Map<string, { coverageRef: string | null; payerRef: string; sum: bigint }>();
   for (const r of rows) {
     const v = BigInt(r.s);
     if (r.account === 'patient_receivable') {
       patient += v;
       if (r.kind === 'allocation') allocated -= v;
     } else if (r.payer_ref !== null) {
-      insurer.set(r.payer_ref, (insurer.get(r.payer_ref) ?? BigInt(0)) + v);
+      // Keyed like the sign rule: the coverage, or the payer reference of a legacy line.
+      const key = r.coverage_id ?? r.payer_ref;
+      const cur = insurer.get(key) ?? { coverageRef: r.coverage_id, payerRef: r.payer_ref, sum: BigInt(0) };
+      cur.sum += v;
+      insurer.set(key, cur);
     }
   }
-  const insurerResponsibility: PayerAmount[] = [...insurer.entries()]
-    .filter(([, v]) => v !== BigInt(0))
-    .map(([payerRef, v]) => ({ payerRef, amount: m(v.toString()) }));
+  const insurerResponsibility: PayerAmount[] = [...insurer.values()]
+    .filter((x) => x.sum !== BigInt(0))
+    .map((x) => ({ coverageRef: x.coverageRef, payerRef: x.payerRef, amount: m(x.sum.toString()) }));
   return {
     chargeRef: row.id,
     patientRef: row.patient_id,

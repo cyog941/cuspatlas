@@ -176,6 +176,13 @@ export const MERGE_EXCLUDED_REFERENCES: readonly { table: string; column: string
   },
   // B4: a statement is a snapshot addressed to the guarantor it was generated for.
   { table: 'billing_statements', column: 'guarantor_id', why: 'a generated statement is never restated' },
+  // B5: coverage keeps the identity it was recorded for; resolution follows the merge set.
+  { table: 'rcm_coverages', column: 'patient_id', why: 'coverage history is never relinked' },
+  {
+    table: 'rcm_coverage_versions',
+    column: 'subscriber_patient_id',
+    why: 'coverage history is never relinked',
+  },
 ];
 
 /**

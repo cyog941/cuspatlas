@@ -27,6 +27,8 @@ export interface LineInput {
   readonly chargeId?: string | null;
   readonly paymentId?: string | null;
   readonly payerRef?: string | null;
+  /** B5: the coverage an insurer receivable line names; the sign rule keys on it. */
+  readonly coverageId?: string | null;
 }
 
 export interface EntryInput {
@@ -96,7 +98,7 @@ export function assertBalancedEntry(input: EntryInput): void {
 const dimensionOf = (l: LineInput) => ({
   account: l.account,
   charge: SIGN[l.account].keys.includes('charge') ? (l.chargeId ?? null) : null,
-  payer: SIGN[l.account].keys.includes('payer') ? (l.payerRef ?? null) : null,
+  payer: SIGN[l.account].keys.includes('payer') ? (l.coverageId ?? l.payerRef ?? null) : null,
   payment: SIGN[l.account].keys.includes('payment') ? (l.paymentId ?? null) : null,
   patient: SIGN[l.account].keys.includes('patient') ? l.patientId : null,
 });
@@ -109,7 +111,7 @@ export async function dimensionBalance(
 ): Promise<Money> {
   const { rows } = await tx.query<{ s: string }>(
     `SELECT coalesce(sum(amount_minor), 0)::text AS s FROM cuspatlas.billing_journal_lines
-     WHERE account = $1 AND ($2::uuid IS NULL OR charge_id = $2::uuid) AND ($3::text IS NULL OR payer_ref = $3::text)
+     WHERE account = $1 AND ($2::uuid IS NULL OR charge_id = $2::uuid) AND ($3::text IS NULL OR coalesce(coverage_id::text, payer_ref) = $3::text)
        AND ($4::uuid IS NULL OR payment_id = $4::uuid) AND ($5::uuid IS NULL OR patient_id = $5::uuid)`,
     [d.account, d.charge, d.payer, d.payment, d.patient],
   );
@@ -163,10 +165,11 @@ export async function postEntry(tx: TenantTransaction, input: EntryInput): Promi
   if (!id) throw new Error('entry insert returned no row');
   await tx.query(
     `INSERT INTO cuspatlas.billing_journal_lines (tenant_id, entry_id, line_no, account, amount_minor, currency,
-       patient_id, charge_id, payment_id, payer_ref)
-     SELECT cuspatlas.current_tenant_id(), $1, l.n, l.account, l.amount, $2, l.patient, l.charge, l.payment, l.payer
-     FROM unnest($3::smallint[], $4::text[], $5::bigint[], $6::uuid[], $7::uuid[], $8::uuid[], $9::text[])
-       AS l (n, account, amount, patient, charge, payment, payer)`,
+       patient_id, charge_id, payment_id, payer_ref, coverage_id)
+     SELECT cuspatlas.current_tenant_id(), $1, l.n, l.account, l.amount, $2, l.patient, l.charge, l.payment, l.payer,
+       l.coverage
+     FROM unnest($3::smallint[], $4::text[], $5::bigint[], $6::uuid[], $7::uuid[], $8::uuid[], $9::text[], $10::uuid[])
+       AS l (n, account, amount, patient, charge, payment, payer, coverage)`,
     [
       id,
       input.currency,
@@ -177,6 +180,7 @@ export async function postEntry(tx: TenantTransaction, input: EntryInput): Promi
       input.lines.map((l) => l.chargeId ?? null),
       input.lines.map((l) => l.paymentId ?? null),
       input.lines.map((l) => l.payerRef ?? null),
+      input.lines.map((l) => l.coverageId ?? null),
     ],
   );
   return id;
@@ -206,6 +210,7 @@ interface LineRow extends Record<string, unknown> {
   charge_id: string | null;
   payment_id: string | null;
   payer_ref: string | null;
+  coverage_id: string | null;
 }
 
 export const ENTRY_COLUMNS = `e.id, e.kind, e.currency, e.charge_id, e.payment_id, e.reverses_entry_id,
@@ -226,7 +231,8 @@ export async function loadEntry(tx: TenantTransaction, entryRef: string): Promis
 export async function loadLines(tx: TenantTransaction, entryIds: readonly string[]): Promise<LineRow[]> {
   if (entryIds.length === 0) return [];
   const { rows } = await tx.query<LineRow>(
-    `SELECT entry_id, line_no, account, amount_minor::text AS amount, patient_id, charge_id, payment_id, payer_ref
+    `SELECT entry_id, line_no, account, amount_minor::text AS amount, patient_id, charge_id, payment_id, payer_ref,
+       coverage_id
      FROM cuspatlas.billing_journal_lines WHERE entry_id = ANY ($1::uuid[]) ORDER BY entry_id, line_no`,
     [[...entryIds]],
   );
@@ -258,6 +264,7 @@ export function toEntry(row: EntryRow, lines: readonly LineRow[]): JournalEntry 
           chargeRef: l.charge_id,
           paymentRef: l.payment_id,
           payerRef: l.payer_ref,
+          coverageRef: l.coverage_id,
         }),
       ),
   };
@@ -272,6 +279,7 @@ export function negatedLines(lines: readonly LineRow[], currency: string): LineI
     chargeId: l.charge_id,
     paymentId: l.payment_id,
     payerRef: l.payer_ref,
+    coverageId: l.coverage_id,
   }));
 }
 

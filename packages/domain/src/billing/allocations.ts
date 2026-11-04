@@ -12,6 +12,7 @@ import {
   validateResponsibilityTransfer,
 } from '@cuspatlas/contracts';
 import { recordCommand } from '../events/record-command';
+import { loadCoverageForCharge } from '../rcm/coverage';
 import {
   assertRef,
   type BillingBase,
@@ -154,7 +155,7 @@ export function createAllocationOperations(base: BillingBase) {
       });
     },
 
-    /** Moves open responsibility for a charge between the patient and a (synthetic) payer. */
+    /** Moves open responsibility for a charge between the patient and one of its coverages (B5 seam). */
     transferResponsibility(
       ctx: ActorContext,
       chargeRef: string,
@@ -169,6 +170,7 @@ export function createAllocationOperations(base: BillingBase) {
         assertRef(chargeRef);
         return deps.withTenantTransaction(ctx, async (tx) => {
           const charge = await loadCharge(tx, chargeRef, 'FOR UPDATE OF c');
+          const coverage = await loadCoverageForCharge(tx, p.coverageRef);
           return execute<EntryCommandData>(
             ctx,
             { ...envelope, payload: { chargeRef, ...p } },
@@ -177,13 +179,19 @@ export function createAllocationOperations(base: BillingBase) {
               assertChargeActive(charge);
               const settings = await loadSettings(tx);
               const amount = inTenantCurrency(settings, p.amount);
+              // B5: the coverage must belong to the charge patient's account and be effective on the
+              // service date of the charge.
+              const account = await mergeSet(tx, charge.patient_id);
+              if (!account.ids.includes(coverage.patient_id)) throw failed('coverage_patient_mismatch');
+              if (!(await coverage.effectiveOn(charge.service_date))) throw failed('coverage_not_effective');
               const toInsurer = p.direction === 'to_insurer';
               const insurer: LineInput = {
                 account: 'insurer_receivable',
                 amount: toInsurer ? amount : negateMoney(amount),
                 patientId: charge.patient_id,
                 chargeId: charge.id,
-                payerRef: p.payerRef,
+                payerRef: coverage.payer_ref,
+                coverageId: coverage.id,
               };
               const patient: LineInput = {
                 account: 'patient_receivable',

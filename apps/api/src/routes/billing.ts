@@ -107,4 +107,18 @@ export function registerBillingRoutes(
   get('billing.statements.read', async (r) => ({
     data: await b.getStatement(requireActor(r), param(r, 'statementRef')),
   }));
+  // B5 coverage and eligibility.
+  post('rcm.coverages.record', (r) => b.recordCoverage(requireActor(r), env('rcm.coverages.record', r)));
+  post('rcm.coverages.change', (r) =>
+    b.changeCoverage(requireActor(r), param(r, 'coverageRef'), env('rcm.coverages.change', r)),
+  );
+  get('rcm.coverages.read', async (r) => ({
+    data: await b.getCoverage(requireActor(r), param(r, 'coverageRef')),
+  }));
+  get('rcm.coverages.resolve', async (r) => ({
+    data: await b.resolveCoverage(requireActor(r), param(r, 'patientRef'), query(r)),
+  }));
+  post('rcm.eligibility.record', (r) =>
+    b.recordEligibility(requireActor(r), param(r, 'coverageRef'), env('rcm.eligibility.record', r)),
+  );
 }

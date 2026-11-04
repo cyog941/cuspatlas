@@ -27,6 +27,7 @@ function files(dir: string, test: (name: string) => boolean): string[] {
 
 const tsSources = () => [
   ...files('packages/domain/src/billing', (n) => n.endsWith('.ts') && !n.endsWith('.test.ts')),
+  ...files('packages/domain/src/rcm', (n) => n.endsWith('.ts') && !n.endsWith('.test.ts')),
   'packages/contracts/src/money.ts',
   'packages/contracts/src/billing.ts',
   ...files('apps/api/src/routes', (n) => n.startsWith('billing')),
@@ -39,6 +40,7 @@ describe('no floating-point arithmetic on money paths', () => {
     const ts = tsSources();
     expect(ts).toContain('packages/contracts/src/money.ts');
     expect(ts).toContain('packages/domain/src/billing/journal.ts');
+    expect(ts).toContain('packages/domain/src/rcm/coverage.ts');
     expect(sqlSources().length).toBeGreaterThan(0);
   });
 

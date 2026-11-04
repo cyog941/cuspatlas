@@ -17,6 +17,7 @@ export const BILLING_TRANSPORT: Readonly<Record<string, string>> = {
   attemptRef: 'AttemptRef',
   planRef: 'PlanRef',
   statementRef: 'StatementRef',
+  coverageRef: 'CoverageRef',
 };
 
 /** Input schema = the REST body (or query) properties plus the transport-only properties. */
@@ -346,6 +347,73 @@ export const BILLING_SPECS: BillingSpec[] = [
     readOnly: true,
     async run(d, actor, args) {
       return { data: await d.billing.getStatement(actor, s(args, 'statementRef')) };
+    },
+  },
+  // B5 coverage and eligibility.
+  {
+    name: 'rcm_coverages_record',
+    operationId: 'rcm.coverages.record',
+    description:
+      'Record an effective-dated, ranked coverage (synthetic payer and member) with its subscriber; overlap of one rank needs an explicit override.',
+    body: 'CoverageRecord',
+    transport: ['idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) => d.billing.recordCoverage(actor, billingEnvelope('rcm.coverages.record', args)),
+  },
+  {
+    name: 'rcm_coverages_get',
+    operationId: 'rcm.coverages.read',
+    description:
+      'Read a coverage with its version history and every eligibility record (source, capture, window).',
+    body: null,
+    transport: ['coverageRef'],
+    readOnly: true,
+    async run(d, actor, args) {
+      return { data: await d.billing.getCoverage(actor, s(args, 'coverageRef')) };
+    },
+  },
+  {
+    name: 'rcm_coverages_change',
+    operationId: 'rcm.coverages.change',
+    description:
+      'Record a new coverage version (dates, rank, subscriber, member, fee schedule); history is kept.',
+    body: 'CoverageChange',
+    transport: ['coverageRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.billing.changeCoverage(
+        actor,
+        s(args, 'coverageRef'),
+        billingEnvelope('rcm.coverages.change', args, 'coverageRef'),
+      ),
+  },
+  {
+    name: 'rcm_eligibility_record',
+    operationId: 'rcm.eligibility.record',
+    description:
+      'Record eligibility: staff-entered (unverified) or one fake-adapter request (verified, unknown on timeout, unparsed when unmappable). Never a payment guarantee.',
+    body: 'EligibilityRecord',
+    transport: ['coverageRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.billing.recordEligibility(
+        actor,
+        s(args, 'coverageRef'),
+        billingEnvelope('rcm.eligibility.record', args, 'coverageRef'),
+      ),
+  },
+  {
+    name: 'rcm_coverages_resolve',
+    operationId: 'rcm.coverages.resolve',
+    description:
+      'Coverages of a patient account effective on a service date, in benefit order, with coverage status (entered, unknown, stale) and eligibility freshness: the read C12 estimates use.',
+    body: 'CoverageQuery',
+    transport: ['patientRef'],
+    readOnly: true,
+    async run(d, actor, args) {
+      return {
+        data: await d.billing.resolveCoverage(actor, s(args, 'patientRef'), without(args, 'patientRef')),
+      };
     },
   },
 ];

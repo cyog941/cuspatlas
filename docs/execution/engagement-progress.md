@@ -9,7 +9,8 @@ Authorization basis: user instruction to build every backend workstream on synth
 | Task | Status | Commit | Notes |
 |---|---|---|---|
 | E1 portal principals and the grant projection | verified on synthetic data (Windows host); E-S3 blocked-on-discovery | d335342 | proofing level `unverified-synthetic` |
-| E2 scoped portal views | verified on synthetic data (Windows host); documents, balances, messages, forms `unavailable` until C15, B4, E5, E4 | see E2 | allowlist key sets asserted |
+| E2 scoped portal views | verified on synthetic data (Windows host); documents, balances, messages, forms `unavailable` until C15, B4, E5, E4 | 5e03539 | allowlist key sets asserted |
+| E3 portal appointment requests | verified on synthetic data (Windows host); abuse bounds pending approval | see E3 | S8 command with origin `portal` |
 
 ## E1 (portal principals and the grant projection)
 
@@ -57,6 +58,25 @@ Deviations: the plan's documents view returns a short-lived read authorization; 
 
 Unresolved: field sets for balances (B4), documents (C15), messages (E5) and forms (E4); the minimum-necessary field choice for demographics (address and contact values are shown to self and to `demographics` holders) needs a privacy reviewer.
 
+## E3 (portal appointment requests into the shared request aggregate)
+
+Files: `packages/domain/src/engagement/portal/requests.ts`, `PortalRequestSubmit` in `engagement.schema.json`, one portal route, `tests/integration/portal-requests.test.ts`; S seam in `packages/domain/src/scheduling/requests.ts` (`createRequest` gains an optional `PortalRequestAuthority`).
+
+Design. `portal.requests.submit` (`POST /portal/v1/patients/{patientRef}/appointment-requests`) validates a closed portal input (location, optional appointment type, provider preference, preferred windows, flexibility, and the requester's `contactConsent` for this request: `granted` or `declined`), maps it onto S8's `AppointmentRequestCreate` (path patient, source channel `portal`) and calls S8's own `createRequest` with origin `portal`. The S8 seam: a portal origin requires a portal principal and a portal authority (and a staff call can never carry it); the authority's `authorize` (E1 check for `scheduling`) runs in the command transaction before the idempotency executor, so replays are reauthorized; its `bound` (abuse bounds) runs inside the executor, so a replay returns the original instead of counting again. Everything else (patient schedulable, location active, provider at the location, preferences, transition row, audit, outbox, idempotency) is S8's unchanged code. Bounds (recommended-pending-approval): 3 open or in-review portal requests per patient, 10 portal submissions per principal per 24 hours; refusal 429 `rate_limited` with `detail.reason` and `detail.limit`, plus an attempt row `portal_rate_limited`.
+
+Acceptance cases (`portal-requests.test.ts`, 8 tests): (1) a submission is one S8 request (state open) that the staff read and list return with the same reference, origin `portal`, source channel `portal`; its audit row is `scheduling.requests.create` by principal `portal`; no request table other than S8's exists; the portal requests view shows it `pending`; (2) a same-key resubmission (lost response) returns the original with `replayed: true` and no new row; a changed payload under the key is 409 `idempotency_conflict`; (3) only staff book from the request (the view then shows `scheduled`); cancelling that appointment leaves the request transitions unchanged; a portal token on the staff booking route is 401; (4) a guardian with `scheduling` requests for the minor (subject = minor, origin portal); a proxy holding only `demographics` is 403 `relationship_scope_missing` with an attempt row; an unrelated patient and a random reference give identical 404 bodies; nothing is written; (5) a guardian revoked between a successful page load and the next submit is 403 `relationship_revoked`, and a replay of an earlier successful key is reauthorized and refused the same way.
+
+Forbidden fields, bounds and failure: tenant, patient, urgency, note and source-channel fields are 400 and the marker in a refused note never reaches responses or logs; an unknown location is 404 and a non-provider preference 422 (S8); the fourth open request of one patient is 429 `portal_open_request_limit` with limit `portalOpenRequestsPerPatient = 3` and attempt `portal_rate_limited`; an inactive location is 422 `locationInactive` (the request-window rule until a closure calendar exists); an engagement service without the scheduling aggregate answers 503 `service_unavailable` with `aggregate_unavailable` and stores nothing.
+
+Negative harness: `portal.requests.submit` appended to the portal credential rows (write snapshot unchanged for every refused credential).
+
+- Red: `corepack pnpm test -- tests/integration/portal-requests.test.ts` before implementation: exit 1, 8 failed (8).
+- Green: same command exit 0, 8 passed. `typecheck`, `lint`, `contract:check` exit 0; `corepack pnpm test` exit 0, 46 files / 1001 passed / 13 todo.
+
+Deviations: the request-window rule is S8's location status (no closure calendar or configured request windows exist yet); the acknowledgement message is not enqueued (no S8 intent purpose exists for it; E6/E7 deliver S14 intents only); the portal request list is the E2 `requests` view rather than a separate list operation.
+
+Unresolved: closure calendar and request windows; portal free-text notes (refused until E5 messaging and a retention class exist).
+
 ## Pending decisions
 
 | Decision | Recommendation implemented (pending approval) | Settles it |
@@ -64,4 +84,6 @@ Unresolved: field sets for balances (B4), documents (C15), messages (E5) and for
 | E-S3 / E-D2 portal assurance level | invitation to a contact already on the record, staff-attested verification (`synthetic_attested`), proofing level `unverified-synthetic`; no second factor yet | security owner and practice representative |
 | E1 self access of a minor | denied until the tenant's age of majority (S5 policy), fail closed on coarse or unknown birth date | legal review per jurisdiction (with S-D4) |
 | E2 minimum-necessary demographics | legal name, preferred name, pronouns, language, birth date at its precision, contact points and address; identifiers, provenance, status and home location redacted | privacy reviewer |
+| E3 portal request abuse bounds | 3 open portal requests per patient, 10 portal submissions per principal per 24 h, 429 with the limit | practice policy and security owner |
+| E3 portal free text | no note field on portal requests | privacy reviewer (with E5 retention) |
 | E1 merge of an enrolled identity | portal access never follows a merge; re-enroll the survivor | security owner |

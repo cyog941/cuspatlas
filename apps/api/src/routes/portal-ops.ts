@@ -40,6 +40,22 @@ export const PORTAL_OPS: readonly PortalOp[] = [
     invoke: (svc, actor, i) =>
       data(svc.readPortalView(actor, i.params.patientRef ?? '', i.params.view ?? '', i.body)),
   },
+  // E3 appointment requests: S8's own create command with origin portal (never a booking).
+  {
+    method: 'post',
+    path: '/portal/v1/patients/{patientRef}/appointment-requests',
+    operationId: 'portal.requests.submit',
+    protected: true,
+    requestBody: E('PortalRequestSubmit'),
+    success: { status: '201', schema: E('EngagementCommandResult') },
+    refusals: ['400', '401', '403', '404', '409', '422', '429', '503'],
+    invoke: (svc, actor, i) =>
+      svc.submitPortalRequest(actor, i.params.patientRef ?? '', {
+        operation: 'portal.requests.submit',
+        idempotencyKey: i.key,
+        payload: i.body,
+      }),
+  },
   {
     method: 'get',
     path: '/portal/v1/views/{view}',

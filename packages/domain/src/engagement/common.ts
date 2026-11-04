@@ -10,6 +10,7 @@ import {
 import { type AttemptRecordingDeps, withAttemptRecording } from '../commands/boundary';
 import type { CommandExecutor } from '../commands/executor';
 import type { ActionName, AuthorizationDecision, Authorize } from '../policy/authorize';
+import type { AppointmentService } from '../scheduling/appointments';
 
 /** Dependencies of the engagement (E) service; the same shape every other domain service takes. */
 export interface EngagementDeps {
@@ -17,6 +18,8 @@ export interface EngagementDeps {
   readonly withTenantTransaction: WithTenantTransaction;
   readonly recording: AttemptRecordingDeps;
   readonly execute?: CommandExecutor;
+  /** S8/S10 appointment service: the one request aggregate the portal delegates to (E3). */
+  readonly appointments?: AppointmentService;
   /** S4 match-key pepper: enrollment compares contact digests, never plaintext values. */
   readonly matchKeyPepper: Uint8Array;
 }

@@ -154,6 +154,8 @@ export const SECURITY_REASON_CODES = [
   'portal_contact_unverified',
   'portal_identity_merged',
   'portal_self_below_majority',
+  // E3: portal abuse bounds (open requests per patient, submissions per principal per day).
+  'portal_rate_limited',
 ] as const;
 export type SecurityReasonCode = (typeof SECURITY_REASON_CODES)[number];
 

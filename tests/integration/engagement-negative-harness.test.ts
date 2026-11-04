@@ -162,6 +162,16 @@ export const PORTAL_CALLS: PortalCall[] = [
     }),
   },
   {
+    operation: 'portal.requests.submit',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/portal/v1/patients/${f.child}/appointment-requests`,
+      body: { locationRef: 'loc-e-harness', flexibility: 'mornings', contactConsent: 'granted' },
+      keyed: true,
+      status: 201,
+    }),
+  },
+  {
     operation: 'portal.views.describe',
     rest: () => ({ method: 'GET', url: '/portal/v1/views/appointments', keyed: false, status: 200 }),
   },

@@ -254,6 +254,49 @@
           "$ref": "#/$defs/Instant"
         }
       }
+    },
+    "PortalRequestSubmit": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "E3 portal request input, delegated to S8 createAppointmentRequest with origin portal. No tenant, no patient (the path patient), no urgency, no free text; location and provider are validated by S8. Needs preferredWindows or flexibility.",
+      "required": ["locationRef", "contactConsent"],
+      "properties": {
+        "locationRef": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,64}$"
+        },
+        "appointmentTypeCode": {
+          "type": "string",
+          "pattern": "^[a-z0-9_-]{1,40}$"
+        },
+        "providerPreference": {
+          "$ref": "#/$defs/EntityRef"
+        },
+        "preferredWindows": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["startsAt", "endsAt"],
+            "properties": {
+              "startsAt": {
+                "$ref": "#/$defs/Instant"
+              },
+              "endsAt": {
+                "$ref": "#/$defs/Instant"
+              }
+            }
+          }
+        },
+        "flexibility": {
+          "enum": ["any_time", "mornings", "afternoons", "evenings", "weekdays", "weekends"]
+        },
+        "contactConsent": {
+          "enum": ["granted", "declined"],
+          "description": "Whether the practice may contact the requester about this request (recorded on the request; outreach consent is E6's)."
+        }
+      }
     }
   }
 }

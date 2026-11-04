@@ -31,6 +31,14 @@ export interface PortalEnroll {
   readonly personRef: string;
   readonly contact: ContactValue;
 }
+export interface PortalRequestSubmit {
+  readonly locationRef: string;
+  readonly appointmentTypeCode?: string;
+  readonly providerPreference?: string;
+  readonly preferredWindows?: readonly { readonly startsAt: string; readonly endsAt: string }[];
+  readonly flexibility?: string;
+  readonly contactConsent: 'granted' | 'declined';
+}
 export interface PortalVerify {
   readonly expectedVersion: number;
   readonly method: 'synthetic_attested';
@@ -86,4 +94,5 @@ export const validatePortalEnroll = def('PortalEnroll');
 export const validatePortalVerify = def('PortalVerify');
 export const validatePortalRevoke = def('PortalRevoke');
 export const validateEmptyQuery = def('EmptyQuery');
+export const validatePortalRequestSubmit = def('PortalRequestSubmit');
 export const validateEngagementEntityRef = def('EntityRef');

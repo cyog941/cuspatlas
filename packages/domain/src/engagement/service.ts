@@ -1,5 +1,6 @@
 import { createEngagementBase, type EngagementDeps } from './common';
 import { createPortalPrincipalOperations } from './portal/principals';
+import { createPortalRequestOperations } from './portal/requests';
 import { createPortalSessionOperations } from './portal/session';
 import { createPortalViewOperations } from './portal/views';
 
@@ -15,6 +16,7 @@ export function createEngagementService(deps: EngagementDeps) {
     ...createPortalPrincipalOperations(base),
     ...createPortalSessionOperations(base),
     ...createPortalViewOperations(base),
+    ...createPortalRequestOperations(base),
   };
 }
 

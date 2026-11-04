@@ -16,6 +16,10 @@ The [practice coverage strategy](PRACTICE-COVERAGE-STRATEGY.md) adds a user-dire
 
 User sequencing clarification, 2026-11-03: broad incumbent research is closed. UI remains deferred and is not required now or before separately authorized synthetic backend foundation work. P1/P2/P3 module-specific qualification continues only where needed for the affected task. Later UI/workflow validation may revise contracts; do not freeze clinical interactions or claim user-facing readiness before that review.
 
+## Assurance work alongside delivery
+
+Follow [AS-01 through AS-12](ASSURANCE-AND-CERTIFICATION.md): F establishes evidence and security hooks; A and domain workstreams add AI governance and privacy controls; M/R verify operating evidence and truthful scope claims. Target organizational ISO/IEC 27001 and 42001 certification when the scoped systems are operating. No certificate purchase or UI work is authorized; certification itself is not a prerequisite to synthetic foundation development.
+
 ## Implementation sequence after explicit authorization
 
 Integration qualification runs during P1/P2 using the [hardware and claims backlog](HARDWARE-AND-CLAIMS-QUALIFICATION.md): H1/H2 establish pilot configurations and vendor interface rights; C1/C2 establish clearinghouse access, payer coverage, costs and enrollment; R1 establishes regulatory responsibilities. H3/C3 supply reviewed contracts. H4/C4 require real device and partner qualification during implementation. Synthetic foundation work can proceed after authorization, but workstreams I/B and release R cannot claim production support from mocked adapters. Vendor outreach drafts are prepared, not sent.

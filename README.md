@@ -56,6 +56,8 @@ One per roadmap workstream, all conforming to [shared contracts](docs/SHARED-CON
 
 A plan existing is not a plan approved. Every plan carries open decisions and blocked-on-discovery items, and the readiness review records that none of the release gates is evidenced.
 
+- [Assurance targets: ISO 27001, ISO 42001 and open-source controls](docs/ASSURANCE-AND-CERTIFICATION.md)
+
 ## Proposed technical direction
 
 Web-first TypeScript application and API, PostgreSQL transactional core, Supabase services with a self-hosting path, and an optional native device companion. Rust is a candidate for the companion; actual vendor SDK requirements determine adapters. This is an engineering recommendation, not a benchmark result or an implemented architecture.

@@ -156,6 +156,10 @@ Consumes: Tasks 1–7a. Produces: repeatable synthetic deployment/test/backup/re
 - [ ] Implement versioned backup/restore procedure, local environment verification, CI least permissions and dependency/license/security checks. Use no production secrets in pull-request jobs.
 - [ ] Run all scripts, isolated restore and secret scan; record versions and results. Commit and obtain review before any domain expansion.
 
+## Assurance acceptance additions to Task 8
+
+Apply [AS-01 through AS-04](../../ASSURANCE-AND-CERTIFICATION.md). Before foundation completion, produce a synthetic evidence manifest tied to commit, test results, dependency/SBOM inventory, control ID, owner, artifact digest, review status and freshness. Test missing/stale evidence, tampering, forged reviewer identity, unauthorized download and sensitive-marker exclusion. Keep organizational audit evidence in a restricted store; a test pass must not label a control certified. Implementation remains subject to explicit build authorization.
+
 ## Plan self-review and scope boundary
 
 This plan implements platform guarantees only. Capability rows are intentionally owned by later workstreams in [ROADMAP](../../ROADMAP.md). It does not pretend to specify unvalidated payer, clinical or device contracts. Follow-on plans must include concrete schemas, transition rules and acceptance tests before coding those modules. No UI layout, component implementation, production cutover or clinical migration is included here.

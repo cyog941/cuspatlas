@@ -14,6 +14,10 @@
 
 **Task numbering and prefix:** tasks carry the prefix `R`, discovery spikes `R-S`, and open decisions `R-D`. A reference to another plan names it: `migration Task 9` is the operator, backup and escalation task in [migration and operations](2026-11-04-migration-and-operations.md); `A7` is the forbidden-operation matrix in [API, MCP and AI](2026-11-04-api-mcp-and-ai.md).
 
+## Assurance evidence and scope claims
+
+Register the applicable [AS-01 through AS-12 requirements](../../ASSURANCE-AND-CERTIFICATION.md) in the release evidence registry. Test refusal of a certification claim with absent, expired, suspended or wrong-entity/scope evidence; prevent forks and self-hosted copies from automatically inheriting a hosted-service claim. Verify security/AI controls regardless of certificate status. Voluntary certification blocks release only if explicitly committed for that release scope; HIPAA, clinical and other required gates remain independent.
+
 ## Global Constraints
 
 - This is a reviewed proposal. Nothing here is implemented, tested, validated, certified, approved or authorized.

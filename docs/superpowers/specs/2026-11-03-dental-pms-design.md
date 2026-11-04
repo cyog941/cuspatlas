@@ -235,6 +235,10 @@ Cloud pilot requires a tested downtime runbook: secure minimal schedule/contact 
 
 Provisional operational targets for pilot planning: RPO <=15 minutes, RTO <=4 hours, API availability target 99.9% excluding agreed maintenance, p95 ordinary command latency <500ms excluding external providers on a stated test dataset. These are proposed engineering acceptance targets, not current guarantees. Validate against a realistic practice workload and costs before committing an SLA.
 
+## Assurance architecture
+
+[Assurance and certification requirements](../../ASSURANCE-AND-CERTIFICATION.md) define AS-01 through AS-12: traceable control evidence, secure releases, privacy lifecycle, AI use-case/impact registry, model and prompt provenance, regression gates, human oversight, incident monitoring and self-hosting responsibility boundaries. They support organizational ISO/IEC 27001 and 42001 targets without asserting certification. Governance records may live in controlled external systems; sensitive evidence and licensed standards never enter public Git.
+
 ## Open-source and operating model
 
 Recommend AGPL-3.0-or-later for the core to preserve access to modifications used as a network service; evaluate permissive SDK licensing separately. This is a product recommendation, not legal advice. Preserve third-party notices, contributor provenance and DCO sign-off. No contribution terms that silently transfer ownership. Governance and release stewardship must outlive one founder.

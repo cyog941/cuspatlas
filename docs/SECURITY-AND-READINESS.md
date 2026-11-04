@@ -2,6 +2,10 @@
 
 This is a security design and release gate, not a compliance certification. No PHI is authorized in this development foundation.
 
+## Assurance requirements
+
+The [assurance and certification contract](ASSURANCE-AND-CERTIFICATION.md) adds AS-01 through AS-12 as product/control requirements and proposes ISO/IEC 27001 and 42001 as organizational certification targets. Certification is not achieved, not inherited by forks/self-hosters, and not a substitute for the production gates below. Essential controls remain open source.
+
 ## Deployment obligations
 
 HHS describes administrative, physical and technical safeguards and risk analysis obligations. Cloud providers handling ePHI generally require an appropriate BAA even when they cannot decrypt the data. Supabase specifically requires a signed BAA and its HIPAA add-on for projects handling PHI. A free developer project, RLS alone, or encryption alone does not meet the overall obligation. Verify the contract's covered services, subprocessors and region before a production decision. [HHS Security Rule](https://www.hhs.gov/hipaa/for-professionals/security/laws-regulations/index.html), [HHS cloud guidance](https://www.hhs.gov/hipaa/for-professionals/special-topics/health-information-technology/cloud-computing/index.html), [Supabase HIPAA](https://supabase.com/docs/guides/platform/hipaa-projects).

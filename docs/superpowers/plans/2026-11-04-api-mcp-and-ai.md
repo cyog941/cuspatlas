@@ -14,6 +14,10 @@
 
 **Task numbering:** tasks carry the prefix `A`, discovery spikes `A-S`, and open decisions `A-D`. A reference to another plan names it: `foundation Task 5` is [platform foundation](2026-11-03-platform-foundation.md), `migration Task 1` is [migration and operations](2026-11-04-migration-and-operations.md). A reference to a scope or a shared type is resolved through [shared contracts](../../SHARED-CONTRACTS.md), which remains the authority for money, identifiers and scope naming.
 
+## Assurance requirements
+
+Apply [AS-07 through AS-11](../../ASSURANCE-AND-CERTIFICATION.md) to AI onboarding, provider policy, evaluations and monitoring. Add acceptance cases for unregistered use-case enablement, expired risk approval, material provider/prompt change without reevaluation, insufficient subgroup evidence, reported harmful output, and emergency AI disable with manual workflows preserved. Bind protected provenance to versioned control evidence. These are organizational-assurance support requirements, not clinical validation or an ISO certificate.
+
 ## Global Constraints
 
 - This is a reviewed proposal. Nothing here is implemented, tested, validated or authorized.

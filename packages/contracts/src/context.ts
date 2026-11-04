@@ -159,6 +159,20 @@ export class RefusalError extends Error {
   }
 }
 
+/**
+ * Thrown by command work to ask the tenant-transaction runner to COMMIT what is already written
+ * (for example an idempotency reservation that records a terminal refusal) and then surface
+ * `refusal` to the caller. The runner never commits for any other error.
+ */
+export class CommitThenRefuse extends Error {
+  readonly refusal: RefusalError;
+  constructor(refusal: RefusalError) {
+    super('commit_then_refuse');
+    this.name = 'CommitThenRefuse';
+    this.refusal = refusal;
+  }
+}
+
 export function isRefusalError(err: unknown): err is RefusalError {
   return err instanceof RefusalError;
 }

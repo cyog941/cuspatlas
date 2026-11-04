@@ -41,7 +41,7 @@ export const ROUTES: readonly RouteContract[] = [
     protected: true,
     requestBody: 'SyntheticTaskCreate',
     success: { status: '201', schema: 'SyntheticTaskCommandResult' },
-    refusals: ['400', '401', '403', '503'],
+    refusals: ['400', '401', '403', '409', '503'],
   },
   {
     method: 'get',

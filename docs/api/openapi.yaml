@@ -70,6 +70,8 @@ paths:
           $ref: '#/components/responses/Refusal'
         '403':
           $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
     get:
@@ -169,7 +171,14 @@ components:
       name: Idempotency-Key
       in: header
       required: true
-      description: Caller-supplied key. Full replay semantics arrive with F Task 5.
+      description: >-
+        Caller-supplied key, scoped to (tenant, principal, operation) and retained 7 days. A retry with
+        the same key and an identical body (canonical SHA-256 digest; key order ignored) returns the
+        recorded result with replayed=true after re-authorizing the caller, or replays the recorded
+        terminal refusal (for example stale_version). The same key with a different body (or another
+        relabel target) is 409 idempotency_conflict. While the first request is still in flight a
+        duplicate waits for it; a reservation left pending for more than 60 s is taken over. A
+        corrected request needs a new key.
       schema:
         $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/IdempotencyKey'
   responses:

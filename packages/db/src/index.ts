@@ -1,3 +1,4 @@
+export * from './idempotency-maintenance';
 export * from './identity';
 export * from './migrate';
 export * from './outbox';

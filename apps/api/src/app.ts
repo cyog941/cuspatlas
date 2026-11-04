@@ -6,6 +6,7 @@ import {
   type CursorCodec,
   createAuthorize,
   createSyntheticTaskService,
+  executeOnce,
 } from '@cuspatlas/domain';
 import Fastify, {
   type FastifyInstance,
@@ -36,7 +37,7 @@ export interface AppDeps {
   readonly attempts?: SecurityAttemptSink;
   /** Runtime-role tenant transactions; enables the synthetic-task routes. */
   readonly tenantTransactions?: WithTenantTransaction;
-  /** Command executor seam (Task 5 supplies executeOnce). */
+  /** Command executor; defaults to the durable executeOnce. Tests may inject a faulting one. */
   readonly execute?: CommandExecutor;
   /** Pagination cursor codec; defaults to a per-process random HMAC key. */
   readonly cursors?: CursorCodec;
@@ -129,7 +130,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         authorize,
         withTenantTransaction: deps.tenantTransactions,
         recording,
-        ...(deps.execute ? { execute: deps.execute } : {}),
+        execute: deps.execute ?? executeOnce,
         ...(deps.cursors ? { cursors: deps.cursors } : {}),
       });
       registerSyntheticTaskRoutes(app, { authenticator, service });

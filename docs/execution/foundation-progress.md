@@ -27,7 +27,7 @@ Limitations: Windows-only spike; CI must prove the Linux path. The embedded bina
 | E0 environment and baseline | verified | (this commit) | see above |
 | E1 reproducible service (Task 1) | verified | bb25a6b | pnpm workspace, contracts, safe error boundary, ADR 0001 |
 | E2 identity and contracts (Tasks 2–3) | verified (revision cycle 1 applied) | Task 2 013ef79; Task 3 bd2cfc7; revision see git log | exit gate met on the Windows host; Linux CI pending (Task 8) |
-| E3 trustworthy mutations (Tasks 4–5) | in progress | Task 4 see git log | Task 4 verified; Task 5 in progress |
+| E3 trustworthy mutations (Tasks 4–5) | verified | Task 4 473a748; Task 5 see git log | exit gate met on the Windows host; Linux CI pending (Task 8) |
 | E4 durable integrations (Task 6) | not started | | |
 | E5 programmatic control (Tasks 7–7a) | not started | | |
 | E6 reproducibility and recovery (Task 8) | not started | | |
@@ -125,3 +125,20 @@ Acceptance cases (tests/integration/atomic-events.test.ts, 15 tests): create and
 - `corepack pnpm test` → exit 0, 9 files, 83 tests; `corepack pnpm test:integration` → exit 0, 6 files, 70 tests
 
 Crash-window limits, fail-closed handling and the outbox column grants for Task 6 are recorded in foundation-contract-decisions.md ("Task record: F Task 4"). Unresolved: trace ids are derived from the server correlation id (no OpenTelemetry/traceparent yet); Supabase advisors not run (no cloud connection by instruction); Linux CI pending (Task 8).
+
+### E3 / Task 5 (idempotency and optimistic concurrency)
+
+Acceptance cases (tests/integration/idempotency.test.ts, 18 tests; packages/domain/src/commands/digest.test.ts, 2 unit tests; all denial/isolation assertions under `cuspatlas_app`): reservation table RLS enabled+forced, runtime role has no DELETE/TRUNCATE and cannot update scope columns; a sequential retry replays with `replayed: true`, the same `taskRef` and a new correlation id, with exactly one task, audit and outbox row, and the row is `committed` with the independent canonical digest, a reference-only result and a 7-day TTL; a reordered identical body replays; a relabel retry does not bump the version twice; same key with a different body is 409 `idempotency_conflict` and creates nothing; the same key on another relabel target conflicts and leaves it untouched; tenant B reusing A's key gets its own fresh reservation and task in B and can never see A's rows; a service principal in the same tenant has its own scope; the runtime role cannot insert a reservation for another tenant or principal (42501); stale `expectedVersion` is 409 `stale_version` with `currentVersion`, recorded as `failed` with no audit row, and the same key replays the identical refusal after the task has moved on; a member revoked after the first call gets 403 on replay (no cached data), and after reinstatement the replay returns; a crash after commit but before the response (tenant-transaction wrapper throws after COMMIT) returns 500, and the retry with the same key replays the committed task with a single task/audit row; a `pending` reservation older than 60 s is taken over, a 5 s old one is 409 `conflict` (retryable) with nothing created; an expired reservation is not replayed; the runtime role cannot DELETE reservations, the owner-role purge removes only expired rows and refuses to run as `cuspatlas_app`; the marker used as idempotency key and label never reaches reservation rows, conflict responses or trace-level logs; concurrency (below).
+
+Concurrency loop results (each case 5 iterations, 10 parallel identical requests, 12-connection pool): `app.inject` → every iteration 10×201, exactly 1 `replayed: false`, 1 distinct taskRef, 1 task row, 1 audit row, 1 outbox row; real listening server with `fetch` → same; identical relabels → 10×200, 1 non-replayed, version 2, exactly 2 audit rows for the task (create + one relabel); 5 concurrent same-key different-body creates → 1×201 + 4×409 `idempotency_conflict`, 1 task row. The review-hardening R1 case (8 concurrent requests on a 2-connection pool) now runs through `executeOnce` and still completes. The idempotency file was additionally run 3 more times in a row: 18/18 each time (20 concurrency iterations per case in total, no duplicate observed).
+
+- Red: `corepack pnpm test:integration -- idempotency` with the E2 `executeDirect` default → exit 1, 18 of 18 failed (missing table; the concurrency case saw 10 non-replayed mutations instead of 1)
+- Green: `corepack pnpm test:integration -- idempotency` → exit 0, 18 tests
+- Mutation check (reverted): disabling the digest comparison and recording refusals without committing → 5 tests failed as expected (both conflict cases, recorded stale refusal, marker/conflict case, concurrent altered bodies)
+- OpenAPI: 409 added to create (manifest and document), Idempotency-Key replay semantics documented; tenant-isolation inventory extended with `command_idempotency`.
+- Fresh: `rm -rf node_modules (all workspaces) && corepack pnpm install --frozen-lockfile` → exit 0
+- `corepack pnpm typecheck` → 0; `corepack pnpm lint` → 0; `corepack pnpm contract:check` → 0
+- `corepack pnpm test` → exit 0, 11 files, 103 tests (unit 15, integration 88); `corepack pnpm test:integration` → exit 0, 7 files, 88 tests; no postgres.exe or `cuspatlas-pg-*` temp dir left
+- `corepack pnpm audit` → no known vulnerabilities
+
+Decisions and refinements (key stored as digest, reference-only stored results with replay codecs, terminal-refusal set, `CommitThenRefuse` + savepoint, takeover and in-flight rules, owner-role maintenance) are in foundation-contract-decisions.md ("Task record: F Task 5"). Unresolved: the digest unit test was written alongside the implementation, not red-first; the maintenance role under FORCE RLS for a non-superuser owner is deferred to ADR 0002; Linux CI and Supabase advisors not run.

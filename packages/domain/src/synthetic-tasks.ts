@@ -18,7 +18,8 @@ import {
   type WithTenantTransaction,
 } from '@cuspatlas/contracts';
 import { type AttemptRecordingDeps, withAttemptRecording } from './commands/boundary';
-import { type CommandExecutor, executeDirect } from './commands/executor';
+import { executeOnce } from './commands/execute-once';
+import type { CommandExecutor } from './commands/executor';
 import { type CursorCodec, createCursorCodec } from './cursor';
 import { recordCommand } from './events/record-command';
 import { type ActionName, type Authorize, assertLocation } from './policy/authorize';
@@ -27,7 +28,7 @@ export interface SyntheticTaskDeps {
   readonly authorize: Authorize;
   readonly withTenantTransaction: WithTenantTransaction;
   readonly recording: AttemptRecordingDeps;
-  /** Defaults to executeDirect; Task 5 supplies executeOnce. */
+  /** Defaults to the durable executeOnce; tests may inject a different executor. */
   readonly execute?: CommandExecutor;
   /** Defaults to a per-process random HMAC key. */
   readonly cursors?: CursorCodec;
@@ -64,7 +65,7 @@ function checkEnvelope(envelope: CommandEnvelope<unknown>, operation: string): v
  * call these functions; none of them takes a tenant from its input.
  */
 export function createSyntheticTaskService(deps: SyntheticTaskDeps) {
-  const execute = deps.execute ?? executeDirect;
+  const execute = deps.execute ?? executeOnce;
   const cursors = deps.cursors ?? createCursorCodec();
 
   function guarded<T>(ctx: ActorContext, operation: ActionName, work: () => Promise<T>): Promise<T> {
@@ -147,7 +148,12 @@ export function createSyntheticTaskService(deps: SyntheticTaskDeps) {
           assertLocation(decision.locationRefs, current.location_ref);
           return execute<TaskSummary>(
             ctx,
-            { ...envelope, expectedVersion: payload.expectedVersion },
+            {
+              ...envelope,
+              expectedVersion: payload.expectedVersion,
+              // The digest covers the target as well as the body: one key cannot relabel two tasks.
+              payload: { taskRef, label: payload.label, expectedVersion: payload.expectedVersion },
+            },
             tx,
             async () => {
               if (current.version !== payload.expectedVersion) {

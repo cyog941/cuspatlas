@@ -1,5 +1,6 @@
 import {
   type ActorContext,
+  CommitThenRefuse,
   RefusalError,
   type TenantTransaction,
   type WithTenantTransaction,
@@ -40,6 +41,7 @@ export function createTenantTransactionRunner(pool: pg.Pool): WithTenantTransact
         if (member.rowCount !== 1) {
           throw new RefusalError({ code: 'forbidden', reasonCode: 'membership_inactive' });
         }
+        let depth = 0;
         const tx: TenantTransaction = {
           ctx,
           async query(text, values) {
@@ -47,8 +49,32 @@ export function createTenantTransactionRunner(pool: pg.Pool): WithTenantTransact
             const r = await client.query(text, values as unknown[] | undefined);
             return { rows: r.rows, rowCount: r.rowCount ?? 0 };
           },
+          async savepoint(inner) {
+            // Fixed, server-chosen names; never caller text. Depth makes nested use safe.
+            depth += 1;
+            const name = `cuspatlas_sp_${depth}`;
+            await client.query(`SAVEPOINT ${name}`);
+            try {
+              const value = await inner();
+              await client.query(`RELEASE SAVEPOINT ${name}`);
+              return value;
+            } catch (err) {
+              await client.query(`ROLLBACK TO SAVEPOINT ${name}`);
+              await client.query(`RELEASE SAVEPOINT ${name}`);
+              throw err;
+            } finally {
+              depth -= 1;
+            }
+          },
         };
-        const result = await work(tx);
+        let result: T;
+        try {
+          result = await work(tx);
+        } catch (err) {
+          if (!(err instanceof CommitThenRefuse)) throw err;
+          await client.query('COMMIT');
+          throw err.refusal;
+        }
         await client.query('COMMIT');
         return result;
       } catch (err) {

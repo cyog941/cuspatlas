@@ -7,6 +7,11 @@ export interface TenantTransaction {
     text: string,
     values?: readonly unknown[],
   ): Promise<{ rows: R[]; rowCount: number }>;
+  /**
+   * Runs `work` inside a savepoint: on a throw, only the work's writes are undone and the
+   * transaction stays usable (the command boundary uses it to record a refusal durably).
+   */
+  savepoint<T>(work: () => Promise<T>): Promise<T>;
 }
 
 export type WithTenantTransaction = <T>(

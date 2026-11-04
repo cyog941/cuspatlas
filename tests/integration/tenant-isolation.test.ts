@@ -100,6 +100,8 @@ describe('runtime database role', () => {
        ORDER BY c.relname`,
     );
     expect(rows.map((r) => r.relname)).toStrictEqual([
+      'action_proposal_provenance',
+      'action_proposals',
       'audit_events',
       'command_idempotency',
       'delivery_receipts',
@@ -124,6 +126,8 @@ describe('runtime database role', () => {
       'outbox_events',
       'command_idempotency',
       'delivery_receipts',
+      'action_proposals',
+      'action_proposal_provenance',
     ]) {
       const { rows } = await db.app.query(`SELECT count(*)::int AS n FROM cuspatlas.${t}`);
       expect([t, rows[0].n]).toStrictEqual([t, 0]);

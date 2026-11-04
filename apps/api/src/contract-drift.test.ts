@@ -45,6 +45,18 @@ describe('contract drift check', () => {
     expect(problems).toMatch(/maxLength/);
   });
 
+  it('fails when the proposal contract loosens its bodies or drifts from the task definitions', () => {
+    const src = loadContractSources(root);
+    const proposal = JSON.parse(src.proposalSchemaText);
+    proposal.$defs.ProposalCommit.additionalProperties = true;
+    proposal.$defs.Label.maxLength = 500;
+    const problems = checkContractDrift({ ...src, proposalSchemaText: JSON.stringify(proposal) }).join('\n');
+    expect(problems).toMatch(/ProposalCommit must set additionalProperties/);
+    expect(problems).toMatch(/Label differs/);
+    const openapiText = src.openapiText.replace('#/$defs/ProposalApprove', '#/$defs/ProposalApproveV0');
+    expect(checkContractDrift({ ...src, openapiText }).join('\n')).toMatch(/ProposalApproveV0/);
+  });
+
   it('fails when the refusal code enum diverges from the shared contract', () => {
     const src = loadContractSources(root);
     const schema = JSON.parse(src.schemaText);

@@ -101,7 +101,12 @@
             "conflict",
             "rate_limited",
             "internal_error",
-            "service_unavailable"
+            "service_unavailable",
+            "self_approval_denied",
+            "payload_mismatch",
+            "proposal_expired",
+            "policy_changed",
+            "approval_invalid"
           ]
         },
         "retryable": { "type": "boolean" },

@@ -27,6 +27,7 @@ import {
   type CommandExecutor,
   type CursorCodec,
   createAuthorize,
+  createProposalService,
   createSyntheticTaskService,
   executeOnce,
 } from '@cuspatlas/domain';
@@ -39,6 +40,7 @@ import {
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
 import { assertDistinctAudience, assertIdentityAllowed, createMcpAuthenticator } from './auth';
+import { PROPOSAL_TOOLS } from './tools/proposals';
 import {
   compileInput,
   SYNTHETIC_TASK_TOOLS,
@@ -62,6 +64,8 @@ export interface McpServerDeps {
   readonly tenantTransactions: WithTenantTransaction;
   readonly execute?: CommandExecutor;
   readonly cursors?: CursorCodec;
+  /** Proposal policy version (defaults to PROPOSAL_POLICY_VERSION); tests bump it. */
+  readonly proposalPolicyVersion?: string;
   readonly logger?: { readonly stream?: { write(line: string): void } };
   /** Browser origins allowed to call the endpoint. Default none: native MCP clients send no Origin. */
   readonly allowedOrigins?: readonly string[];
@@ -79,8 +83,10 @@ interface Registered {
   readonly validate: ReturnType<typeof compileInput>;
 }
 
+export const TOOLS: readonly ToolDefinition[] = [...SYNTHETIC_TASK_TOOLS, ...PROPOSAL_TOOLS];
+
 const REGISTRY: ReadonlyMap<string, Registered> = new Map(
-  SYNTHETIC_TASK_TOOLS.map((tool) => [tool.name, { tool, validate: compileInput(tool.inputSchema) }]),
+  TOOLS.map((tool) => [tool.name, { tool, validate: compileInput(tool.inputSchema) }]),
 );
 
 function sendJson(res: ServerResponse, status: number, body: unknown, headers: Record<string, string> = {}) {
@@ -106,8 +112,8 @@ async function readBody(req: IncomingMessage): Promise<unknown> {
 
 /**
  * Remote MCP endpoint for the synthetic-task domain over Streamable HTTP (stateless: every POST is
- * authenticated, served by a fresh protocol server and closed). Exposes exactly the four tools in
- * SYNTHETIC_TASK_TOOLS; there is no SQL, shell, HTTP or file tool and no resources or prompts.
+ * authenticated, served by a fresh protocol server and closed). Exposes exactly the eight tools in
+ * TOOLS (synthetic-task and proposal tools); there is no SQL, shell, HTTP or file tool and no resources or prompts.
  */
 export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
   if (!RUNTIME_ENVIRONMENTS.includes(deps.env)) throw new Error('Unsupported runtime environment');
@@ -139,7 +145,15 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     execute: deps.execute ?? executeOnce,
     ...(deps.cursors ? { cursors: deps.cursors } : {}),
   });
-  const toolDeps: ToolDeps = { service, authorize, recording };
+  const proposals = createProposalService({
+    authorize,
+    memberships: deps.membership,
+    withTenantTransaction: deps.tenantTransactions,
+    recording,
+    execute: deps.execute ?? executeOnce,
+    ...(deps.proposalPolicyVersion ? { policyVersion: deps.proposalPolicyVersion } : {}),
+  });
+  const toolDeps: ToolDeps = { service, proposals, authorize, recording };
   const allowedOrigins = new Set(deps.allowedOrigins ?? []);
   /** Advertised in the 401 challenge; defaults to the address the server actually listens on. */
   let metadataUrl = deps.resourceMetadataUrl;
@@ -198,7 +212,7 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
       { capabilities: { tools: {} } },
     );
     server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: SYNTHETIC_TASK_TOOLS.map((t) => ({
+      tools: TOOLS.map((t) => ({
         name: t.name,
         description: t.description,
         inputSchema: t.inputSchema as never,

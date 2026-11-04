@@ -83,6 +83,12 @@ export const REFUSAL_CODES = [
   'rate_limited',
   'internal_error',
   'service_unavailable',
+  // F Task 7a: proposal and approval boundary.
+  'self_approval_denied',
+  'payload_mismatch',
+  'proposal_expired',
+  'policy_changed',
+  'approval_invalid',
 ] as const;
 export type RefusalCode = (typeof REFUSAL_CODES)[number];
 
@@ -99,6 +105,11 @@ export const REFUSAL_HTTP_STATUS: Readonly<Record<RefusalCode, number>> = {
   rate_limited: 429,
   internal_error: 500,
   service_unavailable: 503,
+  self_approval_denied: 403,
+  payload_mismatch: 409,
+  proposal_expired: 409,
+  policy_changed: 409,
+  approval_invalid: 409,
 };
 
 export const SECURITY_REASON_CODES = [
@@ -110,6 +121,19 @@ export const SECURITY_REASON_CODES = [
   'tenant_mismatch',
   'location_denied',
   'resource_hidden_or_missing',
+  // F Task 7a: every proposal refusal is recorded; these name the non-denial reasons.
+  'self_approval_denied',
+  'payload_mismatch',
+  'proposal_expired',
+  'stale_version',
+  'policy_changed',
+  'approval_invalid',
+  'approver_unauthorized',
+  'proposer_unauthorized',
+  'proposal_state_conflict',
+  'request_invalid',
+  'idempotency_conflict',
+  'proposal_refused',
 ] as const;
 export type SecurityReasonCode = (typeof SECURITY_REASON_CODES)[number];
 
@@ -178,7 +202,12 @@ export function isRefusalError(err: unknown): err is RefusalError {
 }
 
 /** Refusal codes that are denials and must produce a SecurityAttemptEvent. */
-export const DENIAL_CODES: ReadonlySet<RefusalCode> = new Set(['unauthenticated', 'forbidden', 'not_found']);
+export const DENIAL_CODES: ReadonlySet<RefusalCode> = new Set([
+  'unauthenticated',
+  'forbidden',
+  'not_found',
+  'self_approval_denied',
+]);
 
 const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
 const OPERATION_PATTERN = '^[a-z][A-Za-z]{0,40}(\\.[a-z][A-Za-z]{0,40}){0,3}$';

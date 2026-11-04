@@ -37,9 +37,13 @@ import {
 
 const MCP_AUDIENCE = 'urn:cuspatlas:mcp:synthetic';
 const TOOL_NAMES = [
+  'synthetic_tasks_approve',
+  'synthetic_tasks_commit',
   'synthetic_tasks_create',
   'synthetic_tasks_get',
+  'synthetic_tasks_get_proposal',
   'synthetic_tasks_list',
+  'synthetic_tasks_propose',
   'synthetic_tasks_relabel',
 ];
 
@@ -723,7 +727,7 @@ describe('REST and MCP parity (table-driven)', () => {
 });
 
 describe('protocol surface', () => {
-  it('lists exactly the four tools and advertises nothing else', async () => {
+  it('lists exactly the eight tools and advertises nothing else', async () => {
     await withClient(tokens.a1?.mcp, async (client) => {
       const { tools } = await client.listTools();
       expect(tools.map((t) => t.name).sort()).toStrictEqual(TOOL_NAMES);

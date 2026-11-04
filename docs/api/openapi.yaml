@@ -9,7 +9,8 @@ info:
     this document references it instead of restating it. Tenant authority always comes from the
     verified bearer token and a live membership; no path, query, header or body field selects a
     tenant. Refusals use the shared Refusal body and the transport mapping in docs/SHARED-CONTRACTS.md.
-    Hidden cross-tenant and missing resources return the same 404 body.
+    Hidden cross-tenant and missing resources return the same 404 body. Proposal bodies are defined
+    by packages/contracts/src/action-proposal.schema.json.
   license:
     name: AGPL-3.0-or-later
     identifier: AGPL-3.0-or-later
@@ -154,6 +155,137 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/synthetic-tasks/proposals:
+    post:
+      operationId: syntheticTasks.proposals.prepare
+      description: >-
+        Prepare a server-owned proposal for a synthetic create or relabel. Binds tenant, operation,
+        the payload and its canonical SHA-256 digest, the target task version (relabel), the policy
+        version, the proposer and an expiry (15 min). Requires syntheticTasks.read only: preparing never
+        changes a task and never enqueues anything.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/action-proposal.schema.json#/$defs/ProposalPrepare'
+      responses:
+        '201':
+          description: Proposal prepared (state prepared).
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/action-proposal.schema.json#/$defs/ProposalCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/synthetic-tasks/proposals/{proposalRef}:
+    get:
+      operationId: syntheticTasks.proposals.read
+      description: >-
+        Read a proposal, including its payload. Visible only to its proposer, approver or committer and
+        to members who could approve (human, syntheticTasks.approve) or execute it (syntheticTasks.write);
+        everyone else, including other tenants, gets the same 404 as for a missing proposal. Read-only.
+      parameters:
+        - $ref: '#/components/parameters/ProposalRef'
+      responses:
+        '200':
+          description: The proposal.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/action-proposal.schema.json#/$defs/ProposalRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/synthetic-tasks/proposals/{proposalRef}/approve:
+    post:
+      operationId: syntheticTasks.proposals.approve
+      description: >-
+        Approve a prepared proposal over the payloadDigest the approver reviewed. Human principals with
+        syntheticTasks.approve only; a service principal approving its own proposal is refused with
+        self_approval_denied. The idempotency key is the proposal id (no header). execution=deferred
+        enqueues a durable execution request for the worker.
+      parameters:
+        - $ref: '#/components/parameters/ProposalRef'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/action-proposal.schema.json#/$defs/ProposalApprove'
+      responses:
+        '200':
+          description: Proposal approved (or the same approver's earlier approval, replayed).
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/action-proposal.schema.json#/$defs/ProposalCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/synthetic-tasks/proposals/{proposalRef}/commit:
+    post:
+      operationId: syntheticTasks.proposals.commit
+      description: >-
+        Execute an approved proposal. The body repeats the payload; its digest must equal the bound one.
+        Reauthorizes the executor for the operation and rechecks the proposer and approver memberships,
+        the approval record, the policy version, the expiry and the task version. A refused commit that
+        makes the proposal unusable closes it (expired or rejected). The idempotency key is the
+        proposal id: a committed proposal returns its recorded result with replayed=true and never
+        executes twice.
+      parameters:
+        - $ref: '#/components/parameters/ProposalRef'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/action-proposal.schema.json#/$defs/ProposalCommit'
+      responses:
+        '200':
+          description: The synthetic mutation committed (or the recorded result, replayed).
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/SyntheticTaskCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
 components:
   securitySchemes:
     bearer:
@@ -167,6 +299,12 @@ components:
       required: true
       schema:
         $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/TaskRef'
+    ProposalRef:
+      name: proposalRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/action-proposal.schema.json#/$defs/ProposalRef'
     IdempotencyKey:
       name: Idempotency-Key
       in: header

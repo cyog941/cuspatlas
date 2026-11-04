@@ -5,6 +5,7 @@ import {
   type CommandExecutor,
   type CursorCodec,
   createAuthorize,
+  createProposalService,
   createSyntheticTaskService,
   executeOnce,
 } from '@cuspatlas/domain';
@@ -16,6 +17,7 @@ import Fastify, {
 } from 'fastify';
 import { createAuthenticator, type IdentityVerifierConfig, isConfiguredIdentity, isTestIssuer } from './auth';
 import { mapErrorToRefusal, safeErrorKind } from './errors';
+import { registerProposalRoutes } from './routes/proposals';
 import { registerSessionRoutes } from './routes/session';
 import { registerSyntheticTaskRoutes } from './routes/synthetic-tasks';
 
@@ -41,6 +43,8 @@ export interface AppDeps {
   readonly execute?: CommandExecutor;
   /** Pagination cursor codec; defaults to a per-process random HMAC key. */
   readonly cursors?: CursorCodec;
+  /** Proposal policy version (defaults to PROPOSAL_POLICY_VERSION); tests bump it. */
+  readonly proposalPolicyVersion?: string;
 }
 
 function sendRefusal(request: FastifyRequest, reply: FastifyReply, err: unknown): FastifyReply {
@@ -134,6 +138,15 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         ...(deps.cursors ? { cursors: deps.cursors } : {}),
       });
       registerSyntheticTaskRoutes(app, { authenticator, service });
+      const proposals = createProposalService({
+        authorize,
+        memberships: deps.membership,
+        withTenantTransaction: deps.tenantTransactions,
+        recording,
+        execute: deps.execute ?? executeOnce,
+        ...(deps.proposalPolicyVersion ? { policyVersion: deps.proposalPolicyVersion } : {}),
+      });
+      registerProposalRoutes(app, { authenticator, proposals });
     }
   }
 

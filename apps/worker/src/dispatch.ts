@@ -70,6 +70,16 @@ export interface WorkerDeps {
   readonly leaseSeconds?: number;
   /** Events leased per batch (default 10). */
   readonly batchSize?: number;
+  /**
+   * Internal executor for deferred proposal execution (F Task 7a). Events on the `actionProposal`
+   * aggregate are execution requests: they are run through this domain path, never sent to an
+   * adapter. Without it such events are retried (and eventually dead-lettered), never delivered.
+   */
+  readonly proposals?: ProposalExecutor;
+}
+
+export interface ProposalExecutor {
+  executeApprovedProposal(ctx: ActorContext, proposalRef: string): Promise<unknown>;
 }
 
 const DEFAULT_LEASE_SECONDS = 30;
@@ -198,7 +208,74 @@ export function createWorker(deps: WorkerDeps) {
     return done ? 'denied' : 'lease-lost';
   }
 
+  /**
+   * Deferred proposal execution. Fresh checks: the approver who requested it (the event actor) must
+   * still be a human with approve scope; the worker principal is the executor and is authorized for
+   * the proposal's operation by the domain, which also rechecks the proposer, approver, payload
+   * digest, approval record, policy version, expiry and resource version. Execution is idempotent
+   * (proposal row state plus executeOnce), so no provider-style reconciliation is needed after a crash.
+   */
+  async function settleProposal(event: LeasedEvent): Promise<DispatchResult> {
+    if (event.attempt > event.maxAttempts) {
+      const ok = await finalize(event, {
+        state: 'dead_letter',
+        reason: 'max_attempts_exhausted',
+        outcome: 'exhausted',
+      });
+      return ok ? 'dead-letter' : 'lease-lost';
+    }
+    const denial = await reauthorize(event);
+    if (denial) return deny(event, denial);
+    if (!deps.proposals) {
+      const ok = await finalize(event, {
+        state: 'retry',
+        delaySeconds: delay(event.attempt),
+        outcome: 'executor_unavailable',
+      });
+      return ok ? 'retry' : 'lease-lost';
+    }
+    const m = await deps.memberships.load(deps.workerPrincipalId, event.tenantId);
+    const executor: ActorContext = {
+      tenantId: event.tenantId,
+      actorId: deps.workerPrincipalId,
+      principal: 'service',
+      sessionId: randomUUID(),
+      scopes: m?.active ? m.scopes : [],
+      correlationId: randomUUID(),
+    };
+    try {
+      await deps.proposals.executeApprovedProposal(executor, event.aggregateId);
+    } catch (err) {
+      if (!isRefusalError(err)) throw err;
+      if (err.retryable || err.code === 'service_unavailable') {
+        const ok = await finalize(event, {
+          state: 'retry',
+          delaySeconds: delay(event.attempt),
+          outcome: 'proposal_refused',
+        });
+        return ok ? 'retry' : 'lease-lost';
+      }
+      // The domain already wrote the security attempt row for this refusal.
+      const denied =
+        err.code === 'forbidden' || err.code === 'not_found' || err.code === 'self_approval_denied';
+      const ok = await finalize(event, {
+        state: 'dead_letter',
+        reason: denied
+          ? err.reasonCode === 'membership_inactive'
+            ? 'membership_revoked'
+            : 'authorization_denied'
+          : 'proposal_refused',
+        outcome: denied ? 'denied' : 'proposal_refused',
+      });
+      if (!ok) return 'lease-lost';
+      return denied ? 'denied' : 'dead-letter';
+    }
+    const ok = await finalize(event, { state: 'delivered', outcome: 'executed' });
+    return ok ? 'delivered' : 'lease-lost';
+  }
+
   async function settle(event: LeasedEvent, adapter: DeliveryAdapter): Promise<DispatchResult> {
+    if (event.aggregateType === 'actionProposal') return settleProposal(event);
     const exhausted = event.attempt >= event.maxAttempts;
 
     // 1. A previous attempt may have reached the provider: reconcile by delivery key, never re-send blind.

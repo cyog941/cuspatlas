@@ -17,6 +17,8 @@ export const DEAD_LETTER_REASONS = [
   'max_attempts_exhausted',
   'provider_rejected',
   'reconciliation_exhausted',
+  // F Task 7a: deferred execution of an approved proposal was refused at execution time.
+  'proposal_refused',
 ] as const;
 export type DeadLetterReason = (typeof DEAD_LETTER_REASONS)[number];
 
@@ -113,7 +115,10 @@ export type OutcomeCode =
   | 'lookup_unavailable'
   | 'denied'
   | 'attempt_sink_unavailable'
-  | 'exhausted';
+  | 'exhausted'
+  | 'executed'
+  | 'proposal_refused'
+  | 'executor_unavailable';
 
 export type Transition =
   | { readonly state: 'delivered'; readonly outcome: OutcomeCode }

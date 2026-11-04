@@ -1,4 +1,5 @@
 import {
+  ACTION_PROPOSAL_PROPERTIES,
   type ActorContext,
   createAjv,
   RefusalError,
@@ -9,6 +10,7 @@ import {
 import {
   type AttemptRecordingDeps,
   type Authorize,
+  type ProposalService,
   type SyntheticTaskService,
   withAttemptRecording,
 } from '@cuspatlas/domain';
@@ -17,19 +19,19 @@ type Defs = Record<string, unknown>;
 const DEFS = syntheticTaskSchema.$defs as Defs;
 
 /** Collects the $defs a fragment references, transitively, so each tool schema is self-contained. */
-function closure(fragment: unknown, into: Defs = {}): Defs {
+function closure(fragment: unknown, into: Defs = {}, defs: Defs = DEFS): Defs {
   if (Array.isArray(fragment)) {
-    for (const f of fragment) closure(f, into);
+    for (const f of fragment) closure(f, into, defs);
   } else if (fragment !== null && typeof fragment === 'object') {
     for (const [k, v] of Object.entries(fragment)) {
       if (k === '$ref' && typeof v === 'string') {
         const name = v.replace('#/$defs/', '');
         if (!(name in into)) {
-          into[name] = DEFS[name];
-          closure(DEFS[name], into);
+          into[name] = defs[name];
+          closure(defs[name], into, defs);
         }
       } else {
-        closure(v, into);
+        closure(v, into, defs);
       }
     }
   }
@@ -56,18 +58,26 @@ type PropertySource = string | object;
 export function inputSchema(
   properties: Record<string, PropertySource>,
   required: readonly string[],
+  defs: Defs = DEFS,
 ): ToolInputSchema {
   const props: Record<string, object> = Object.fromEntries(
     Object.entries(properties).map(([k, d]) => [k, typeof d === 'string' ? { $ref: `#/$defs/${d}` } : d]),
   );
-  return { type: 'object', additionalProperties: false, required, properties: props, $defs: closure(props) };
+  return {
+    type: 'object',
+    additionalProperties: false,
+    required,
+    properties: props,
+    $defs: closure(props, {}, defs),
+  };
 }
 
-type Args = Record<string, unknown>;
+export type Args = Record<string, unknown>;
 type Violations = { pointer: string; rule: string }[];
 
 export interface ToolDeps {
   readonly service: SyntheticTaskService;
+  readonly proposals: ProposalService;
   readonly authorize: Authorize;
   readonly recording: AttemptRecordingDeps;
 }
@@ -89,7 +99,12 @@ export interface ToolDefinition {
   ): Promise<unknown>;
 }
 
-const KNOWN_PROPERTIES: ReadonlySet<string> = new Set([...SYNTHETIC_TASK_PROPERTIES, 'idempotencyKey']);
+const KNOWN_PROPERTIES: ReadonlySet<string> = new Set([
+  ...SYNTHETIC_TASK_PROPERTIES,
+  ...ACTION_PROPOSAL_PROPERTIES,
+  'idempotencyKey',
+  'proposalRef',
+]);
 
 const ajv = createAjv();
 export const compileInput = (schema: ToolInputSchema) => ajv.compile(schema);
@@ -98,7 +113,7 @@ export function violationsOf(errors: Parameters<typeof safeViolations>[0]): Viol
   return safeViolations(errors, KNOWN_PROPERTIES);
 }
 
-const without = (args: Args, ...keys: string[]): Args =>
+export const without = (args: Args, ...keys: string[]): Args =>
   Object.fromEntries(Object.entries(args).filter(([k]) => !keys.includes(k)));
 
 /**

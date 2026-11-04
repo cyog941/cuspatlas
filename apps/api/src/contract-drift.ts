@@ -2,21 +2,25 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { REFUSAL_CODES } from '@cuspatlas/contracts';
 import { parse } from 'yaml';
-import { ROUTES, SCHEMA_FILE } from './routes/manifest';
+import { PROPOSAL_SCHEMA_FILE, ROUTES, SCHEMA_FILE } from './routes/manifest';
 
 export interface ContractSources {
   readonly openapiText: string;
   readonly schemaText: string;
+  readonly proposalSchemaText: string;
 }
 
 export const OPENAPI_PATH = 'docs/api/openapi.yaml';
 export const SCHEMA_PATH = `packages/contracts/src/${SCHEMA_FILE}`;
 const SCHEMA_REF_PREFIX = `../../${SCHEMA_PATH}#`;
+export const PROPOSAL_SCHEMA_PATH = `packages/contracts/src/${PROPOSAL_SCHEMA_FILE}`;
+const PROPOSAL_REF_PREFIX = `../../${PROPOSAL_SCHEMA_PATH}#`;
 
 export function loadContractSources(root: string): ContractSources {
   return {
     openapiText: readFileSync(resolve(root, OPENAPI_PATH), 'utf8'),
     schemaText: readFileSync(resolve(root, SCHEMA_PATH), 'utf8'),
+    proposalSchemaText: readFileSync(resolve(root, PROPOSAL_SCHEMA_PATH), 'utf8'),
   };
 }
 
@@ -45,7 +49,15 @@ function collectRefs(node: unknown, out: string[] = []): string[] {
   return out;
 }
 
-const schemaRef = (name: string) => (name.startsWith('#/') ? name : `${SCHEMA_REF_PREFIX}/$defs/${name}`);
+const schemaRef = (name: string) =>
+  name.startsWith('#/')
+    ? name
+    : name.startsWith('proposal:')
+      ? `${PROPOSAL_REF_PREFIX}/$defs/${name.slice('proposal:'.length)}`
+      : `${SCHEMA_REF_PREFIX}/$defs/${name}`;
+
+/** Definitions the proposal contract copies from the task contract; they must stay byte-identical. */
+const SHARED_DEFS = ['TaskRef', 'LocationRef', 'Label', 'Version', 'IdempotencyKey'] as const;
 
 /**
  * Returns every disagreement between the OpenAPI document, the JSON Schema it references, the
@@ -55,9 +67,11 @@ export function checkContractDrift(src: ContractSources): string[] {
   const problems: string[] = [];
   let api: Json;
   let schema: Json;
+  let proposal: Json;
   try {
     api = parse(src.openapiText) as Json;
     schema = JSON.parse(src.schemaText) as Json;
+    proposal = JSON.parse(src.proposalSchemaText) as Json;
   } catch {
     return ['OpenAPI or JSON Schema does not parse'];
   }
@@ -66,6 +80,10 @@ export function checkContractDrift(src: ContractSources): string[] {
     if (ref.startsWith(SCHEMA_REF_PREFIX)) {
       if (pointer(schema, ref.slice(SCHEMA_REF_PREFIX.length)) === undefined) {
         problems.push(`OpenAPI $ref does not resolve in ${SCHEMA_FILE}: ${ref}`);
+      }
+    } else if (ref.startsWith(PROPOSAL_REF_PREFIX)) {
+      if (pointer(proposal, ref.slice(PROPOSAL_REF_PREFIX.length)) === undefined) {
+        problems.push(`OpenAPI $ref does not resolve in ${PROPOSAL_SCHEMA_FILE}: ${ref}`);
       }
     } else if (ref.startsWith('#/')) {
       if (pointer(api, ref.slice(1)) === undefined)
@@ -135,6 +153,29 @@ export function checkContractDrift(src: ContractSources): string[] {
   }
   if (pointer(def('SyntheticTaskListQuery'), '/properties/limit/pattern') !== '^([1-9]|[1-9][0-9]|100)$') {
     problems.push('SyntheticTaskListQuery.limit must be bounded to 1..100');
+  }
+  const pdef = (name: string) => pointer(proposal, `/$defs/${name}`);
+  for (const name of [
+    'ProposalPrepare',
+    'ProposalApprove',
+    'ProposalCommit',
+    'CreatePayload',
+    'RelabelPayload',
+  ]) {
+    if (pointer(pdef(name), '/additionalProperties') !== false) {
+      problems.push(`${name} must set additionalProperties: false`);
+    }
+  }
+  for (const name of SHARED_DEFS) {
+    if (JSON.stringify(pdef(name)) !== JSON.stringify(def(name))) {
+      problems.push(`${PROPOSAL_SCHEMA_FILE} ${name} differs from ${SCHEMA_FILE}`);
+    }
+  }
+  if (
+    JSON.stringify(pointer(pdef('CreatePayload'), '/properties')) !==
+    JSON.stringify(pointer(def('SyntheticTaskCreate'), '/properties'))
+  ) {
+    problems.push('CreatePayload must match SyntheticTaskCreate');
   }
   const codes = pointer(def('Refusal'), '/properties/code/enum');
   if (!Array.isArray(codes) || codes.join(',') !== REFUSAL_CODES.join(',')) {

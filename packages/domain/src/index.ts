@@ -2,6 +2,7 @@ export * from './commands/boundary';
 export * from './commands/digest';
 export * from './commands/execute-once';
 export * from './commands/executor';
+export * from './commands/proposals';
 export * from './commands/replay-codecs';
 export * from './cursor';
 export * from './events/record-command';

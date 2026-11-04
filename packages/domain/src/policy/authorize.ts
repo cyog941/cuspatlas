@@ -1,5 +1,6 @@
 import {
   type ActorContext,
+  type MembershipRecord,
   type MembershipSource,
   type PrincipalKind,
   RefusalError,
@@ -21,7 +22,46 @@ export const ACTION_POLICIES = {
   'syntheticTasks.approve': { scope: 'syntheticTasks.approve', principals: ['human'] },
   // The outbox worker's own principal: leases and finalizes delivery state in one tenant (F Task 6).
   'outbox.deliver': { scope: 'outbox.deliver', principals: ['service'] },
+  // F Task 7a proposals. Preparing and reading need only read: an agent may draft a change it could
+  // never execute alone. Approval is human-only. Commit authorizes the executor for the proposal's own
+  // operation (syntheticTasks.create / relabel), so there is no separate commit scope.
+  'syntheticTasks.proposals.prepare': { scope: 'syntheticTasks.read', principals: ['human', 'service'] },
+  'syntheticTasks.proposals.read': { scope: 'syntheticTasks.read', principals: ['human', 'service'] },
+  'syntheticTasks.proposals.approve': { scope: 'syntheticTasks.approve', principals: ['human'] },
 } as const satisfies Record<string, ActionPolicy>;
+
+/**
+ * Version of the proposal policy (this table plus the proposal rules in commands/proposals.ts). It is
+ * bound into every proposal and approval; a commit under a different version is refused
+ * (`policy_changed`). Bump it whenever a rule that an approver relied on changes.
+ */
+export const PROPOSAL_POLICY_VERSION = 'synthetic-proposals.1';
+
+/**
+ * Pure check of a live membership record against an action's policy (used to recheck other
+ * principals, such as a proposal's proposer and approver, from records loaded before a transaction).
+ * Returns the reason it fails, or null.
+ */
+export function membershipAllows(
+  m: MembershipRecord | null,
+  kind: PrincipalKind,
+  action: ActionName,
+  locationId?: string | null,
+): SecurityReasonCode | null {
+  const policy: ActionPolicy = ACTION_POLICIES[action];
+  if (!m?.active) return 'membership_inactive';
+  if (m.principal !== kind || !policy.principals.includes(m.principal)) return 'principal_kind_denied';
+  if (policy.scope !== null && !m.scopes.includes(policy.scope)) return 'scope_missing';
+  if (
+    locationId !== undefined &&
+    locationId !== null &&
+    m.locationRefs !== null &&
+    !m.locationRefs.includes(locationId)
+  ) {
+    return 'location_denied';
+  }
+  return null;
+}
 
 export type ActionName = keyof typeof ACTION_POLICIES;
 

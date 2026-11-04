@@ -1,4 +1,4 @@
-# CuspAtlas: product and architecture design
+﻿# CuspAtlas: product and architecture design
 
 Date: 2026-11-03. Status: reviewable planning proposal; no implementation authorized.
 
@@ -44,7 +44,7 @@ Anti-goals: a paid-only API; unreadable exports; agent superuser credentials; a 
 | Identity/storage/realtime | Supabase, behind explicit adapters | Fast foundation with a self-hosted path; keep core domain data portable. Do not require managed-only features for core correctness. |
 | Durable jobs | PostgreSQL transactional outbox + worker initially | No extra queue vendor to operate on day one; benchmark contention and retries before adopting additional infrastructure. |
 | API SDK and MCP | Generated TypeScript SDK and thin MCP adapter | Reuse contracts and policy; no duplicate business logic or privileged backdoor. |
-| Device companion | Rust service; Tauri only if a local interface is justified | Narrow local-file/device capabilities and signed distribution. Vendor SDK compatibility, including Windows C#/C++ requirements, takes precedence over language purity. |
+| Device companion | Rust service; Tauri only if a local interface is justified | Narrow local-file/device capabilities and signed distribution. Vendor and hardware compatibility takes precedence over language purity; the specific SDK and OS requirements are an assumption to be verified in the device qualification matrix, not an established fact. |
 | AI | Provider-neutral adapter; local models optional | Model choice is a deployment/policy choice; model outage must not disable care workflows. |
 
 Rust can reduce classes of memory errors in native components. It does not prevent authorization mistakes, lost clinical updates, flawed financial logic, or PHI disclosure. TypeScript is chosen for shared contracts and development simplicity, not a claim that it is inherently safer or faster. A full Rust backend is a valid later choice only if measured constraints justify the rewrite/maintenance cost. Python may support offline evaluation tooling later; it is not another core runtime by default.
@@ -82,13 +82,136 @@ Recommended SQL boundary: private domain schemas; Data API exposure disabled for
 ### Critical correctness model
 
 - Separate AppointmentRequest, Appointment, Encounter, Procedure, TreatmentPlan, ClinicalNote, Claim, Payment and Allocation. Booking completion does not imply treatment completion; billing state never proves attendance.
-- Appointment state machine distinguishes requested/held/booked/confirmed/arrived/in-care/completed/cancelled/no-show. Transition policy and authorized actor are explicit. Rescheduling preserves a linked history; recurrence exceptions are individual events.
-- Procedure states include proposed/accepted/scheduled/completed/declined/discontinued, with versioned estimates. Clinical notes have draft/signed/amended states; signing freezes content and preserves signer/time/version.
+- Appointment facts stay separate: request, booking, attendance, procedure completion and billing are distinct records with their own transitions, actors and timestamps, and confirmation keeps its source so a manual confirmation stays distinguishable from an automated one. Transition policy and authorized actor are explicit per fact. Rescheduling preserves a linked history; recurrence exceptions are individual events. Corrected: this bullet previously described one appointment state machine running from request to no-show, which the observed incumbent status field motivated by carrying several kinds of fact at once; see "Domain model informed by the incumbent".
+- Procedure states include proposed/accepted/scheduled/completed/declined/discontinued, with versioned estimates; these belong to the item level of the treatment hierarchy, and accepting a plan version is a separate decision at plan level. Clinical notes have draft/signed/amended states; signing freezes content and preserves signer/time/version.
 - Patients can have primary, secondary and changing coverage. Eligibility and estimates record source/time/limits; an estimate is not a payer guarantee.
 - Financial journal entries are balanced and immutable after posting. Separate charges, discounts, contractual adjustments, patient money, insurer money, transfers, refunds, write-offs and unapplied credit. Correct by reversal and replacement. Allocations cannot exceed available funds; currency and rounding rules are explicit.
 - Domain changes, audit metadata and outbox event commit atomically. External actions have idempotency keys, delivery receipts, deduplication and reconciliation. A timeout is an unknown result to reconcile, not permission to repeat a charge.
 - Scheduling verifies provider/operatory/resource constraints transactionally; use exclusion constraints or locking plus validation rather than trusting a visually empty grid. Authorized overrides require reason, identity and audit.
 - Export is a product capability: versioned JSON/CSV, attachments and checksums, terminology/version references, history and financial allocation provenance. Imports retain source IDs, time precision and unresolved exceptions.
+
+## Domain model informed by the incumbent
+
+The authenticated observation pass produced requirements, not a description of the incumbent's internals. Everything below is a derived requirement: the observation is stated as the basis, and the decision that follows from it is ours. Observations come from [the authenticated surface map](../../TAB32-AUTHENTICATED-MAP.md), [the HTTP surface](../../TAB32-API-SURFACE.md), [the domain model](../../TAB32-DOMAIN-MODEL.md) and [the status vocabularies](../../TAB32-STATUS-VOCABULARIES.md). Where an observation is silent, this section says so rather than filling the gap from plausibility.
+
+Observation was read-only. No transaction was executed, and no record was created, edited, saved, submitted, posted or exported while producing it. Transition guards, role enforcement and error semantics are therefore unobserved here and are listed as such at the end of this section.
+
+### Appointment facts must not collapse
+
+Observed basis: the appointment Status selector lists seventeen rows, of which sixteen are status labels and one is an `-- All --` filter sentinel. The sixteen mix at least five kinds of fact: lifecycle position (`Scheduled`, `Confirmed`, `Confirmed (auto)`), physical presence (`Checked-In`, `Curbside Check-In`, `In Chair`, `Waiting`, `Checked-Out`), clinical completion (`Treatment Complete`), financial completion (`Billed`) and exception or terminal outcomes (`Late`, `No Show`, `Left Without Treatment`, `Canceled`, `Reschedule`). `ASAP` sits in the same list but is a priority rather than a position in any lifecycle. `Confirmed` and `Confirmed (auto)` are distinct values.
+
+Derived requirements:
+
+- Five independent facts: appointment request, booking, attendance, procedure completion and billing. Each carries its own transitions, acting user, timestamps and correction history. No single stored field may stand for more than one of them, and no derived display status is authoritative.
+- A booking records how confirmation was obtained, with provenance. Manual and automated confirmation remain separate facts, because a no-show rate per reminder policy cannot be measured if the two collapse.
+- `ASAP` is a priority or ordering flag on a request or booking, with no lifecycle effect.
+- Our status vocabularies contain stored states only. Filter sentinels such as "all" belong to the query contract and never appear in persisted data.
+- Cancellation, no-show and departure are attendance outcomes. They never delete or overwrite the booking, the clinical facts recorded during the visit, or the financial facts the visit produced.
+
+The grouping of labels is our classification; the labels themselves are observed configuration.
+
+### An appointment may hold no resource
+
+Observed basis: ten operatory values are configured, and two of them are not physical rooms. Two labels name exception states; whether staff actually book into them was not observed. Operatory labels are free text carrying their own ordinal prefix, which duplicates the ordering already implied by display order.
+
+Derived requirements:
+
+- An appointment's operatory reference is nullable. "No operatory" is a valid stored state and must never be modelled by inventing a synthetic room.
+- When an appointment holds no resource, a typed exception reason is required, beginning with the observed no-show and cancellation cases, and that reason participates in conflict checks, reporting and audit.
+- Resources are identified by stable ids. Display labels are mutable, are never identity, and never carry ordering; order is explicit data.
+- Conflict detection treats "holds no resource" as its own case rather than skipping the constraint. A visually empty grid is not evidence of availability.
+- Resource type is declared (room, chair, equipment, provider-grouped resource) rather than inferred from a label.
+
+Naming and taxonomy of these controls are our decisions; the two non-room values are observed configuration.
+
+### Treatment is three levels, audited separately
+
+Observed basis: the audit record selector lists treatment plan, treatment detail and treatment item detail as three separate auditable record types.
+
+Derived requirements:
+
+- Three levels with distinct identity and lifecycle: plan (the clinical proposal, including alternatives, for a patient over time), detail (the per-tooth or per-area grouping or phase within a plan) and item (the specific procedure instance with its code and fee).
+- Do not flatten plan or detail into a single "planned procedure" row. An accepted plan version pins its details and items; a fee or coverage change produces a new version instead of editing one in place.
+- Consent and estimates attach to the plan version the patient accepted and are referenced downward, not duplicated per item.
+- Audit entries name the level that changed. An edit to an item is not an edit to the plan and must not be reported as one.
+
+The level names are observed; the separation and its audit consequence are our requirement.
+
+### Coverage: book, catalogue and resolved payer identity
+
+Observed basis: the audit taxonomy separates insurance and insurance plan from coverage book and coverage book detail, and also lists a subscriber-to-plan association. Claims filters offer 26 configured carriers, among them near-duplicates of a single payer distinguished only by punctuation, a trailing symbol, a suffix, or a mailing address embedded in the name.
+
+Derived requirements:
+
+- A patient's coverage book is a versioned record (subscriber, plan assignment, order of benefits, effective dates, provenance) separate from the carrier plan catalogue (payer, plan and network definitions). Editing a catalogue entry must not silently rewrite a patient's coverage history.
+- Carrier identity is resolved, not typed. Each carrier has a canonical id, a set of alias strings observed from outside, and a mapping from each observed alias to the canonical id.
+- The alias string is preserved verbatim on the record that carried it (claim, eligibility response, statement) beside the canonical reference, so a payer dispute traces to the text actually sent or received.
+- Alias matching is data with provenance and review, not ad hoc string comparison in code. Adding an alias and merging two carrier entries are audited, reversible administrative actions.
+- An unrecognised alias routes to an exception worklist. It does not silently create a new carrier or fork that payer's reporting.
+- Financial and production reporting aggregates by canonical carrier, so duplicate aliases cannot produce duplicate totals.
+- A payer-supplied Payer ID is an attribute of the canonical carrier, not the identity of a practice's carrier row.
+
+The duplicate rows observed in a single practice are ordinary data-quality reality, not a vendor defect. The requirement is that resolution is explicit and auditable.
+
+### Statement generation, payment posting, claim submission and note signing are commands
+
+Observed basis: statement generation is itself an audited record type, and the money group of the audit taxonomy includes check, credit card and payment plan objects. The observed audit action set is delete, edit and login.
+
+Derived requirements:
+
+- Each of statement generation, payment posting, claim submission and note signing is a command with an identified actor, tenant, timestamp, target, input digest, outcome and idempotency key. Each is executed as a command, never as a read that happens to emit an artifact or a side effect.
+- Statement generation records the balance snapshot, the service-date or cutoff basis, and the version of the statement body that produced the artifact. A regenerated statement is a new generation event citing the prior one; it does not overwrite it.
+- Payment posting is a balanced journal operation. Correction is by reversal and replacement, and reprinting a receipt is not a new posting.
+- Claim submission records the exact claim version and the partner acknowledgement. A resubmission cites the rejected version.
+- Note signing is our design decision rather than an observation: signing freezes a version and records signer, time and reason for any later amendment. Signed-note audit in the incumbent was not observed.
+- Decide explicitly whether card data is ever stored. If a processor tokenises it, the token, its scope and its lifecycle are auditable, and card expiry is data we deliberately hold so a charge can be attempted before a card expires.
+
+### Audit coverage is driven by a registry
+
+Observed basis: the audit screen exposes an action selector, a record selector and an actor selector, with 26 record types in six groups (scheduling, patient and identity, clinical, insurance, money, organisation). The observed action set is delete, edit and login.
+
+Derived requirements:
+
+- A registry of auditable entity types is the source of truth for what audit covers. An entity that is not registered cannot be created or changed, and the build fails when a type exists in the domain without a registry entry, so a new entity cannot ship unaudited by omission.
+- Each registration declares the entity's identity, the actions that must be recorded, the sensitive fields that must be redacted in audit views, the retention class, and which read and export events are audited for that type.
+- Adding an entity is one change that includes its audit registration and its negative tests. Deferred audit coverage is a release blocker, not a follow-up task.
+- Our taxonomy is our own. The observed 26 types and three actions are evidence that coverage must be broad, not a list to copy. Read access and export are audit-worthy for us even where the observed selector does not suggest they are.
+
+### API conventions we do not reproduce
+
+| Observed convention | Basis | Our rule |
+|---|---|---|
+| Session token as a URL path segment | Paths of the form `/api/tab32ac/<resource>/{token}/{clinicId}` were observed across the session | Credentials travel only in the `Authorization` header. No token, session or secret appears in a path, query string, response body or document URL. Our gateway scrubs path and query credentials from logs, traces, referrers and error payloads as a fixed rule. |
+| Tenant named by the caller | Nearly every call carries a clinic id, and the token is not obviously bound to one; whether the server rejects a clinic id outside the token's scope could not be tested | Tenant and actor are derived from authenticated context. A client-supplied tenant value is at most a selection hint and is rejected when it does not match the authenticated scope. Every endpoint needs negative cross-tenant tests before acceptance. |
+| Verb overload on one path | The same path shape answers GET, POST and PUT for different operations | One operation, one explicit resource path, with a method that matches intent. No path carries several meanings. |
+| Status carried inside HTTP 200 | 46 of 50 captured API responses used a `{status, data}` body inside HTTP 200; four used a different shape, and the other 46 of the 96 records were static assets, not API calls | Use HTTP status codes honestly, plus a stable error code and correlation id in the body. A client must never parse a body field to learn that a request failed. Error behaviour was unobserved, so this is a rule about shape, not a comparison of outcomes. |
+| Build and client configuration in a bootstrap payload | The client bootstrap returns a version, a commit and a minification flag, together with payment-provider client configuration | Clients receive no build-mode, minification or debug flags, and no configuration beyond what that client's role requires. Build identity is logged server-side, not served. |
+
+Two conventions from the same observation are worth adopting deliberately rather than by accident: opaque pagination cursors and caller-selected projection on bulk fetches. Both become documented behaviour, with short cursor lifetimes, a safe default projection and an explicit maximum.
+
+### Payment plans need expiry and failure states
+
+Observed basis: plan columns include due date, plan date, total amount, authorization, installment, balance, overdue, card expiry, plan status and auto-pay, with plan-value and monthly-run-rate tiles. Worklist labels for pending, defaulted, missing-signature, completed, uncollected and void plans were seen in an earlier pass; the plan status vocabulary itself was not enumerated, and transition rules were not tested.
+
+Derived requirements:
+
+- Card expiry and failed automatic payment are first-class states, not silent non-events. Each has its own worklist, owner and ageing.
+- A payment attempt is a record (amount, time, processor result, idempotency key, retry count) kept separate from plan state. A failed installment does not disappear because the plan is still active.
+- Auto-pay enrolment carries consent, the authorization under which it was granted, the payment-method reference, and a pause or revocation path. Revocation stops future attempts without erasing plan history.
+- Authorization, schedule, collection and closure remain separate facts per the note at the end of this document. Expired card and failed payment are inputs to collection, not synonyms for a plan status.
+- Plan value and monthly run rate are reporting measures over scheduled and posted installments, with declared definitions, time basis and freshness. They are not ledger facts.
+- The lifecycle itself remains unobserved. Plan creation, authorization, retry and allocation behaviour were not executed; our state model is a requirement, not a verified transition graph.
+
+### What remains unverified
+
+- Status transitions. No transition was executed in any module. Permitted transitions, guards, which role may set each value, and whether transition history is retained are unobserved for appointments, treatment, payment plans and claims.
+- Role enforcement. The audit actor selector is a user list, not a role matrix. No permission denial, revoked session or cross-tenant request was attempted, so neither surface-level nor record-level enforcement is established.
+- Error semantics. Every observed response was a success. Validation failures, permission denials, conflicts, not-found, rate limits and partial failures are unobserved, including whether a failure is signalled by HTTP status or only by the body.
+- Claim lifecycle. Claim and appeal status values exist as configuration. Submission, acknowledgement, rejection, correction, resubmission, ERA reconciliation and secondary claims were not observed.
+- Transaction semantics generally: appointment save and conflict behaviour, ledger posting, statement cutoff and balance basis, plan creation and allocation, audit completeness, retention and tamper resistance, export completeness.
+- Whether a client-supplied tenant id that the credential does not cover is rejected server-side. The requests needed to settle it would be abusive against a live practice and were not made.
+
+Nothing in this section rests on a transaction. No appointment, payment, statement, claim, note or treatment record was created, changed or submitted while producing it, and no configuration was altered. Settling the unknowns above requires an authorized sandbox, not further observation of production.
 
 ## AI and full programmatic control
 
@@ -145,7 +268,7 @@ Plan: validate workflows and vendor/device constraints; approve contracts/securi
 ## Known blockers and matters left to the builder
 
 - Supabase development project cuspatlas-dev was created after the user upgraded Santi to Pro and authorized creation. Reference pfnuigldoshdldetkaqk, region us-east-2, independently verified ACTIVE_HEALTHY. No application schema or patient data has been added; existing projects were not changed.
-- Direct REA/Craft attachment to the authenticated in-app browser is not established. Authenticated evidence was collected through Codex browser controls; tool captures covered the public page only.
+- Direct attachment of the analysis tools to the authenticated in-app browser was initially not established. Corrected: it was resolved on the same evening through a dedicated Chrome profile with a loopback DevTools endpoint, where both tools attached to the same authenticated target and produced their own evidence. Authenticated observation now covers configuration and read-only surfaces; transaction semantics remain untested.
 - Name is provisional; conduct trademark/domain review before launch.
 - Select clearinghouse, payment processor, prescribing partner and certified hardware only after contracts, sandbox tests, costs, BAA scope and ownership are validated. No live vendor integration is configured.
 - Choose exact package versions/query library during implementation; component library and screen design belong to deferred UI work.
@@ -154,3 +277,10 @@ Plan: validate workflows and vendor/device constraints; approve contracts/securi
 Sources and observation scope: [research ledger](../../RESEARCH.md).
 
 Detailed observed/untested boundaries and the remaining instrumented-analysis gate: [Tab32 analysis coverage](../../TAB32-ANALYSIS-COVERAGE.md). Visible payment-plan lifecycle states require separate signature, schedule, collection and closure facts in our model. Statements require a versioned balance snapshot, service-date/cutoff basis, freshness indication and distinct generation/delivery/print events. These are proposed requirements derived from UI observation, not verified Tab32 transaction semantics.
+
+
+
+
+
+
+

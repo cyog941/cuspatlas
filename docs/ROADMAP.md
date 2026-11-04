@@ -30,7 +30,21 @@ Integration qualification runs during P1/P2 using the [hardware and claims backl
 | M: migration and practice operations | S + C + B + I | Reconciled import/archive/export, downtime and restore exercises |
 | R: supported release | All applicable P1 capabilities | Staff validation, security review, vendor/device readiness, operator/support sign-off |
 
-Detailed phase-F plan: [platform foundation](superpowers/plans/2026-11-03-platform-foundation.md). Each later workstream must receive its own reviewed technical spec and executable plan after P1/P2 resolve its material unknowns. Inventing payer/clinical contracts today would not make the project more ready.
+Executable plans now exist for every workstream. Shared types, identifiers, money, scopes and task-id conventions are fixed in [shared contracts](SHARED-CONTRACTS.md), which every plan must conform to:
+
+| Workstream | Plan |
+|---|---|
+| F: platform core | [platform foundation](superpowers/plans/2026-11-03-platform-foundation.md) |
+| S: patients and scheduling | [scheduling and patients](superpowers/plans/2026-11-04-scheduling-and-patients.md) |
+| C: clinical record | [clinical record](superpowers/plans/2026-11-04-clinical-record.md) |
+| B: billing and RCM | [billing and RCM](superpowers/plans/2026-11-04-billing-and-rcm.md) |
+| I: imaging and devices | [imaging and devices](superpowers/plans/2026-11-04-imaging-and-devices.md) |
+| E: engagement and portal | [portal and communications](superpowers/plans/2026-11-04-portal-and-communications.md) |
+| A: API, MCP and AI | [API, MCP and AI](superpowers/plans/2026-11-04-api-mcp-and-ai.md) |
+| M: migration and operations | [migration and operations](superpowers/plans/2026-11-04-migration-and-operations.md) |
+| R: supported release | [supported release](superpowers/plans/2026-11-04-supported-release.md) |
+
+A plan existing is not a plan being approved, funded or sequenced. Each carries open decisions and blocked-on-discovery items that must be settled before implementation, and inventing payer or clinical contracts today would not make the project more ready.
 
 ## AI delivery within the existing workstreams
 
@@ -53,3 +67,4 @@ This is a clinical/financial product program, not a weekend app. At minimum iden
 - Sustainable maintenance/support can be funded without moving essential security or clinical features behind a license paywall.
 
 Track these against measured baselines. Competitor dissatisfaction or a free license alone does not establish adoption.
+

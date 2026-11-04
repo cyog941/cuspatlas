@@ -1,4 +1,4 @@
-# Authenticated Tab32 surface map
+﻿# Authenticated Tab32 surface map
 
 Status: first instrumented pass, 2026-11-03 evening ET. Read-only production observation. No record was created, changed, saved or exported. No patient names, identifiers, balances or notes are recorded here; only structure, labels and field inventories.
 
@@ -28,20 +28,20 @@ JavaScript payload is large and unsplit by source map: `main` 6.28 MB, vendor ch
 
 | Route | Screen | Verification |
 |---|---|---|
-| `/dashboard` | Daily Huddle | live-observed |
-| `/scheduler/c` | Scheduler | live-observed |
-| `/payment-plan` | Payment Plan Management | live-observed |
-| `/claims` | Claims Management | live-observed |
-| `/claims/my-appeals` | Appeal Assigned | live-observed |
-| `/activity-audit` | Activity Audit | live-observed |
-| `/reports/production` | Reports hub (Production) | live-observed |
-| `/reports/patient` | Patient report catalog | live-observed |
-| `/reports/kpi-dashboard/production` | KPI Dashboard | live-observed |
-| `/reports/revenue-discovery` | Revenue Discovery Dashboard | live-observed |
-| `/settings/clinic` | Clinic Setup | live-observed |
-| `/insurance/carriers` | Insurance Setup | live-observed |
-| `/template-setup/note-templates` | Templates Setup | live-observed |
-| `/hellopatient/profile-settings` | HelloPatient Setup | live-observed |
+| `/dashboard` | Daily Huddle | seen in scripted pass — not retained |
+| `/scheduler/c` | Scheduler | seen in scripted pass — not retained |
+| `/payment-plan` | Payment Plan Management | seen in scripted pass — not retained |
+| `/claims` | Claims Management | seen in scripted pass — not retained |
+| `/claims/my-appeals` | Appeal Assigned | seen in scripted pass — not retained |
+| `/activity-audit` | Activity Audit | seen in scripted pass — not retained |
+| `/reports/production` | Reports hub (Production) | seen in scripted pass — not retained |
+| `/reports/patient` | Patient report catalog | seen in scripted pass — not retained |
+| `/reports/kpi-dashboard/production` | KPI Dashboard | seen in scripted pass — not retained |
+| `/reports/revenue-discovery` | Revenue Discovery Dashboard | seen in scripted pass — not retained |
+| `/settings/clinic` | Clinic Setup | seen in scripted pass — not retained |
+| `/insurance/carriers` | Insurance Setup | seen in scripted pass — not retained |
+| `/template-setup/note-templates` | Templates Setup | seen in scripted pass — not retained |
+| `/hellopatient/profile-settings` | HelloPatient Setup | seen in scripted pass — not retained |
 
 ## Overlay screens
 
@@ -84,11 +84,11 @@ These open over the huddle and **do not change the URL**. A URL-based crawler ca
 
 **KPI Dashboard** — sections: Goals (MTD, YTD), Trailing, KPI Metric, Data Analysis, Breakdown (Treatment Categories), Breakdown (User Defined Groups), Breakdown (Providers - Claims), Breakdown (Providers - Tag).
 
-**HelloPatient Setup** — sections `Call/Text Settings` and `Profile Settings`; Call Forwarding Number field. Confirms telephony/communication configuration is a first-class setting, not an add-on screen.
+**HelloPatient Setup** — sections `Call/Text Settings` and `Profile Settings`; Call Forwarding Number field. A dedicated setup screen exists; whether HelloPatient is core or a subscription add-on was not established, and a separate subscription endpoint was observed.
 
 **Patient report catalog** — categories Production, Collection, Patient, Accounting, Other, Migration, Custom. Patient reports observed include New Patient, Patient Referral, Patient List, Patient Billing Status, Patient Insurance, Patient Treatment (plus Ortho and Referral variants), Patient Recall Due, Patient Recall Projection (marked Deprecated Soon in the vendor UI), Patient Recall History, Patient Notes, Active/Inactive Patient, Patient Without Insurance, Patient Xray, Patient Statement, Form Submission Report, Incomplete TX, Walkout Receipt, Patient Incomplete Treatment.
 
-A vendor-deprecated report left visible in the catalog is a useful reminder that the incumbent itself carries schema/feature debt we should not copy.
+A report labeled "Deprecated Soon" left visible in the catalog is a useful reminder that the incumbent itself carries schema/feature debt we should not copy.
 
 ## Derived requirements
 
@@ -97,12 +97,18 @@ These are our requirements, inferred from structure. They are not claims about v
 1. **Overlays must be modelled as first-class routes.** Claim history, statements, bulk check and referrals are reachable states with no URL. Our API and UI should give every workflow screen an addressable route so linking, deep-linking, back/forward and support all work.
 2. **Reporting is period-scoped and date-basis-scoped.** The UI separates date type from date and offers five period grains. Report APIs need explicit date basis, filters and freshness in the response, not just rows.
 3. **Financial surfaces separate four facts.** Bulk check (deposit/batch), statement (billing artifact), payment plan (installment contract) and claim (payer expectation) are distinct screens. They must be distinct entities with their own lifecycles, linked by allocation — not one "payment" table.
-4. **Insurance is carrier → plan → patient coverage.** Carrier carries Payer ID, status and a "No Claim" flag; plans count per carrier. Eligibility is surfaced as a distinct action.
+4. **Insurance is carrier → plan → patient coverage.** Carrier carries Payer ID, status and a "No Claim" flag; plans count per carrier. Eligibility is recorded as unobserved: the pass found no eligibility control, route or endpoint.
 5. **Note templates are configurable, with enforcement.** `Type`, `Label`, `CDT Codes`, `Enforced` implies template-driven note structure where the CDT association and requirement flag are configuration, not code.
 6. **Auditing is record-typed and searchable by actor and record.** `Type` and `Record` are required. That implies an audit model keyed by entity type plus entity id, searchable by actor and date — which is exactly what a replacement must expose.
 
 ## Boundaries and unknowns
 
-- Not established: appointment create/edit persistence or conflict behaviour; ledger/payment posting; claim submission and ERA lifecycles; role and permission enforcement; export completeness; network/API contract shape.
+- Not established: appointment create/edit persistence or conflict behavior; ledger/payment posting; claim submission and ERA lifecycles; role and permission enforcement; export completeness; network/API contract shape.
 - Transaction semantics require an authorized sandbox, not production.
 - The vendor's `pms-feature-*` element names and Angular component IDs are implementation details and must not be treated as a spec.
+
+
+
+
+
+

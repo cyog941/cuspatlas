@@ -19,7 +19,8 @@ import {
 } from '@cuspatlas/contracts';
 import { type AttemptRecordingDeps, withAttemptRecording } from './commands/boundary';
 import { type CommandExecutor, executeDirect } from './commands/executor';
-import type { ActionName, Authorize } from './policy/authorize';
+import { type CursorCodec, createCursorCodec } from './cursor';
+import { type ActionName, type Authorize, assertLocation } from './policy/authorize';
 
 export interface SyntheticTaskDeps {
   readonly authorize: Authorize;
@@ -27,12 +28,13 @@ export interface SyntheticTaskDeps {
   readonly recording: AttemptRecordingDeps;
   /** Defaults to executeDirect; Task 5 supplies executeOnce. */
   readonly execute?: CommandExecutor;
+  /** Defaults to a per-process random HMAC key. */
+  readonly cursors?: CursorCodec;
 }
 
 export type TaskSummary = { readonly taskRef: string; readonly label: string };
 
 const DEFAULT_LIMIT = 25;
-const CURSOR_PREFIX = 'st1.';
 
 interface TaskRow extends Record<string, unknown> {
   id: string;
@@ -61,6 +63,7 @@ function checkEnvelope(envelope: CommandEnvelope<unknown>, operation: string): v
  */
 export function createSyntheticTaskService(deps: SyntheticTaskDeps) {
   const execute = deps.execute ?? executeDirect;
+  const cursors = deps.cursors ?? createCursorCodec();
 
   function guarded<T>(ctx: ActorContext, operation: ActionName, work: () => Promise<T>): Promise<T> {
     return withAttemptRecording(
@@ -76,15 +79,16 @@ export function createSyntheticTaskService(deps: SyntheticTaskDeps) {
       envelope: CommandEnvelope<unknown>,
     ): Promise<CommandResult<TaskSummary>> {
       return guarded(ctx, 'syntheticTasks.create', async () => {
+        // Ordering: authorization -> schema -> domain rules.
+        const decision = await deps.authorize(ctx, 'syntheticTasks.create', {
+          tenantId: ctx.tenantId,
+          id: 'new',
+        });
         checkEnvelope(envelope, 'syntheticTasks.create');
         const payload = envelope.payload;
         assertValid<SyntheticTaskCreate>(validateSyntheticTaskCreate, payload, SYNTHETIC_TASK_PROPERTIES);
         const locationRef = payload.locationRef ?? null;
-        const decision = await deps.authorize(ctx, 'syntheticTasks.create', {
-          tenantId: ctx.tenantId,
-          id: 'new',
-          locationId: locationRef,
-        });
+        assertLocation(decision.locationRefs, locationRef);
         // A location-restricted member may only create inside one of its locations.
         if (decision.locationRefs !== null && locationRef === null) {
           throw new RefusalError({ code: 'forbidden', reasonCode: 'location_denied' });
@@ -111,10 +115,13 @@ export function createSyntheticTaskService(deps: SyntheticTaskDeps) {
       envelope: CommandEnvelope<unknown>,
     ): Promise<CommandResult<TaskSummary>> {
       return guarded(ctx, 'syntheticTasks.relabel', async () => {
+        const decision = await deps.authorize(ctx, 'syntheticTasks.relabel', {
+          tenantId: ctx.tenantId,
+          id: taskRef,
+        });
         checkEnvelope(envelope, 'syntheticTasks.relabel');
         const payload = envelope.payload;
         assertValid<SyntheticTaskRelabel>(validateSyntheticTaskRelabel, payload, SYNTHETIC_TASK_PROPERTIES);
-        await deps.authorize(ctx, 'syntheticTasks.relabel', { tenantId: ctx.tenantId, id: taskRef });
         if (!validateTaskRef(taskRef)) throw notFound();
         return deps.withTenantTransaction(ctx, async (tx) => {
           const found = await tx.query<TaskRow>(
@@ -123,19 +130,20 @@ export function createSyntheticTaskService(deps: SyntheticTaskDeps) {
           );
           const current = found.rows[0];
           if (!current) throw notFound();
-          await deps.authorize(ctx, 'syntheticTasks.relabel', {
-            tenantId: ctx.tenantId,
-            id: taskRef,
-            locationId: current.location_ref,
-          });
-          if (current.version !== payload.expectedVersion) {
-            throw new RefusalError({ code: 'stale_version', detail: { currentVersion: current.version } });
-          }
+          // Authorization of the located resource happens before the executor, so a replay is
+          // reauthorized; the version comparison is domain logic and runs only inside the handler.
+          assertLocation(decision.locationRefs, current.location_ref);
           return execute<TaskSummary>(
             ctx,
             { ...envelope, expectedVersion: payload.expectedVersion },
             tx,
             async () => {
+              if (current.version !== payload.expectedVersion) {
+                throw new RefusalError({
+                  code: 'stale_version',
+                  detail: { currentVersion: current.version },
+                });
+              }
               const { rows } = await tx.query<TaskRow>(
                 `UPDATE cuspatlas.synthetic_tasks SET label = $1, version = version + 1, updated_at = now()
                WHERE id = $2 AND version = $3 RETURNING id, label, location_ref, version`,
@@ -152,7 +160,10 @@ export function createSyntheticTaskService(deps: SyntheticTaskDeps) {
 
     getSyntheticTask(ctx: ActorContext, taskRef: string): Promise<SyntheticTask> {
       return guarded(ctx, 'syntheticTasks.read', async () => {
-        await deps.authorize(ctx, 'syntheticTasks.read', { tenantId: ctx.tenantId, id: taskRef });
+        const decision = await deps.authorize(ctx, 'syntheticTasks.read', {
+          tenantId: ctx.tenantId,
+          id: taskRef,
+        });
         if (!validateTaskRef(taskRef)) throw notFound();
         return deps.withTenantTransaction(ctx, async (tx) => {
           const { rows } = await tx.query<TaskRow>(
@@ -161,11 +172,7 @@ export function createSyntheticTaskService(deps: SyntheticTaskDeps) {
           );
           const row = rows[0];
           if (!row) throw notFound();
-          await deps.authorize(ctx, 'syntheticTasks.read', {
-            tenantId: ctx.tenantId,
-            id: taskRef,
-            locationId: row.location_ref,
-          });
+          assertLocation(decision.locationRefs, row.location_ref);
           return toTask(row);
         });
       });
@@ -173,13 +180,13 @@ export function createSyntheticTaskService(deps: SyntheticTaskDeps) {
 
     listSyntheticTasks(ctx: ActorContext, query: unknown): Promise<SyntheticTaskList> {
       return guarded(ctx, 'syntheticTasks.read', async () => {
-        assertValid<SyntheticTaskListQuery>(validateSyntheticTaskListQuery, query, SYNTHETIC_TASK_PROPERTIES);
-        const limit = query.limit === undefined ? DEFAULT_LIMIT : Number(query.limit);
-        const after = query.cursor === undefined ? null : query.cursor.slice(CURSOR_PREFIX.length);
         const decision = await deps.authorize(ctx, 'syntheticTasks.read', {
           tenantId: ctx.tenantId,
           id: 'list',
         });
+        assertValid<SyntheticTaskListQuery>(validateSyntheticTaskListQuery, query, SYNTHETIC_TASK_PROPERTIES);
+        const limit = query.limit === undefined ? DEFAULT_LIMIT : Number(query.limit);
+        const after = query.cursor === undefined ? null : cursors.decode(ctx.tenantId, query.cursor);
         return deps.withTenantTransaction(ctx, async (tx) => {
           const { rows } = await tx.query<TaskRow>(
             `SELECT id, label, location_ref, version FROM cuspatlas.synthetic_tasks
@@ -192,7 +199,7 @@ export function createSyntheticTaskService(deps: SyntheticTaskDeps) {
           const last = page[page.length - 1];
           return {
             data: page,
-            nextCursor: rows.length > limit && last ? `${CURSOR_PREFIX}${last.taskRef}` : null,
+            nextCursor: rows.length > limit && last ? cursors.encode(ctx.tenantId, last.taskRef) : null,
           };
         });
       });

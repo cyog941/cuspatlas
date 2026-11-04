@@ -63,14 +63,17 @@ export function createAuthorize(memberships: MembershipSource): Authorize {
     if (policy.scope !== null && !(m.scopes.includes(policy.scope) && ctx.scopes.includes(policy.scope))) {
       deny('scope_missing');
     }
-    if (
-      resource.locationId !== undefined &&
-      resource.locationId !== null &&
-      m.locationRefs !== null &&
-      !m.locationRefs.includes(resource.locationId)
-    ) {
-      deny('location_denied');
-    }
+    if (resource.locationId !== undefined) assertLocation(m.locationRefs, resource.locationId);
     return { action, locationRefs: m.locationRefs };
   };
+}
+
+/**
+ * Location rule, shared by `authorize` and by domain code that learns a resource location only after
+ * reading it inside its transaction (it reuses the decision from the authorize call made before the
+ * transaction, so no second pool connection is needed while the transaction holds one).
+ * `null` location = tenant-wide resource, visible to every member of the tenant.
+ */
+export function assertLocation(allowed: readonly string[] | null, locationId: string | null): void {
+  if (locationId !== null && allowed !== null && !allowed.includes(locationId)) deny('location_denied');
 }

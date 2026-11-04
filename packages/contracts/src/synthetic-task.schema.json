@@ -13,7 +13,8 @@
     "IdempotencyKey": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,128}$" },
     "Cursor": {
       "type": "string",
-      "pattern": "^st1\\.[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      "description": "Opaque, tenant-bound, HMAC-protected. Never parse it.",
+      "pattern": "^[A-Za-z0-9_-]{1,200}\\.[A-Za-z0-9_-]{22}$"
     },
     "SyntheticTaskCreate": {
       "type": "object",

@@ -8,7 +8,7 @@
 # SQL: ignore everything except authored migrations under supabase/migrations.
 *.sql
 !supabase/migrations/
-!supabase/migrations/[0-9]*_*.sql
+!supabase/migrations/[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]_*.sql
 *.dump
 *.backup
 *.bak

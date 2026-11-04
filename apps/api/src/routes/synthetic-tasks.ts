@@ -1,7 +1,7 @@
 import { RefusalError } from '@cuspatlas/contracts';
 import type { SyntheticTaskService } from '@cuspatlas/domain';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import type { Authenticator } from '../auth';
+import { type Authenticator, authenticateOnRequest, requireActor } from '../auth';
 import { routeFor } from './manifest';
 
 function idempotencyKey(request: FastifyRequest): string {
@@ -12,20 +12,18 @@ function idempotencyKey(request: FastifyRequest): string {
 }
 
 /**
- * Thin REST adapter: authenticate, translate HTTP to a command envelope, call the domain service.
- * No tenant is read from the path, query, headers or body.
+ * Thin REST adapter: authenticate in `onRequest` (before any body is parsed), translate HTTP to a
+ * command envelope, call the domain service. No tenant is read from the path, query, headers or body.
  */
 export function registerSyntheticTaskRoutes(
   app: FastifyInstance,
   deps: { authenticator: Authenticator; service: SyntheticTaskService },
 ): void {
-  const auth = (request: FastifyRequest, operation: string) =>
-    deps.authenticator.authenticate(request.headers.authorization, request.id, operation);
+  const on = (operation: string) => ({ onRequest: authenticateOnRequest(deps.authenticator, operation) });
 
   const create = routeFor('syntheticTasks.create');
-  app.post(create.fastifyPath, async (request, reply) => {
-    const ctx = await auth(request, 'syntheticTasks.create');
-    const result = await deps.service.createSyntheticTask(ctx, {
+  app.post(create.fastifyPath, on('syntheticTasks.create'), async (request, reply) => {
+    const result = await deps.service.createSyntheticTask(requireActor(request), {
       operation: 'syntheticTasks.create',
       idempotencyKey: idempotencyKey(request),
       payload: request.body,
@@ -34,24 +32,24 @@ export function registerSyntheticTaskRoutes(
   });
 
   const list = routeFor('syntheticTasks.list');
-  app.get(list.fastifyPath, async (request) => {
-    const ctx = await auth(request, 'syntheticTasks.read');
-    return deps.service.listSyntheticTasks(ctx, { ...(request.query as object) });
-  });
+  app.get(list.fastifyPath, on('syntheticTasks.read'), async (request) =>
+    deps.service.listSyntheticTasks(requireActor(request), { ...(request.query as object) }),
+  );
 
   const read = routeFor('syntheticTasks.read');
-  app.get<{ Params: { taskRef: string } }>(read.fastifyPath, async (request) => {
-    const ctx = await auth(request, 'syntheticTasks.read');
-    return { data: await deps.service.getSyntheticTask(ctx, request.params.taskRef) };
-  });
+  app.get<{ Params: { taskRef: string } }>(read.fastifyPath, on('syntheticTasks.read'), async (request) => ({
+    data: await deps.service.getSyntheticTask(requireActor(request), request.params.taskRef),
+  }));
 
   const relabel = routeFor('syntheticTasks.relabel');
-  app.post<{ Params: { taskRef: string } }>(relabel.fastifyPath, async (request) => {
-    const ctx = await auth(request, 'syntheticTasks.relabel');
-    return deps.service.relabelSyntheticTask(ctx, request.params.taskRef, {
-      operation: 'syntheticTasks.relabel',
-      idempotencyKey: idempotencyKey(request),
-      payload: request.body,
-    });
-  });
+  app.post<{ Params: { taskRef: string } }>(
+    relabel.fastifyPath,
+    on('syntheticTasks.relabel'),
+    async (request) =>
+      deps.service.relabelSyntheticTask(requireActor(request), request.params.taskRef, {
+        operation: 'syntheticTasks.relabel',
+        idempotencyKey: idempotencyKey(request),
+        payload: request.body,
+      }),
+  );
 }

@@ -26,7 +26,7 @@ Limitations: Windows-only spike; CI must prove the Linux path. The embedded bina
 |---|---|---|---|
 | E0 environment and baseline | verified | (this commit) | see above |
 | E1 reproducible service (Task 1) | verified | bb25a6b | pnpm workspace, contracts, safe error boundary, ADR 0001 |
-| E2 identity and contracts (Tasks 2–3) | verified | Task 2 013ef79; Task 3 see git log | exit gate met on the Windows host; Linux CI pending (Task 8) |
+| E2 identity and contracts (Tasks 2–3) | verified (revision cycle 1 applied) | Task 2 013ef79; Task 3 bd2cfc7; revision see git log | exit gate met on the Windows host; Linux CI pending (Task 8) |
 | E3 trustworthy mutations (Tasks 4–5) | not started | | |
 | E4 durable integrations (Task 6) | not started | | |
 | E5 programmatic control (Tasks 7–7a) | not started | | |
@@ -84,3 +84,31 @@ Acceptance cases (tests/integration/transport-policy.test.ts, 17 tests; apps/api
 - Housekeeping: two postgres.exe processes and three temp data directories left by the killed hung runs during Task 2 were terminated/removed by PID and exact path.
 
 Unresolved: replay/idempotency semantics (Task 5), committed-change audit/outbox (Task 4), MCP parity (Task 7) are not implemented; the `executeDirect` executor never replays. Linux CI and Supabase advisors not run. OpenAPI is validated by the in-repo drift check, not yet by an external OpenAPI linter.
+
+### Revision cycle 1 (independent static review of bd2cfc7)
+
+New tests: tests/integration/review-hardening.test.ts (10) and packages/db/src/statement-guard.test.ts (2). Red run `corepack pnpm test -- review-hardening statement-guard` → exit 1: 9 of 10 integration tests failed and the guard module was missing. The deadlock case timed out at 8 s and the suite's hook then hung for 120 s, which confirms finding 1. R7 passed on the red run, because jose's `algorithms: ['EdDSA']` allowlist already rejected HS256/RS256; that test is a regression guard and was never red.
+
+| Finding | Fix | Test |
+|---|---|---|
+| R1 pool self-deadlock (authorize inside a tenant transaction took a second pool connection) | location checks inside the transaction reuse the pre-transaction `authorize` decision through `assertLocation`; no nested connect | `R1 ... 2x pool-size concurrent GET-by-id and relabel requests all complete on a 2-connection pool` (8 concurrent requests, 8 s bound, 5×200 + 3×409) |
+| R2 stale check ahead of the executor; refusal ordering | `stale_version` check moved inside the executor handler; auth → schema → domain for create, relabel, get and list | `a replaying executor can replay a committed relabel even when expectedVersion is now stale`; `authorization is checked before schema validation` |
+| R3 statement guard keyword-only | `assertDomainStatement` also rejects `;`, `--`, `/* */`, `set_config(`, `pg_*(` | `domain statement guard` (unit, 2); isolation smuggle test now proves both the guard and `DISCARD ALL` (session temp table gone after release) |
+| R4 body parsed before authentication | authentication moved to route `onRequest` hooks; `request.actor` decoration | `malformed or unsupported bodies without a token are 401 with an attempt row` |
+| R5 transparent cursor | HMAC-protected, tenant-bound opaque cursor (`packages/domain/src/cursor.ts`); schema `Cursor` pattern updated (OpenAPI references it; drift check passes) | `rejects tampered cursors and cursors minted for another tenant` |
+| R6 name-based test-issuer refusal | structural `isConfiguredIdentity` registry fed only by `loadConfiguredIdentity(env)`; `resolveRuntimeEnv`; `apps/api/src/server.ts` + `main.ts` (`pnpm start`) | `refuses a non-configured key source outside synthetic-test ...`; `accepts a configured key source loaded from the environment, and refuses unknown environments` |
+| R7 key confusion | none needed (EdDSA allowlist) | `HS256 (keyed with the public key bytes) and RS256 tokens are 401` |
+| R8 attempt insert `WITH CHECK (true)` | migration `20261104000000_review_hardening.sql`: attribution requires `cuspatlas.attempt_tenant_id`; sink sets it transaction-locally | `the runtime role cannot attribute an attempt to a tenant without the sink-scoped setting` |
+| Nit: members could read every member's scopes | same migration narrows memberships/principals to own rows | `a member sees only its own membership row inside its tenant` |
+| Nit: pool error handlers | `pool.on('error')` on the server pools (test pools already had them) | n/a |
+| Nit: migration ignore pattern | `.gitignore` now admits only `supabase/migrations/<14 digits>_*.sql` | manual: a `1_bad.sql` stayed ignored |
+
+Isolation tests adapted to the stricter guard: `pg_sleep` replaced with `generate_series` busy work, and the session `set_config` smuggle replaced with guard rejection plus a temp-table smuggle.
+
+- Fresh: `rm -rf node_modules ... && corepack pnpm install --frozen-lockfile` → exit 0
+- `corepack pnpm typecheck` → 0; `corepack pnpm lint` → 0; `corepack pnpm contract:check` → 0
+- `corepack pnpm test` → exit 0, 8 files, 68 tests; `corepack pnpm test:integration` → exit 0, 5 files, 55 tests; no postgres.exe or temp data dir left
+- `CUSPATLAS_ENV=bogus corepack pnpm start` → exit 1 with the CUSPATLAS_ENV refusal; `CUSPATLAS_ENV=development corepack pnpm start` without a database URL → exit 1 refusal
+- `corepack pnpm audit` → no known vulnerabilities
+
+Unresolved: cursor key is per process (multi-instance pagination needs a shared key; deployment decision). `server.ts` has not been started against a live database here (no non-test database exists); only its refusal paths were exercised.

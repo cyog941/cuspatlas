@@ -40,6 +40,7 @@ export async function createTestTokenIssuer(env: NodeJS.ProcessEnv = process.env
       audience: TEST_AUDIENCE,
       publicKey: own.publicKey,
       testOnly: true,
+      keySource: 'test',
     },
     async issue(o: IssueOptions): Promise<string> {
       const now = Math.floor(Date.now() / 1000);

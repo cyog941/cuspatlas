@@ -287,12 +287,19 @@ describe('pooled connections never carry tenant context', () => {
   it('sequential reuse of the same physical connection starts clean, even after a session-level smuggle', async () => {
     const pool = db.appPool(1);
     const tx = createTenantTransactionRunner(pool);
-    const pidA = await tx(ctxFor(T_ALPHA, USER_A1, 'human'), async (t) => {
-      await t.query(`SELECT set_config('cuspatlas.tenant_id', $1, false)`, [T_ALPHA]);
-      return (await t.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')).rows[0]?.pid;
+    const pidBefore = (await pool.query(probe)).rows[0].pid;
+    await tx(ctxFor(T_ALPHA, USER_A1, 'human'), async (t) => {
+      // Direct context manipulation is refused by the statement guard...
+      await expect(
+        t.query(`SELECT set_config('cuspatlas.tenant_id', $1, false)`, [T_ALPHA]),
+      ).rejects.toThrow();
+      // ...and session-lived state that slips through is discarded on release (DISCARD ALL).
+      await t.query(
+        `CREATE TEMP TABLE smuggled AS SELECT current_setting('cuspatlas.tenant_id', true) AS tenant`,
+      );
     });
-    const after = (await pool.query(probe)).rows[0];
-    expect(after).toStrictEqual({ tenant: '', actor: '', visible: 0, pid: pidA });
+    const after = (await pool.query(`${probe}, to_regclass('pg_temp.smuggled')::text AS smuggled`)).rows[0];
+    expect(after).toStrictEqual({ tenant: '', actor: '', visible: 0, pid: pidBefore, smuggled: null });
 
     const seenByB = await tx(ctxFor(T_BETA, USER_B1, 'human'), async (t) => {
       const r = await t.query<{ tenant_id: string }>(
@@ -322,7 +329,7 @@ describe('pooled connections never carry tenant context', () => {
       const alpha = i % 2 === 0;
       const ctx = alpha ? ctxFor(T_ALPHA, USER_A1, 'human') : ctxFor(T_BETA, SVC_B1, 'service');
       return tx(ctx, async (t) => {
-        await t.query('SELECT pg_sleep($1)', [((i * 7) % 5) / 200]);
+        await t.query('SELECT count(*) FROM generate_series(1, $1::int)', [(((i * 7) % 5) + 1) * 20000]);
         const r = await t.query<{ tenant: string; actor: string; tenants: string[] }>(
           `SELECT current_setting('cuspatlas.tenant_id', true) AS tenant,
                   current_setting('cuspatlas.actor_id', true) AS actor,

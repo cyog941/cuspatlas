@@ -3,6 +3,7 @@ import type { MembershipSource, SecurityAttemptSink, WithTenantTransaction } fro
 import {
   type AttemptRecordingDeps,
   type CommandExecutor,
+  type CursorCodec,
   createAuthorize,
   createSyntheticTaskService,
 } from '@cuspatlas/domain';
@@ -12,7 +13,7 @@ import Fastify, {
   type FastifyRequest,
   LogController,
 } from 'fastify';
-import { createAuthenticator, type IdentityVerifierConfig, isTestIssuer } from './auth';
+import { createAuthenticator, type IdentityVerifierConfig, isConfiguredIdentity, isTestIssuer } from './auth';
 import { mapErrorToRefusal, safeErrorKind } from './errors';
 import { registerSessionRoutes } from './routes/session';
 import { registerSyntheticTaskRoutes } from './routes/synthetic-tasks';
@@ -37,6 +38,8 @@ export interface AppDeps {
   readonly tenantTransactions?: WithTenantTransaction;
   /** Command executor seam (Task 5 supplies executeOnce). */
   readonly execute?: CommandExecutor;
+  /** Pagination cursor codec; defaults to a per-process random HMAC key. */
+  readonly cursors?: CursorCodec;
 }
 
 function sendRefusal(request: FastifyRequest, reply: FastifyReply, err: unknown): FastifyReply {
@@ -59,12 +62,27 @@ const safeSerializers = {
  * Builds the HTTP service. Request logging is restricted to method, matched route pattern, status
  * and the server-generated correlation id: no URL, query, headers or bodies are ever logged.
  */
+/** Reads CUSPATLAS_ENV and refuses anything that is not a known runtime environment. */
+export function resolveRuntimeEnv(env: NodeJS.ProcessEnv): RuntimeEnvironment {
+  const value = env.CUSPATLAS_ENV;
+  if (!value || !(RUNTIME_ENVIRONMENTS as readonly string[]).includes(value)) {
+    throw new Error(`CUSPATLAS_ENV must be one of ${RUNTIME_ENVIRONMENTS.join(', ')}`);
+  }
+  return value as RuntimeEnvironment;
+}
+
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   if (!RUNTIME_ENVIRONMENTS.includes(deps.env)) {
     throw new Error('Unsupported runtime environment');
   }
-  if (deps.identity && isTestIssuer(deps.identity) && deps.env !== 'synthetic-test') {
-    throw new Error('Refusing to start: the test issuer is only permitted when CUSPATLAS_ENV=synthetic-test');
+  if (
+    deps.identity &&
+    deps.env !== 'synthetic-test' &&
+    (isTestIssuer(deps.identity) || !isConfiguredIdentity(deps.identity))
+  ) {
+    throw new Error(
+      'Refusing to start: the test issuer or any non-configured key source is only permitted when CUSPATLAS_ENV=synthetic-test',
+    );
   }
   if (deps.identity && (!deps.membership || !deps.attempts)) {
     throw new Error('Refusing to start: identity requires a membership source and a security-attempt sink');
@@ -86,6 +104,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     return503OnClosing: true,
   });
 
+  app.decorateRequest('actor', null);
   app.addHook('onRequest', async (request, reply) => {
     reply.header('x-correlation-id', request.id);
     reply.header('cache-control', 'no-store');
@@ -111,6 +130,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         withTenantTransaction: deps.tenantTransactions,
         recording,
         ...(deps.execute ? { execute: deps.execute } : {}),
+        ...(deps.cursors ? { cursors: deps.cursors } : {}),
       });
       registerSyntheticTaskRoutes(app, { authenticator, service });
     }

@@ -14,7 +14,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "lint": "biome check .",
     "migrate": "tsx packages/db/src/migrate-cli.ts",
-    "contract:check": "tsx apps/api/src/contract-drift-cli.ts"
+    "contract:check": "tsx apps/api/src/contract-drift-cli.ts",
+    "start": "tsx apps/api/src/main.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.4",

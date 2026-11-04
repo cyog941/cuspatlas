@@ -5,11 +5,9 @@ import {
   type WithTenantTransaction,
 } from '@cuspatlas/contracts';
 import type pg from 'pg';
+import { assertDomainStatement } from './statement-guard';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-/** Work may not end, restart or re-scope the transaction it was given. */
-const FORBIDDEN_STATEMENT =
-  /^\s*(begin|start|commit|end|rollback|abort|savepoint|release|prepare|set|reset|discard)\b/i;
 
 /**
  * Creates `withTenantTransaction`. Callers must have run `authorize` first (domain services do so
@@ -45,8 +43,7 @@ export function createTenantTransactionRunner(pool: pg.Pool): WithTenantTransact
         const tx: TenantTransaction = {
           ctx,
           async query(text, values) {
-            if (FORBIDDEN_STATEMENT.test(text))
-              throw new Error('Transaction control is not available to domain work');
+            assertDomainStatement(text);
             const r = await client.query(text, values as unknown[] | undefined);
             return { rows: r.rows, rowCount: r.rowCount ?? 0 };
           },

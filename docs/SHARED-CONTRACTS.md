@@ -70,6 +70,8 @@ If attempt-audit persistence is unavailable, deny the operation anyway, emit a s
 
 One scope registry, published with the workflow and role matrix. Scope names are `noun.verb` in lower case: `patients.read`, `patients.write`, `scheduling.write`, `clinical.sign`, `claims.read`, `receivables.read`, `paymentDistribution.read`, `undistributedFunds.read`, `openClaims.read`, `admin.configure`.
 
+Registered by workstream S (2026-11-04, synthetic implementation; decisions pending approval in ADR 0003): `patients.read`, `patients.write`, `patients.merge` (human only: merge, unmerge inside the window, duplicate review) and `patients.mergeReconcile` (human only: unmerge outside the window or after new clinical/financial facts, with a reconciliation review reference).
+
 Camel-case scope names (`receivables.read` written as `receivablesRead`) are a defect. A scope used in any plan must appear in the registry; a plan that needs a new scope adds it there first.
 
 ### Relationship scopes

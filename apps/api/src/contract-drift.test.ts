@@ -57,6 +57,20 @@ describe('contract drift check', () => {
     expect(checkContractDrift({ ...src, openapiText }).join('\n')).toMatch(/ProposalApproveV0/);
   });
 
+  it('fails when the patient contract loosens a body or drifts from the shared definitions (S4)', () => {
+    const src = loadContractSources(root);
+    const patient = JSON.parse(src.patientSchemaText);
+    patient.$defs.PatientCreate.additionalProperties = true;
+    patient.$defs.IdempotencyKey.pattern = '^.{1,9}$';
+    patient.$defs.PatientSearch.properties.limit.maximum = 1000;
+    const problems = checkContractDrift({ ...src, patientSchemaText: JSON.stringify(patient) }).join('\n');
+    expect(problems).toMatch(/PatientCreate must set additionalProperties/);
+    expect(problems).toMatch(/IdempotencyKey differs/);
+    expect(problems).toMatch(/PatientSearch.limit/);
+    const openapiText = src.openapiText.replace('#/$defs/PatientCreate', '#/$defs/PatientCreateV0');
+    expect(checkContractDrift({ ...src, openapiText }).join('\n')).toMatch(/PatientCreateV0/);
+  });
+
   it('fails when the refusal code enum diverges from the shared contract', () => {
     const src = loadContractSources(root);
     const schema = JSON.parse(src.schemaText);

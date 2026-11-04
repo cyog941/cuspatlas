@@ -1,5 +1,5 @@
 import { ROUTES } from '@cuspatlas/api';
-import { actionProposalSchema, syntheticTaskSchema } from '@cuspatlas/contracts';
+import { actionProposalSchema, patientSchema, syntheticTaskSchema } from '@cuspatlas/contracts';
 import { describe, expect, it } from 'vitest';
 import { TOOLS } from './server';
 
@@ -33,10 +33,14 @@ function restShape(operationId: string, requestBody: string | undefined) {
   return { defs, shape: { properties: {}, required: [] } };
 }
 
+const SYNTHETIC_TOOLS = TOOLS.filter((t) => t.operationId.startsWith('syntheticTasks.'));
+
 describe('REST/MCP contract drift (synthetic tasks and proposals)', () => {
   it('exposes exactly one tool per REST operation and no others', () => {
-    expect(TOOLS.map((t) => t.operationId).sort()).toStrictEqual(synthetic.map((r) => r.operationId).sort());
-    expect(TOOLS.map((t) => t.name).sort()).toStrictEqual([
+    expect(SYNTHETIC_TOOLS.map((t) => t.operationId).sort()).toStrictEqual(
+      synthetic.map((r) => r.operationId).sort(),
+    );
+    expect(SYNTHETIC_TOOLS.map((t) => t.name).sort()).toStrictEqual([
       'synthetic_tasks_approve',
       'synthetic_tasks_commit',
       'synthetic_tasks_create',
@@ -48,54 +52,57 @@ describe('REST/MCP contract drift (synthetic tasks and proposals)', () => {
     ]);
   });
 
-  it.each(TOOLS.map((t) => [t.name, t] as const))('%s mirrors its REST input schema', (_n, tool) => {
-    const route = synthetic.find((r) => r.operationId === tool.operationId);
-    expect(route).toBeDefined();
-    if (!route) return;
-    const toolSchema = tool.inputSchema;
-    const toolProps = Object.keys(toolSchema.properties);
-    const transport = toolProps.filter((p) => TRANSPORT_ONLY.has(p));
-    // Only the Idempotency-Key header and path parameters are transport additions.
-    const headerKey = route.method === 'post' && !route.path.includes('{proposalRef}');
-    expect(toolSchema.additionalProperties).toBe(false);
-    expect(transport.sort()).toStrictEqual(
-      [
-        ...(headerKey ? ['idempotencyKey'] : []),
-        ...(route.path.includes('{taskRef}') ? ['taskRef'] : []),
-        ...(route.path.includes('{proposalRef}') ? ['proposalRef'] : []),
-      ].sort(),
-    );
+  it.each(SYNTHETIC_TOOLS.map((t) => [t.name, t] as const))(
+    '%s mirrors its REST input schema',
+    (_n, tool) => {
+      const route = synthetic.find((r) => r.operationId === tool.operationId);
+      expect(route).toBeDefined();
+      if (!route) return;
+      const toolSchema = tool.inputSchema;
+      const toolProps = Object.keys(toolSchema.properties);
+      const transport = toolProps.filter((p) => TRANSPORT_ONLY.has(p));
+      // Only the Idempotency-Key header and path parameters are transport additions.
+      const headerKey = route.method === 'post' && !route.path.includes('{proposalRef}');
+      expect(toolSchema.additionalProperties).toBe(false);
+      expect(transport.sort()).toStrictEqual(
+        [
+          ...(headerKey ? ['idempotencyKey'] : []),
+          ...(route.path.includes('{taskRef}') ? ['taskRef'] : []),
+          ...(route.path.includes('{proposalRef}') ? ['proposalRef'] : []),
+        ].sort(),
+      );
 
-    const { defs, shape } = restShape(tool.operationId, route.requestBody);
-    const rest = shape as { properties: Schema; required?: string[] };
-    const bodyProps = Object.keys(rest.properties).sort();
-    expect(toolProps.filter((p) => !TRANSPORT_ONLY.has(p)).sort()).toStrictEqual(bodyProps);
-    expect(toolSchema.required.filter((p) => !TRANSPORT_ONLY.has(p)).sort()).toStrictEqual(
-      [...(rest.required ?? [])].sort(),
-    );
+      const { defs, shape } = restShape(tool.operationId, route.requestBody);
+      const rest = shape as { properties: Schema; required?: string[] };
+      const bodyProps = Object.keys(rest.properties).sort();
+      expect(toolProps.filter((p) => !TRANSPORT_ONLY.has(p)).sort()).toStrictEqual(bodyProps);
+      expect(toolSchema.required.filter((p) => !TRANSPORT_ONLY.has(p)).sort()).toStrictEqual(
+        [...(rest.required ?? [])].sort(),
+      );
 
-    const local = toolSchema.$defs as Record<string, Schema>;
-    for (const p of bodyProps) {
-      expect(resolve(toolSchema.properties[p], local)).toStrictEqual(resolve(rest.properties[p], defs));
-    }
-    if (headerKey) {
-      expect(resolve(toolSchema.properties.idempotencyKey, local)).toStrictEqual(
-        resolve(TASK_DEFS.IdempotencyKey, TASK_DEFS),
-      );
-    }
-    if (route.path.includes('{taskRef}')) {
-      expect(resolve(toolSchema.properties.taskRef, local)).toStrictEqual(
-        resolve(TASK_DEFS.TaskRef, TASK_DEFS),
-      );
-    }
-    if (route.path.includes('{proposalRef}')) {
-      expect(resolve(toolSchema.properties.proposalRef, local)).toStrictEqual(
-        resolve(PROPOSAL_DEFS.ProposalRef, PROPOSAL_DEFS),
-      );
-    }
-    // Contract definitions copied into the tool must be byte-identical to the published ones.
-    for (const [name, def] of Object.entries(local)) expect(def).toStrictEqual(defs[name]);
-  });
+      const local = toolSchema.$defs as Record<string, Schema>;
+      for (const p of bodyProps) {
+        expect(resolve(toolSchema.properties[p], local)).toStrictEqual(resolve(rest.properties[p], defs));
+      }
+      if (headerKey) {
+        expect(resolve(toolSchema.properties.idempotencyKey, local)).toStrictEqual(
+          resolve(TASK_DEFS.IdempotencyKey, TASK_DEFS),
+        );
+      }
+      if (route.path.includes('{taskRef}')) {
+        expect(resolve(toolSchema.properties.taskRef, local)).toStrictEqual(
+          resolve(TASK_DEFS.TaskRef, TASK_DEFS),
+        );
+      }
+      if (route.path.includes('{proposalRef}')) {
+        expect(resolve(toolSchema.properties.proposalRef, local)).toStrictEqual(
+          resolve(PROPOSAL_DEFS.ProposalRef, PROPOSAL_DEFS),
+        );
+      }
+      // Contract definitions copied into the tool must be byte-identical to the published ones.
+      for (const [name, def] of Object.entries(local)) expect(def).toStrictEqual(defs[name]);
+    },
+  );
 });
 
 /**
@@ -155,5 +162,91 @@ describe('domain-validated MCP tools are never stricter than the domain validato
       local,
     );
     expect(actual).toStrictEqual(expected);
+  });
+});
+
+/**
+ * Patient tools (S4-S6): one tool per patient REST operation, each input schema exactly the REST body
+ * (or query) plus the transport-only path references and, for mutations, the Idempotency-Key.
+ */
+const PATIENT_DEFS = patientSchema.$defs as Record<string, Schema>;
+const patientRoutes = ROUTES.filter((r) => r.operationId.startsWith('patients.'));
+const PATIENT_TOOLS = TOOLS.filter((t) => t.operationId.startsWith('patients.'));
+/** Path parameters that are transport-only for patient tools. */
+const PATIENT_PATH_REFS = ['patientRef', 'relationshipRef', 'mergeRef'];
+/** REST GET routes take their arguments from the query; this maps them to the contract shape. */
+const PATIENT_QUERIES: Record<string, string> = {
+  'patients.read': 'PatientReadQuery',
+  'patients.relationships.list': 'RelationshipListQuery',
+  'patients.access.resolve': 'PatientAccessQuery',
+  'patients.duplicates.find': 'DuplicateQuery',
+  'patients.merges.list': 'MergeHistoryQuery',
+};
+const PATIENT_TOOL_NAMES = [
+  'patients_add_relationship',
+  'patients_create',
+  'patients_find_duplicates',
+  'patients_get',
+  'patients_list_merge_history',
+  'patients_list_relationships',
+  'patients_merge',
+  'patients_resolve_access',
+  'patients_revoke_relationship',
+  'patients_search',
+  'patients_set_status',
+  'patients_unmerge',
+  'patients_update_demographics',
+];
+
+describe('REST/MCP contract drift (patients)', () => {
+  it('exposes exactly one tool per patient REST operation and no others', () => {
+    expect(PATIENT_TOOLS.map((t) => t.operationId).sort()).toStrictEqual(
+      patientRoutes.map((r) => r.operationId).sort(),
+    );
+    expect(PATIENT_TOOLS.map((t) => t.name).sort()).toStrictEqual(PATIENT_TOOL_NAMES);
+    expect(PATIENT_TOOLS.every((t) => t.onInvalid !== 'domain')).toBe(true);
+  });
+
+  it.each(PATIENT_TOOLS.map((t) => [t.name, t] as const))('%s mirrors its REST input schema', (_n, tool) => {
+    const route = patientRoutes.find((r) => r.operationId === tool.operationId);
+    expect(route).toBeDefined();
+    if (!route) return;
+    const shapeName = route.requestBody?.slice('patient:'.length) ?? PATIENT_QUERIES[route.operationId];
+    const rest = (shapeName ? PATIENT_DEFS[shapeName] : { properties: {}, required: [] }) as {
+      properties: Schema;
+      required?: string[];
+    };
+    const pathRefs = PATIENT_PATH_REFS.filter((p) => route.path.includes(`{${p}}`));
+    const keyed = !tool.readOnly;
+    const transport = [...pathRefs, ...(keyed ? ['idempotencyKey'] : [])].sort();
+    const toolSchema = tool.inputSchema;
+    expect(toolSchema.additionalProperties).toBe(false);
+    const toolProps = Object.keys(toolSchema.properties);
+    expect(toolProps.filter((p) => transport.includes(p)).sort()).toStrictEqual(transport);
+    expect(toolProps.filter((p) => !transport.includes(p)).sort()).toStrictEqual(
+      Object.keys(rest.properties).sort(),
+    );
+    expect(toolSchema.required.filter((p) => !transport.includes(p)).sort()).toStrictEqual(
+      [...(rest.required ?? [])].sort(),
+    );
+    expect([...toolSchema.required].filter((p) => transport.includes(p)).sort()).toStrictEqual(transport);
+    const local = toolSchema.$defs as Record<string, Schema>;
+    for (const p of Object.keys(rest.properties)) {
+      expect(resolve(toolSchema.properties[p], local)).toStrictEqual(
+        resolve(rest.properties[p], PATIENT_DEFS),
+      );
+    }
+    for (const p of pathRefs) {
+      const defName = p.charAt(0).toUpperCase() + p.slice(1);
+      expect(resolve(toolSchema.properties[p], local)).toStrictEqual(
+        resolve(PATIENT_DEFS[defName], PATIENT_DEFS),
+      );
+    }
+    if (keyed) {
+      expect(resolve(toolSchema.properties.idempotencyKey, local)).toStrictEqual(
+        resolve(TASK_DEFS.IdempotencyKey, TASK_DEFS),
+      );
+    }
+    for (const [name, def] of Object.entries(local)) expect(def).toStrictEqual(PATIENT_DEFS[name]);
   });
 });

@@ -116,6 +116,23 @@
           "additionalProperties": false,
           "properties": {
             "currentVersion": { "$ref": "#/$defs/Version" },
+            "reason": { "type": "string", "pattern": "^[a-z_]{1,64}$" },
+            "blockingRefs": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind", "ref"],
+                "properties": {
+                  "kind": { "type": "string", "pattern": "^[a-z][A-Za-z]{0,63}$" },
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  }
+                }
+              }
+            },
             "violations": {
               "type": "array",
               "maxItems": 5,

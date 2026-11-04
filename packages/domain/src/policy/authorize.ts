@@ -28,6 +28,27 @@ export const ACTION_POLICIES = {
   'syntheticTasks.proposals.prepare': { scope: 'syntheticTasks.read', principals: ['human', 'service'] },
   'syntheticTasks.proposals.read': { scope: 'syntheticTasks.read', principals: ['human', 'service'] },
   'syntheticTasks.proposals.approve': { scope: 'syntheticTasks.approve', principals: ['human'] },
+  // S4 patient identity (ADR 0003, recommended-pending-approval). Reads are sensitive-read audited.
+  'patients.create': { scope: 'patients.write', principals: ['human', 'service'] },
+  'patients.updateDemographics': { scope: 'patients.write', principals: ['human', 'service'] },
+  'patients.setStatus': { scope: 'patients.write', principals: ['human', 'service'] },
+  'patients.read': { scope: 'patients.read', principals: ['human', 'service'] },
+  'patients.search': { scope: 'patients.read', principals: ['human', 'service'] },
+  // S5 relationships. Staff manage them; relationship scopes themselves are evaluated by
+  // policy/patient-access.ts and never grant a staff action.
+  'patients.relationships.add': { scope: 'patients.write', principals: ['human', 'service'] },
+  'patients.relationships.revoke': { scope: 'patients.write', principals: ['human', 'service'] },
+  'patients.relationships.list': { scope: 'patients.read', principals: ['human', 'service'] },
+  'patients.access.resolve': { scope: 'patients.read', principals: ['human', 'service'] },
+  // S6 duplicate review and merge (ADR 0003 Q6, pending approval): human principals only. Candidate
+  // review issues merge confirmation tokens, so it needs the merge scope too.
+  'patients.duplicates.find': { scope: 'patients.merge', principals: ['human'] },
+  'patients.merge': { scope: 'patients.merge', principals: ['human'] },
+  'patients.unmerge': { scope: 'patients.merge', principals: ['human'] },
+  // Elevated reversal (outside the window or after new clinical/financial facts): checked as an
+  // additional capability of the unmerge caller, never as a separate operation.
+  'patients.unmerge.reconcile': { scope: 'patients.mergeReconcile', principals: ['human'] },
+  'patients.merges.list': { scope: 'patients.read', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

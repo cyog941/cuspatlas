@@ -10,7 +10,8 @@ info:
     verified bearer token and a live membership; no path, query, header or body field selects a
     tenant. Refusals use the shared Refusal body and the transport mapping in docs/SHARED-CONTRACTS.md.
     Hidden cross-tenant and missing resources return the same 404 body. Proposal bodies are defined
-    by packages/contracts/src/action-proposal.schema.json.
+    by packages/contracts/src/action-proposal.schema.json. Patient bodies (S4-S6, synthetic data only) are
+    defined by packages/contracts/src/patient.schema.json.
   license:
     name: AGPL-3.0-or-later
     identifier: AGPL-3.0-or-later
@@ -286,6 +287,427 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/patients:
+    post:
+      operationId: patients.create
+      description: >-
+        Register a synthetic patient (S4). Absent field groups are stored as explicit unknowns. Never proposes a merge. Requires patients.write.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/patient.schema.json#/$defs/PatientCreate'
+      responses:
+        '201':
+          description: Patient created (version 1).
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/patient.schema.json#/$defs/PatientCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/patients/search:
+    post:
+      operationId: patients.search
+      description: >-
+        Bounded, cursor-paginated search returning PatientSummary only (no contact values). Filters travel in the body so identifying text never appears in a URL. Audited as a sensitive read. Another tenant's patients are never returned; the page is simply empty. Merged records are excluded. Requires patients.read.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/patient.schema.json#/$defs/PatientSearch'
+      responses:
+        '200':
+          description: One page of matching patients.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/patient.schema.json#/$defs/PatientSummaryPage'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/patients/{patientRef}:
+    get:
+      operationId: patients.read
+      description: >-
+        Read one patient, including contact values. Audited as a sensitive read. Hidden (other tenant) and
+        missing patients return the same 404 body. A merged patient is reachable only through merge
+        history (409 with detail.reason patient_merged). Requires patients.read. With requestedBy, staff
+        act for a related person, which additionally needs an active relationship with the demographics
+        scope (403 with detail.reason otherwise).
+      parameters:
+        - $ref: '#/components/parameters/PatientRef'
+        - name: requestedBy
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/patient.schema.json#/$defs/PatientRef'
+      responses:
+        '200':
+          description: The patient.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/patient.schema.json#/$defs/PatientRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/patients/{patientRef}/demographics:
+    post:
+      operationId: patients.updateDemographics
+      description: >-
+        Replace the provided field groups if expectedVersion matches (409 stale_version otherwise). At least one group (422 otherwise). Requires patients.write.
+      parameters:
+        - $ref: '#/components/parameters/PatientRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/patient.schema.json#/$defs/PatientDemographicsUpdate'
+      responses:
+        '200':
+          description: Demographics updated; version incremented.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/patient.schema.json#/$defs/PatientCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/patients/{patientRef}/status:
+    post:
+      operationId: patients.setStatus
+      description: >-
+        Effective-dated status change (active, inactive, deceased); appends a status fact and never deletes. Leaving deceased requires reasonCode entered_in_error. Requires patients.write.
+      parameters:
+        - $ref: '#/components/parameters/PatientRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/patient.schema.json#/$defs/PatientStatusChange'
+      responses:
+        '200':
+          description: Status recorded; version incremented.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/patient.schema.json#/$defs/PatientCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/patients/{patientRef}/relationships:
+    post:
+      operationId: patients.relationships.add
+      description: >-
+        Record that the counterparty (a patient-identity record of the same tenant) is the patient's
+        guardian, guarantor, dependent link or proxy, with relationship scopes from the five registered
+        names. Guardian authority ends at the tenant's age of majority; proxies need an end instant within
+        the tenant maximum; one unrevoked guarantor per patient (409 exclusive_guarantor_exists). Another
+        tenant's counterparty is 404 like a missing one. Rules pending approval (ADR 0003). Requires patients.write.
+      parameters:
+        - $ref: '#/components/parameters/PatientRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/patient.schema.json#/$defs/RelationshipCreate'
+      responses:
+        '201':
+          description: Relationship recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/patient.schema.json#/$defs/RelationshipCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: patients.relationships.list
+      description: >-
+        Relationships about or held by the patient (at most 100), each with status computed with the server
+        clock. Audited as a sensitive read. Requires patients.read.
+      parameters:
+        - $ref: '#/components/parameters/PatientRef'
+      responses:
+        '200':
+          description: Relationships.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/patient.schema.json#/$defs/RelationshipList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/patients/{patientRef}/relationships/{relationshipRef}/revoke:
+    post:
+      operationId: patients.relationships.revoke
+      description: >-
+        Revoke now: sets the end instant and keeps the row. A later command on behalf of the counterparty is
+        denied (403, detail.reason relationship_revoked) even with a session issued earlier. Requires patients.write.
+      parameters:
+        - $ref: '#/components/parameters/PatientRef'
+        - $ref: '#/components/parameters/RelationshipRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/patient.schema.json#/$defs/RelationshipRevoke'
+      responses:
+        '200':
+          description: Relationship revoked; version incremented.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/patient.schema.json#/$defs/RelationshipCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/patients/{patientRef}/access:
+    get:
+      operationId: patients.access.resolve
+      description: >-
+        Effective relationship access of counterpartyRef to the patient, computed now from current rows and
+        the server clock (no clock parameter exists). Audited as a sensitive read. Requires patients.read.
+      parameters:
+        - $ref: '#/components/parameters/PatientRef'
+        - name: counterpartyRef
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/patient.schema.json#/$defs/PatientRef'
+      responses:
+        '200':
+          description: The evaluated access.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/patient.schema.json#/$defs/PatientAccessRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/patients/{patientRef}/duplicate-candidates:
+    get:
+      operationId: patients.duplicates.find
+      description: >-
+        Scored duplicate candidates for staff review with every contributing reason and a confirmation token
+        bound to the reviewer, the pair and both versions (15 minutes). Never merges and writes nothing but
+        the sensitive-read log. Shared phone, email, address or household never qualify alone. Human
+        principals with patients.merge only. Rules pending approval (ADR 0003).
+      parameters:
+        - $ref: '#/components/parameters/PatientRef'
+      responses:
+        '200':
+          description: Candidates (at most 20).
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/patient.schema.json#/$defs/DuplicateCandidateList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/patients/merges:
+    post:
+      operationId: patients.merge
+      description: >-
+        Merge a reviewed duplicate into the survivor. Relinks every registered patient reference (the result
+        enumerates each moved record with its prior owner), keeps the merged record (reachable through merge
+        history) and never edits record content (digests recorded). A missing, tampered, foreign or expired
+        confirmation is 403; a pair changed since review, an already-merged patient or a record that cannot be
+        relinked is 409 with detail.reason and blockingRefs. Human principals with patients.merge only.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/patient.schema.json#/$defs/MergeRequest'
+      responses:
+        '201':
+          description: Merged.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/patient.schema.json#/$defs/MergeCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/patients/merges/{mergeRef}/unmerge:
+    post:
+      operationId: patients.unmerge
+      description: >-
+        Reverse a merge: restores every moved record and appends a reversal link (the merge link is kept).
+        Inside the tenant's unmerge window and without new clinical or financial facts on the survivor it needs
+        patients.merge; otherwise patients.mergeReconcile and a reconciliationReviewRef (403
+        unmerge_requires_reconciliation_review, 422 reconciliation_review_required). Rules pending approval.
+      parameters:
+        - $ref: '#/components/parameters/MergeRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/patient.schema.json#/$defs/UnmergeRequest'
+      responses:
+        '200':
+          description: Merge reversed.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/patient.schema.json#/$defs/MergeCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/patients/{patientRef}/merge-history:
+    get:
+      operationId: patients.merges.list
+      description: >-
+        Merges in which the patient is survivor or merged (merged patients stay reachable here), with every
+        moved record and any reversal. Audited as a sensitive read. Requires patients.read.
+      parameters:
+        - $ref: '#/components/parameters/PatientRef'
+      responses:
+        '200':
+          description: Merge history.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/patient.schema.json#/$defs/MergeHistory'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
 components:
   securitySchemes:
     bearer:
@@ -305,6 +727,24 @@ components:
       required: true
       schema:
         $ref: '../../packages/contracts/src/action-proposal.schema.json#/$defs/ProposalRef'
+    PatientRef:
+      name: patientRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/patient.schema.json#/$defs/PatientRef'
+    RelationshipRef:
+      name: relationshipRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/patient.schema.json#/$defs/RelationshipRef'
+    MergeRef:
+      name: mergeRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/patient.schema.json#/$defs/MergeRef'
     IdempotencyKey:
       name: Idempotency-Key
       in: header

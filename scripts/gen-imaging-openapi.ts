@@ -22,6 +22,7 @@ const PARAM_DEF: Record<string, string> = {
   deletionRef: 'DeletionRef',
   deviceRef: 'BridgeDeviceRef',
   jobRef: 'JobRef',
+  deferralRef: 'DeferralRef',
 };
 const defs = imagingSchema.$defs as Record<
   string,

@@ -777,7 +777,18 @@
           "$ref": "#/$defs/EntityRef"
         },
         "kind": {
-          "enum": ["ingress_quarantined", "ingress_scan_pending", "ingress_incomplete", "image_unmatched"]
+          "enum": [
+            "ingress_quarantined",
+            "ingress_scan_pending",
+            "ingress_incomplete",
+            "image_unmatched",
+            "acquisition_deferred",
+            "bridge_job_failed",
+            "bridge_outcome_unknown",
+            "bridge_late_result",
+            "bridge_lease_expired",
+            "device_unavailable"
+          ]
         },
         "reasonCode": {
           "$ref": "#/$defs/ReasonCode"
@@ -2028,6 +2039,260 @@
             },
             "version": {
               "$ref": "#/$defs/Version"
+            }
+          }
+        }
+      }
+    },
+    "DeferralRef": {
+      "$ref": "#/$defs/EntityRef",
+      "description": "Opaque deferred-acquisition reference."
+    },
+    "AcquisitionRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["deviceRef", "kind"],
+      "properties": {
+        "deviceRef": {
+          "$ref": "#/$defs/BridgeDeviceRef"
+        },
+        "kind": {
+          "enum": ["acquire", "import"]
+        },
+        "importPath": {
+          "$ref": "#/$defs/BridgePath"
+        },
+        "intendedPatientRef": {
+          "$ref": "#/$defs/PatientRef"
+        }
+      }
+    },
+    "AcquisitionCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["state", "jobRef", "deferralRef", "deferReason"],
+          "properties": {
+            "state": {
+              "enum": ["queued", "deferred"]
+            },
+            "jobRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/JobRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "deferralRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/DeferralRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "deferReason": {
+              "anyOf": [
+                {
+                  "enum": ["device_offline", "device_stale"]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "DeferralResolve": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action"],
+      "properties": {
+        "action": {
+          "enum": ["release", "cancel"]
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "patientReconfirmed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "DeferralCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "deferralRef",
+            "deviceRef",
+            "state",
+            "deferReason",
+            "jobRef",
+            "resolutionReason",
+            "version"
+          ],
+          "properties": {
+            "deferralRef": {
+              "$ref": "#/$defs/DeferralRef"
+            },
+            "deviceRef": {
+              "$ref": "#/$defs/BridgeDeviceRef"
+            },
+            "state": {
+              "enum": ["deferred", "released", "cancelled"]
+            },
+            "deferReason": {
+              "enum": ["device_offline", "device_stale"]
+            },
+            "jobRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/JobRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "resolutionReason": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ReasonCode"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "version": {
+              "$ref": "#/$defs/Version"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "BridgeJobReconcile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "reasonCode"],
+      "properties": {
+        "action": {
+          "enum": ["requeue", "cancel"]
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "BridgeJobReconcileResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["jobRef", "state", "version"],
+          "properties": {
+            "jobRef": {
+              "$ref": "#/$defs/JobRef"
+            },
+            "state": {
+              "enum": ["queued", "cancelled"]
+            },
+            "version": {
+              "$ref": "#/$defs/Version"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "BridgeWorklist": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["asOf", "coverage", "count", "items"],
+          "properties": {
+            "asOf": {
+              "$ref": "#/$defs/Instant"
+            },
+            "coverage": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["status", "unavailableDevices"],
+              "properties": {
+                "status": {
+                  "enum": ["available", "partial"]
+                },
+                "unavailableDevices": {
+                  "type": "array",
+                  "maxItems": 100,
+                  "items": {
+                    "$ref": "#/$defs/BridgeDeviceRef"
+                  }
+                }
+              }
+            },
+            "count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "items": {
+              "type": "array",
+              "maxItems": 400,
+              "items": {
+                "$ref": "#/$defs/ImagingWorkItem"
+              }
             }
           }
         }

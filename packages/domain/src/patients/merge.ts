@@ -185,6 +185,11 @@ export const MERGE_EXCLUDED_REFERENCES: readonly { table: string; column: string
   },
   { table: 'patients', column: 'merged_into', why: 'the merge link itself' },
   {
+    table: 'imaging_acquisition_deferrals',
+    column: 'intended_patient_id',
+    why: 'I7: the patient named when the acquisition was deferred; a later change or merge needs re-confirmation at release (never relinked silently)',
+  },
+  {
     table: 'imaging_bridge_jobs',
     column: 'intended_patient_id',
     why: 'I6: the patient named when the bridge job was queued (becomes the ingress dedupe scope, never an association)',

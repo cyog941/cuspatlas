@@ -115,6 +115,7 @@ describe('runtime database role', () => {
       'cancellation_recoveries',
       'command_idempotency',
       'delivery_receipts',
+      'imaging_acquisition_deferrals',
       'imaging_annotations',
       'imaging_bridge_jobs',
       'imaging_deletion_requests',

@@ -1,6 +1,7 @@
 import { associationExtension, createAssociationOperations } from './association';
 import { createImagingBase, type ImagingDeps } from './base';
 import { createBridgeOperations } from './bridge';
+import { createBridgeHealthOperations, sweepBridgeStep } from './bridge-health';
 import {
   compositionExtension,
   createCompositionOperations,
@@ -22,13 +23,18 @@ export function createImagingService(deps: ImagingDeps) {
     ...createObjectOperations(
       base,
       [associationExtension(() => sourceOfDerived), compositionExtension],
-      [sweepAbandonedIngress, reconcileDeletions],
+      [sweepAbandonedIngress, reconcileDeletions, sweepBridgeStep],
     ),
     ...createIngressOperations(base),
     ...createAssociationOperations(base, [mountGuard], deps.limits?.unmatchedEscalationHours ?? 48),
     ...createCompositionOperations(base),
     ...createRetentionOperations(base),
     ...createDicomOperations(base),
+    ...createBridgeHealthOperations(base, {
+      staleSeconds: deps.limits?.bridgeStaleSeconds ?? 120,
+      offlineSeconds: deps.limits?.bridgeOfflineSeconds ?? 600,
+      maxDeferred: deps.limits?.maxDeferredAcquisitions ?? 25,
+    }),
     ...createBridgeOperations(base, {
       leaseSeconds: deps.limits?.bridgeLeaseSeconds ?? 300,
       resultSkewSeconds: 300,

@@ -588,6 +588,68 @@ export const ROWS: ImagingHarnessRow[] = [
     rest: (x) => ({ method: 'GET', url: `/v1/imaging/bridge-jobs/${x.job}`, keyed: false, status: 200 }),
     mcpArgs: (x) => ({ jobRef: x.job }),
   },
+  // I7 offline devices, deferred acquisitions and the bridge worklist.
+  {
+    operation: 'imaging.acquisitions.request',
+    crossTenant: 'not_found',
+    downgradedTo: 'imagingReadOnly',
+    rest: (x) => ({
+      method: 'POST',
+      url: '/v1/imaging/acquisitions',
+      body: { deviceRef: x.device, kind: 'import', importPath: 'exports/b.png' },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (x) => ({
+      deviceRef: x.device,
+      kind: 'import',
+      importPath: 'exports/b.png',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'imaging.acquisitions.resolve',
+    crossTenant: 'not_found',
+    downgradedTo: 'imagingReadOnly',
+    rest: (x) => ({
+      method: 'POST',
+      url: `/v1/imaging/acquisitions/${x.deferral}/resolve`,
+      body: { action: 'cancel', reasonCode: 'manual_import' },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (x) => ({
+      deferralRef: x.deferral,
+      action: 'cancel',
+      reasonCode: 'manual_import',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'imaging.bridgeJobs.reconcile',
+    crossTenant: 'not_found',
+    downgradedTo: 'imagingReadOnly',
+    rest: (x) => ({
+      method: 'POST',
+      url: `/v1/imaging/bridge-jobs/${x.job}/reconcile`,
+      body: { action: 'cancel', reasonCode: 'device_lost' },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (x) => ({
+      jobRef: x.job,
+      action: 'cancel',
+      reasonCode: 'device_lost',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'imaging.bridge.worklist',
+    crossTenant: 'own_tenant_only',
+    downgradedTo: 'noImagingScopes',
+    rest: () => ({ method: 'GET', url: '/v1/imaging/worklists/bridge', keyed: false, status: 200 }),
+    mcpArgs: () => ({}),
+  },
 ];
 
 beforeAll(async () => {
@@ -684,7 +746,15 @@ beforeAll(async () => {
     importPath: 'exports/a.png',
   });
   expect(jobRes.status).toBe(201);
+  // I7: a deferred acquisition (the paired harness device has sent no heartbeat, so it is offline).
+  const acq = await post('/v1/imaging/acquisitions', {
+    deviceRef: device,
+    kind: 'import',
+    importPath: 'exports/c.png',
+  });
+  expect((acq.json.data as { state: string }).state).toBe('deferred');
   f = {
+    deferral: (acq.json.data as { deferralRef: string }).deferralRef,
     device,
     pendingDevice,
     job: (jobRes.json.data as { jobRef: string }).jobRef,

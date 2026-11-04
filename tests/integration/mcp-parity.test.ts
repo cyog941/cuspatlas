@@ -177,6 +177,10 @@ const TOOL_NAMES = [
   'imaging_devices_revoke',
   'imaging_bridge_jobs_enqueue',
   'imaging_bridge_jobs_get',
+  'imaging_acquisitions_request',
+  'imaging_acquisitions_resolve',
+  'imaging_bridge_jobs_reconcile',
+  'imaging_bridge_worklist',
 ].sort();
 
 let db: TestDatabase;

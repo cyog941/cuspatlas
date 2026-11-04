@@ -204,6 +204,12 @@ export const ACTION_POLICIES = {
   'imaging.bridge.result': { scope: null, principals: ['device'] },
   'imaging.bridge.heartbeat': { scope: null, principals: ['device'] },
   'imaging.bridge.rotateKey': { scope: null, principals: ['device'] },
+  // I7 offline devices and recovery: requesting work is imaging work; releasing, cancelling and
+  // reconciling are human decisions; the worklist is a read.
+  'imaging.acquisitions.request': { scope: 'imaging.write', principals: ['human', 'service'] },
+  'imaging.acquisitions.resolve': { scope: 'imaging.write', principals: ['human'] },
+  'imaging.bridgeJobs.reconcile': { scope: 'imaging.write', principals: ['human'] },
+  'imaging.bridge.worklist': { scope: 'imaging.read', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

@@ -687,6 +687,60 @@ export const IMAGING_OPS: readonly ImagingOp[] = [
       'Rotate the device key: asserted with the current key, proven by the new key. The old key stops working at once.',
     invoke: (svc, actor, i) => svc.rotateKey(actor, i.body),
   },
+  // I7 offline device, bridge failure and recovery worklist (staff side; REST and MCP).
+  {
+    method: 'post',
+    path: '/v1/imaging/acquisitions',
+    operationId: 'imaging.acquisitions.request',
+    protected: true,
+    requestBody: I('AcquisitionRequest'),
+    success: { status: '201', schema: I('AcquisitionCommandResult') },
+    refusals: COMMAND,
+    tool: 'imaging_acquisitions_request',
+    description:
+      'Request an acquisition or import on a bridge device: queued when the device is available, otherwise a visible deferred item with the reason (bounded per tenant: beyond the bound a typed refusal).',
+    invoke: (svc, actor, i) => svc.requestAcquisition(actor, env('imaging.acquisitions.request', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/imaging/acquisitions/{deferralRef}/resolve',
+    operationId: 'imaging.acquisitions.resolve',
+    protected: true,
+    requestBody: I('DeferralResolve'),
+    success: { status: '200', schema: I('DeferralCommandResult') },
+    refusals: COMMAND,
+    tool: 'imaging_acquisitions_resolve',
+    description:
+      'Release a deferred acquisition to exactly one job once its device is available (a changed patient record needs re-confirmation), or cancel it with a reason (for example after a manual import). A person decides.',
+    invoke: (svc, actor, i) =>
+      svc.resolveDeferral(actor, param(i, 'deferralRef'), env('imaging.acquisitions.resolve', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/imaging/bridge-jobs/{jobRef}/reconcile',
+    operationId: 'imaging.bridgeJobs.reconcile',
+    protected: true,
+    requestBody: I('BridgeJobReconcile'),
+    success: { status: '200', schema: I('BridgeJobReconcileResult') },
+    refusals: COMMAND,
+    tool: 'imaging_bridge_jobs_reconcile',
+    description:
+      'Reconcile a bridge job whose outcome is unknown, that failed or that expired: requeue it (re-imported bytes deduplicate by digest) or cancel it, with a reason. Never automatic.',
+    invoke: (svc, actor, i) =>
+      svc.reconcileJob(actor, param(i, 'jobRef'), env('imaging.bridgeJobs.reconcile', i)),
+  },
+  {
+    method: 'get',
+    path: '/v1/imaging/worklists/bridge',
+    operationId: 'imaging.bridge.worklist',
+    protected: true,
+    success: { status: '200', schema: I('BridgeWorklist') },
+    refusals: ['401', '403', '503'],
+    tool: 'imaging_bridge_worklist',
+    description:
+      'Exception-first bridge worklist: deferred acquisitions, failed jobs, unknown outcomes, late results and unavailable devices with waiting work, each with owner, reason, due time and next action. Coverage names devices whose job picture is unknown (unavailable is not empty).',
+    invoke: (svc, actor) => data(svc.bridgeWorklist(actor)),
+  },
 ];
 
 /** The route contracts only (spread into ROUTES). */

@@ -364,3 +364,23 @@ export const validateBridgeClaim = def('BridgeClaim');
 export const validateBridgeResultReport = def('BridgeResultReport');
 export const validateBridgeHeartbeat = def('BridgeHeartbeat');
 export const validateBridgeKeyRotate = def('BridgeKeyRotate');
+
+// I7 offline device, bridge failure and recovery worklist.
+export interface AcquisitionRequest {
+  readonly deviceRef: string;
+  readonly kind: 'acquire' | 'import';
+  readonly importPath?: string;
+  readonly intendedPatientRef?: string;
+}
+export interface DeferralResolve {
+  readonly action: 'release' | 'cancel';
+  readonly reasonCode?: string;
+  readonly patientReconfirmed?: boolean;
+}
+export interface BridgeJobReconcile {
+  readonly action: 'requeue' | 'cancel';
+  readonly reasonCode: string;
+}
+export const validateAcquisitionRequest = def('AcquisitionRequest');
+export const validateDeferralResolve = def('DeferralResolve');
+export const validateBridgeJobReconcile = def('BridgeJobReconcile');

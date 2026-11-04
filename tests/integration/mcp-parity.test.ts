@@ -8,7 +8,12 @@ import {
   createTenantTransactionRunner,
 } from '@cuspatlas/db';
 import { SYNTHETIC_TEST_MATCH_KEY_PEPPER } from '@cuspatlas/domain';
-import { buildMcpServer, loadConfiguredMcpIdentity, type McpServerHandle } from '@cuspatlas/mcp';
+import {
+  buildMcpServer,
+  ENGAGEMENT_OP_TOOLS,
+  loadConfiguredMcpIdentity,
+  type McpServerHandle,
+} from '@cuspatlas/mcp';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { FastifyInstance } from 'fastify';
@@ -137,6 +142,8 @@ const TOOL_NAMES = [
   'scheduling_follow_up_worklist',
   // S17 export.
   'scheduling_export',
+  // Workstream E staff operations, one tool per ENGAGEMENT_OPS row (portal routes are never tools).
+  ...ENGAGEMENT_OP_TOOLS.map((t) => t.name),
 ].sort();
 
 let db: TestDatabase;

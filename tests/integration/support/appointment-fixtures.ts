@@ -3,6 +3,7 @@ import { buildApp } from '@cuspatlas/api';
 import { REFUSAL_HTTP_STATUS, type RefusalCode } from '@cuspatlas/contracts';
 import {
   createMembershipSource,
+  createPortalPrincipalSource,
   createSecurityAttemptSink,
   createTenantTransactionRunner,
 } from '@cuspatlas/db';
@@ -18,6 +19,7 @@ import { seedSchedulingScopes, USER_A5 } from './scheduling-fixtures';
 import { createTestTokenIssuer, TEST_AUDIENCE, type TestTokenIssuer } from './test-token-issuer';
 
 const MCP_AUDIENCE = 'urn:cuspatlas:mcp:synthetic';
+const PORTAL_AUDIENCE = 'urn:cuspatlas:portal:synthetic';
 
 export interface McpOutcome {
   readonly status: number;
@@ -52,7 +54,7 @@ export interface AppointmentHarness {
 
 export async function openAppointmentHarness(
   db: TestDatabase,
-  opts: { pool?: number; mcp?: boolean } = {},
+  opts: { pool?: number; mcp?: boolean; portal?: boolean } = {},
 ): Promise<AppointmentHarness> {
   await seedTenancy(db.admin);
   await seedPatientScopes(db.admin);
@@ -70,6 +72,13 @@ export async function openAppointmentHarness(
     membership,
     attempts,
     tenantTransactions,
+    // E1: the portal transport (its own audience) is registered only when asked for.
+    ...(opts.portal
+      ? {
+          portalIdentity: { ...issuer.verifierConfig, audience: PORTAL_AUDIENCE },
+          portalPrincipals: createPortalPrincipalSource(db.app),
+        }
+      : {}),
   });
   let server: McpServerHandle | null = null;
   let mcpUrl = '';

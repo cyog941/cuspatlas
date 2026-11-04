@@ -1,4 +1,6 @@
 import { APPOINTMENT_ROUTES } from './appointment-manifest';
+import { ENGAGEMENT_OP_ROUTES } from './engagement-ops';
+import { PORTAL_ROUTES } from './portal-ops';
 import { SCHEDULING_OP_ROUTES } from './scheduling-ops';
 
 /**
@@ -26,6 +28,7 @@ export const SCHEMA_FILE = 'synthetic-task.schema.json';
 export const PROPOSAL_SCHEMA_FILE = 'action-proposal.schema.json';
 export const PATIENT_SCHEMA_FILE = 'patient.schema.json';
 export const SCHEDULING_SCHEMA_FILE = 'scheduling.schema.json';
+export const ENGAGEMENT_SCHEMA_FILE = 'engagement.schema.json';
 
 export const ROUTES: readonly RouteContract[] = [
   {
@@ -328,6 +331,9 @@ export const ROUTES: readonly RouteContract[] = [
   },
   ...APPOINTMENT_ROUTES,
   ...SCHEDULING_OP_ROUTES,
+  // Workstream E: staff operations (REST + MCP) and the portal transport (portal audience only).
+  ...ENGAGEMENT_OP_ROUTES,
+  ...PORTAL_ROUTES,
 ];
 
 export function routeFor(operationId: string): RouteContract & { fastifyPath: string } {

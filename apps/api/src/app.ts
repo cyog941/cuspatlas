@@ -1,11 +1,17 @@
 import { randomUUID } from 'node:crypto';
-import type { MembershipSource, SecurityAttemptSink, WithTenantTransaction } from '@cuspatlas/contracts';
+import type {
+  MembershipSource,
+  PortalPrincipalSource,
+  SecurityAttemptSink,
+  WithTenantTransaction,
+} from '@cuspatlas/contracts';
 import {
   type AttemptRecordingDeps,
   type CommandExecutor,
   type CursorCodec,
   createAppointmentService,
   createAuthorize,
+  createEngagementService,
   createPatientService,
   createProposalService,
   createSchedulingResourceService,
@@ -19,7 +25,13 @@ import Fastify, {
   type FastifyRequest,
   LogController,
 } from 'fastify';
-import { createAuthenticator, type IdentityVerifierConfig, isConfiguredIdentity, isTestIssuer } from './auth';
+import {
+  createAuthenticator,
+  createPortalAuthenticator,
+  type IdentityVerifierConfig,
+  isConfiguredIdentity,
+  isTestIssuer,
+} from './auth';
 import { mapErrorToRefusal, safeErrorKind } from './errors';
 import {
   registerAppointmentRoutes,
@@ -27,6 +39,7 @@ import {
   registerBookingRoutes,
 } from './routes/appointments';
 import { registerPatientRoutes } from './routes/patients';
+import { registerEngagementOpRoutes, registerPortalRoutes } from './routes/portal-routes';
 import { registerProposalRoutes } from './routes/proposals';
 import { registerSchedulingRoutes } from './routes/scheduling';
 import { registerSchedulingOpRoutes } from './routes/scheduling-ops-routes';
@@ -59,6 +72,13 @@ export interface AppDeps {
   readonly proposalPolicyVersion?: string;
   /** Match-key pepper (CUSPATLAS_MATCH_KEY_PEPPER); optional only under synthetic-test. */
   readonly matchKeyPepper?: Uint8Array;
+  /**
+   * E1 portal transport: the same verifier key with the portal audience (distinct from the staff
+   * audience). Portal routes are registered only when this and `portalPrincipals` are configured.
+   */
+  readonly portalIdentity?: IdentityVerifierConfig;
+  /** Live portal-enrolment lookups on the runtime-role pool. */
+  readonly portalPrincipals?: PortalPrincipalSource;
 }
 
 function sendRefusal(request: FastifyRequest, reply: FastifyReply, err: unknown): FastifyReply {
@@ -105,6 +125,22 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   }
   if (deps.identity && (!deps.membership || !deps.attempts)) {
     throw new Error('Refusing to start: identity requires a membership source and a security-attempt sink');
+  }
+  if (deps.portalIdentity) {
+    if (
+      deps.env !== 'synthetic-test' &&
+      (isTestIssuer(deps.portalIdentity) || !isConfiguredIdentity(deps.portalIdentity))
+    ) {
+      throw new Error('Refusing to start: the portal verifier must be a configured key source');
+    }
+    if (!deps.identity || deps.portalIdentity.audience === deps.identity.audience) {
+      throw new Error(
+        'Refusing to start: the portal audience must be configured and differ from the staff audience',
+      );
+    }
+    if (!deps.portalPrincipals) {
+      throw new Error('Refusing to start: the portal transport requires a portal-principal source');
+    }
   }
 
   const app = Fastify({
@@ -187,6 +223,22 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       registerBookingRoutes(app, { authenticator, appointments });
       registerAttendanceRoutes(app, { authenticator, appointments });
       registerSchedulingOpRoutes(app, { authenticator, appointments });
+      const engagement = createEngagementService({
+        matchKeyPepper: resolveMatchKeyPepper(deps.env, deps.matchKeyPepper),
+        authorize,
+        withTenantTransaction: deps.tenantTransactions,
+        recording,
+        execute: deps.execute ?? executeOnce,
+      });
+      registerEngagementOpRoutes(app, { authenticator, engagement });
+      if (deps.portalIdentity && deps.portalPrincipals) {
+        const portalAuthenticator = createPortalAuthenticator(
+          deps.portalIdentity,
+          deps.portalPrincipals,
+          recording,
+        );
+        registerPortalRoutes(app, { authenticator: portalAuthenticator, engagement });
+      }
     }
   }
 

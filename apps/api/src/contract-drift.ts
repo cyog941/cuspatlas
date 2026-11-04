@@ -2,13 +2,16 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { REFUSAL_CODES } from '@cuspatlas/contracts';
 import { parse } from 'yaml';
+import { ENGAGEMENT_OPS } from './routes/engagement-ops';
 import {
+  ENGAGEMENT_SCHEMA_FILE,
   PATIENT_SCHEMA_FILE,
   PROPOSAL_SCHEMA_FILE,
   ROUTES,
   SCHEDULING_SCHEMA_FILE,
   SCHEMA_FILE,
 } from './routes/manifest';
+import { PORTAL_OPS } from './routes/portal-ops';
 import { SCHEDULING_OPS } from './routes/scheduling-ops';
 
 export interface ContractSources {
@@ -17,6 +20,7 @@ export interface ContractSources {
   readonly proposalSchemaText: string;
   readonly patientSchemaText: string;
   readonly schedulingSchemaText: string;
+  readonly engagementSchemaText: string;
 }
 
 export const OPENAPI_PATH = 'docs/api/openapi.yaml';
@@ -28,6 +32,8 @@ export const PATIENT_SCHEMA_PATH = `packages/contracts/src/${PATIENT_SCHEMA_FILE
 const PATIENT_REF_PREFIX = `../../${PATIENT_SCHEMA_PATH}#`;
 export const SCHEDULING_SCHEMA_PATH = `packages/contracts/src/${SCHEDULING_SCHEMA_FILE}`;
 const SCHEDULING_REF_PREFIX = `../../${SCHEDULING_SCHEMA_PATH}#`;
+export const ENGAGEMENT_SCHEMA_PATH = `packages/contracts/src/${ENGAGEMENT_SCHEMA_FILE}`;
+const ENGAGEMENT_REF_PREFIX = `../../${ENGAGEMENT_SCHEMA_PATH}#`;
 
 export function loadContractSources(root: string): ContractSources {
   return {
@@ -36,6 +42,7 @@ export function loadContractSources(root: string): ContractSources {
     proposalSchemaText: readFileSync(resolve(root, PROPOSAL_SCHEMA_PATH), 'utf8'),
     patientSchemaText: readFileSync(resolve(root, PATIENT_SCHEMA_PATH), 'utf8'),
     schedulingSchemaText: readFileSync(resolve(root, SCHEDULING_SCHEMA_PATH), 'utf8'),
+    engagementSchemaText: readFileSync(resolve(root, ENGAGEMENT_SCHEMA_PATH), 'utf8'),
   };
 }
 
@@ -73,7 +80,9 @@ const schemaRef = (name: string) =>
         ? `${PATIENT_REF_PREFIX}/$defs/${name.slice('patient:'.length)}`
         : name.startsWith('scheduling:')
           ? `${SCHEDULING_REF_PREFIX}/$defs/${name.slice('scheduling:'.length)}`
-          : `${SCHEMA_REF_PREFIX}/$defs/${name}`;
+          : name.startsWith('engagement:')
+            ? `${ENGAGEMENT_REF_PREFIX}/$defs/${name.slice('engagement:'.length)}`
+            : `${SCHEMA_REF_PREFIX}/$defs/${name}`;
 
 /** Definitions the scheduling contract copies from the task contract; they must stay byte-identical. */
 const SCHEDULING_SHARED_DEFS = ['LocationRef', 'Version', 'IdempotencyKey'] as const;
@@ -143,18 +152,24 @@ export function checkContractDrift(src: ContractSources): string[] {
   let proposal: Json;
   let patient: Json;
   let scheduling: Json;
+  let engagement: Json;
   try {
     api = parse(src.openapiText) as Json;
     schema = JSON.parse(src.schemaText) as Json;
     proposal = JSON.parse(src.proposalSchemaText) as Json;
     patient = JSON.parse(src.patientSchemaText) as Json;
     scheduling = JSON.parse(src.schedulingSchemaText) as Json;
+    engagement = JSON.parse(src.engagementSchemaText) as Json;
   } catch {
     return ['OpenAPI or JSON Schema does not parse'];
   }
 
   for (const ref of collectRefs(api)) {
-    if (ref.startsWith(SCHEDULING_REF_PREFIX)) {
+    if (ref.startsWith(ENGAGEMENT_REF_PREFIX)) {
+      if (pointer(engagement, ref.slice(ENGAGEMENT_REF_PREFIX.length)) === undefined) {
+        problems.push(`OpenAPI $ref does not resolve in ${ENGAGEMENT_SCHEMA_FILE}: ${ref}`);
+      }
+    } else if (ref.startsWith(SCHEDULING_REF_PREFIX)) {
       if (pointer(scheduling, ref.slice(SCHEDULING_REF_PREFIX.length)) === undefined) {
         problems.push(`OpenAPI $ref does not resolve in ${SCHEDULING_SCHEMA_FILE}: ${ref}`);
       }
@@ -295,6 +310,22 @@ export function checkContractDrift(src: ContractSources): string[] {
   for (const name of ['ResourceListQuery', 'LocationListQuery']) {
     if (pointer(sdef(name), '/properties/limit/pattern') !== '^([1-9]|[1-9][0-9]|100)$') {
       problems.push(`${name}.limit must be bounded to 1..100`);
+    }
+  }
+  // Workstream E: every staff and portal request body and GET query is a closed object.
+  const edef = (name: string) => pointer(engagement, `/$defs/${name}`);
+  const eBodies = [...ENGAGEMENT_OPS, ...PORTAL_OPS].flatMap((o) => [
+    ...(o.requestBody ? [o.requestBody.replace('engagement:', '')] : []),
+    ...(o.query ? [o.query] : []),
+  ]);
+  for (const name of eBodies) {
+    if (pointer(edef(name), '/additionalProperties') !== false) {
+      problems.push(`${name} must set additionalProperties: false`);
+    }
+  }
+  for (const name of ['Version', 'IdempotencyKey'] as const) {
+    if (JSON.stringify(edef(name)) !== JSON.stringify(sdef(name))) {
+      problems.push(`${ENGAGEMENT_SCHEMA_FILE} ${name} differs from ${SCHEDULING_SCHEMA_FILE}`);
     }
   }
   const codes = pointer(def('Refusal'), '/properties/code/enum');

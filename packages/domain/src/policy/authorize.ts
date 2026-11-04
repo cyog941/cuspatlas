@@ -141,6 +141,14 @@ export const ACTION_POLICIES = {
   'scheduling.followUp.worklist': { scope: 'scheduling.read', principals: ['human', 'service'] },
   // S17 minimal scheduling export: a tenant-wide human administrator only (sensitive-read logged).
   'scheduling.export': { scope: 'admin.configure', principals: ['human'] },
+  // E1 portal principals (staff side). Enrollment, verification and revocation manage portal access
+  // (`portal.manage`); reads need patients.read. Grants themselves are S5 relationships managed by
+  // patients.relationships.add/revoke. No staff policy admits a `portal` principal.
+  'portal.principals.enroll': { scope: 'portal.manage', principals: ['human', 'service'] },
+  'portal.principals.verify': { scope: 'portal.manage', principals: ['human'] },
+  'portal.principals.revoke': { scope: 'portal.manage', principals: ['human', 'service'] },
+  'portal.principals.read': { scope: 'patients.read', principals: ['human', 'service'] },
+  'portal.grants.list': { scope: 'patients.read', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

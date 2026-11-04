@@ -187,6 +187,14 @@ export const MERGE_EXCLUDED_REFERENCES: readonly { table: string; column: string
     column: 'merged_patient_id',
     why: 'merge history keeps both source identifiers',
   },
+  // E1 (recommended-pending-approval): a portal principal stays bound to the identity it was enrolled
+  // for; once that identity is merged the principal is denied (portal_identity_merged) and staff
+  // enroll a new principal for the survivor. A merge never retargets portal access silently.
+  {
+    table: 'portal_principals',
+    column: 'person_patient_id',
+    why: 'portal access never follows a merge silently; the merged identity is denied and re-enrolled',
+  },
 ];
 
 /**

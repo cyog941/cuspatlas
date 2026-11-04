@@ -4,7 +4,11 @@
  * server-derived context and server-produced records only.
  */
 
-export type PrincipalKind = 'human' | 'service';
+/**
+ * `portal` (E1): a patient, guardian or proxy authenticated on the portal audience. It never holds
+ * a staff membership (the database refuses one) and no staff action policy admits it.
+ */
+export type PrincipalKind = 'human' | 'service' | 'portal';
 
 /** Built server-side from a verified token plus a live membership row. Never from caller input. */
 export interface ActorContext {
@@ -146,6 +150,10 @@ export const SECURITY_REASON_CODES = [
   // S10: every booking, hold, reschedule and cancel refusal leaves an attempt row with its reason.
   'booking_conflict',
   'booking_refused',
+  // E1: portal principals (their own audience and kind; never staff).
+  'portal_contact_unverified',
+  'portal_identity_merged',
+  'portal_self_below_majority',
 ] as const;
 export type SecurityReasonCode = (typeof SECURITY_REASON_CODES)[number];
 
@@ -297,7 +305,7 @@ export const auditEventSchema = {
     eventRef: { type: 'string', pattern: UUID_PATTERN },
     tenantId: { type: 'string', pattern: UUID_PATTERN },
     actorId: { type: 'string', pattern: UUID_PATTERN },
-    principal: { enum: ['human', 'service'] },
+    principal: { enum: ['human', 'service', 'portal'] },
     operation: { type: 'string', pattern: OPERATION_PATTERN },
     resourceType: { type: 'string', pattern: '^[a-z][A-Za-z]{0,63}$' },
     resourceRef: { type: 'string', pattern: UUID_PATTERN },

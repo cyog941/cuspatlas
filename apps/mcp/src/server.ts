@@ -28,6 +28,7 @@ import {
   type CursorCodec,
   createAppointmentService,
   createAuthorize,
+  createEngagementService,
   createPatientService,
   createProposalService,
   createSchedulingResourceService,
@@ -45,6 +46,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { assertDistinctAudience, assertIdentityAllowed, createMcpAuthenticator } from './auth';
 import { APPOINTMENT_TOOLS } from './tools/appointments';
+import { ENGAGEMENT_OP_TOOLS } from './tools/engagement-ops';
 import { PATIENT_TOOLS } from './tools/patients';
 import { PROPOSAL_TOOLS } from './tools/proposals';
 import { SCHEDULING_TOOLS } from './tools/scheduling';
@@ -124,6 +126,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   ...SCHEDULING_TOOLS,
   ...APPOINTMENT_TOOLS,
   ...SCHEDULING_OP_TOOLS,
+  ...ENGAGEMENT_OP_TOOLS,
 ];
 
 /** Path parameters of the REST twin. A malformed one is a 404 there, decided by the domain. */
@@ -147,6 +150,11 @@ const REF_PARAMS = [
   'recoveryRef',
   'policyRef',
   'recallTaskRef',
+  // Workstream E path parameters.
+  'principalRef',
+  'templateRef',
+  'decisionRef',
+  'messageRef',
 ] as const;
 const PLACEHOLDER_REF = '00000000-0000-4000-8000-000000000000';
 
@@ -250,7 +258,23 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     recording,
     execute: deps.execute ?? executeOnce,
   });
-  const toolDeps: ToolDeps = { service, proposals, patients, scheduling, appointments, authorize, recording };
+  const engagement = createEngagementService({
+    matchKeyPepper: resolveMatchKeyPepper(deps.env, deps.matchKeyPepper),
+    authorize,
+    withTenantTransaction: deps.tenantTransactions,
+    recording,
+    execute: deps.execute ?? executeOnce,
+  });
+  const toolDeps: ToolDeps = {
+    service,
+    proposals,
+    patients,
+    scheduling,
+    appointments,
+    engagement,
+    authorize,
+    recording,
+  };
   const allowedOrigins = new Set(deps.allowedOrigins ?? []);
   if (deps.env !== 'synthetic-test' && !deps.resourceMetadataUrl) {
     throw new Error('Refusing to start: resourceMetadataUrl must be configured outside synthetic-test');

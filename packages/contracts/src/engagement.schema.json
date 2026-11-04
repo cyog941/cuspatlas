@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cuspatlas.invalid/schemas/engagement/v1",
+  "title": "Portal and communications contract v1 (E1-E7; synthetic data only, decisions pending approval)",
+  "$defs": {
+    "EntityRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "PatientRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque patient reference (same pattern as patient.schema.json PatientRef)."
+    },
+    "PrincipalRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "Version": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
+    "IdempotencyKey": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,128}$" },
+    "Instant": { "type": "string", "format": "date-time", "maxLength": 40 },
+    "RelationshipScope": { "enum": ["demographics", "scheduling", "clinical_read", "financial", "consent"] },
+    "ContactValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["channel", "value"],
+      "description": "A contact point that must already be on the person's own record. Only its keyed digest is stored.",
+      "properties": {
+        "channel": { "enum": ["email", "phone"] },
+        "value": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 254,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        }
+      }
+    },
+    "PortalEnroll": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["personRef", "contact"],
+      "description": "E1: enroll a portal principal bound to exactly one person record. The principal is pending until its contact is verified (E-S3 blocked-on-discovery; proofing level unverified-synthetic).",
+      "properties": {
+        "personRef": { "$ref": "#/$defs/PatientRef" },
+        "contact": { "$ref": "#/$defs/ContactValue" }
+      }
+    },
+    "PortalVerify": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "method"],
+      "properties": {
+        "expectedVersion": { "$ref": "#/$defs/Version" },
+        "method": {
+          "const": "synthetic_attested",
+          "description": "The only method until E-S3 decides the assurance level; it never raises the proofing level."
+        }
+      }
+    },
+    "PortalRevoke": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "reasonCode"],
+      "properties": {
+        "expectedVersion": { "$ref": "#/$defs/Version" },
+        "reasonCode": {
+          "enum": ["patient_request", "guardian_request", "security_concern", "entered_in_error", "other"]
+        }
+      }
+    },
+    "EmptyQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "PortalGrant": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Projection of one S5 relationship (grantRef = relationshipRef). Expiry and revocation are S5's, evaluated now.",
+      "required": [
+        "grantRef",
+        "relationshipRef",
+        "patientRef",
+        "granteeRef",
+        "kind",
+        "scope",
+        "effectiveFrom",
+        "effectiveUntil",
+        "revokedAt",
+        "status",
+        "statusReason",
+        "projectedAt"
+      ],
+      "properties": {
+        "grantRef": { "$ref": "#/$defs/EntityRef" },
+        "relationshipRef": { "$ref": "#/$defs/EntityRef" },
+        "patientRef": { "$ref": "#/$defs/PatientRef" },
+        "granteeRef": { "$ref": "#/$defs/PatientRef" },
+        "kind": { "enum": ["guardian", "guarantor", "dependent", "proxy"] },
+        "scope": { "type": "array", "items": { "$ref": "#/$defs/RelationshipScope" } },
+        "effectiveFrom": { "$ref": "#/$defs/Instant" },
+        "effectiveUntil": { "anyOf": [{ "$ref": "#/$defs/Instant" }, { "type": "null" }] },
+        "revokedAt": { "anyOf": [{ "$ref": "#/$defs/Instant" }, { "type": "null" }] },
+        "status": { "enum": ["active", "pending", "expired", "revoked"] },
+        "statusReason": { "type": "string" },
+        "projectedAt": { "$ref": "#/$defs/Instant" }
+      }
+    },
+    "EngagementCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": { "type": "object" },
+        "version": { "$ref": "#/$defs/Version" },
+        "correlationId": { "$ref": "#/$defs/EntityRef" },
+        "replayed": { "type": "boolean" }
+      }
+    },
+    "EngagementRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": { "type": ["object", "array"] }
+      }
+    }
+  }
+}

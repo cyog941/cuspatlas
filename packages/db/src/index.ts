@@ -3,6 +3,7 @@ export * from './idempotency-maintenance';
 export * from './identity';
 export * from './migrate';
 export * from './outbox';
+export * from './portal-identity';
 export * from './restore';
 export * from './scheduling-import';
 export * from './security-attempts';

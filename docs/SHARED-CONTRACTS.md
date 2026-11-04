@@ -74,6 +74,8 @@ Registered by workstream S (2026-11-04, synthetic implementation; decisions pend
 
 Registered by workstream S scheduling (2026-11-05, synthetic implementation; decisions pending approval in ADR 0009): `scheduling.read` (every scheduling read, availability search, and seeing which booking or hold blocks a slot) and `scheduling.override` (human only: an audited override of overrideable booking conflicts; resource overlap is never overrideable). `scheduling.write` covers requests, holds, booking, rescheduling and cancellation.
 
+Registered by workstream E (2026-11-10, synthetic implementation; decisions pending approval, see docs/execution/engagement-progress.md): `portal.manage` (enroll, verify and revoke portal principals). Portal principals are a principal kind (`portal`), not a role: they hold no staff scope and their authority is the S5 relationship scopes above.
+
 Camel-case scope names (`receivables.read` written as `receivablesRead`) are a defect. A scope used in any plan must appear in the registry; a plan that needs a new scope adds it there first.
 
 ### Relationship scopes

@@ -166,6 +166,10 @@ export const CLINICAL_BODIES = [
   'ConsentListQuery',
   'ConsentTemplateRegister',
   'ConsentEvidence',
+  // C15 encounter image links.
+  'ImageLinkCreate',
+  'ImageLinkRelink',
+  'ImageLinkUnlink',
   // C14 rendered procedures.
   'ProcedureRender',
   'ProcedureCorrect',

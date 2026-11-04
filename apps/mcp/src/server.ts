@@ -36,6 +36,7 @@ import {
   createSchedulingResourceService,
   createSyntheticTaskService,
   executeOnce,
+  type ImageRefResolver,
   readLatestCompletedProcedures,
   resolveMatchKeyPepper,
 } from '@cuspatlas/domain';
@@ -97,6 +98,8 @@ export interface McpServerDeps {
   readonly cursors?: CursorCodec;
   /** Proposal policy version (defaults to PROPOSAL_POLICY_VERSION); tests bump it. */
   readonly proposalPolicyVersion?: string;
+  /** C15: the I3 imageRef seam (absent: image link commands are refused typed). */
+  readonly imageRefResolver?: ImageRefResolver;
   readonly logger?: { readonly stream?: { write(line: string): void } };
   /** Browser origins allowed to call the endpoint. Default none: native MCP clients send no Origin. */
   readonly allowedOrigins?: readonly string[];
@@ -159,6 +162,7 @@ const REF_PARAMS = [
   'estimateRef',
   'consentRef',
   'procedureRef',
+  'imageLinkRef',
   'templateRef',
   'templateVersionRef',
   'noteRef',
@@ -286,6 +290,7 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     recording,
     execute: deps.execute ?? executeOnce,
     ...(deps.cursors ? { cursors: deps.cursors } : {}),
+    ...(deps.imageRefResolver ? { imageRefResolver: deps.imageRefResolver } : {}),
   });
   const toolDeps: ToolDeps = {
     service,

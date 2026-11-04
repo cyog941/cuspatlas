@@ -21,6 +21,7 @@ const TRANSPORT: Record<string, string> = {
   consentRef: 'ConsentRef',
   procedureRef: 'ProcedureRef',
   encounterRef: 'EncounterRef',
+  imageLinkRef: 'ImageLinkRef',
 };
 
 /**
@@ -55,6 +56,71 @@ const SAFETY =
   'Synthetic engineering implementation; clinical semantics are recommended-pending-clinical-approval and not clinically validated. No diagnosis and no decision support.';
 
 const SPECS: readonly Spec[] = [
+  // C15 encounter image links (by I3 imageRef only).
+  {
+    name: 'clinical_image_links_link',
+    operationId: 'clinical.imageLinks.link',
+    description: `Link an I3 imageRef to an encounter. The imageRef must currently resolve in I3 to the encounter's patient; an image already linked elsewhere needs the relink tool. Stores no image, bytes, digest or match status (those are I's). ${SAFETY}`,
+    body: 'ImageLinkCreate',
+    transport: ['encounterRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.linkImageToEncounter(
+        actor,
+        args.encounterRef as string,
+        envelope('clinical.imageLinks.link', args, 'encounterRef'),
+      ),
+  },
+  {
+    name: 'clinical_image_links_relink',
+    operationId: 'clinical.imageLinks.relink',
+    description: `Move an active image link to another encounter of the same patient with a reason; the prior link stays in history. ${SAFETY}`,
+    body: 'ImageLinkRelink',
+    transport: ['imageLinkRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.relinkImage(
+        actor,
+        args.imageLinkRef as string,
+        envelope('clinical.imageLinks.relink', args, 'imageLinkRef'),
+      ),
+  },
+  {
+    name: 'clinical_image_links_unlink',
+    operationId: 'clinical.imageLinks.unlink',
+    description: `End an active image link with a reason; the link stays in history and the image stays I's record. ${SAFETY}`,
+    body: 'ImageLinkUnlink',
+    transport: ['imageLinkRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.unlinkImage(
+        actor,
+        args.imageLinkRef as string,
+        envelope('clinical.imageLinks.unlink', args, 'imageLinkRef'),
+      ),
+  },
+  {
+    name: 'clinical_image_links_get',
+    operationId: 'clinical.imageLinks.read',
+    description: `One encounter image link with its history and I3's current status for the imageRef (review flag when it changed). ${SAFETY}`,
+    body: null,
+    transport: ['imageLinkRef'],
+    readOnly: true,
+    run: async (d, actor, args) => ({
+      data: await d.clinical.readImageLink(actor, args.imageLinkRef as string),
+    }),
+  },
+  {
+    name: 'clinical_image_links_list',
+    operationId: 'clinical.imageLinks.list',
+    description: `Every image link of an encounter, active and ended, with I3's current status per imageRef. ${SAFETY}`,
+    body: null,
+    transport: ['encounterRef'],
+    readOnly: true,
+    run: async (d, actor, args) => ({
+      data: await d.clinical.listEncounterImages(actor, args.encounterRef as string),
+    }),
+  },
   // C14 rendered procedures.
   {
     name: 'clinical_procedures_render',

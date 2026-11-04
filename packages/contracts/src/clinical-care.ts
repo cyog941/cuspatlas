@@ -296,3 +296,45 @@ export const validateProcedureCorrectionResult = def('ProcedureCorrectionResult'
 export const validateProcedureRead = def('ProcedureRead');
 export const validateProcedureList = def('ProcedureList');
 export const validateProcedureBillingEvent = def('ProcedureBillingEvent');
+
+// C15 encounter image links (I owns the image; C stores a link by imageRef only).
+export interface ImageLinkCreate {
+  readonly imageRef: string;
+  readonly reasonCode?: string;
+}
+export interface ImageLinkRelink {
+  readonly encounterRef: string;
+  readonly reasonCode: string;
+}
+export interface ImageLinkUnlink {
+  readonly reasonCode: string;
+}
+export type ImageResolutionStatus =
+  | 'current'
+  | 'association_changed'
+  | 'unavailable'
+  | 'not_found'
+  | 'resolver_unavailable';
+export interface EncounterImageLink {
+  readonly imageLinkRef: string;
+  readonly encounterRef: string;
+  readonly patientRef: string;
+  readonly imageRef: string;
+  readonly state: 'active' | 'ended';
+  readonly endKind: 'unlinked' | 'relinked' | null;
+  readonly endReasonCode: string | null;
+  readonly relinkedFromRef: string | null;
+  readonly relinkedToRef: string | null;
+  readonly linkedBy: string;
+  readonly linkedByRole: ClinicalAuthor['role'];
+  readonly linkedAt: string;
+  readonly endedBy: string | null;
+  readonly endedAt: string | null;
+  readonly image: { readonly status: ImageResolutionStatus; readonly reviewRequired: boolean };
+}
+export const validateImageLinkCreate = def('ImageLinkCreate');
+export const validateImageLinkRelink = def('ImageLinkRelink');
+export const validateImageLinkUnlink = def('ImageLinkUnlink');
+export const validateImageLinkCommandResult = def('ImageLinkCommandResult');
+export const validateImageLinkRead = def('ImageLinkRead');
+export const validateImageLinkList = def('ImageLinkList');

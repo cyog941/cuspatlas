@@ -14,6 +14,7 @@ import {
   createSchedulingResourceService,
   createSyntheticTaskService,
   executeOnce,
+  type ImageRefResolver,
   readLatestCompletedProcedures,
   resolveMatchKeyPepper,
 } from '@cuspatlas/domain';
@@ -65,6 +66,8 @@ export interface AppDeps {
   readonly proposalPolicyVersion?: string;
   /** Match-key pepper (CUSPATLAS_MATCH_KEY_PEPPER); optional only under synthetic-test. */
   readonly matchKeyPepper?: Uint8Array;
+  /** C15: the I3 imageRef seam (absent: image link commands are refused typed). */
+  readonly imageRefResolver?: ImageRefResolver;
 }
 
 function sendRefusal(request: FastifyRequest, reply: FastifyReply, err: unknown): FastifyReply {
@@ -205,6 +208,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         recording,
         execute: deps.execute ?? executeOnce,
         ...(deps.cursors ? { cursors: deps.cursors } : {}),
+        ...(deps.imageRefResolver ? { imageRefResolver: deps.imageRefResolver } : {}),
       });
       registerClinicalRoutes(app, { authenticator, clinical });
       registerClinicalRecordRoutes(app, { authenticator, clinical });

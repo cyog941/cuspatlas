@@ -5991,6 +5991,224 @@
       "type": "integer",
       "minimum": 1,
       "maximum": 2147483647
+    },
+    "ImageRef": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+      "description": "Opaque I3 image reference (I owns the image object, bytes, digest, patient association and matching). C stores only a link to it."
+    },
+    "ImageLinkRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque encounter image link reference (C15)."
+    },
+    "ImageLinkCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["imageRef"],
+      "properties": {
+        "imageRef": {
+          "$ref": "#/$defs/ImageRef"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      },
+      "description": "Link an I3 imageRef to an encounter. Only a reference: no bytes, digest, modality or match status are accepted."
+    },
+    "ImageLinkRelink": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["encounterRef", "reasonCode"],
+      "properties": {
+        "encounterRef": {
+          "$ref": "#/$defs/EncounterRef"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      },
+      "description": "Move an active link to another encounter of the same patient; the prior link is kept, ended."
+    },
+    "ImageLinkUnlink": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasonCode"],
+      "properties": {
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      },
+      "description": "End an active link with a reason; the link stays in history."
+    },
+    "ImageResolutionStatus": {
+      "enum": ["current", "association_changed", "unavailable", "not_found", "resolver_unavailable"],
+      "description": "I3's current answer for the imageRef at read time: current (same association as when linked), association_changed (re-associated since; review), unavailable or not_found (review), resolver_unavailable (the seam is not wired)."
+    },
+    "EncounterImageLink": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "imageLinkRef",
+        "encounterRef",
+        "patientRef",
+        "imageRef",
+        "state",
+        "endKind",
+        "endReasonCode",
+        "relinkedFromRef",
+        "relinkedToRef",
+        "linkedBy",
+        "linkedByRole",
+        "linkedAt",
+        "endedBy",
+        "endedAt",
+        "image"
+      ],
+      "properties": {
+        "imageLinkRef": {
+          "$ref": "#/$defs/ImageLinkRef"
+        },
+        "encounterRef": {
+          "$ref": "#/$defs/EncounterRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "imageRef": {
+          "$ref": "#/$defs/ImageRef"
+        },
+        "state": {
+          "enum": ["active", "ended"]
+        },
+        "endKind": {
+          "enum": ["unlinked", "relinked", null]
+        },
+        "endReasonCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "relinkedFromRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ImageLinkRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "relinkedToRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ImageLinkRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "linkedBy": {
+          "$ref": "#/$defs/ActorRef"
+        },
+        "linkedByRole": {
+          "enum": ["dentist", "hygienist", "assistant", "other_clinical"]
+        },
+        "linkedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "endedBy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ActorRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "endedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "image": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "reviewRequired"],
+          "properties": {
+            "status": {
+              "$ref": "#/$defs/ImageResolutionStatus"
+            },
+            "reviewRequired": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "description": "C15 encounter image link: encounter, current encounter patient, opaque imageRef, link history and I3's status at read time. No image metadata is copied."
+    },
+    "ImageLinkCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/EncounterImageLink"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ImageLinkRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/EncounterImageLink"
+        }
+      }
+    },
+    "ImageLinkList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["links"],
+          "properties": {
+            "links": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "$ref": "#/$defs/EncounterImageLink"
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

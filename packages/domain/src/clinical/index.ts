@@ -31,6 +31,7 @@ export {
   HISTORY_VERSION_RESOURCE,
   resolveHistoryReference,
 } from './history';
+export { IMAGE_LINK_RESOURCE, type ImageRefResolution, type ImageRefResolver } from './image-links';
 export { CLINICAL_POST_MERGE_FACT_PROBES } from './merge-probes';
 export { NOTE_DIGEST_FORMAT, noteVersionDigest } from './notes/digest';
 export { NOTE_POST_MERGE_FACT_PROBE, NOTE_RESOURCE } from './notes/notes';

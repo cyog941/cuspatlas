@@ -10,6 +10,50 @@ const QUERY = ['400', '401', '403', '404', '409', '422', '503'] as const;
  * one table. Semantics are recommended-pending-clinical-approval; synthetic data only.
  */
 export const CLINICAL_RECORD_ROUTES: readonly RouteContract[] = [
+  // C15 encounter image links (by I3 imageRef only).
+  {
+    method: 'post',
+    path: '/v1/clinical/encounters/{encounterRef}/image-links',
+    operationId: 'clinical.imageLinks.link',
+    protected: true,
+    requestBody: C('ImageLinkCreate'),
+    success: { status: '201', schema: C('ImageLinkCommandResult') },
+    refusals: COMMAND,
+  },
+  {
+    method: 'get',
+    path: '/v1/clinical/encounters/{encounterRef}/image-links',
+    operationId: 'clinical.imageLinks.list',
+    protected: true,
+    success: { status: '200', schema: C('ImageLinkList') },
+    refusals: ['401', '403', '404', '503'],
+  },
+  {
+    method: 'get',
+    path: '/v1/clinical/image-links/{imageLinkRef}',
+    operationId: 'clinical.imageLinks.read',
+    protected: true,
+    success: { status: '200', schema: C('ImageLinkRead') },
+    refusals: ['401', '403', '404', '503'],
+  },
+  {
+    method: 'post',
+    path: '/v1/clinical/image-links/{imageLinkRef}/relink',
+    operationId: 'clinical.imageLinks.relink',
+    protected: true,
+    requestBody: C('ImageLinkRelink'),
+    success: { status: '201', schema: C('ImageLinkCommandResult') },
+    refusals: COMMAND,
+  },
+  {
+    method: 'post',
+    path: '/v1/clinical/image-links/{imageLinkRef}/unlink',
+    operationId: 'clinical.imageLinks.unlink',
+    protected: true,
+    requestBody: C('ImageLinkUnlink'),
+    success: { status: '200', schema: C('ImageLinkCommandResult') },
+    refusals: COMMAND,
+  },
   // C14 rendered procedures.
   {
     method: 'post',

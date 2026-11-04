@@ -5,6 +5,7 @@ import { createConsentOperations } from './consents';
 import { createEncounterOperations } from './encounters';
 import { createEstimateOperations } from './estimates';
 import { createHistoryOperations } from './history';
+import { createImageLinkOperations } from './image-links';
 import { createNoteOperations } from './notes/notes';
 import { createNoteTemplateOperations } from './notes/templates';
 import { createPerioOperations } from './perio';
@@ -28,6 +29,7 @@ export function createClinicalService(deps: ClinicalDeps) {
     ...createEstimateOperations(base),
     ...createConsentOperations(base),
     ...createProcedureOperations(base),
+    ...createImageLinkOperations(base),
     ...createNoteTemplateOperations(base),
     ...createNoteOperations(base),
   };

@@ -86,6 +86,10 @@ export const CLINICAL_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<Clinica
   // C14 rendered procedures (the procedure, or the corrected original, is re-read on replay).
   'clinical.procedures.render': refCodec('procedureRef'),
   'clinical.procedures.correct': refCodec('procedureRef'),
+  // C15 encounter image links (the link is re-read on replay).
+  'clinical.imageLinks.link': refCodec('imageLinkRef'),
+  'clinical.imageLinks.relink': refCodec('imageLinkRef'),
+  'clinical.imageLinks.unlink': refCodec('imageLinkRef'),
   // C9 note templates.
   'clinical.noteTemplates.define': refCodec('templateRef'),
   'clinical.noteTemplates.revise': refCodec('templateRef'),

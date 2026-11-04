@@ -151,6 +151,12 @@ const TOOL_NAMES = [
   'clinical_procedures_get',
   'clinical_procedures_list',
   'clinical_procedures_render',
+  // C15 encounter image links (parity in clinical-image-links and negative-harness tests).
+  'clinical_image_links_get',
+  'clinical_image_links_link',
+  'clinical_image_links_list',
+  'clinical_image_links_relink',
+  'clinical_image_links_unlink',
   // C9 note template tools (parity in clinical-note-templates and negative-harness tests).
   'clinical_note_templates_applicable',
   'clinical_note_templates_define',

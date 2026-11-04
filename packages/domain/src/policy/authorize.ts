@@ -155,6 +155,13 @@ export const ACTION_POLICIES = {
   'clinical.procedures.correct': { scope: 'clinical.write', principals: ['human'] },
   'clinical.procedures.read': { scope: 'clinical.read', principals: ['human', 'service'] },
   'clinical.procedures.list': { scope: 'clinical.read', principals: ['human', 'service'] },
+  // C15 encounter image links (C-D8 recommended): linking is human clinical authorship; reads are
+  // sensitive reads. I owns the image itself; no action here registers an image or decides a match.
+  'clinical.imageLinks.link': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.imageLinks.relink': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.imageLinks.unlink': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.imageLinks.read': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.imageLinks.list': { scope: 'clinical.read', principals: ['human', 'service'] },
   // C9 progress-note templates (C-D4, recommended-pending-clinical-approval). Templates are practice
   // configuration (human admin only); reads need clinical.read.
   'clinical.noteTemplates.define': { scope: 'admin.configure', principals: ['human'] },

@@ -70,6 +70,22 @@ export function registerClinicalRecordRoutes(
   mount('clinical.perio.compare', async (r) => ({
     data: await c.comparePerioExams(requireActor(r), query(r)),
   }));
+  // C15 encounter image links.
+  mount('clinical.imageLinks.link', (r) =>
+    c.linkImageToEncounter(requireActor(r), param(r, 'encounterRef'), env('clinical.imageLinks.link', r)),
+  );
+  mount('clinical.imageLinks.list', async (r) => ({
+    data: await c.listEncounterImages(requireActor(r), param(r, 'encounterRef')),
+  }));
+  mount('clinical.imageLinks.read', async (r) => ({
+    data: await c.readImageLink(requireActor(r), param(r, 'imageLinkRef')),
+  }));
+  mount('clinical.imageLinks.relink', (r) =>
+    c.relinkImage(requireActor(r), param(r, 'imageLinkRef'), env('clinical.imageLinks.relink', r)),
+  );
+  mount('clinical.imageLinks.unlink', (r) =>
+    c.unlinkImage(requireActor(r), param(r, 'imageLinkRef'), env('clinical.imageLinks.unlink', r)),
+  );
   // C14 rendered procedures.
   mount('clinical.procedures.render', (r) =>
     c.renderProcedure(requireActor(r), param(r, 'encounterRef'), env('clinical.procedures.render', r)),

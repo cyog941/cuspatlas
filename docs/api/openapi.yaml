@@ -3379,6 +3379,154 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/clinical/encounters/{encounterRef}/image-links:
+    post:
+      operationId: clinical.imageLinks.link
+      description: >-
+        Link an I3 imageRef to an encounter (C15, C-D8 recommended). The imageRef must currently resolve through the I3 seam to the encounter's patient (409 image_patient_mismatch otherwise; 404 when missing or another tenant's; 409 image_unavailable or image_resolver_unavailable when I cannot answer). An image linked elsewhere is 409 image_linked_elsewhere (use relink). Stores no image object, bytes, digest or match status. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/EncounterRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ImageLinkCreate'
+      responses:
+        '201':
+          description: Link recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ImageLinkCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: clinical.imageLinks.list
+      description: >-
+        Every image link of an encounter (active and ended) with I3's current status per imageRef and a review flag. A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/EncounterRef'
+      responses:
+        '200':
+          description: The links.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ImageLinkList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/image-links/{imageLinkRef}:
+    get:
+      operationId: clinical.imageLinks.read
+      description: >-
+        One encounter image link with its history and I3's current status for the imageRef. A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/ImageLinkRef'
+      responses:
+        '200':
+          description: The link.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ImageLinkRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/image-links/{imageLinkRef}/relink:
+    post:
+      operationId: clinical.imageLinks.relink
+      description: >-
+        Move an active link to another encounter of the same patient with a reason; the prior link is ended (relinked) and stays addressable. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/ImageLinkRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ImageLinkRelink'
+      responses:
+        '201':
+          description: New link recorded; the prior link ended.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ImageLinkCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/image-links/{imageLinkRef}/unlink:
+    post:
+      operationId: clinical.imageLinks.unlink
+      description: >-
+        End an active link with a reason; the link stays in history and the image stays I's record. An ended link is 409 image_link_ended. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/ImageLinkRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ImageLinkUnlink'
+      responses:
+        '200':
+          description: Link ended.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ImageLinkCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   /v1/scheduling/appointments/{appointmentRef}/visit-context:
     get:
       operationId: scheduling.visitContext.read
@@ -4709,6 +4857,12 @@ components:
       required: false
       schema:
         $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PlanVersionRef'
+    ImageLinkRef:
+      name: imageLinkRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ImageLinkRef'
     ProcedureRef:
       name: procedureRef
       in: path

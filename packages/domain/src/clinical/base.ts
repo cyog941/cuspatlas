@@ -12,6 +12,7 @@ import { executeOnce } from '../commands/execute-once';
 import type { CommandExecutor } from '../commands/executor';
 import { type CursorCodec, createCursorCodec } from '../cursor';
 import type { ActionName, AuthorizationDecision, Authorize } from '../policy/authorize';
+import type { ImageRefResolver } from './image-links';
 
 /**
  * Dependencies of the clinical service (C5, C8). The same shape as every other domain service: one
@@ -26,6 +27,8 @@ export interface ClinicalDeps {
   readonly execute?: CommandExecutor;
   /** Defaults to a per-process random HMAC key. */
   readonly cursors?: CursorCodec;
+  /** C15: the I3 imageRef seam. Absent: image link commands are refused typed (not fabricated). */
+  readonly imageRefResolver?: ImageRefResolver;
 }
 
 export interface ClinicalBase {

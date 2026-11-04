@@ -6,8 +6,10 @@ import {
   createTenantTransactionRunner,
 } from '@cuspatlas/db';
 import {
+  type ClinicalDeps,
   createAppointmentService,
   createAuthorize,
+  createClinicalService,
   executeOnce,
   type SchedulingDeps,
 } from '@cuspatlas/domain';
@@ -20,6 +22,17 @@ import type { TestDatabase } from './db';
  */
 export function domainAppointments(db: TestDatabase, extra: Partial<SchedulingDeps> = {}) {
   return createAppointmentService({
+    authorize: createAuthorize(createMembershipSource(db.app)),
+    withTenantTransaction: createTenantTransactionRunner(db.app),
+    recording: { sink: createSecurityAttemptSink(db.sink), alert: () => undefined },
+    execute: executeOnce,
+    ...extra,
+  });
+}
+
+/** The clinical service built the same way, for a port the transports wire differently (C15 resolver). */
+export function domainClinical(db: TestDatabase, extra: Partial<ClinicalDeps> = {}) {
+  return createClinicalService({
     authorize: createAuthorize(createMembershipSource(db.app)),
     withTenantTransaction: createTenantTransactionRunner(db.app),
     recording: { sink: createSecurityAttemptSink(db.sink), alert: () => undefined },

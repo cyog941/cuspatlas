@@ -15,6 +15,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { seedClinicalScopes, seedDispositions, seedPerioConfiguration } from './support/clinical-fixtures';
 import { openTestDatabase, type TestDatabase } from './support/db';
 import { SVC_A1, seedTenancy, T_ALPHA, T_BETA, USER_A1, USER_A2, USER_A4, USER_B1 } from './support/fixtures';
+import { fakeImageResolver } from './support/image-ref-resolver';
 import { MARKER } from './support/marker';
 import { seedNoteScopes } from './support/note-fixtures';
 import { patientBody, seedPatientScopes, USER_A5 } from './support/patient-fixtures';
@@ -45,6 +46,7 @@ export interface HarnessFixture {
   readonly [name: string]: string;
 }
 let fixture: HarnessFixture;
+const harnessImages = fakeImageResolver();
 
 type Method = 'GET' | 'POST';
 interface RestCall {
@@ -1686,6 +1688,88 @@ export const COMMANDS: HarnessCommand[] = [
     }),
     mcpArgs: (f) => ({ encounterRef: f.alphaEncounter }),
   },
+  // C15 encounter image links (workstream C batch 4; I3 resolved through the test double).
+  {
+    operation: 'clinical.imageLinks.link',
+    tool: 'clinical_image_links_link',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/encounters/${f.alphaEncounter}/image-links`,
+      body: { imageRef: f.alphaImageRef },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      encounterRef: f.alphaEncounter,
+      imageRef: f.alphaImageRef,
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.imageLinks.relink',
+    tool: 'clinical_image_links_relink',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/image-links/${f.alphaImageLink}/relink`,
+      body: { encounterRef: f.alphaEncounter, reasonCode: 'wrong_visit' },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      imageLinkRef: f.alphaImageLink,
+      encounterRef: f.alphaEncounter,
+      reasonCode: 'wrong_visit',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.imageLinks.unlink',
+    tool: 'clinical_image_links_unlink',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/image-links/${f.alphaImageLink}/unlink`,
+      body: { reasonCode: 'wrong_visit' },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({
+      imageLinkRef: f.alphaImageLink,
+      reasonCode: 'wrong_visit',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.imageLinks.read',
+    tool: 'clinical_image_links_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/image-links/${f.alphaImageLink}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ imageLinkRef: f.alphaImageLink }),
+  },
+  {
+    operation: 'clinical.imageLinks.list',
+    tool: 'clinical_image_links_list',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/encounters/${f.alphaEncounter}/image-links`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ encounterRef: f.alphaEncounter }),
+  },
   // S12 visit context (every command; producers are absent, but every dimension is refused first).
   ...visitRows(),
   // S13 recurrence series.
@@ -2276,6 +2360,7 @@ beforeAll(async () => {
     membership,
     attempts,
     tenantTransactions,
+    imageRefResolver: harnessImages,
   });
   mcp = buildMcpServer({
     env: 'synthetic-test',
@@ -2284,6 +2369,7 @@ beforeAll(async () => {
     membership,
     attempts,
     tenantTransactions,
+    imageRefResolver: harnessImages,
     logger: { stream },
   });
   mcpUrl = (await mcp.listen({ host: '127.0.0.1', port: 0 })).url;
@@ -2535,6 +2621,17 @@ beforeAll(async () => {
     providerOverrideReason: 'harness_fixture',
   });
   expect(procedure.statusCode).toBe(201);
+  // C15: one active alpha image link (the imageRef resolves through the I3 test double).
+  const alphaImageRef = `syn-img-${randomUUID()}`;
+  harnessImages.put(T_ALPHA, alphaImageRef, {
+    status: 'current',
+    patientRef: alphaPatient,
+    associationRef: 'syn-assoc-h',
+  });
+  const imageLink = await owner(`/v1/clinical/encounters/${encounterRef}/image-links`, {
+    imageRef: alphaImageRef,
+  });
+  expect(imageLink.statusCode).toBe(201);
   // S13: one alpha series (one Monday occurrence) for the series rows.
   const series = await owner('/v1/scheduling/series', {
     patientRef: alphaPatient,
@@ -2656,6 +2753,8 @@ beforeAll(async () => {
     alphaEstimate: estimate.json().data.estimateRef,
     alphaConsent: consent.json().data.consentRef,
     alphaProcedure: procedure.json().data.procedureRef,
+    alphaImageRef,
+    alphaImageLink: imageLink.json().data.imageLinkRef,
     alphaPerioExam: perioExam.examRef,
     alphaPerioMeasurement: perioExam.measurements.find(
       (m: { measure: string; site: string | null }) => m.measure === 'probing_depth' && m.site === 'b',
@@ -2832,6 +2931,9 @@ async function state(): Promise<string> {
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_consents'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_consent_withdrawals'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_rendered_procedures'),
+    await q(
+      'SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_encounter_image_links',
+    ),
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_note_templates'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_note_template_versions'),
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_notes'),

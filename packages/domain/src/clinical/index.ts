@@ -16,6 +16,14 @@ export {
   requireOpenEncounter,
 } from './encounters';
 export {
+  COVERAGE_STALE_AFTER_MS,
+  type ConsentBindingReader,
+  coverageStatusAt,
+  ESTIMATE_RESOURCE,
+  PLAN_ACCEPTANCE_RESOURCE,
+  registerConsentBindingReader,
+} from './estimates';
+export {
   HISTORY_NOT_PROVIDED,
   HISTORY_REVIEW_RESOURCE,
   HISTORY_VERIFICATION_RESOURCE,

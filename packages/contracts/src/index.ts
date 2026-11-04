@@ -1,5 +1,6 @@
 export * from './action-proposal';
 export * from './clinical';
+export * from './clinical-care';
 export * from './clinical-chart';
 export * from './clinical-notes';
 export * from './context';

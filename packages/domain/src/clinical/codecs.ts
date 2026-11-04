@@ -74,6 +74,11 @@ export const CLINICAL_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<Clinica
   'clinical.treatmentPlans.setItemState': refCodec('itemRef'),
   'clinical.treatmentPlans.setDetailState': refCodec('detailRef'),
   'clinical.treatmentPlans.supersede': refCodec('planVersionRef'),
+  // C12 estimates, alternatives and acceptance (the estimate or plan is re-read on replay).
+  'clinical.estimates.generate': refCodec('estimateRef'),
+  'clinical.estimates.present': refCodec('estimateRef'),
+  'clinical.estimates.accept': refCodec('estimateRef'),
+  'clinical.treatmentPlans.createAlternative': refCodec('planRef'),
   // C9 note templates.
   'clinical.noteTemplates.define': refCodec('templateRef'),
   'clinical.noteTemplates.revise': refCodec('templateRef'),

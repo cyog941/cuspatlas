@@ -2909,6 +2909,210 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/clinical/treatment-plans/versions/{planVersionRef}/estimates:
+    post:
+      operationId: clinical.estimates.generate
+      description: >-
+        Generate the next immutable estimate version (C12) of a plan version from staff-entered per-item fee placeholders as Money (each for an item naming a fee schedule reference; synthetic, no fee schedule data until B9) and coverage or discount references with source freshness (B5 owns eligibility; nothing is computed here). An estimate missing a fee for any open item is incomplete and carries no amount. Never a coverage guarantee (notAGuarantee, coverageStatus entered, unknown or stale; patient responsibility is a labelled unknown or a bounded range, C-D7 recommended-pending-approval). Requires clinical.write (human).
+      parameters:
+        - $ref: '#/components/parameters/PlanVersionRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EstimateGenerate'
+      responses:
+        '201':
+          description: Estimate version created.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EstimateCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: clinical.estimates.list
+      description: >-
+        Every estimate version of a plan version (C12), oldest first, with presentation and acceptance. A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/PlanVersionRef'
+      responses:
+        '200':
+          description: The estimates.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EstimateList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/estimates/{estimateRef}:
+    get:
+      operationId: clinical.estimates.read
+      description: >-
+        One estimate version (C12) with lines, assumptions, coverage status, presentation, acceptance and the consent binding (outstanding until C13 binds a consent). A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/EstimateRef'
+      responses:
+        '200':
+          description: The estimate.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EstimateRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/estimates/{estimateRef}/presentation:
+    post:
+      operationId: clinical.estimates.present
+      description: >-
+        Mark the current complete estimate as presented (C12), re-evaluating coverage freshness at that instant (stale is shown, never silently reused). A superseded estimate is 409 estimate_superseded naming the current version; an incomplete one is 409 estimate_incomplete. Requires clinical.write (human).
+      parameters:
+        - $ref: '#/components/parameters/EstimateRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EstimatePresent'
+      responses:
+        '200':
+          description: Estimate presented.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EstimateCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/estimates/{estimateRef}/acceptance:
+    post:
+      operationId: clinical.estimates.accept
+      description: >-
+        Accept the plan version against this exact current estimate (C12) through the C11 acceptance seam (expectedRevision of the plan version). Full scope only: a phase-level acceptance is 409 partial_acceptance_unsupported. A superseded estimate is 409 estimate_superseded; an already accepted version or an accepted alternative of the same problem is 409. The acceptance records an outstanding consent binding; it is never consented treatment by itself (C13). Requires clinical.write (human).
+      parameters:
+        - $ref: '#/components/parameters/EstimateRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EstimateAccept'
+      responses:
+        '201':
+          description: Acceptance recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EstimateCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/treatment-plans/{planRef}/alternatives:
+    post:
+      operationId: clinical.treatmentPlans.createAlternative
+      description: >-
+        Create an alternative plan (C12) for the same patient and clinical problem; both plans join one alternative group and the source plan is never changed. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/TreatmentPlanRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PlanAlternativeCreate'
+      responses:
+        '201':
+          description: Alternative plan created (targetRef is the new plan).
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/TreatmentPlanCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: clinical.treatmentPlans.alternatives
+      description: >-
+        The plans offered for the same problem (C12), oldest first, with head version, state and selection (accepted, unselected, undecided). A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/TreatmentPlanRef'
+      responses:
+        '200':
+          description: The alternatives.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PlanAlternativeList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
 components:
   securitySchemes:
     bearer:
@@ -3133,6 +3337,12 @@ components:
       description: Formula version (with formulaRef).
       schema:
         $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/PerioCompareQuery/properties/formulaVersion'
+    EstimateRef:
+      name: estimateRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/EstimateRef'
     TreatmentPlanRef:
       name: planRef
       in: path

@@ -152,6 +152,7 @@ const REF_PARAMS = [
   'planVersionRef',
   'planDetailRef',
   'planItemRef',
+  'estimateRef',
   'templateRef',
   'templateVersionRef',
   'noteRef',

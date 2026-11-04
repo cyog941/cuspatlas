@@ -4,8 +4,6 @@ import {
   validateTreatmentPlanList,
   validateTreatmentPlanRead,
 } from '@cuspatlas/contracts';
-import { createTenantTransactionRunner } from '@cuspatlas/db';
-import { recordPlanVersionAcceptance } from '@cuspatlas/domain';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   type AppointmentHarness,
@@ -19,7 +17,6 @@ import {
 } from './support/appointment-fixtures';
 import { seedClinicalScopes } from './support/clinical-fixtures';
 import { openTestDatabase, type TestDatabase } from './support/db';
-import { ctxFor } from './support/fixtures';
 import { MARKER } from './support/marker';
 
 /**
@@ -204,10 +201,26 @@ async function booking(patientRef: string): Promise<string> {
   return res.data.appointmentRef;
 }
 
-const accept = (versionRef: string, expectedRevision: number) =>
-  createTenantTransactionRunner(db.app)(ctxFor(T_ALPHA, USER_A1, 'human'), (tx) =>
-    recordPlanVersionAcceptance(tx, versionRef, { expectedRevision, acceptanceRef: randomUUID() }),
+/**
+ * Acceptance is C12's command (it calls the C11 seam `recordPlanVersionAcceptance` with a real
+ * acceptance record): an estimate version is generated, then accepted at the plan revision. A refusal
+ * is thrown as its typed body so the C11 cases assert on code and detail.
+ */
+async function accept(versionRef: string, expectedRevision: number) {
+  const estimate = await h.call('a1', 'POST', `${PLANS}/versions/${versionRef}/estimates`, { lines: [] });
+  if (estimate.statusCode !== 201) throw estimate.json();
+  const res = await h.call(
+    'a1',
+    'POST',
+    `/v1/clinical/estimates/${estimate.json().data.estimateRef}/acceptance`,
+    {
+      expectedRevision,
+      scope: 'full',
+    },
   );
+  if (res.statusCode !== 201) throw res.json();
+  return res.json().data;
+}
 
 describe('C11 acceptance cases', () => {
   it('1. a plan with two details and several items reads back at all three levels with stable identifiers', async () => {

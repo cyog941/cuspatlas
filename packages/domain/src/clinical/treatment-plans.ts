@@ -69,7 +69,7 @@ const NEEDS_REASON = (from: PlanItemState, to: PlanItemState) =>
   from === 'declined';
 const OPEN_STATES: ReadonlySet<PlanItemState> = new Set(['proposed', 'accepted', 'scheduled']);
 
-interface PlanRow extends Record<string, unknown> {
+export interface PlanRow extends Record<string, unknown> {
   id: string;
   subject_patient_id: string;
   origin_patient_id: string;
@@ -163,7 +163,7 @@ const PLAN_COLUMNS = `id, subject_patient_id, origin_patient_id, head_version, c
 const VERSION_COLUMNS = `id, plan_id, number, supersedes_version_id, supersede_reason_code, display_text, encounter_id,
   state, revision, acceptance_ref, accepted_at, created_by, created_by_role, created_by_credential_ref, created_at`;
 
-async function planById(tx: TenantTransaction, planId: string): Promise<PlanRow | null> {
+export async function planById(tx: TenantTransaction, planId: string): Promise<PlanRow | null> {
   if (!UUID.test(planId)) return null;
   const { rows } = await tx.query<PlanRow>(
     `SELECT ${PLAN_COLUMNS} FROM cuspatlas.clinical_treatment_plans WHERE id = $1`,
@@ -173,7 +173,7 @@ async function planById(tx: TenantTransaction, planId: string): Promise<PlanRow 
 }
 
 /** Builds the three-level projection of a plan: every version, its details and their items. */
-async function projectPlan(tx: TenantTransaction, plan: PlanRow): Promise<TreatmentPlan> {
+export async function projectPlan(tx: TenantTransaction, plan: PlanRow): Promise<TreatmentPlan> {
   const { rows: versions } = await tx.query<VersionRow>(
     `SELECT ${VERSION_COLUMNS} FROM cuspatlas.clinical_plan_versions WHERE plan_id = $1 ORDER BY number`,
     [plan.id],

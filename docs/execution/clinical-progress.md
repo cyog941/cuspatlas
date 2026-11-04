@@ -399,3 +399,47 @@ Process incident (no repository effect): one shell chain in this session failed 
 - Semantic conflict found by the first merged run: the notes fixture `seedNoteScopes` defined the a8 and a9 author profiles as self-defined, which the C5 hardening two-person trigger now refuses (`a clinical author profile is defined by another member`); the fixture now names a1 as the definer. No product code changed for this.
 - The notes ledger is folded into this file (section "Batch 2b"); `clinical-progress-notes.md` is deleted.
 - `corepack pnpm install --frozen-lockfile` up to date; `corepack pnpm run ci` → first run exit 1 (3 suites failed in setup on the definer rule above), after the fixture fix exit 0: 44 files, 992 tests (902 + 90), privacy scan ok, SBOM, evidence generated and verified (integrity and freshness only; unreviewed, not certified).
+
+### C12 (treatment alternatives, estimates and versioned acceptance)
+
+Clinical-safety and money framing: C-D7 is implemented as recommended-pending-approval. An estimate is never a coverage guarantee (`notAGuarantee: true`, `coverageStatus` always visible). With no coverage reference the patient responsibility is the labelled unknown `{kind: unknown, label: coverage_unknown}`; with a coverage reference it is a bounded range `{low: 0, high: gross, basis: coverage_not_applied}`, because nothing here computes coverage (B5 owns eligibility and is not built); an incomplete estimate carries no amount at all. Amounts are the shared `Money` (`{currency, minor}`; definitions copied byte-identically from the billing contract), entered per item by staff as synthetic placeholders keyed to the item's `feeScheduleRef` (no fee schedule data; B9 later). Nothing posts money.
+
+Acceptance cases (`tests/integration/clinical-estimates.test.ts`, every denial under the runtime role):
+
+1. an alternative plan (`clinical.treatmentPlans.createAlternative`) joins the source plan in an alternative group without changing it; each plan gets an estimate; accepting one makes the group read `accepted` / `unselected`; the other estimate stays retrievable with no acceptance, and accepting it is 409 `alternative_already_accepted`;
+2. a changed coverage reference creates estimate version 2 superseding 1; version 1 reads byte-equal apart from `state`/`supersededByRef` and keeps its acceptance; version 2 cannot re-bind the accepted plan version (409 `plan_version_accepted`); the list shows both versions;
+3. unknown coverage gives `coverageStatus: unknown`, the gross `Money` and the labelled-unknown responsibility, also at presentation; an entered coverage reference gives the bounded range;
+4. an item without a fee schedule reference leaves the estimate incomplete (`complete: false`, `grossAmount: null`, `itemsWithoutFee`, responsibility `not_available`) and presentation is 409 `estimate_incomplete`; a fee for an item without a fee schedule reference is 422 `itemWithoutFeeScheduleRef`; a negative fee 422 `negativeFee`;
+5. accepting or presenting a superseded estimate is 409 `estimate_superseded` with `currentVersion` and the current estimate in `blockingRefs`; mixed currencies are 422 `mixedCurrency`;
+6. another tenant generating, listing, reading, presenting, accepting or creating an alternative gets 404; another patient's plan item is 422 `itemNotInVersion`; a body with `tenantId` is 400.
+
+Failure cases: (1) a coverage reference older than the engineering tolerance (30 days, `COVERAGE_STALE_AFTER_MS`) is `stale` at generation and at presentation; (2) acceptance racing a new estimate version (both lock the plan version row) gives one linear outcome: the acceptance either commits against version 1 or is 409 `estimate_superseded`, and the acceptance-row count matches; (3) a phase-level acceptance is 409 `partial_acceptance_unsupported` and nothing is recorded; (4) the fee schedule version reference an estimate was generated against stays readable on it (no fee schedule registry exists yet, so "withdrawn" cannot be represented; deviation).
+
+Also: estimates and lines are append-only under the runtime role (42501); a plan version `acceptance_ref` naming no recorded acceptance of that version is refused at commit (23503, deferred constraint trigger); the database refuses presenting an incomplete estimate (42501) and presenting or accepting a superseded one; a read-only member reads but cannot generate, a service principal cannot generate; the marker never reaches audit, outbox, attempts, idempotency, sensitive-read rows or logs; an MCP generate replays a REST key, MCP and REST reads are equal, a cross-tenant MCP read is 404.
+
+C11 test change: the C11 acceptance helper now accepts through C12 (generate an estimate, then `clinical.estimates.accept` at the plan revision), because the seam can no longer be called with an invented `acceptanceRef`; the C11 assertions are unchanged.
+
+Negative harness: 7 rows appended (`clinical.estimates.generate|list|read|present|accept`, `clinical.treatmentPlans.createAlternative|alternatives`), each cross-tenant, revoked and downgraded on REST and MCP, with the six C12 tables in the unchanged-state snapshot and one incomplete alpha estimate as fixture.
+
+- Red: tests, harness rows, MCP tool list, tenant-isolation inventory and drift map written before any C12 code (contract definitions only); `corepack pnpm test -- clinical-estimates negative-harness mcp-parity tenant-isolation clinical-tool-drift` → exit 1: 3 files failed, 14 tests failed, 160 passed, 285 skipped (the harness setup failed, so its rows were skipped).
+- First green attempt: 13 failures from one fault (an ambiguous column in the estimate projection, 500); fixed. The full run then failed in `restore-smoke` with "foreign-key cycle in schema": the first design used a foreign key from `clinical_plan_versions.acceptance_ref` to acceptances, which closes a cycle the ordered restore cannot load; replaced by a deferred constraint trigger with the same 23503 outcome.
+- Green: `corepack pnpm test -- clinical-treatment-plans clinical-estimates negative-harness mcp-parity tenant-isolation clinical-tool-drift` → exit 0, 6 files, 480 passed.
+- Pre-commit: `corepack pnpm typecheck`, `lint`, `contract:check` exit 0; `corepack pnpm test` exit 0, 45 files, 1033 tests (992 + 13 estimates + 21 harness rows + 7 clinical tool drift).
+
+Shared files touched (append-only registration): contracts `clinical.schema.json` (C12 definitions, `Money`, title), `index.ts` (one export line; new module `clinical-care.ts` for the C12-C14 types), domain `clinical/{codecs,service,index}.ts`, `treatment-plans.ts` (exports `planById`, `projectPlan`, `PlanRow`), `policy/authorize.ts` (7 rows), API manifest, routes, contract drift bodies, MCP server and synthetic-task transport lists (`estimateRef`), tools, drift test, OpenAPI, tests `negative-harness`, `tenant-isolation`, `mcp-parity`, `clinical-treatment-plans` (helper). New: `packages/domain/src/clinical/estimates.ts`, migration `20261109000000_clinical_estimates.sql`.
+
+Deviations: one contract file instead of `estimate.schema.json`; tests at `tests/integration/clinical-estimates.test.ts`; alternatives are separate plans in an alternative group (not sibling versions of one plan); acceptance binds the current estimate whether or not it was presented or complete (`acceptance.estimatePresented` records which), so a plan whose fees are not yet known can be accepted without any figure; withdrawn fee schedule versions are not representable until B9.
+
+Pending decisions added (none decided):
+
+| Id | Question | Recommendation used (source) | Status | Deciding role (pending) |
+|---|---|---|---|---|
+| C-D7 | Patient responsibility with unknown coverage; who owns eligibility | plan C-D7: labelled unknown or range, never guaranteed; eligibility from B5 | recommended-pending-approval | practice manager; billing lead |
+| C12-P1 | Range shown with an entered coverage reference | `0 .. gross` labelled `coverage_not_applied` until B5 computes coverage | engineering placeholder | billing lead |
+| C12-P2 | Coverage staleness tolerance | 30 days, engineering constant | blocking for release (no configured value) | billing lead; practice manager |
+| C12-P3 | Whether acceptance needs a presented, complete quote | not required; recorded on the acceptance | recommended-pending-approval | practice manager; compliance/records owner |
+| C12-P4 | Alternatives model; accepting two alternatives | one alternative group; a second acceptance in a group is refused | recommended-pending-clinical-approval | clinical lead |
+| C12-P5 | Phase-level acceptance | refused (409), never recorded as full | recommended-pending-approval | clinical lead; practice manager |
+| C12-P6 | Who generates, presents and accepts estimates | human staff with `clinical.write`; no clinical author profile required | recommended-pending-approval | practice manager |
+
+Seams: B consumes estimates by `estimateRef` (`clinical.estimates.read`) and reads `grossAmount` and `lines[].fee` as `Money`; B5 later supplies coverage references (`assumptions[].sourceRef`, `sourceAsOf`) and may compute a narrower range; C13 binds consent through `registerConsentBindingReader` (the acceptance `consent` stays `outstanding` until then) and checks `acceptanceRef` and the accepted `planVersionRef`.

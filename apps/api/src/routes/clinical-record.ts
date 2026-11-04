@@ -70,6 +70,32 @@ export function registerClinicalRecordRoutes(
   mount('clinical.perio.compare', async (r) => ({
     data: await c.comparePerioExams(requireActor(r), query(r)),
   }));
+  // C12 estimates, alternatives and acceptance.
+  mount('clinical.estimates.generate', (r) =>
+    c.generateEstimate(requireActor(r), param(r, 'planVersionRef'), env('clinical.estimates.generate', r)),
+  );
+  mount('clinical.estimates.list', async (r) => ({
+    data: await c.listEstimates(requireActor(r), param(r, 'planVersionRef')),
+  }));
+  mount('clinical.estimates.read', async (r) => ({
+    data: await c.readEstimate(requireActor(r), param(r, 'estimateRef')),
+  }));
+  mount('clinical.estimates.present', (r) =>
+    c.presentEstimate(requireActor(r), param(r, 'estimateRef'), env('clinical.estimates.present', r)),
+  );
+  mount('clinical.estimates.accept', (r) =>
+    c.acceptEstimate(requireActor(r), param(r, 'estimateRef'), env('clinical.estimates.accept', r)),
+  );
+  mount('clinical.treatmentPlans.createAlternative', (r) =>
+    c.createPlanAlternative(
+      requireActor(r),
+      param(r, 'planRef'),
+      env('clinical.treatmentPlans.createAlternative', r),
+    ),
+  );
+  mount('clinical.treatmentPlans.alternatives', async (r) => ({
+    data: await c.listPlanAlternatives(requireActor(r), param(r, 'planRef')),
+  }));
   // C11 treatment plans.
   mount('clinical.treatmentPlans.create', (r) =>
     c.createTreatmentPlan(requireActor(r), env('clinical.treatmentPlans.create', r)),

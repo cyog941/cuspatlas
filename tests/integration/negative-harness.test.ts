@@ -1403,6 +1403,120 @@ export const COMMANDS: HarnessCommand[] = [
       idempotencyKey: randomUUID(),
     }),
   },
+  // C12 estimates, alternatives and acceptance (workstream C batch 3).
+  {
+    operation: 'clinical.estimates.generate',
+    tool: 'clinical_estimates_generate',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/treatment-plans/versions/${f.alphaPlanVersion}/estimates`,
+      body: { lines: [], feeScheduleVersionRef: 'synthetic-harness-fees' },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      planVersionRef: f.alphaPlanVersion,
+      lines: [],
+      feeScheduleVersionRef: 'synthetic-harness-fees',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.estimates.list',
+    tool: 'clinical_estimates_list',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/treatment-plans/versions/${f.alphaPlanVersion}/estimates`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ planVersionRef: f.alphaPlanVersion }),
+  },
+  {
+    operation: 'clinical.estimates.read',
+    tool: 'clinical_estimates_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/estimates/${f.alphaEstimate}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ estimateRef: f.alphaEstimate }),
+  },
+  {
+    operation: 'clinical.estimates.present',
+    tool: 'clinical_estimates_present',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/estimates/${f.alphaEstimate}/presentation`,
+      body: { expectedEstimateNumber: 1 },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({
+      estimateRef: f.alphaEstimate,
+      expectedEstimateNumber: 1,
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.estimates.accept',
+    tool: 'clinical_estimates_accept',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/estimates/${f.alphaEstimate}/acceptance`,
+      body: { expectedRevision: 3, scope: 'full' },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      estimateRef: f.alphaEstimate,
+      expectedRevision: 3,
+      scope: 'full',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.treatmentPlans.createAlternative',
+    tool: 'clinical_treatment_plans_create_alternative',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/treatment-plans/${f.alphaPlan}/alternatives`,
+      body: { displayText: `Synthetic ${MARKER}` },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      planRef: f.alphaPlan,
+      displayText: `Synthetic ${MARKER}`,
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.treatmentPlans.alternatives',
+    tool: 'clinical_treatment_plans_list_alternatives',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/treatment-plans/${f.alphaPlan}/alternatives`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ planRef: f.alphaPlan }),
+  },
 ];
 
 function perioBody(f: HarnessFixture) {
@@ -1768,6 +1882,11 @@ beforeAll(async () => {
     },
   );
   expect(planItem.statusCode).toBe(201);
+  // C12: one incomplete estimate (version 1) on the alpha plan version (its item names no fee).
+  const estimate = await owner(`/v1/clinical/treatment-plans/versions/${planVersion}/estimates`, {
+    lines: [],
+  });
+  expect(estimate.statusCode).toBe(201);
   // C9: one active alpha note template (version 1).
   const template = await owner('/v1/clinical/note-templates', templateBody());
   expect(template.statusCode).toBe(201);
@@ -1797,6 +1916,7 @@ beforeAll(async () => {
     alphaPlanVersion: planVersion,
     alphaPlanDetail: planDetail.json().data.targetRef,
     alphaPlanItem: planItem.json().data.targetRef,
+    alphaEstimate: estimate.json().data.estimateRef,
     alphaPerioExam: perioExam.examRef,
     alphaPerioMeasurement: perioExam.measurements.find(
       (m: { measure: string; site: string | null }) => m.measure === 'probing_depth' && m.site === 'b',
@@ -1956,6 +2076,12 @@ async function state(): Promise<string> {
     await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_plan_items'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_plan_item_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_plan_detail_events'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_plan_alternatives'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_estimates'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_estimate_lines'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_estimate_assumptions'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_estimate_presentations'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_plan_acceptances'),
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_note_templates'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_note_template_versions'),
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_notes'),

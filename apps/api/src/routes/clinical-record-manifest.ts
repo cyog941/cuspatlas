@@ -10,6 +10,67 @@ const QUERY = ['400', '401', '403', '404', '409', '422', '503'] as const;
  * one table. Semantics are recommended-pending-clinical-approval; synthetic data only.
  */
 export const CLINICAL_RECORD_ROUTES: readonly RouteContract[] = [
+  // C12 estimates, alternatives and acceptance.
+  {
+    method: 'post',
+    path: '/v1/clinical/treatment-plans/versions/{planVersionRef}/estimates',
+    operationId: 'clinical.estimates.generate',
+    protected: true,
+    requestBody: C('EstimateGenerate'),
+    success: { status: '201', schema: C('EstimateCommandResult') },
+    refusals: COMMAND,
+  },
+  {
+    method: 'get',
+    path: '/v1/clinical/treatment-plans/versions/{planVersionRef}/estimates',
+    operationId: 'clinical.estimates.list',
+    protected: true,
+    success: { status: '200', schema: C('EstimateList') },
+    refusals: ['401', '403', '404', '503'],
+  },
+  {
+    method: 'get',
+    path: '/v1/clinical/estimates/{estimateRef}',
+    operationId: 'clinical.estimates.read',
+    protected: true,
+    success: { status: '200', schema: C('EstimateRead') },
+    refusals: ['401', '403', '404', '503'],
+  },
+  {
+    method: 'post',
+    path: '/v1/clinical/estimates/{estimateRef}/presentation',
+    operationId: 'clinical.estimates.present',
+    protected: true,
+    requestBody: C('EstimatePresent'),
+    success: { status: '200', schema: C('EstimateCommandResult') },
+    refusals: COMMAND,
+  },
+  {
+    method: 'post',
+    path: '/v1/clinical/estimates/{estimateRef}/acceptance',
+    operationId: 'clinical.estimates.accept',
+    protected: true,
+    requestBody: C('EstimateAccept'),
+    success: { status: '201', schema: C('EstimateCommandResult') },
+    refusals: COMMAND,
+  },
+  {
+    method: 'post',
+    path: '/v1/clinical/treatment-plans/{planRef}/alternatives',
+    operationId: 'clinical.treatmentPlans.createAlternative',
+    protected: true,
+    requestBody: C('PlanAlternativeCreate'),
+    success: { status: '201', schema: C('TreatmentPlanCommandResult') },
+    refusals: COMMAND,
+  },
+  {
+    method: 'get',
+    path: '/v1/clinical/treatment-plans/{planRef}/alternatives',
+    operationId: 'clinical.treatmentPlans.alternatives',
+    protected: true,
+    success: { status: '200', schema: C('PlanAlternativeList') },
+    refusals: ['401', '403', '404', '503'],
+  },
   // C6 structured chart.
   {
     method: 'post',

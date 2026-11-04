@@ -131,6 +131,16 @@ export const ACTION_POLICIES = {
   'clinical.treatmentPlans.supersede': { scope: 'clinical.write', principals: ['human'] },
   'clinical.treatmentPlans.read': { scope: 'clinical.read', principals: ['human', 'service'] },
   'clinical.treatmentPlans.list': { scope: 'clinical.read', principals: ['human', 'service'] },
+  // C12 estimates and acceptance (C-D7 recommended-pending-approval). Generating, presenting and
+  // accepting are human staff actions under clinical.write (no clinical author profile needed: an
+  // estimate is not clinical authorship); creating an alternative plan is a clinical author's.
+  'clinical.estimates.generate': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.estimates.present': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.estimates.accept': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.estimates.read': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.estimates.list': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.treatmentPlans.createAlternative': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.treatmentPlans.alternatives': { scope: 'clinical.read', principals: ['human', 'service'] },
   // C9 progress-note templates (C-D4, recommended-pending-clinical-approval). Templates are practice
   // configuration (human admin only); reads need clinical.read.
   'clinical.noteTemplates.define': { scope: 'admin.configure', principals: ['human'] },

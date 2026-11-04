@@ -151,6 +151,14 @@ export const CLINICAL_BODIES = [
   'PlanItemStateSet',
   'PlanDetailStateSet',
   'PlanVersionSupersede',
+  // C12 estimates, alternatives and acceptance.
+  'EstimateGenerate',
+  'EstimateLineInput',
+  'EstimateAssumptionInput',
+  'EstimatePresent',
+  'EstimateAccept',
+  'PlanAlternativeCreate',
+  'Money',
   // C9 note templates.
   'NoteTemplateDefine',
   'NoteTemplateRevise',

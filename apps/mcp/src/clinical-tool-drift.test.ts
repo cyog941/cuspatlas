@@ -42,6 +42,7 @@ const PATH_PARAMS: Record<string, string> = {
   templateRef: 'NoteTemplateRef',
   templateVersionRef: 'NoteTemplateVersionRef',
   noteRef: 'NoteRef',
+  estimateRef: 'EstimateRef',
 };
 
 function restShape(route: (typeof routes)[number]): { properties: Schema; required?: string[] } {

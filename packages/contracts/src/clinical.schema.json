@@ -1,8 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cuspatlas.invalid/schemas/clinical/v1",
-  "title": "Clinical record contract v1 (C5 encounters and authorship, C8 medical history, C9 note templates, C10 notes; synthetic data only; recommended-pending-clinical-approval)",
+  "title": "Clinical record contract v1 (C5 encounters and authorship, C6 chart, C7 perio, C8 medical history, C9 note templates, C10 notes, C11 treatment plans, C12 estimates; synthetic data only; recommended-pending-clinical-approval)",
   "$defs": {
+    "AcceptanceRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque plan-version acceptance reference (C12; C13 binds consent to it)."
+    },
     "ActiveAlerts": {
       "type": "object",
       "additionalProperties": false,
@@ -263,6 +268,11 @@
         "completing_provider"
       ],
       "description": "Encounter role assignments, each independent of the others and of the author."
+    },
+    "AssumptionSourceRef": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+      "description": "Reference to where a staff-entered assumption came from (a B5 eligibility response later); never a value."
     },
     "AuthorContext": {
       "type": "object",
@@ -832,15 +842,30 @@
       "enum": ["dentist", "hygienist", "assistant", "other_clinical"],
       "description": "Configured clinical role of an author (recommended-pending-clinical-approval)."
     },
+    "ConsentRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque consent record reference (C13)."
+    },
     "ContentDigest": {
       "type": "string",
       "pattern": "^sha256:[0-9a-f]{64}$",
       "description": "SHA-256 over the canonical form of a frozen note version (content, references, author, instant)."
     },
+    "CoverageStatus": {
+      "type": "string",
+      "enum": ["entered", "unknown", "stale"],
+      "description": "Whether a coverage reference was entered and fresh, absent (unknown) or older than the tolerance (stale). Never an eligibility guarantee."
+    },
     "CredentialRef": {
       "type": "string",
       "pattern": "^[A-Za-z0-9._:-]{1,128}$",
       "description": "Reference to a credential held by the staff module; the credential detail is not stored here."
+    },
+    "CurrencyCode": {
+      "type": "string",
+      "description": "ISO 4217 alphabetic code; must equal the tenant billing currency (422 currency_mismatch).",
+      "pattern": "^[A-Z]{3}$"
     },
     "Cursor": {
       "type": "string",
@@ -1170,6 +1195,365 @@
       "type": "string",
       "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
       "description": "Opaque encounter reference (C5)."
+    },
+    "Estimate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "estimateRef",
+        "planRef",
+        "planVersionRef",
+        "patientRef",
+        "number",
+        "state",
+        "supersedesRef",
+        "supersededByRef",
+        "feeScheduleVersionRef",
+        "complete",
+        "lines",
+        "itemsWithoutFee",
+        "assumptions",
+        "coverageStatus",
+        "grossAmount",
+        "patientResponsibility",
+        "notAGuarantee",
+        "presentation",
+        "acceptance",
+        "createdBy",
+        "createdAt"
+      ],
+      "properties": {
+        "estimateRef": {
+          "$ref": "#/$defs/EstimateRef"
+        },
+        "planRef": {
+          "$ref": "#/$defs/TreatmentPlanRef"
+        },
+        "planVersionRef": {
+          "$ref": "#/$defs/PlanVersionRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "state": {
+          "type": "string",
+          "enum": ["current", "superseded"]
+        },
+        "supersedesRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EstimateRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "supersededByRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EstimateRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "feeScheduleVersionRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FeeScheduleRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "lines": {
+          "type": "array",
+          "maxItems": 300,
+          "items": {
+            "$ref": "#/$defs/EstimateLine"
+          }
+        },
+        "itemsWithoutFee": {
+          "type": "array",
+          "maxItems": 300,
+          "items": {
+            "$ref": "#/$defs/PlanItemRef"
+          }
+        },
+        "assumptions": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/$defs/EstimateAssumption"
+          }
+        },
+        "coverageStatus": {
+          "$ref": "#/$defs/CoverageStatus"
+        },
+        "grossAmount": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "patientResponsibility": {
+          "$ref": "#/$defs/PatientResponsibility"
+        },
+        "notAGuarantee": {
+          "const": true
+        },
+        "presentation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EstimatePresentation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "acceptance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanAcceptance"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "createdBy": {
+          "$ref": "#/$defs/ActorRef"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      },
+      "description": "An immutable estimate version (C12). Not a coverage guarantee; coverage is unknown until B5 exists."
+    },
+    "EstimateAccept": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedRevision", "scope"],
+      "properties": {
+        "expectedRevision": {
+          "$ref": "#/$defs/Version"
+        },
+        "scope": {
+          "type": "string",
+          "enum": ["full", "phases"]
+        },
+        "phases": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 99
+          }
+        }
+      }
+    },
+    "EstimateAssumption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "sourceRef", "sourceAsOf"],
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/EstimateAssumptionKind"
+        },
+        "sourceRef": {
+          "$ref": "#/$defs/AssumptionSourceRef"
+        },
+        "sourceAsOf": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "EstimateAssumptionInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "sourceRef", "sourceAsOf"],
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/EstimateAssumptionKind"
+        },
+        "sourceRef": {
+          "$ref": "#/$defs/AssumptionSourceRef"
+        },
+        "sourceAsOf": {
+          "$ref": "#/$defs/Instant"
+        }
+      },
+      "description": "A coverage or discount assumption recorded by reference with its source freshness; never applied as a value here."
+    },
+    "EstimateAssumptionKind": {
+      "type": "string",
+      "enum": ["coverage", "discount"]
+    },
+    "EstimateCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/Estimate"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "EstimateConsentBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "consentRefs"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["outstanding", "bound", "withdrawn"]
+        },
+        "consentRefs": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/ConsentRef"
+          }
+        }
+      },
+      "description": "Whether a C13 consent is bound to the accepted plan version. An acceptance without a bound consent is never consented treatment."
+    },
+    "EstimateGenerate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lines"],
+      "properties": {
+        "lines": {
+          "type": "array",
+          "maxItems": 300,
+          "items": {
+            "$ref": "#/$defs/EstimateLineInput"
+          }
+        },
+        "assumptions": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/$defs/EstimateAssumptionInput"
+          }
+        },
+        "feeScheduleVersionRef": {
+          "$ref": "#/$defs/FeeScheduleRef"
+        }
+      }
+    },
+    "EstimateLine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["planItemRef", "feeScheduleRef", "fee"],
+      "properties": {
+        "planItemRef": {
+          "$ref": "#/$defs/PlanItemRef"
+        },
+        "feeScheduleRef": {
+          "$ref": "#/$defs/FeeScheduleRef"
+        },
+        "fee": {
+          "$ref": "#/$defs/Money"
+        }
+      }
+    },
+    "EstimateLineInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["planItemRef", "fee"],
+      "properties": {
+        "planItemRef": {
+          "$ref": "#/$defs/PlanItemRef"
+        },
+        "fee": {
+          "$ref": "#/$defs/Money"
+        }
+      },
+      "description": "A staff-entered per-item fee placeholder for an item that names a fee schedule reference (synthetic; no fee schedule data until B9)."
+    },
+    "EstimateList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "#/$defs/Estimate"
+          }
+        }
+      }
+    },
+    "EstimatePresent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "expectedEstimateNumber": {
+          "$ref": "#/$defs/Version"
+        }
+      },
+      "description": "Present the current estimate; an optional guard naming the estimate number the caller looked at."
+    },
+    "EstimatePresentation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["presentedBy", "presentedAt", "coverageStatus"],
+      "properties": {
+        "presentedBy": {
+          "$ref": "#/$defs/ActorRef"
+        },
+        "presentedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "coverageStatus": {
+          "$ref": "#/$defs/CoverageStatus"
+        }
+      }
+    },
+    "EstimateRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/Estimate"
+        }
+      }
+    },
+    "EstimateRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque estimate version reference (C12); B consumes estimates by this reference."
     },
     "FeeScheduleRef": {
       "type": "string",
@@ -1879,6 +2263,26 @@
     "LocationRef": {
       "type": "string",
       "pattern": "^[a-z0-9-]{1,64}$"
+    },
+    "MinorUnits": {
+      "type": "integer",
+      "description": "Signed integer minor units. On journal lines debit is positive and credit negative.",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "Money": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "SHARED-CONTRACTS Money: explicit currency and integer minor units. Never a float.",
+      "required": ["currency", "minor"],
+      "properties": {
+        "currency": {
+          "$ref": "#/$defs/CurrencyCode"
+        },
+        "minor": {
+          "$ref": "#/$defs/MinorUnits"
+        }
+      }
     },
     "NotProvided": {
       "type": "object",
@@ -2698,6 +3102,56 @@
       "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
       "description": "Opaque patient reference (S4)."
     },
+    "PatientResponsibility": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "label"],
+          "properties": {
+            "kind": {
+              "const": "unknown"
+            },
+            "label": {
+              "const": "coverage_unknown"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "label"],
+          "properties": {
+            "kind": {
+              "const": "not_available"
+            },
+            "label": {
+              "const": "estimate_incomplete"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "low", "high", "basis"],
+          "properties": {
+            "kind": {
+              "const": "range"
+            },
+            "low": {
+              "$ref": "#/$defs/Money"
+            },
+            "high": {
+              "$ref": "#/$defs/Money"
+            },
+            "basis": {
+              "const": "coverage_not_applied"
+            }
+          }
+        }
+      ],
+      "description": "C-D7: a labelled unknown or a bounded range; never a guaranteed patient-responsibility figure."
+    },
     "PerioCompareQuery": {
       "type": "object",
       "additionalProperties": false,
@@ -3514,6 +3968,90 @@
         },
         "bleeding": {
           "$ref": "#/$defs/PerioFlagSeries"
+        }
+      }
+    },
+    "PlanAcceptance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "acceptanceRef",
+        "planVersionRef",
+        "estimateRef",
+        "scope",
+        "acceptedBy",
+        "acceptedAt",
+        "estimatePresented",
+        "consent"
+      ],
+      "properties": {
+        "acceptanceRef": {
+          "$ref": "#/$defs/AcceptanceRef"
+        },
+        "planVersionRef": {
+          "$ref": "#/$defs/PlanVersionRef"
+        },
+        "estimateRef": {
+          "$ref": "#/$defs/EstimateRef"
+        },
+        "scope": {
+          "const": "full"
+        },
+        "acceptedBy": {
+          "$ref": "#/$defs/ActorRef"
+        },
+        "acceptedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "estimatePresented": {
+          "type": "boolean"
+        },
+        "consent": {
+          "$ref": "#/$defs/EstimateConsentBinding"
+        }
+      }
+    },
+    "PlanAlternativeCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "displayText": {
+          "$ref": "#/$defs/PlanText"
+        },
+        "encounterRef": {
+          "$ref": "#/$defs/EncounterRef"
+        }
+      }
+    },
+    "PlanAlternativeList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["planRef", "headVersionRef", "headState", "selection"],
+            "properties": {
+              "planRef": {
+                "$ref": "#/$defs/TreatmentPlanRef"
+              },
+              "headVersionRef": {
+                "$ref": "#/$defs/PlanVersionRef"
+              },
+              "headState": {
+                "$ref": "#/$defs/PlanVersionState"
+              },
+              "selection": {
+                "type": "string",
+                "enum": ["accepted", "unselected", "undecided"]
+              }
+            }
+          }
         }
       }
     },

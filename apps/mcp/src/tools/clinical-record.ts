@@ -17,6 +17,7 @@ const TRANSPORT: Record<string, string> = {
   planVersionRef: 'PlanVersionRef',
   planDetailRef: 'PlanDetailRef',
   planItemRef: 'PlanItemRef',
+  estimateRef: 'EstimateRef',
 };
 
 /**
@@ -51,6 +52,96 @@ const SAFETY =
   'Synthetic engineering implementation; clinical semantics are recommended-pending-clinical-approval and not clinically validated. No diagnosis and no decision support.';
 
 const SPECS: readonly Spec[] = [
+  // C12 estimates, alternatives and acceptance.
+  {
+    name: 'clinical_estimates_generate',
+    operationId: 'clinical.estimates.generate',
+    description: `Generate the next immutable estimate version of a plan version from staff-entered per-item fee placeholders (Money) and coverage or discount references with their source freshness. Never a coverage guarantee: unknown coverage is a labelled unknown, otherwise a bounded range. ${SAFETY}`,
+    body: 'EstimateGenerate',
+    transport: ['planVersionRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.generateEstimate(
+        actor,
+        args.planVersionRef as string,
+        envelope('clinical.estimates.generate', args, 'planVersionRef'),
+      ),
+  },
+  {
+    name: 'clinical_estimates_list',
+    operationId: 'clinical.estimates.list',
+    description: `Every estimate version of a plan version, oldest first, with presentation and acceptance. ${SAFETY}`,
+    body: null,
+    transport: ['planVersionRef'],
+    readOnly: true,
+    run: async (d, actor, args) => ({
+      data: await d.clinical.listEstimates(actor, args.planVersionRef as string),
+    }),
+  },
+  {
+    name: 'clinical_estimates_get',
+    operationId: 'clinical.estimates.read',
+    description: `One estimate version with its lines, assumptions, coverage status, presentation and acceptance. ${SAFETY}`,
+    body: null,
+    transport: ['estimateRef'],
+    readOnly: true,
+    run: async (d, actor, args) => ({
+      data: await d.clinical.readEstimate(actor, args.estimateRef as string),
+    }),
+  },
+  {
+    name: 'clinical_estimates_present',
+    operationId: 'clinical.estimates.present',
+    description: `Mark the current complete estimate as presented, re-evaluating coverage freshness; a superseded or incomplete estimate is refused. ${SAFETY}`,
+    body: 'EstimatePresent',
+    transport: ['estimateRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.presentEstimate(
+        actor,
+        args.estimateRef as string,
+        envelope('clinical.estimates.present', args, 'estimateRef'),
+      ),
+  },
+  {
+    name: 'clinical_estimates_accept',
+    operationId: 'clinical.estimates.accept',
+    description: `Record acceptance of the plan version against this exact current estimate (full scope only). Consent is a separate later fact (C13); an acceptance is never consented treatment by itself. ${SAFETY}`,
+    body: 'EstimateAccept',
+    transport: ['estimateRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.acceptEstimate(
+        actor,
+        args.estimateRef as string,
+        envelope('clinical.estimates.accept', args, 'estimateRef'),
+      ),
+  },
+  {
+    name: 'clinical_treatment_plans_create_alternative',
+    operationId: 'clinical.treatmentPlans.createAlternative',
+    description: `Create an alternative plan for the same patient and clinical problem; the source plan is never changed. ${SAFETY}`,
+    body: 'PlanAlternativeCreate',
+    transport: ['planRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.createPlanAlternative(
+        actor,
+        args.planRef as string,
+        envelope('clinical.treatmentPlans.createAlternative', args, 'planRef'),
+      ),
+  },
+  {
+    name: 'clinical_treatment_plans_list_alternatives',
+    operationId: 'clinical.treatmentPlans.alternatives',
+    description: `The plans offered for the same problem with their head version and selection (accepted, unselected, undecided). ${SAFETY}`,
+    body: null,
+    transport: ['planRef'],
+    readOnly: true,
+    run: async (d, actor, args) => ({
+      data: await d.clinical.listPlanAlternatives(actor, args.planRef as string),
+    }),
+  },
   // C6 structured chart.
   {
     name: 'clinical_chart_record_entry',

@@ -132,6 +132,14 @@ const TOOL_NAMES = [
   'clinical_treatment_plans_set_detail_state',
   'clinical_treatment_plans_set_item_state',
   'clinical_treatment_plans_supersede',
+  // C12 estimate, alternative and acceptance tools (parity in clinical-estimates and negative-harness tests).
+  'clinical_estimates_accept',
+  'clinical_estimates_generate',
+  'clinical_estimates_get',
+  'clinical_estimates_list',
+  'clinical_estimates_present',
+  'clinical_treatment_plans_create_alternative',
+  'clinical_treatment_plans_list_alternatives',
   // C9 note template tools (parity in clinical-note-templates and negative-harness tests).
   'clinical_note_templates_applicable',
   'clinical_note_templates_define',

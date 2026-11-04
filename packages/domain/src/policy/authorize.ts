@@ -34,6 +34,12 @@ export const ACTION_POLICIES = {
   'patients.setStatus': { scope: 'patients.write', principals: ['human', 'service'] },
   'patients.read': { scope: 'patients.read', principals: ['human', 'service'] },
   'patients.search': { scope: 'patients.read', principals: ['human', 'service'] },
+  // S5 relationships. Staff manage them; relationship scopes themselves are evaluated by
+  // policy/patient-access.ts and never grant a staff action.
+  'patients.relationships.add': { scope: 'patients.write', principals: ['human', 'service'] },
+  'patients.relationships.revoke': { scope: 'patients.write', principals: ['human', 'service'] },
+  'patients.relationships.list': { scope: 'patients.read', principals: ['human', 'service'] },
+  'patients.access.resolve': { scope: 'patients.read', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

@@ -68,6 +68,11 @@ export interface PatientCreate {
 }
 export interface PatientDemographicsUpdate extends Partial<PatientCreate> {
   readonly expectedVersion: number;
+  /** S5: the related person who asked for the change (needs the demographics relationship scope). */
+  readonly requestedBy?: string;
+}
+export interface PatientReadQuery {
+  readonly requestedBy?: string;
 }
 export interface PatientStatusChange {
   readonly expectedVersion: number;
@@ -109,6 +114,73 @@ export interface PatientSummaryPage {
   readonly nextCursor: string | null;
 }
 
+/** S5. The relationship scopes registered in docs/SHARED-CONTRACTS.md: the complete set. */
+export const RELATIONSHIP_SCOPES = [
+  'demographics',
+  'scheduling',
+  'clinical_read',
+  'financial',
+  'consent',
+] as const;
+export type RelationshipScope = (typeof RELATIONSHIP_SCOPES)[number];
+export type RelationshipKind = 'guardian' | 'guarantor' | 'dependent' | 'proxy';
+export type RelationshipStatus = 'active' | 'pending' | 'expired' | 'revoked';
+export type RelationshipStatusReason =
+  | 'active'
+  | 'not_yet_effective'
+  | 'window_ended'
+  | 'age_of_majority_reached'
+  | 'revoked';
+export type RelationshipRevokeReason =
+  | 'patient_request'
+  | 'guardian_request'
+  | 'authority_ended'
+  | 'entered_in_error'
+  | 'other';
+export interface RelationshipCreate {
+  readonly counterpartyRef: string;
+  readonly kind: RelationshipKind;
+  readonly scopes: readonly RelationshipScope[];
+  readonly effectiveFrom?: string;
+  readonly effectiveUntil?: string;
+  readonly evidenceRef?: string;
+}
+export interface RelationshipRevoke {
+  readonly expectedVersion: number;
+  readonly reasonCode: RelationshipRevokeReason;
+}
+export interface Relationship {
+  readonly relationshipRef: string;
+  readonly subjectRef: string;
+  readonly counterpartyRef: string;
+  readonly kind: RelationshipKind;
+  readonly scopes: readonly RelationshipScope[];
+  readonly effectiveFrom: string;
+  readonly effectiveUntil: string | null;
+  readonly effectiveEnd: string | null;
+  readonly evidenceRef: string | null;
+  readonly revokedAt: string | null;
+  readonly revokeReason: RelationshipRevokeReason | null;
+  readonly status: RelationshipStatus;
+  readonly statusReason: RelationshipStatusReason;
+  readonly version: number;
+}
+export type PatientAccessReason =
+  | 'relationship_active'
+  | 'relationship_missing'
+  | 'relationship_pending'
+  | 'relationship_expired'
+  | 'relationship_revoked';
+export interface PatientAccess {
+  readonly subjectRef: string;
+  readonly counterpartyRef: string;
+  readonly evaluatedAt: string;
+  readonly policyVersion: string;
+  readonly scopes: readonly RelationshipScope[];
+  readonly reason: PatientAccessReason;
+  readonly relationships: readonly Relationship[];
+}
+
 export const patientSchema = schema;
 export const PATIENT_SCHEMA_ID = schema.$id;
 export const PATIENT_PROPERTIES: ReadonlySet<string> = collectPropertyNames(schema);
@@ -128,3 +200,8 @@ export const validatePatientReadQuery = def('PatientReadQuery');
 export const validatePatientSearch = def('PatientSearch');
 export const validatePatientRef = def('PatientRef');
 export const validatePatientIdempotencyKey = def('IdempotencyKey');
+export const validateRelationshipCreate = def('RelationshipCreate');
+export const validateRelationshipRevoke = def('RelationshipRevoke');
+export const validateRelationshipListQuery = def('RelationshipListQuery');
+export const validateRelationshipRef = def('RelationshipRef');
+export const validatePatientAccessQuery = def('PatientAccessQuery');

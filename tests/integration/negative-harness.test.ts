@@ -65,6 +65,7 @@ export interface HarnessCommand {
 }
 
 const P = (f: HarnessFixture) => f.alphaPatient;
+const SOON = new Date(Date.now() + 7 * 86_400_000).toISOString();
 
 /** S4 rows. S5, S6 and the scheduling tasks append their commands here. */
 export const COMMANDS: HarnessCommand[] = [
@@ -149,6 +150,74 @@ export const COMMANDS: HarnessCommand[] = [
       idempotencyKey: randomUUID(),
     }),
   },
+  // S5 relationship commands.
+  {
+    operation: 'patients.relationships.add',
+    tool: 'patients_add_relationship',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/patients/${P(f)}/relationships`,
+      body: {
+        counterpartyRef: f.alphaCounterparty,
+        kind: 'proxy',
+        scopes: ['demographics'],
+        effectiveUntil: SOON,
+      },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      patientRef: P(f),
+      counterpartyRef: f.alphaCounterparty,
+      kind: 'proxy',
+      scopes: ['demographics'],
+      effectiveUntil: SOON,
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'patients.relationships.list',
+    tool: 'patients_list_relationships',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({ method: 'GET', url: `/v1/patients/${P(f)}/relationships`, keyed: false, status: 200 }),
+    mcpArgs: (f) => ({ patientRef: P(f) }),
+  },
+  {
+    operation: 'patients.relationships.revoke',
+    tool: 'patients_revoke_relationship',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/patients/${P(f)}/relationships/${f.alphaRelationship}/revoke`,
+      body: { expectedVersion: 1, reasonCode: 'patient_request' },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({
+      patientRef: P(f),
+      relationshipRef: f.alphaRelationship,
+      expectedVersion: 1,
+      reasonCode: 'patient_request',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'patients.access.resolve',
+    tool: 'patients_resolve_access',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/patients/${P(f)}/access?counterpartyRef=${f.alphaCounterparty}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ patientRef: P(f), counterpartyRef: f.alphaCounterparty }),
+  },
 ];
 
 beforeAll(async () => {
@@ -200,7 +269,27 @@ beforeAll(async () => {
     payload: JSON.stringify(patientBody('Synthetic Harness Patient')),
   });
   expect(created.statusCode).toBe(201);
-  fixture = { alphaPatient: created.json().data.patientRef };
+  const owner = (url: string, body: unknown) =>
+    app.inject({
+      method: 'POST',
+      url,
+      headers: {
+        authorization: `Bearer ${rest.owner}`,
+        'content-type': 'application/json',
+        'idempotency-key': randomUUID(),
+      },
+      payload: JSON.stringify(body),
+    });
+  const alphaPatient = created.json().data.patientRef;
+  const counterparty = await owner('/v1/patients', patientBody('Synthetic Harness Counterparty'));
+  const alphaCounterparty = counterparty.json().data.patientRef;
+  const rel = await owner(`/v1/patients/${alphaPatient}/relationships`, {
+    counterpartyRef: alphaCounterparty,
+    kind: 'guarantor',
+    scopes: ['financial'],
+  });
+  expect(rel.statusCode).toBe(201);
+  fixture = { alphaPatient, alphaCounterparty, alphaRelationship: rel.json().data.relationshipRef };
 });
 
 afterAll(async () => {
@@ -294,6 +383,7 @@ async function state(): Promise<string> {
   return [
     await q(`SELECT version FROM cuspatlas.patients WHERE id = '${fixture.alphaPatient}'`),
     await q('SELECT count(*)::int AS n FROM cuspatlas.patients'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.patient_relationships'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.audit_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.outbox_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.command_idempotency'),

@@ -52,6 +52,11 @@ const TOOL_NAMES = [
   'patients_search',
   'patients_set_status',
   'patients_update_demographics',
+  // S5 relationship tools.
+  'patients_add_relationship',
+  'patients_list_relationships',
+  'patients_resolve_access',
+  'patients_revoke_relationship',
 ].sort();
 
 let db: TestDatabase;

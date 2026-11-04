@@ -12,6 +12,7 @@ function idempotencyKey(request: FastifyRequest): string {
 }
 
 type PatientParams = { Params: { patientRef: string } };
+type RelationshipParams = { Params: { patientRef: string; relationshipRef: string } };
 
 /**
  * Thin REST adapter for patient identity (S4). Authenticates in `onRequest` before any body is
@@ -63,6 +64,54 @@ export function registerPatientRoutes(
         operation: 'patients.setStatus',
         idempotencyKey: idempotencyKey(request),
         payload: request.body,
+      }),
+  );
+
+  // S5 relationships.
+  app.post<PatientParams>(
+    routeFor('patients.relationships.add').fastifyPath,
+    on('patients.relationships.add'),
+    async (request, reply) => {
+      const result = await svc.addRelationship(requireActor(request), request.params.patientRef, {
+        operation: 'patients.relationships.add',
+        idempotencyKey: idempotencyKey(request),
+        payload: request.body,
+      });
+      return reply.code(201).send(result);
+    },
+  );
+
+  app.get<PatientParams>(
+    routeFor('patients.relationships.list').fastifyPath,
+    on('patients.relationships.list'),
+    async (request) =>
+      svc.listRelationships(requireActor(request), request.params.patientRef, {
+        ...(request.query as object),
+      }),
+  );
+
+  app.post<RelationshipParams>(
+    routeFor('patients.relationships.revoke').fastifyPath,
+    on('patients.relationships.revoke'),
+    async (request) =>
+      svc.revokeRelationship(
+        requireActor(request),
+        request.params.patientRef,
+        request.params.relationshipRef,
+        {
+          operation: 'patients.relationships.revoke',
+          idempotencyKey: idempotencyKey(request),
+          payload: request.body,
+        },
+      ),
+  );
+
+  app.get<PatientParams>(
+    routeFor('patients.access.resolve').fastifyPath,
+    on('patients.access.resolve'),
+    async (request) =>
+      svc.resolvePatientAccess(requireActor(request), request.params.patientRef, {
+        ...(request.query as object),
       }),
   );
 }

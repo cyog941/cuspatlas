@@ -7,6 +7,7 @@ import {
   type Patient,
   type PatientCreate,
   type PatientDemographicsUpdate,
+  type PatientReadQuery,
   type PatientSearch,
   type PatientStatusChange,
   type PatientSummary,
@@ -24,6 +25,7 @@ import {
 import { recordCommand } from '../events/record-command';
 import { recordSensitiveRead } from '../events/record-sensitive-read';
 import { assertLocation } from '../policy/authorize';
+import { requireRelationshipScope } from '../policy/patient-access';
 import {
   applyUpdate,
   checkIdentityInput,
@@ -203,6 +205,11 @@ export function createIdentityCommands(s: PatientServiceContext) {
         checkIdentityInput(payload);
         return deps.withTenantTransaction(ctx, async (tx) => {
           const current = await loadPatient(tx, patientRef, 'FOR UPDATE');
+          // S5: acting for a related person is authorization, rechecked fresh before the executor so a
+          // replay after revocation is denied too.
+          if (payload.requestedBy !== undefined) {
+            await requireRelationshipScope(tx, patientRef, payload.requestedBy, 'demographics');
+          }
           return summaryOf(
             tx,
             await execute<Ack>(
@@ -217,7 +224,11 @@ export function createIdentityCommands(s: PatientServiceContext) {
                   });
                 }
                 assertNotMerged(current);
-                const next = applyUpdate(recordOf(current), payload);
+                const next = applyUpdate(
+                  recordOf(current),
+                  payload,
+                  payload.requestedBy === undefined ? 'staff_entry' : 'guardian_reported',
+                );
                 const params = identityParams(next);
                 const n = PATIENT_WRITE_COLUMNS.length;
                 const { rows } = await tx.query<PatientRow>(
@@ -315,12 +326,15 @@ export function createIdentityCommands(s: PatientServiceContext) {
     readPatient(ctx: ActorContext, patientRef: string, query: unknown = {}): Promise<Patient> {
       return guarded(ctx, 'patients.read', async () => {
         await deps.authorize(ctx, 'patients.read', { tenantId: ctx.tenantId, id: patientRef });
-        assertValid<Record<string, unknown>>(validatePatientReadQuery, query, PATIENT_PROPERTIES);
+        assertValid<PatientReadQuery>(validatePatientReadQuery, query, PATIENT_PROPERTIES);
         if (!validatePatientRef(patientRef)) throw notFound();
         return deps.withTenantTransaction(ctx, async (tx) => {
           const row = await loadPatient(tx, patientRef);
           // A merged record is reachable only through its merge history (S6).
           assertNotMerged(row);
+          if (query.requestedBy !== undefined) {
+            await requireRelationshipScope(tx, patientRef, query.requestedBy, 'demographics');
+          }
           await recordSensitiveRead(tx, {
             operation: 'patients.read',
             resourceType: PATIENT_RESOURCE,

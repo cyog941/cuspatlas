@@ -177,10 +177,16 @@ const PATIENT_PATH_REFS = ['patientRef', 'relationshipRef', 'mergeRef'];
 /** REST GET routes take their arguments from the query; this maps them to the contract shape. */
 const PATIENT_QUERIES: Record<string, string> = {
   'patients.read': 'PatientReadQuery',
+  'patients.relationships.list': 'RelationshipListQuery',
+  'patients.access.resolve': 'PatientAccessQuery',
 };
 const PATIENT_TOOL_NAMES = [
+  'patients_add_relationship',
   'patients_create',
   'patients_get',
+  'patients_list_relationships',
+  'patients_resolve_access',
+  'patients_revoke_relationship',
   'patients_search',
   'patients_set_status',
   'patients_update_demographics',

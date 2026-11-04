@@ -26,4 +26,6 @@ export const PATIENT_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<StoredRe
   'patients.create': refCodec('patientRef'),
   'patients.updateDemographics': refCodec('patientRef'),
   'patients.setStatus': refCodec('patientRef'),
+  'patients.relationships.add': refCodec('relationshipRef'),
+  'patients.relationships.revoke': refCodec('relationshipRef'),
 };

@@ -154,6 +154,41 @@ export const ROUTES: readonly RouteContract[] = [
     success: { status: '200', schema: 'patient:PatientCommandResult' },
     refusals: ['400', '401', '403', '404', '409', '422', '503'],
   },
+  // S5 relationships.
+  {
+    method: 'post',
+    path: '/v1/patients/{patientRef}/relationships',
+    operationId: 'patients.relationships.add',
+    protected: true,
+    requestBody: 'patient:RelationshipCreate',
+    success: { status: '201', schema: 'patient:RelationshipCommandResult' },
+    refusals: ['400', '401', '403', '404', '409', '422', '503'],
+  },
+  {
+    method: 'get',
+    path: '/v1/patients/{patientRef}/relationships',
+    operationId: 'patients.relationships.list',
+    protected: true,
+    success: { status: '200', schema: 'patient:RelationshipList' },
+    refusals: ['400', '401', '403', '404', '503'],
+  },
+  {
+    method: 'post',
+    path: '/v1/patients/{patientRef}/relationships/{relationshipRef}/revoke',
+    operationId: 'patients.relationships.revoke',
+    protected: true,
+    requestBody: 'patient:RelationshipRevoke',
+    success: { status: '200', schema: 'patient:RelationshipCommandResult' },
+    refusals: ['400', '401', '403', '404', '409', '503'],
+  },
+  {
+    method: 'get',
+    path: '/v1/patients/{patientRef}/access',
+    operationId: 'patients.access.resolve',
+    protected: true,
+    success: { status: '200', schema: 'patient:PatientAccessRead' },
+    refusals: ['400', '401', '403', '404', '503'],
+  },
 ];
 
 export function routeFor(operationId: string): RouteContract & { fastifyPath: string } {

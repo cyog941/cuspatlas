@@ -14,6 +14,7 @@ import {
   type PatientSummary,
   type PreferredName,
   type Pronouns,
+  type Provenance,
   type ProvenanceMap,
   RefusalError,
   type Unknown,
@@ -215,9 +216,13 @@ export function recordFromCreate(p: PatientCreate): IdentityRecord {
 }
 
 /** Applies an update: provided groups replace the stored ones; nothing else changes. */
-export function applyUpdate(current: IdentityRecord, p: Partial<PatientCreate>): IdentityRecord {
+export function applyUpdate(
+  current: IdentityRecord,
+  p: Partial<PatientCreate>,
+  defaultProvenance: Provenance = 'staff_entry',
+): IdentityRecord {
   const provenance: ProvenanceMap = { ...current.provenance };
-  for (const g of groupsIn(p)) provenance[g] = p.provenance?.[g] ?? 'staff_entry';
+  for (const g of groupsIn(p)) provenance[g] = p.provenance?.[g] ?? defaultProvenance;
   return {
     legalName: p.legalName ?? current.legalName,
     preferredName: p.preferredName ?? current.preferredName,

@@ -134,6 +134,12 @@ export const SECURITY_REASON_CODES = [
   'request_invalid',
   'idempotency_conflict',
   'proposal_refused',
+  // S5: relationship authority (guardian, guarantor, proxy) evaluated at command time.
+  'relationship_missing',
+  'relationship_pending',
+  'relationship_expired',
+  'relationship_revoked',
+  'relationship_scope_missing',
 ] as const;
 export type SecurityReasonCode = (typeof SECURITY_REASON_CODES)[number];
 

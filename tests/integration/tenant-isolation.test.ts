@@ -107,6 +107,8 @@ describe('runtime database role', () => {
       'delivery_receipts',
       'memberships',
       'outbox_events',
+      'patient_policy_settings',
+      'patient_relationships',
       'patient_status_history',
       'patients',
       'principals',
@@ -134,6 +136,8 @@ describe('runtime database role', () => {
       'patients',
       'patient_status_history',
       'sensitive_read_events',
+      'patient_policy_settings',
+      'patient_relationships',
     ]) {
       const { rows } = await db.app.query(`SELECT count(*)::int AS n FROM cuspatlas.${t}`);
       expect([t, rows[0].n]).toStrictEqual([t, 0]);

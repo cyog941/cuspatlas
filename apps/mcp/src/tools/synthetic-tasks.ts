@@ -120,6 +120,7 @@ const KNOWN_PROPERTIES: ReadonlySet<string> = new Set([
   'idempotencyKey',
   'proposalRef',
   'patientRef',
+  'relationshipRef',
 ]);
 
 const ajv = createAjv();

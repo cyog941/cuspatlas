@@ -4,6 +4,7 @@ import { executeOnce } from '../commands/execute-once';
 import { createCursorCodec } from '../cursor';
 import type { ActionName } from '../policy/authorize';
 import { createIdentityCommands } from './identity';
+import { createRelationshipCommands } from './relationships';
 import type { PatientServiceContext, PatientServiceDeps } from './service-context';
 
 /**
@@ -23,7 +24,7 @@ export function createPatientService(deps: PatientServiceDeps) {
       );
     },
   };
-  return { ...createIdentityCommands(s) };
+  return { ...createIdentityCommands(s), ...createRelationshipCommands(s) };
 }
 
 export type PatientService = ReturnType<typeof createPatientService>;

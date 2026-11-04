@@ -73,6 +73,10 @@ export const PATIENT_BODIES = [
   'PatientStatusChange',
   'PatientReadQuery',
   'PatientSearch',
+  'RelationshipCreate',
+  'RelationshipRevoke',
+  'RelationshipListQuery',
+  'PatientAccessQuery',
 ] as const;
 
 /**

@@ -245,6 +245,59 @@ export const ENGAGEMENT_OPS: readonly EngagementOp[] = [
       'Recall enrollments of a category with their S16 due item (policy version, due date, qualifying event).',
     invoke: (svc, actor, i) => data(svc.listRecallEnrollments(actor, i.body)),
   },
+  // E7 delivery: worklist, read, staff resolution and provider receipts (fake provider only).
+  {
+    method: 'get',
+    path: '/v1/communications/deliveries/worklist',
+    operationId: 'communications.deliveries.worklist',
+    protected: true,
+    query: 'EmptyQuery',
+    success: { status: '200', schema: 'scheduling:WorkItemList' },
+    refusals: ['400', '401', '403', '503'],
+    tool: 'communications_deliveries_worklist',
+    description:
+      'Failed and unknown deliveries as owned work items (reason, explanation, evidence, queue, due time, next action). Unknown outcomes are never resent automatically.',
+    invoke: (svc, actor, i) => data(svc.deliveryWorklist(actor, i.body)),
+  },
+  {
+    method: 'get',
+    path: '/v1/communications/deliveries/{messageRef}',
+    operationId: 'communications.deliveries.read',
+    protected: true,
+    success: { status: '200', schema: E('EngagementRead') },
+    refusals: ['401', '403', '404', '503'],
+    tool: 'communications_deliveries_get',
+    description:
+      'One outbound message: state, the E6 decisions at intent and send time, every attempt and every receipt (never the body or recipient).',
+    invoke: (svc, actor, i) => data(svc.readDelivery(actor, param(i, 'messageRef'))),
+  },
+  {
+    method: 'post',
+    path: '/v1/communications/deliveries/{messageRef}/resolve',
+    operationId: 'communications.deliveries.resolve',
+    protected: true,
+    requestBody: E('DeliveryResolve'),
+    success: { status: '200', schema: E('EngagementCommandResult') },
+    refusals: COMMAND,
+    tool: 'communications_deliveries_resolve',
+    description:
+      'Resolve a failed or unknown delivery: resend with the same delivery key (E6 decides again at send time) or abandon. Human staff only.',
+    invoke: (svc, actor, i) =>
+      svc.resolveDelivery(actor, param(i, 'messageRef'), env('communications.deliveries.resolve', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/communications/receipts',
+    operationId: 'communications.receipts.record',
+    protected: true,
+    requestBody: E('ReceiptInput'),
+    success: { status: '200', schema: E('EngagementCommandResult') },
+    refusals: COMMAND,
+    tool: 'communications_receipts_record',
+    description:
+      'Record a normalized provider receipt (receipts integration principal only). Deduplicated on the provider event, monotonic, and never resurrects a suppressed or abandoned message.',
+    invoke: (svc, actor, i) => svc.recordReceipt(actor, env('communications.receipts.record', i)),
+  },
 ];
 
 export const ENGAGEMENT_OP_ROUTES: readonly RouteContract[] = ENGAGEMENT_OPS.map((o) => ({

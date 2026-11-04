@@ -5,7 +5,9 @@ import {
   createSecurityAttemptSink,
   createTenantTransactionRunner,
 } from '@cuspatlas/db';
+import { createAuthorize } from '@cuspatlas/domain';
 import { buildMcpServer } from '@cuspatlas/mcp';
+import { createOutboundSender } from '@cuspatlas/worker';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -18,7 +20,10 @@ import {
   MCP_AUDIENCE,
   openEngagementHarness,
   PORTAL_AUDIENCE,
+  SVC_R1,
+  SVC_W1,
 } from './support/engagement-fixtures';
+import { FakeMessaging } from './support/fake-messaging';
 import { T_ALPHA, T_BETA, USER_A1, USER_A2, USER_A4, USER_B1 } from './support/fixtures';
 import { MARKER } from './support/marker';
 import { USER_A5 } from './support/patient-fixtures';
@@ -55,6 +60,10 @@ interface HarnessCommand {
   readonly tool: string;
   readonly crossTenant: 'not_found' | 'own_tenant_only' | 'tenant_own_data';
   readonly downgradedTo: 'readOnly' | 'noScopes';
+  /** Per-dimension expectation overrides (a service-only command refuses people by principal kind). */
+  readonly expect?: Partial<
+    Record<'crossTenant' | 'revoked' | 'downgraded', { status: number; code: string; reason: string }>
+  >;
   rest(f: Fixture): RestCall;
   mcpArgs(f: Fixture): Record<string, unknown>;
 }
@@ -309,6 +318,77 @@ export const COMMANDS: HarnessCommand[] = [
     }),
     mcpArgs: () => ({ category: 'e-harness-recall' }),
   },
+  // E7 delivery: worklist, read, staff resolution and receipt ingestion (service principal only).
+  {
+    operation: 'communications.deliveries.worklist',
+    tool: 'communications_deliveries_worklist',
+    crossTenant: 'tenant_own_data',
+    downgradedTo: 'noScopes',
+    rest: () => ({ method: 'GET', url: '/v1/communications/deliveries/worklist', keyed: false, status: 200 }),
+    mcpArgs: () => ({}),
+  },
+  {
+    operation: 'communications.deliveries.read',
+    tool: 'communications_deliveries_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/communications/deliveries/${f.message}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ messageRef: f.message }),
+  },
+  {
+    operation: 'communications.deliveries.resolve',
+    tool: 'communications_deliveries_resolve',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/communications/deliveries/${f.message}/resolve`,
+      body: { expectedVersion: 1, action: 'abandon' },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({
+      messageRef: f.message,
+      expectedVersion: 1,
+      action: 'abandon',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'communications.receipts.record',
+    tool: 'communications_receipts_record',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    // Receipts come from the provider-integration service principal only: people are refused by kind.
+    expect: {
+      crossTenant: { status: 403, code: 'forbidden', reason: 'principal_kind_denied' },
+      downgraded: { status: 403, code: 'forbidden', reason: 'principal_kind_denied' },
+    },
+    rest: (f) => ({
+      method: 'POST',
+      url: '/v1/communications/receipts',
+      body: {
+        providerRef: f.providerRef,
+        providerEventId: 'e-harness-evt',
+        state: 'delivered',
+        occurredAt: '2030-01-01T00:00:00Z',
+      },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({
+      providerRef: f.providerRef,
+      providerEventId: 'e-harness-evt',
+      state: 'delivered',
+      occurredAt: '2030-01-01T00:00:00Z',
+      idempotencyKey: randomUUID(),
+    }),
+  },
 ];
 
 /** Every portal-audience route (E1-E3, E6). */
@@ -467,7 +547,64 @@ beforeAll(async () => {
     }),
     201,
   );
+  // E7 fixtures: a channel policy, a consenting patient and one message sent through the fake provider.
+  h.ok(
+    await h.call('a1', 'POST', '/v1/communications/templates', {
+      ...TEMPLATE,
+      templateRef: 'e-harness-cancel',
+      purpose: 'cancellation',
+    }),
+    201,
+  );
+  h.ok(
+    await h.call('a1', 'POST', '/v1/communications/channel-policies', {
+      purpose: 'cancellation',
+      channel: 'email',
+      templateRef: 'e-harness-cancel',
+      quietHours: { start: '23:00', end: '05:00' },
+    }),
+    201,
+  );
+  h.ok(await h.call('a1', 'POST', `/v1/patients/${parent}/consents`, CONSENT), 201);
+  const toCancel = h.ok<{ data: { appointmentRef: string } }>(
+    await h.call('a1', 'POST', '/v1/scheduling/appointments', {
+      patientRef: parent,
+      locationRef: loc.locationRef,
+      startsAt: '2030-02-11T14:00:00Z',
+      endsAt: '2030-02-11T15:00:00Z',
+      timeZone: 'America/New_York',
+      provider: { kind: 'provider', resourceRef: loc.provider },
+      operatory: { kind: 'operatory', resourceRef: loc.operatory },
+    }),
+    201,
+  ).data.appointmentRef;
+  h.ok(
+    await h.call('a1', 'POST', `/v1/scheduling/appointments/${toCancel}/cancel`, {
+      expectedVersion: 1,
+      reasonCode: 'patient_request',
+    }),
+  );
+  const port = new FakeMessaging();
+  await createOutboundSender({
+    workerPrincipalId: SVC_W1,
+    withTenantTransaction: createTenantTransactionRunner(db.app),
+    authorize: createAuthorize(createMembershipSource(db.app)),
+    memberships: createMembershipSource(db.app),
+    attempts: createSecurityAttemptSink(db.sink),
+    port,
+    clock: () => new Date('2030-07-10T17:00:00Z'),
+  }).runOnce(T_ALPHA);
+  const sent = (
+    await db.admin.query(
+      `SELECT m.id, m.provider_ref FROM cuspatlas.outbound_messages m JOIN cuspatlas.notification_intents i
+       ON i.id = m.intent_id WHERE i.subject_id = $1 AND i.purpose = 'cancellation'`,
+      [toCancel],
+    )
+  ).rows[0];
+  expect(sent?.provider_ref).toMatch(/^fake-msg-/);
   fixture = {
+    message: sent.id as string,
+    providerRef: sent.provider_ref as string,
     decision,
     parent,
     child,
@@ -582,6 +719,8 @@ type Dimension = 'crossTenant' | 'revoked' | 'downgraded';
 const DIMENSIONS: Dimension[] = ['crossTenant', 'revoked', 'downgraded'];
 
 function expected(cmd: HarnessCommand, d: Dimension) {
+  const override = cmd.expect?.[d];
+  if (override) return override;
   if (d === 'revoked') return { status: 403, code: 'forbidden', reason: 'membership_inactive' };
   if (d === 'downgraded') return { status: 403, code: 'forbidden', reason: 'scope_missing' };
   if (cmd.crossTenant === 'not_found')
@@ -623,17 +762,20 @@ describe('E negative harness: every E staff command, every dimension, REST and M
     for (const cmd of COMMANDS) {
       const call = cmd.rest(fixture);
       if (call.body === undefined) continue;
-      const r = await viaRest(rest.owner as string, {
+      // The receipts command is authorized for its integration principal; people never reach validation.
+      const service = cmd.operation === 'communications.receipts.record';
+      const restToken = service
+        ? await h.issuer.issue({ sub: SVC_R1, tid: T_ALPHA })
+        : (rest.owner as string);
+      const mcpToken = service
+        ? await h.issuer.issue({ sub: SVC_R1, tid: T_ALPHA, audience: MCP_AUDIENCE })
+        : (mcpTokens.owner as string);
+      const r = await viaRest(restToken, {
         ...call,
         body: { ...(call.body as object), tenantId: T_BETA },
       });
       expect([cmd.operation, r.status]).toStrictEqual([cmd.operation, 400]);
-      const m = await viaMcp(
-        mcpTokens.owner as string,
-        cmd.tool,
-        { ...cmd.mcpArgs(fixture), tenantId: T_BETA },
-        200,
-      );
+      const m = await viaMcp(mcpToken, cmd.tool, { ...cmd.mcpArgs(fixture), tenantId: T_BETA }, 200);
       expect([cmd.operation, m.code]).toStrictEqual([cmd.operation, 'invalid_request']);
     }
     expect(h.logLines.join('\n')).not.toContain(MARKER);

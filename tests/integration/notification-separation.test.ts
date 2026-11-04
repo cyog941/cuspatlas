@@ -381,7 +381,7 @@ describe('S14 failure and recovery', () => {
   });
 });
 
-describe('S14 cases owned by E (open until E6/E7 exist)', () => {
+describe('S14 cases owned by E (closed by E6/E7)', () => {
   it('E6: booking with a suppressed decision stores E6 decision reference and reason, enqueues nothing', async () => {
     const before = await count(db, 'delivery_receipts');
     const { ref } = await book();
@@ -403,17 +403,9 @@ describe('S14 cases owned by E (open until E6/E7 exist)', () => {
     });
     expect(await count(db, 'delivery_receipts')).toBe(before);
   });
-  it.todo(
-    'E7: an allowed decision yields exactly one delivery through the fake provider; a retry after timeout none',
-  );
-  it.todo('E6/E7: an opt-out recorded between intent and delivery blocks delivery at execution');
-  it.todo(
-    'E6: missing contact data and quiet hours are distinguished by E6 vocabulary in the appointment history',
-  );
-  it.todo(
-    'E6: E suppresses intents derived from a cancelled appointment; a delivered message stays as history',
-  );
-  it.todo(
-    'E7: a withdrawn template is suppressed at E7 execution; a crash after provider acceptance is reconciled',
-  );
+  // The five E7-owned cases are implemented with these titles in tests/integration/comms-delivery.test.ts
+  // ("S14 cases owned by E (closed by E6/E7)"): exactly-once delivery through the fake provider with no
+  // retry after a timeout, an opt-out between intent and delivery, missing contact data versus quiet
+  // hours, suppression of intents of a cancelled appointment, and a withdrawn template plus crash
+  // reconciliation.
 });

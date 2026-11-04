@@ -311,6 +311,25 @@ export interface DecisionDescription {
   readonly decidedAt: string;
 }
 
+/** The S14 intent read reports E7's delivery state through this function. */
+export async function describeDelivery(
+  tx: TenantTransaction,
+  intentId: string,
+  decided: 'allowed' | 'suppressed' | null,
+): Promise<{ owner: 'E7'; state: string; messageRef: string | null }> {
+  const { rows } = await tx.query<{ id: string; state: string }>(
+    'SELECT id, state FROM cuspatlas.outbound_messages WHERE intent_id = $1',
+    [intentId],
+  );
+  const m = rows[0];
+  if (m) return { owner: 'E7', state: m.state, messageRef: m.id };
+  return {
+    owner: 'E7',
+    state: decided === 'allowed' ? 'not_queued' : 'not_sent_no_verified_channel',
+    messageRef: null,
+  };
+}
+
 /** The S14 intent read reports the decision through this function (E6 owns its shape). */
 export async function describeDecision(
   tx: TenantTransaction,

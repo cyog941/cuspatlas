@@ -106,3 +106,6 @@ export const validateTemplateWithdraw = def('TemplateWithdraw');
 export const validateSuppressionPreviewQuery = def('SuppressionPreviewQuery');
 export const validateRecallEnroll = def('RecallEnroll');
 export const validateRecallEnrollmentsQuery = def('RecallEnrollmentsQuery');
+// E7 delivery.
+export const validateDeliveryResolve = def('DeliveryResolve');
+export const validateReceiptInput = def('ReceiptInput');

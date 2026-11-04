@@ -162,6 +162,13 @@ export const ACTION_POLICIES = {
   'communications.suppression.preview': { scope: 'communications.read', principals: ['human', 'service'] },
   'communications.recall.enroll': { scope: 'communications.write', principals: ['human', 'service'] },
   'communications.recall.enrollments': { scope: 'communications.read', principals: ['human', 'service'] },
+  // E7 delivery: the messaging worker's own principal (service only), receipt ingestion by the
+  // provider-integration principal (service only), and the staff delivery worklist and resolution.
+  'communications.deliver': { scope: 'communications.deliver', principals: ['service'] },
+  'communications.receipts.record': { scope: 'communications.receipts', principals: ['service'] },
+  'communications.deliveries.worklist': { scope: 'communications.read', principals: ['human', 'service'] },
+  'communications.deliveries.read': { scope: 'communications.read', principals: ['human', 'service'] },
+  'communications.deliveries.resolve': { scope: 'communications.write', principals: ['human'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

@@ -3147,7 +3147,8 @@
             "recall_due",
             "recall_task_open",
             "request_unbooked",
-            "request_booking_lost"
+            "request_booking_lost",
+            "delivery_exception"
           ]
         },
         "reasonCode": {
@@ -3440,7 +3441,21 @@
                   "const": "E7"
                 },
                 "state": {
-                  "const": "not_sent_no_verified_channel"
+                  "enum": [
+                    "not_sent_no_verified_channel",
+                    "not_queued",
+                    "queued",
+                    "sending",
+                    "sent",
+                    "delivered",
+                    "failed",
+                    "suppressed",
+                    "unknown",
+                    "abandoned"
+                  ]
+                },
+                "messageRef": {
+                  "anyOf": [{ "$ref": "#/$defs/EntityRef" }, { "type": "null" }]
                 }
               }
             },

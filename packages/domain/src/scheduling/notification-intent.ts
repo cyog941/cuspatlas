@@ -11,7 +11,11 @@ import {
   validateSchedulingEntityRef,
   type WorkItemListData,
 } from '@cuspatlas/contracts';
-import { decideForIntent, describeDecision } from '../engagement/communications/suppression';
+import {
+  decideForIntent,
+  describeDecision,
+  describeDelivery,
+} from '../engagement/communications/suppression';
 import { recordCommand } from '../events/record-command';
 import { assertLocation } from '../policy/authorize';
 import { AVAILABLE, workItem, workList } from '../work-items';
@@ -155,6 +159,7 @@ export function createNotificationOperations(base: AppointmentBase) {
           if (!r) throw notFound();
           assertVisibleLocation(decision, r.location_ref);
           const decided = await describeDecision(tx, r.suppression_decision_ref);
+          const delivery = await describeDelivery(tx, r.id, decided?.state ?? null);
           return {
             intentRef: r.id,
             subjectKind: r.subject_kind,
@@ -188,7 +193,7 @@ export function createNotificationOperations(base: AppointmentBase) {
                         ? 'E6 allowed delivery when the intent was recorded; consent, opt-out and quiet hours are rechecked at send time.'
                         : 'E6 suppressed delivery when the intent was recorded; the reason is from the single suppression vocabulary.',
                   },
-            delivery: { owner: 'E7', state: 'not_sent_no_verified_channel' },
+            delivery,
             createdAt: r.created_at.toISOString(),
           };
         });
@@ -207,6 +212,8 @@ export function createNotificationOperations(base: AppointmentBase) {
             `${INTENT_SELECT}
              WHERE i.channel = 'none'
                AND NOT EXISTS (SELECT 1 FROM cuspatlas.notification_intents n WHERE n.superseded_intent_id = i.id)
+               AND NOT EXISTS (SELECT 1 FROM cuspatlas.suppression_decisions d
+                 WHERE d.id = i.suppression_decision_ref AND d.outcome = 'allowed')
                AND ($1::text[] IS NULL OR l.location_ref = ANY ($1::text[]))
                AND ($2::text IS NULL OR l.location_ref = $2)
              ORDER BY i.due_at NULLS LAST, i.id LIMIT 500`,

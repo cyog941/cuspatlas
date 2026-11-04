@@ -17,6 +17,8 @@ const E_OPERATIONS = [
   'communications.templates.define',
   'communications.templates.withdraw',
   'communications.recall.enroll',
+  'communications.deliveries.resolve',
+  'communications.receipts.record',
 ] as const;
 
 // biome-ignore lint/suspicious/noExplicitAny: codecs are heterogeneous per operation.

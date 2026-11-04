@@ -721,7 +721,9 @@ export type WorkItemKind =
   | 'recall_due'
   | 'recall_task_open'
   | 'request_unbooked'
-  | 'request_booking_lost';
+  | 'request_booking_lost'
+  // E7: a failed or unknown delivery (owned by E; listed by communications.deliveries.worklist).
+  | 'delivery_exception';
 export interface WorkItem {
   readonly workItemRef: string;
   readonly kind: WorkItemKind;
@@ -778,7 +780,8 @@ export interface NotificationIntentRecord {
     readonly reason: string | null;
     readonly statement: string;
   };
-  readonly delivery: { readonly owner: 'E7'; readonly state: 'not_sent_no_verified_channel' };
+  /** E7's delivery state: its outbound message, or why there is none. */
+  readonly delivery: { readonly owner: 'E7'; readonly state: string; readonly messageRef?: string | null };
   readonly createdAt: string;
 }
 export const validateNotificationWorklistQuery = def('NotificationWorklistQuery');

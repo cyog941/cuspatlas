@@ -513,6 +513,42 @@
           "pattern": "^[a-z0-9-]{1,64}$"
         }
       }
+    },
+    "DeliveryResolve": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "action"],
+      "description": "E7 staff resolution of a failed or unknown delivery: resend with the same delivery key, or abandon.",
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "action": {
+          "enum": ["resend", "abandon"]
+        }
+      }
+    },
+    "ReceiptInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["providerRef", "providerEventId", "state", "occurredAt"],
+      "description": "E7 provider receipt (normalized; never a message body). Deduplicated on providerEventId; monotonic.",
+      "properties": {
+        "providerRef": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._:-]{1,128}$"
+        },
+        "providerEventId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._:-]{1,128}$"
+        },
+        "state": {
+          "enum": ["delivered", "failed", "bounced"]
+        },
+        "occurredAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
     }
   }
 }

@@ -3789,6 +3789,375 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/clinical/referrals:
+    post:
+      operationId: clinical.referrals.create
+      description: >-
+        Record a referral (C17, C-D10 recommended: record-keeping and print/export only). An outgoing referral needs the configured disclosure consent (409 disclosure_consent_required; 409 referral_policy_unconfigured without a policy); an incoming one starts received. A possible duplicate (same patient, direction, counterparty and reason, still open) is 409 referral_possible_duplicate unless confirmDuplicate. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ReferralCreate'
+      responses:
+        '201':
+          description: Referral recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ReferralCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/referrals/worklist:
+    get:
+      operationId: clinical.referrals.worklist
+      description: >-
+        PT-03 referral responses, exception first: responses owed past their due date (referral_response_due) and confirmed possible duplicates (referral_review), on the shared work-item model. A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/ReferralWorklistAsOf'
+      responses:
+        '200':
+          description: The work items.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/WorkItemList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/referrals/{referralRef}:
+    get:
+      operationId: clinical.referrals.read
+      description: >-
+        One referral with its selection, share records, responses with provenance and event trail. A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/ReferralRef'
+      responses:
+        '200':
+          description: The referral.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ReferralRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/referrals/{referralRef}/export:
+    get:
+      operationId: clinical.referrals.export
+      description: >-
+        The printable referral package under its live share record (references only; C-D10: nothing is transmitted). 409 without a covering live share. A sensitive read by a person. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/ReferralRef'
+      responses:
+        '200':
+          description: The package.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ReferralExport'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/referrals/{referralRef}/package:
+    post:
+      operationId: clinical.referrals.preparePackage
+      description: >-
+        Record the explicit selection of record references (all of the referral patient: 422 selectionNotOfPatient otherwise; all or nothing). Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/ReferralRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ReferralPackage'
+      responses:
+        '200':
+          description: Selection recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ReferralCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/referrals/{referralRef}/shares:
+    post:
+      operationId: clinical.referrals.recordShare
+      description: >-
+        Record the share record any cross-practice disclosure needs: purpose, scope (record kinds) and expiry (422 expiresInPast). Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/ReferralRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ReferralShareCreate'
+      responses:
+        '201':
+          description: Share record recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ReferralCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/referrals/{referralRef}/sent:
+    post:
+      operationId: clinical.referrals.markSent
+      description: >-
+        Record the hand-over by print or export. Needs the package (409 package_required), a live share covering every selected kind (409 share_record_required, share_expired, share_scope_exceeded) and the standing disclosure consent. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/ReferralRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ReferralSend'
+      responses:
+        '200':
+          description: Sent recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ReferralCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/referrals/{referralRef}/transmission-failures:
+    post:
+      operationId: clinical.referrals.recordTransmissionFailure
+      description: >-
+        Record a failed hand-over with an error code; the referral stays prepared (no false sent state). Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/ReferralRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ReferralTransmissionFailure'
+      responses:
+        '201':
+          description: Failure recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ReferralCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/referrals/{referralRef}/responses:
+    post:
+      operationId: clinical.referrals.recordResponse
+      description: >-
+        Record a response with its source and document references; a returned record is attributed to its source, never to the referring clinician. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/ReferralRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ReferralResponse'
+      responses:
+        '200':
+          description: Response recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ReferralCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/referrals/{referralRef}/close:
+    post:
+      operationId: clinical.referrals.close
+      description: >-
+        Close an open referral with a reason (an unsent outgoing one is cancelled). Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/ReferralRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ReferralClose'
+      responses:
+        '200':
+          description: Referral closed.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ReferralCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/referrals/{referralRef}/recall:
+    post:
+      operationId: clinical.referrals.recall
+      description: >-
+        Recall a sent referral: a correction with a reason; the sent event stays. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/ReferralRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ReferralRecall'
+      responses:
+        '200':
+          description: Recall recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ReferralCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/patients/{patientRef}/referrals:
+    get:
+      operationId: clinical.referrals.list
+      description: >-
+        A patient's referrals (a merged patient's referrals follow the survivor). A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/PatientRef'
+      responses:
+        '200':
+          description: The referrals.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ReferralList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   /v1/scheduling/appointments/{appointmentRef}/visit-context:
     get:
       operationId: scheduling.visitContext.read
@@ -5132,6 +5501,18 @@ components:
       schema:
         $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/LabCaseRef'
     LabWorklistAsOf:
+      name: asOf
+      in: query
+      required: false
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/Instant'
+    ReferralRef:
+      name: referralRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/ReferralRef'
+    ReferralWorklistAsOf:
       name: asOf
       in: query
       required: false

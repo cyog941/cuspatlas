@@ -96,6 +96,15 @@ export const CLINICAL_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<Clinica
   'clinical.labCases.recordReturn': refCodec('labCaseRef'),
   'clinical.labCases.attach': refCodec('labCaseRef'),
   'clinical.labCases.remake': refCodec('labCaseRef'),
+  // C17 referrals (the referral is re-read on replay).
+  'clinical.referrals.create': refCodec('referralRef'),
+  'clinical.referrals.preparePackage': refCodec('referralRef'),
+  'clinical.referrals.recordShare': refCodec('referralRef'),
+  'clinical.referrals.markSent': refCodec('referralRef'),
+  'clinical.referrals.recordTransmissionFailure': refCodec('referralRef'),
+  'clinical.referrals.recordResponse': refCodec('referralRef'),
+  'clinical.referrals.close': refCodec('referralRef'),
+  'clinical.referrals.recall': refCodec('referralRef'),
   // C9 note templates.
   'clinical.noteTemplates.define': refCodec('templateRef'),
   'clinical.noteTemplates.revise': refCodec('templateRef'),

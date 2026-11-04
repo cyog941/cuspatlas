@@ -46,6 +46,7 @@ export {
   RENDERED_PROCEDURE_RESOURCE,
   readLatestCompletedProcedures,
 } from './procedures';
+export { REFERRAL_EXPORT_FORMAT, REFERRAL_RESOURCE } from './referrals';
 export { type ClinicalService, createClinicalService } from './service';
 export {
   checkSurfaces,

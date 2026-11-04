@@ -421,3 +421,127 @@ export const validateLabCaseCommandResult = def('LabCaseCommandResult');
 export const validateLabCaseRead = def('LabCaseRead');
 export const validateLabCaseList = def('LabCaseList');
 export const validateLabCaseExport = def('LabCaseExport');
+
+// C17 referral records (C-D10 recommended: record-keeping and print/export; explicit share records).
+export type ReferralRecordKind =
+  | 'renderedProcedure'
+  | 'chartEntry'
+  | 'note'
+  | 'historyVersion'
+  | 'perioExam'
+  | 'planVersion'
+  | 'imageLink'
+  | 'labCase';
+export type ReferralState = 'prepared' | 'received' | 'sent' | 'responded' | 'closed' | 'cancelled';
+export type ReferralEventKind =
+  | 'created'
+  | 'package_prepared'
+  | 'share_recorded'
+  | 'sent'
+  | 'transmission_failed'
+  | 'response_recorded'
+  | 'closed'
+  | 'cancelled'
+  | 'recalled';
+export interface ReferralSelection {
+  readonly kind: ReferralRecordKind;
+  readonly ref: string;
+}
+export interface ReferralCreate {
+  readonly patientRef: string;
+  readonly direction: 'outgoing' | 'incoming';
+  readonly counterpartyRef: string;
+  readonly reasonCode: string;
+  readonly requestedScope: string;
+  readonly consentRef?: string;
+  readonly responseDueDate?: string;
+  readonly confirmDuplicate?: boolean;
+}
+export interface ReferralPackage {
+  readonly expectedVersion: number;
+  readonly selections: readonly ReferralSelection[];
+}
+export interface ReferralShareCreate {
+  readonly purposeCode: string;
+  readonly scope: readonly ReferralRecordKind[];
+  readonly expiresAt: string;
+}
+export interface ReferralSend {
+  readonly expectedVersion: number;
+  readonly channel: 'print' | 'export';
+}
+export interface ReferralTransmissionFailure {
+  readonly errorCode: string;
+}
+export interface ReferralResponse {
+  readonly expectedVersion: number;
+  readonly sourceRef: string;
+  readonly receivedDate: string;
+  readonly documentRefs?: readonly string[];
+}
+export interface ReferralClose {
+  readonly expectedVersion: number;
+  readonly reasonCode: string;
+}
+export type ReferralRecall = ReferralClose;
+export interface ReferralWorklistQuery {
+  readonly asOf?: string;
+}
+export interface Referral {
+  readonly referralRef: string;
+  readonly patientRef: string;
+  readonly sourcePatientRef: string;
+  readonly direction: 'outgoing' | 'incoming';
+  readonly counterpartyRef: string;
+  readonly reasonCode: string;
+  readonly requestedScope: string;
+  readonly consentRef: string | null;
+  readonly responseDueDate: string | null;
+  readonly possibleDuplicateOf: string | null;
+  readonly state: ReferralState;
+  readonly responseOverdue: boolean;
+  readonly selections: readonly ReferralSelection[];
+  readonly shares: readonly {
+    readonly shareRef: string;
+    readonly purposeCode: string;
+    readonly scope: readonly ReferralRecordKind[];
+    readonly expiresAt: string;
+    readonly recordedBy: string;
+    readonly recordedAt: string;
+  }[];
+  readonly responses: readonly {
+    readonly sourceRef: string;
+    readonly receivedDate: string;
+    readonly documentRefs: readonly string[];
+    readonly attribution: 'external_source' | 'this_practice';
+    readonly recordedBy: string;
+    readonly recordedAt: string;
+  }[];
+  readonly events: readonly {
+    readonly sequence: number;
+    readonly kind: ReferralEventKind;
+    readonly fromState: ReferralState | null;
+    readonly toState: ReferralState;
+    readonly reasonCode: string | null;
+    readonly errorCode: string | null;
+    readonly channel: 'print' | 'export' | null;
+    readonly actorRef: string;
+    readonly at: string;
+  }[];
+  readonly createdBy: string;
+  readonly createdAt: string;
+  readonly version: number;
+}
+export const validateReferralCreate = def('ReferralCreate');
+export const validateReferralPackage = def('ReferralPackage');
+export const validateReferralShareCreate = def('ReferralShareCreate');
+export const validateReferralSend = def('ReferralSend');
+export const validateReferralTransmissionFailure = def('ReferralTransmissionFailure');
+export const validateReferralResponse = def('ReferralResponse');
+export const validateReferralClose = def('ReferralClose');
+export const validateReferralRecall = def('ReferralRecall');
+export const validateReferralWorklistQuery = def('ReferralWorklistQuery');
+export const validateReferralCommandResult = def('ReferralCommandResult');
+export const validateReferralRead = def('ReferralRead');
+export const validateReferralList = def('ReferralList');
+export const validateReferralExport = def('ReferralExport');

@@ -11,6 +11,7 @@ import { createNoteOperations } from './notes/notes';
 import { createNoteTemplateOperations } from './notes/templates';
 import { createPerioOperations } from './perio';
 import { createProcedureOperations } from './procedures';
+import { createReferralOperations } from './referrals';
 import { createTreatmentPlanOperations } from './treatment-plans';
 
 /**
@@ -32,6 +33,7 @@ export function createClinicalService(deps: ClinicalDeps) {
     ...createProcedureOperations(base),
     ...createImageLinkOperations(base),
     ...createLabCaseOperations(base),
+    ...createReferralOperations(base),
     ...createNoteTemplateOperations(base),
     ...createNoteOperations(base),
   };

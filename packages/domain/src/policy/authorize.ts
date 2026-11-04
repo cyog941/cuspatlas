@@ -173,6 +173,20 @@ export const ACTION_POLICIES = {
   'clinical.labCases.list': { scope: 'clinical.read', principals: ['human', 'service'] },
   'clinical.labCases.worklist': { scope: 'clinical.read', principals: ['human', 'service'] },
   'clinical.labCases.export': { scope: 'clinical.read', principals: ['human'] },
+  // C17 referrals (C-D10 recommended): every referral write is a human clinical author's; reads and the
+  // worklist are sensitive reads; the export (a disclosure under a share record) is a person's.
+  'clinical.referrals.create': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.referrals.preparePackage': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.referrals.recordShare': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.referrals.markSent': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.referrals.recordTransmissionFailure': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.referrals.recordResponse': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.referrals.close': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.referrals.recall': { scope: 'clinical.write', principals: ['human'] },
+  'clinical.referrals.read': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.referrals.list': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.referrals.worklist': { scope: 'clinical.read', principals: ['human', 'service'] },
+  'clinical.referrals.export': { scope: 'clinical.read', principals: ['human'] },
   // C9 progress-note templates (C-D4, recommended-pending-clinical-approval). Templates are practice
   // configuration (human admin only); reads need clinical.read.
   'clinical.noteTemplates.define': { scope: 'admin.configure', principals: ['human'] },

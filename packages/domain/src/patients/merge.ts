@@ -59,8 +59,9 @@ export interface MergeRecordClass {
     | 'clinical_consents'
     | 'appointment_series'
     | 'waitlist_entries'
-    // C16 lab cases (workstream C batch 4).
-    | 'clinical_lab_cases';
+    // C16 lab cases and C17 referrals (workstream C batch 4).
+    | 'clinical_lab_cases'
+    | 'clinical_referrals';
   readonly column: 'subject_patient_id' | 'counterparty_patient_id';
   /** Public name of the reference in the record's contract. */
   readonly referenceField: string;
@@ -265,6 +266,16 @@ export const MERGE_RECORD_CLASSES: readonly MergeRecordClass[] = [
       'updated_at',
     ],
   },
+  // C17: a referral follows its patient; selections, shares, events and responses reference the
+  // referral; the referral keeps its source patient. The state is lifecycle.
+  {
+    recordClass: 'clinicalReferral',
+    table: 'clinical_referrals',
+    column: 'subject_patient_id',
+    referenceField: 'patientRef',
+    factKind: 'clinical',
+    digestExclude: ['subject_patient_id', 'state', 'version', 'updated_at'],
+  },
 ];
 
 /** Foreign keys to patients that a merge deliberately does not move, with the reason. */
@@ -334,6 +345,11 @@ export const MERGE_EXCLUDED_REFERENCES: readonly { table: string; column: string
     table: 'clinical_lab_cases',
     column: 'origin_patient_id',
     why: 'the patient a lab case was recorded for is a historical fact (C16); the subject moves',
+  },
+  {
+    table: 'clinical_referrals',
+    column: 'origin_patient_id',
+    why: 'the patient a referral was recorded for is a historical fact (C17); the subject moves',
   },
 ];
 

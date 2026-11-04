@@ -23,6 +23,7 @@ const TRANSPORT: Record<string, string> = {
   encounterRef: 'EncounterRef',
   imageLinkRef: 'ImageLinkRef',
   labCaseRef: 'LabCaseRef',
+  referralRef: 'ReferralRef',
 };
 
 /**
@@ -57,6 +58,156 @@ const SAFETY =
   'Synthetic engineering implementation; clinical semantics are recommended-pending-clinical-approval and not clinically validated. No diagnosis and no decision support.';
 
 const SPECS: readonly Spec[] = [
+  // C17 referral records (record-keeping and print/export only; explicit share records).
+  {
+    name: 'clinical_referrals_create',
+    operationId: 'clinical.referrals.create',
+    description: `Record an outgoing referral (needs the configured disclosure consent) or an incoming one: counterparty as recorded data, reason, requested scope, response due date. A possible duplicate needs explicit confirmation. Nothing is transmitted. ${SAFETY}`,
+    body: 'ReferralCreate',
+    transport: ['idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) => d.clinical.createReferral(actor, envelope('clinical.referrals.create', args)),
+  },
+  {
+    name: 'clinical_referrals_prepare_package',
+    operationId: 'clinical.referrals.preparePackage',
+    description: `Record the explicit selection of record references for an outgoing referral package (all of the patient; nothing is selected by default). ${SAFETY}`,
+    body: 'ReferralPackage',
+    transport: ['referralRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.prepareReferralPackage(
+        actor,
+        args.referralRef as string,
+        envelope('clinical.referrals.preparePackage', args, 'referralRef'),
+      ),
+  },
+  {
+    name: 'clinical_referrals_record_share',
+    operationId: 'clinical.referrals.recordShare',
+    description: `Record the share record a cross-practice disclosure needs: purpose, scope (record kinds) and expiry. ${SAFETY}`,
+    body: 'ReferralShareCreate',
+    transport: ['referralRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.recordReferralShare(
+        actor,
+        args.referralRef as string,
+        envelope('clinical.referrals.recordShare', args, 'referralRef'),
+      ),
+  },
+  {
+    name: 'clinical_referrals_mark_sent',
+    operationId: 'clinical.referrals.markSent',
+    description: `Record that the package was handed over by print or export; needs the package, a live share covering every selected kind and the standing disclosure consent. ${SAFETY}`,
+    body: 'ReferralSend',
+    transport: ['referralRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.markReferralSent(
+        actor,
+        args.referralRef as string,
+        envelope('clinical.referrals.markSent', args, 'referralRef'),
+      ),
+  },
+  {
+    name: 'clinical_referrals_record_transmission_failure',
+    operationId: 'clinical.referrals.recordTransmissionFailure',
+    description: `Record a failed hand-over; the referral stays prepared (no false sent state). ${SAFETY}`,
+    body: 'ReferralTransmissionFailure',
+    transport: ['referralRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.recordReferralTransmissionFailure(
+        actor,
+        args.referralRef as string,
+        envelope('clinical.referrals.recordTransmissionFailure', args, 'referralRef'),
+      ),
+  },
+  {
+    name: 'clinical_referrals_record_response',
+    operationId: 'clinical.referrals.recordResponse',
+    description: `Record a response with its source and document references; a returned record is attributed to its source, never to the referring clinician. ${SAFETY}`,
+    body: 'ReferralResponse',
+    transport: ['referralRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.recordReferralResponse(
+        actor,
+        args.referralRef as string,
+        envelope('clinical.referrals.recordResponse', args, 'referralRef'),
+      ),
+  },
+  {
+    name: 'clinical_referrals_close',
+    operationId: 'clinical.referrals.close',
+    description: `Close an open referral with a reason (an unsent one is cancelled). ${SAFETY}`,
+    body: 'ReferralClose',
+    transport: ['referralRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.closeReferral(
+        actor,
+        args.referralRef as string,
+        envelope('clinical.referrals.close', args, 'referralRef'),
+      ),
+  },
+  {
+    name: 'clinical_referrals_recall',
+    operationId: 'clinical.referrals.recall',
+    description: `Recall a sent referral: a correction with a reason; the sent fact stays. ${SAFETY}`,
+    body: 'ReferralRecall',
+    transport: ['referralRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.recallReferral(
+        actor,
+        args.referralRef as string,
+        envelope('clinical.referrals.recall', args, 'referralRef'),
+      ),
+  },
+  {
+    name: 'clinical_referrals_get',
+    operationId: 'clinical.referrals.read',
+    description: `One referral with its selection, share records, responses with provenance and event trail. ${SAFETY}`,
+    body: null,
+    transport: ['referralRef'],
+    readOnly: true,
+    run: async (d, actor, args) => ({
+      data: await d.clinical.readReferral(actor, args.referralRef as string),
+    }),
+  },
+  {
+    name: 'clinical_referrals_list',
+    operationId: 'clinical.referrals.list',
+    description: `A patient's referrals. ${SAFETY}`,
+    body: null,
+    transport: ['patientRef'],
+    readOnly: true,
+    run: async (d, actor, args) => ({
+      data: await d.clinical.listReferrals(actor, args.patientRef as string),
+    }),
+  },
+  {
+    name: 'clinical_referrals_export',
+    operationId: 'clinical.referrals.export',
+    description: `The printable referral package under its live share record (references only; nothing is transmitted). ${SAFETY}`,
+    body: null,
+    transport: ['referralRef'],
+    readOnly: true,
+    run: async (d, actor, args) => ({
+      data: await d.clinical.exportReferral(actor, args.referralRef as string),
+    }),
+  },
+  {
+    name: 'clinical_referrals_worklist',
+    operationId: 'clinical.referrals.worklist',
+    description: `Exception-first referral work items: responses owed past their due date and confirmed possible duplicates. ${SAFETY}`,
+    body: 'ReferralWorklistQuery',
+    transport: [],
+    readOnly: true,
+    run: async (d, actor, args) => ({ data: await d.clinical.referralWorklist(actor, args) }),
+  },
   // C16 lab cases (record-keeping and print/export only; no electronic ordering).
   {
     name: 'clinical_lab_cases_create',

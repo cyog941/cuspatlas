@@ -70,6 +70,55 @@ export function registerClinicalRecordRoutes(
   mount('clinical.perio.compare', async (r) => ({
     data: await c.comparePerioExams(requireActor(r), query(r)),
   }));
+  // C17 referrals.
+  mount('clinical.referrals.create', (r) =>
+    c.createReferral(requireActor(r), env('clinical.referrals.create', r)),
+  );
+  mount('clinical.referrals.worklist', async (r) => ({
+    data: await c.referralWorklist(requireActor(r), query(r)),
+  }));
+  mount('clinical.referrals.read', async (r) => ({
+    data: await c.readReferral(requireActor(r), param(r, 'referralRef')),
+  }));
+  mount('clinical.referrals.export', async (r) => ({
+    data: await c.exportReferral(requireActor(r), param(r, 'referralRef')),
+  }));
+  mount('clinical.referrals.preparePackage', (r) =>
+    c.prepareReferralPackage(
+      requireActor(r),
+      param(r, 'referralRef'),
+      env('clinical.referrals.preparePackage', r),
+    ),
+  );
+  mount('clinical.referrals.recordShare', (r) =>
+    c.recordReferralShare(requireActor(r), param(r, 'referralRef'), env('clinical.referrals.recordShare', r)),
+  );
+  mount('clinical.referrals.markSent', (r) =>
+    c.markReferralSent(requireActor(r), param(r, 'referralRef'), env('clinical.referrals.markSent', r)),
+  );
+  mount('clinical.referrals.recordTransmissionFailure', (r) =>
+    c.recordReferralTransmissionFailure(
+      requireActor(r),
+      param(r, 'referralRef'),
+      env('clinical.referrals.recordTransmissionFailure', r),
+    ),
+  );
+  mount('clinical.referrals.recordResponse', (r) =>
+    c.recordReferralResponse(
+      requireActor(r),
+      param(r, 'referralRef'),
+      env('clinical.referrals.recordResponse', r),
+    ),
+  );
+  mount('clinical.referrals.close', (r) =>
+    c.closeReferral(requireActor(r), param(r, 'referralRef'), env('clinical.referrals.close', r)),
+  );
+  mount('clinical.referrals.recall', (r) =>
+    c.recallReferral(requireActor(r), param(r, 'referralRef'), env('clinical.referrals.recall', r)),
+  );
+  mount('clinical.referrals.list', async (r) => ({
+    data: await c.listReferrals(requireActor(r), param(r, 'patientRef')),
+  }));
   // C16 lab cases.
   mount('clinical.labCases.create', (r) =>
     c.createLabCase(requireActor(r), env('clinical.labCases.create', r)),

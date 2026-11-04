@@ -164,6 +164,7 @@ const REF_PARAMS = [
   'procedureRef',
   'imageLinkRef',
   'labCaseRef',
+  'referralRef',
   'templateRef',
   'templateVersionRef',
   'noteRef',

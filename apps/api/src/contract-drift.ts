@@ -166,6 +166,17 @@ export const CLINICAL_BODIES = [
   'ConsentListQuery',
   'ConsentTemplateRegister',
   'ConsentEvidence',
+  // C17 referrals.
+  'ReferralCreate',
+  'ReferralPackage',
+  'ReferralSelection',
+  'ReferralShareCreate',
+  'ReferralSend',
+  'ReferralTransmissionFailure',
+  'ReferralResponse',
+  'ReferralClose',
+  'ReferralRecall',
+  'ReferralWorklistQuery',
   // C16 lab cases.
   'LabCaseCreate',
   'LabCaseSetState',

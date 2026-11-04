@@ -6663,6 +6663,535 @@
         }
       },
       "description": "The printable lab case package (C-D9: print/export is the only channel; nothing is transmitted)."
+    },
+    "ReferralRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque referral reference (C17)."
+    },
+    "ReferralShareRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque share record reference (C17)."
+    },
+    "ReferralCounterpartyRef": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+      "description": "The other practice or provider as recorded data (no directory or exchange channel exists)."
+    },
+    "ReferralRecordKind": {
+      "enum": [
+        "renderedProcedure",
+        "chartEntry",
+        "note",
+        "historyVersion",
+        "perioExam",
+        "planVersion",
+        "imageLink",
+        "labCase"
+      ],
+      "description": "Kinds of clinical record a package may reference."
+    },
+    "ReferralState": {
+      "enum": ["prepared", "received", "sent", "responded", "closed", "cancelled"]
+    },
+    "ReferralSelection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "ref"],
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/ReferralRecordKind"
+        },
+        "ref": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      }
+    },
+    "ReferralCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["patientRef", "direction", "counterpartyRef", "reasonCode", "requestedScope"],
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "direction": {
+          "enum": ["outgoing", "incoming"]
+        },
+        "counterpartyRef": {
+          "$ref": "#/$defs/ReferralCounterpartyRef"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "requestedScope": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "consentRef": {
+          "$ref": "#/$defs/ConsentRef"
+        },
+        "responseDueDate": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "confirmDuplicate": {
+          "type": "boolean"
+        }
+      },
+      "description": "Record a referral. An outgoing referral needs the configured disclosure consent; an incoming one records what another practice sent."
+    },
+    "ReferralPackage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "selections"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "selections": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/ReferralSelection"
+          }
+        }
+      },
+      "description": "Record the explicit selection of record references for the package (nothing is selected by default)."
+    },
+    "ReferralShareCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["purposeCode", "scope", "expiresAt"],
+      "properties": {
+        "purposeCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "scope": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/ReferralRecordKind"
+          }
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      },
+      "description": "The explicit share record any cross-practice disclosure needs: purpose, scope (record kinds) and expiry."
+    },
+    "ReferralSend": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "channel"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "channel": {
+          "enum": ["print", "export"]
+        }
+      },
+      "description": "Record that the package was handed over by print or export (the only channels; nothing is transmitted)."
+    },
+    "ReferralTransmissionFailure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["errorCode"],
+      "properties": {
+        "errorCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "ReferralResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "sourceRef", "receivedDate"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "sourceRef": {
+          "$ref": "#/$defs/ReferralCounterpartyRef"
+        },
+        "receivedDate": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "documentRefs": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/AttachmentRef"
+          }
+        }
+      },
+      "description": "Record a response with its source; returned records are object references, never authored by this practice."
+    },
+    "ReferralClose": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "reasonCode"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "ReferralRecall": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "reasonCode"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      },
+      "description": "Recall a sent referral: a correction with a reason; the sent fact stays."
+    },
+    "ReferralWorklistQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "asOf": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "Referral": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "referralRef",
+        "patientRef",
+        "sourcePatientRef",
+        "direction",
+        "counterpartyRef",
+        "reasonCode",
+        "requestedScope",
+        "consentRef",
+        "responseDueDate",
+        "possibleDuplicateOf",
+        "state",
+        "responseOverdue",
+        "selections",
+        "shares",
+        "responses",
+        "events",
+        "createdBy",
+        "createdAt",
+        "version"
+      ],
+      "properties": {
+        "referralRef": {
+          "$ref": "#/$defs/ReferralRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "sourcePatientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "direction": {
+          "enum": ["outgoing", "incoming"]
+        },
+        "counterpartyRef": {
+          "$ref": "#/$defs/ReferralCounterpartyRef"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "requestedScope": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "consentRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ConsentRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "responseDueDate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalDate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "possibleDuplicateOf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReferralRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "$ref": "#/$defs/ReferralState"
+        },
+        "responseOverdue": {
+          "type": "boolean"
+        },
+        "selections": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/ReferralSelection"
+          }
+        },
+        "shares": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["shareRef", "purposeCode", "scope", "expiresAt", "recordedBy", "recordedAt"],
+            "properties": {
+              "shareRef": {
+                "$ref": "#/$defs/ReferralShareRef"
+              },
+              "purposeCode": {
+                "$ref": "#/$defs/ReasonCode"
+              },
+              "scope": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/ReferralRecordKind"
+                }
+              },
+              "expiresAt": {
+                "$ref": "#/$defs/Instant"
+              },
+              "recordedBy": {
+                "$ref": "#/$defs/ActorRef"
+              },
+              "recordedAt": {
+                "$ref": "#/$defs/Instant"
+              }
+            }
+          }
+        },
+        "responses": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "sourceRef",
+              "receivedDate",
+              "documentRefs",
+              "attribution",
+              "recordedBy",
+              "recordedAt"
+            ],
+            "properties": {
+              "sourceRef": {
+                "$ref": "#/$defs/ReferralCounterpartyRef"
+              },
+              "receivedDate": {
+                "$ref": "#/$defs/LocalDate"
+              },
+              "documentRefs": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/AttachmentRef"
+                }
+              },
+              "attribution": {
+                "enum": ["external_source", "this_practice"],
+                "description": "Who authored the returned record: never the referring clinician’s signature."
+              },
+              "recordedBy": {
+                "$ref": "#/$defs/ActorRef"
+              },
+              "recordedAt": {
+                "$ref": "#/$defs/Instant"
+              }
+            }
+          }
+        },
+        "events": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "sequence",
+              "kind",
+              "fromState",
+              "toState",
+              "reasonCode",
+              "errorCode",
+              "channel",
+              "actorRef",
+              "at"
+            ],
+            "properties": {
+              "sequence": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "kind": {
+                "enum": [
+                  "created",
+                  "package_prepared",
+                  "share_recorded",
+                  "sent",
+                  "transmission_failed",
+                  "response_recorded",
+                  "closed",
+                  "cancelled",
+                  "recalled"
+                ]
+              },
+              "fromState": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ReferralState"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "toState": {
+                "$ref": "#/$defs/ReferralState"
+              },
+              "reasonCode": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ReasonCode"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "errorCode": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ReasonCode"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "channel": {
+                "enum": ["print", "export", null]
+              },
+              "actorRef": {
+                "$ref": "#/$defs/ActorRef"
+              },
+              "at": {
+                "$ref": "#/$defs/Instant"
+              }
+            }
+          }
+        },
+        "createdBy": {
+          "$ref": "#/$defs/ActorRef"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      },
+      "description": "C17 referral record: direction, counterparty, reason and scope, the explicit selection, share records, responses with provenance and the event trail."
+    },
+    "ReferralCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/Referral"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ReferralRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/Referral"
+        }
+      }
+    },
+    "ReferralList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "#/$defs/Referral"
+          }
+        }
+      }
+    },
+    "ReferralExport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["format", "generatedAt", "shareRef", "referral"],
+          "properties": {
+            "format": {
+              "const": "cuspatlas-referral-export/1"
+            },
+            "generatedAt": {
+              "$ref": "#/$defs/Instant"
+            },
+            "shareRef": {
+              "$ref": "#/$defs/ReferralShareRef"
+            },
+            "referral": {
+              "$ref": "#/$defs/Referral"
+            }
+          }
+        }
+      },
+      "description": "The printable referral package under its share record: references only (C-D10; nothing is transmitted)."
     }
   }
 }

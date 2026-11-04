@@ -120,6 +120,10 @@ export const validateMessagePost = def('MessagePost');
 export const validateThreadClose = def('ThreadClose');
 export const validateThreadAssign = def('ThreadAssign');
 export const validateThreadLegalHold = def('ThreadLegalHold');
+export const validateTelephonyConfigDefine = def('TelephonyConfigDefine');
+export const validateHandlingQuery = def('HandlingQuery');
+export const validateCallEventInput = def('CallEventInput');
+export const validateCallLink = def('CallLink');
 
 /**
  * E9 minimal engagement export (E scope; M1 owns the full export contract). Every E table of a
@@ -144,6 +148,9 @@ export const ENGAGEMENT_EXPORT_TABLES = [
   'intake_submissions',
   'intake_submission_consents',
   'intake_review_items',
+  'telephony_configs',
+  'call_events',
+  'call_links',
 ] as const;
 export type EngagementExportTable = (typeof ENGAGEMENT_EXPORT_TABLES)[number];
 export interface EngagementExport {

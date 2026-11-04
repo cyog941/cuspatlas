@@ -17,6 +17,8 @@ export const MCP_AUDIENCE = 'urn:cuspatlas:mcp:synthetic';
 export const SVC_W1 = '30000000-0000-4000-8000-0000000000e1';
 /** Alpha receipt-ingestion integration (service, communications.receipts only). */
 export const SVC_R1 = '30000000-0000-4000-8000-0000000000e2';
+/** Alpha telephony integration (service, telephony.events only; fake adapter). */
+export const SVC_T1 = '30000000-0000-4000-8000-0000000000e4';
 /** Beta messaging worker. */
 export const SVC_WB = '30000000-0000-4000-8000-0000000000e3';
 
@@ -47,6 +49,7 @@ export async function seedEngagementScopes(admin: pg.Pool): Promise<void> {
   for (const [id, tenant, handle, scopes] of [
     [SVC_W1, T_ALPHA, 'svc-w1', ['communications.deliver']],
     [SVC_R1, T_ALPHA, 'svc-r1', ['communications.receipts']],
+    [SVC_T1, T_ALPHA, 'svc-t1', ['telephony.events']],
     [SVC_WB, T_BETA, 'svc-wb', ['communications.deliver']],
   ] as const) {
     await admin.query(

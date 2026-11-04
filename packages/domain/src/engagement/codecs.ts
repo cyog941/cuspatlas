@@ -32,6 +32,9 @@ const E_OPERATIONS = [
   'messaging.threads.hold',
   'portal.threads.open',
   'portal.threads.post',
+  'telephony.config.define',
+  'telephony.calls.record',
+  'telephony.calls.link',
 ] as const;
 
 // biome-ignore lint/suspicious/noExplicitAny: codecs are heterogeneous per operation.

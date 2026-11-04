@@ -193,6 +193,15 @@ export const ACTION_POLICIES = {
   'messaging.threads.assign': { scope: 'messaging.write', principals: ['human'] },
   'messaging.threads.hold': { scope: 'admin.configure', principals: ['human'] },
   'messaging.retention.evaluate': { scope: 'messaging.read', principals: ['human', 'service'] },
+  // E8 telephony (E-S2 blocked): configuration is administration; call events come only from the
+  // telephony integration principal; linking a call to a patient is a person's confirmation.
+  'telephony.config.define': { scope: 'admin.configure', principals: ['human'] },
+  'telephony.config.read': { scope: 'communications.read', principals: ['human', 'service'] },
+  'telephony.handling.resolve': { scope: 'communications.read', principals: ['human', 'service'] },
+  'telephony.calls.record': { scope: 'telephony.events', principals: ['service'] },
+  'telephony.calls.read': { scope: 'communications.read', principals: ['human', 'service'] },
+  'telephony.calls.list': { scope: 'communications.read', principals: ['human', 'service'] },
+  'telephony.calls.link': { scope: 'communications.write', principals: ['human'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

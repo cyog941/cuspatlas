@@ -9,6 +9,7 @@ import { createPortalPrincipalOperations } from './portal/principals';
 import { createPortalRequestOperations } from './portal/requests';
 import { createPortalSessionOperations } from './portal/session';
 import { createPortalViewOperations } from './portal/views';
+import { createTelephonyOperations } from './telephony/calls';
 
 /**
  * The engagement domain (workstream E: portal and communications). REST (staff and portal
@@ -29,6 +30,7 @@ export function createEngagementService(deps: EngagementDeps) {
     ...createDeliveryOperations(base),
     ...createIntakeOperations(base),
     ...createMessagingOperations(base),
+    ...createTelephonyOperations(base),
   };
 }
 

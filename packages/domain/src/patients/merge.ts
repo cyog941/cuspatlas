@@ -236,6 +236,11 @@ export const MERGE_EXCLUDED_REFERENCES: readonly { table: string; column: string
     why: 'a thread is correspondence about that identity; it is never re-addressed by a merge',
   },
   {
+    table: 'call_links',
+    column: 'patient_id',
+    why: 'a call link is a confirmation about that identity; staff relink a merged call explicitly',
+  },
+  {
     table: 'outbound_messages',
     column: 'patient_id',
     why: 'a message is history of what was sent to that identity; it is never re-addressed by a merge',

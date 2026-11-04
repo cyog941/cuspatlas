@@ -21,6 +21,7 @@ import {
   openEngagementHarness,
   PORTAL_AUDIENCE,
   SVC_R1,
+  SVC_T1,
   SVC_W1,
 } from './support/engagement-fixtures';
 import { FakeMessaging } from './support/fake-messaging';
@@ -100,6 +101,21 @@ const INTAKE_FORM = {
   ],
 };
 const OTHER_FORM = { ...INTAKE_FORM, formRef: 'e-harness-other-form' };
+const PHONE_CONFIG = {
+  numbers: ['+1-202-555-0110'],
+  timeZone: 'America/New_York',
+  hours: [{ weekday: 1, start: '08:00', end: '17:00' }],
+  routing: { open: { action: 'ring_queue', queue: 'front_desk' }, closed: { action: 'voicemail' } },
+  recording: 'off',
+};
+const CALL_EVENT = {
+  providerCallRef: 'fake-call-harness',
+  direction: 'inbound',
+  callerNumber: '+1-202-555-0177',
+  dialedNumber: '+1-202-555-0110',
+  occurredAt: '2031-01-06T15:00:00Z',
+  outcome: 'missed',
+};
 const THREAD = { topic: 'general', locationRef: 'loc-e-harness', body: 'Synthetic harness thread' };
 const INTAKE_ANSWERS = { formRef: 'e-harness-intake', formVersion: 1, answers: { agree: true } };
 
@@ -643,6 +659,90 @@ export const COMMANDS: HarnessCommand[] = [
     }),
     mcpArgs: (f) => ({ threadRef: f.thread }),
   },
+  // E8 telephony (fake adapter; call events from the telephony integration principal only).
+  {
+    operation: 'telephony.config.define',
+    tool: 'telephony_config_define',
+    crossTenant: 'own_tenant_only',
+    downgradedTo: 'readOnly',
+    rest: () => ({
+      method: 'POST',
+      url: '/v1/telephony/config',
+      body: PHONE_CONFIG,
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: () => ({ ...PHONE_CONFIG, idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'telephony.config.read',
+    tool: 'telephony_config_get',
+    crossTenant: 'tenant_own_data',
+    downgradedTo: 'noScopes',
+    rest: () => ({ method: 'GET', url: '/v1/telephony/config', keyed: false, status: 200 }),
+    mcpArgs: () => ({}),
+  },
+  {
+    operation: 'telephony.handling.resolve',
+    tool: 'telephony_handling_resolve',
+    crossTenant: 'tenant_own_data',
+    downgradedTo: 'noScopes',
+    rest: () => ({
+      method: 'GET',
+      url: `/v1/telephony/handling?at=${encodeURIComponent('2031-01-06T15:00:00Z')}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: () => ({ at: '2031-01-06T15:00:00Z' }),
+  },
+  {
+    operation: 'telephony.calls.record',
+    tool: 'telephony_calls_record',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    // Call events come from the telephony integration principal only: people are refused by kind.
+    expect: {
+      crossTenant: { status: 403, code: 'forbidden', reason: 'principal_kind_denied' },
+      downgraded: { status: 403, code: 'forbidden', reason: 'principal_kind_denied' },
+    },
+    rest: () => ({ method: 'POST', url: '/v1/telephony/calls', body: CALL_EVENT, keyed: true, status: 201 }),
+    mcpArgs: () => ({ ...CALL_EVENT, idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'telephony.calls.list',
+    tool: 'telephony_calls_list',
+    crossTenant: 'tenant_own_data',
+    downgradedTo: 'noScopes',
+    rest: () => ({ method: 'GET', url: '/v1/telephony/calls', keyed: false, status: 200 }),
+    mcpArgs: () => ({}),
+  },
+  {
+    operation: 'telephony.calls.read',
+    tool: 'telephony_calls_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noScopes',
+    rest: (f) => ({ method: 'GET', url: `/v1/telephony/calls/${f.call}`, keyed: false, status: 200 }),
+    mcpArgs: (f) => ({ callRef: f.call }),
+  },
+  {
+    operation: 'telephony.calls.link',
+    tool: 'telephony_calls_link',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/telephony/calls/${f.call}/link`,
+      body: { patientRef: f.parent, reasonCode: 'caller_confirmed_identity' },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      callRef: f.call,
+      patientRef: f.parent,
+      reasonCode: 'caller_confirmed_identity',
+      idempotencyKey: randomUUID(),
+    }),
+  },
 ];
 
 /** Every portal-audience route (E1-E6, the S15 seam). */
@@ -931,12 +1031,24 @@ beforeAll(async () => {
       submission,
     ])
   ).rows[0].id as string;
+  // E8 fixtures: a configuration in each tenant and one call from the fake adapter in alpha.
+  h.ok(await h.call('a1', 'POST', '/v1/telephony/config', PHONE_CONFIG), 201);
+  h.ok(await h.call('b1', 'POST', '/v1/telephony/config', PHONE_CONFIG), 201);
+  const call = h.ok<{ data: { callRef: string } }>(
+    await h.call(await h.issuer.issue({ sub: SVC_T1, tid: T_ALPHA }), 'POST', '/v1/telephony/calls', {
+      ...CALL_EVENT,
+      providerCallRef: 'fake-call-harness-fixture',
+      occurredAt: new Date().toISOString(),
+    }),
+    201,
+  ).data.callRef;
   // E5 fixture: one staff-opened thread to the parent.
   const thread = h.ok<{ data: { threadRef: string } }>(
     await h.call('a1', 'POST', `/v1/patients/${parent}/message-threads`, THREAD),
     201,
   ).data.threadRef;
   fixture = {
+    call,
     thread,
     submission,
     review,
@@ -1042,7 +1154,7 @@ async function state(): Promise<string> {
       `SELECT table_name FROM information_schema.tables WHERE table_schema = 'cuspatlas'
        AND table_name IN ('portal_principals', 'principals', 'appointment_requests', 'communication_consents',
          'suppression_decisions', 'channel_policies', 'message_templates', 'outbound_messages', 'delivery_attempts',
-         'message_receipts', 'recall_enrollments', 'contact_verifications', 'intake_form_versions', 'intake_submissions', 'intake_submission_consents', 'intake_review_items', 'message_threads', 'thread_messages', 'audit_events', 'outbox_events', 'command_idempotency')
+         'message_receipts', 'recall_enrollments', 'contact_verifications', 'intake_form_versions', 'intake_submissions', 'intake_submission_consents', 'intake_review_items', 'message_threads', 'thread_messages', 'telephony_configs', 'call_events', 'call_links', 'audit_events', 'outbox_events', 'command_idempotency')
        ORDER BY table_name`,
     )
   ).rows.map((r) => r.table_name as string);
@@ -1100,12 +1212,18 @@ describe('E negative harness: every E staff command, every dimension, REST and M
       const call = cmd.rest(fixture);
       if (call.body === undefined) continue;
       // The receipts command is authorized for its integration principal; people never reach validation.
-      const service = cmd.operation === 'communications.receipts.record';
+      const integration =
+        cmd.operation === 'communications.receipts.record'
+          ? SVC_R1
+          : cmd.operation === 'telephony.calls.record'
+            ? SVC_T1
+            : null;
+      const service = integration !== null;
       const restToken = service
-        ? await h.issuer.issue({ sub: SVC_R1, tid: T_ALPHA })
+        ? await h.issuer.issue({ sub: integration, tid: T_ALPHA })
         : (rest.owner as string);
       const mcpToken = service
-        ? await h.issuer.issue({ sub: SVC_R1, tid: T_ALPHA, audience: MCP_AUDIENCE })
+        ? await h.issuer.issue({ sub: integration, tid: T_ALPHA, audience: MCP_AUDIENCE })
         : (mcpTokens.owner as string);
       const r = await viaRest(restToken, {
         ...call,

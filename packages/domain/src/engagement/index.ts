@@ -14,3 +14,4 @@ export * from './portal/requests';
 export * from './portal/session';
 export * from './portal/views';
 export * from './service';
+export * from './telephony/calls';

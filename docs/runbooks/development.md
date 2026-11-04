@@ -50,7 +50,7 @@ corepack pnpm test:integration -- service-boundary
 ## Migrator against a disposable database
 
 ```
-CUSPATLAS_MIGRATION_DATABASE_URL='postgres://<admin-user>:<placeholder>@127.0.0.1:<port>/cuspatlas_synthetic_scratch' corepack pnpm migrate
+CUSPATLAS_MIGRATION_DATABASE_URL='postgres://<admin-user>@127.0.0.1:<port>/cuspatlas_synthetic_scratch' PGPASSWORD='<set-in-shell>' corepack pnpm migrate
 ```
 
 (PowerShell: set `$env:CUSPATLAS_MIGRATION_DATABASE_URL` first.) The migrator refuses any target whose database name does not contain `cuspatlas_synthetic` (`packages/db/src/migrate.ts`). This is deliberate: a mistyped or copied production URL cannot be migrated. Point it only at a throwaway local database you created; never at a hosted project.
@@ -62,7 +62,7 @@ Placeholders only. Never commit real values; `.env*` is gitignored.
 | Variable | Read by | Meaning |
 | --- | --- | --- |
 | `CUSPATLAS_ENV` | API, MCP | `synthetic-test`, `development` or `production`; anything else is refused. Integration tests set `synthetic-test`. |
-| `CUSPATLAS_DATABASE_URL` | API | runtime-role connection string (`postgres://<runtime-role>:<placeholder>@127.0.0.1:5432/<db>`) |
+| `CUSPATLAS_DATABASE_URL` | API | runtime-role connection string (`postgres://<runtime-role>@127.0.0.1:5432/<db>`, password via `PGPASSWORD`) |
 | `CUSPATLAS_ATTEMPT_DATABASE_URL` | API | optional separate connection for security-attempt rows; defaults to the one above |
 | `CUSPATLAS_HOST` | API | listen address, default `127.0.0.1` |
 | `CUSPATLAS_PORT` | API | listen port, default `3000` |
@@ -76,7 +76,7 @@ The MCP server also refuses to start with the REST audience or a test issuer out
 
 ## Privacy scan
 
-`corepack pnpm scan:privacy` (`scripts/privacy-scan.mjs`) scans every tracked file, plus any file or directory passed as an argument, for: the synthetic marker `SYNTHETIC_SECRET_42` outside its allowlist (tests, execution and planning docs, the acceptance-scenario doc, the contracts tests, the script itself); private-key blocks; JWT-looking strings; service-role-like keys; database URLs that embed credentials; and the development project reference outside `docs/SETUP.md`, `docs/DEEPSEEK-HANDOFF.md` and the execution and planning docs. It prints `file:line: rule` and exits 1 on any hit; it never prints the matched text. Arguments are scanned with no allowlist, which is how CI checks the artifact directory:
+`corepack pnpm scan:privacy` (`scripts/privacy-scan.mjs`) scans every tracked file, plus any file or directory passed as an argument, for: the synthetic marker string (exported from `tests/integration/support/marker.ts`, never spelled in docs or workflows) outside its allowlist (tests, execution and planning docs, the acceptance-scenario doc, the contracts tests, the script itself); private-key blocks; JWT-looking strings; service-role-like keys; database URLs that embed credentials; and the development project reference outside `docs/SETUP.md`, `docs/DEEPSEEK-HANDOFF.md` and the execution and planning docs. It prints `file:line: rule` and exits 1 on any hit; it never prints the matched text. Arguments are scanned with no allowlist, which is how CI checks the artifact directory:
 
 ```
 corepack pnpm scan:privacy                       # tracked tree

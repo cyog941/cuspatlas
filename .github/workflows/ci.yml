@@ -47,12 +47,9 @@ jobs:
       - run: pnpm scan:privacy
       - run: pnpm sbom
       - name: scan generated artifacts for the synthetic marker
-        run: |
-          node scripts/privacy-scan.mjs artifacts
-          if grep -rIl 'SYNTHETIC_SECRET_42' artifacts; then
-            echo 'synthetic marker found in artifact set' >&2
-            exit 1
-          fi
+        # The scanner checks arguments with no allowlist, so the marker (defined only in allowlisted
+        # sources) fails the job if it appears anywhere in the artifact set.
+        run: node scripts/privacy-scan.mjs artifacts
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: verify-evidence

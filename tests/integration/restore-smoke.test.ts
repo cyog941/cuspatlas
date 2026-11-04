@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { RefusalError } from '@cuspatlas/contracts';
@@ -377,7 +378,8 @@ afterAll(async () => {
     [restored?.admin, restored?.app, restored?.sink].map((p) => p?.end().catch(() => undefined)),
   );
   for (const n of createdTargets) await dropDatabase(n).catch(() => undefined);
-  for (const d of scratch) rmSync(d, { recursive: true, force: true });
+  // Windows can hold a just-stopped cluster's files briefly (EBUSY): retry with backoff.
+  for (const d of scratch) rmSync(d, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
   await db?.close();
 });
 
@@ -731,7 +733,8 @@ describe('deliberately incomplete or unsafe restores are detected', () => {
       user: 'postgres',
       password,
       port: srv,
-      persistent: false,
+      // Removal is ours (after the cluster has fully stopped), with retries, not the library's.
+      persistent: true,
       initdbFlags: ['--encoding=UTF8', '--locale=C'],
       postgresFlags: ['-c', 'listen_addresses=127.0.0.1', '-c', 'log_min_error_statement=panic'],
       onLog: () => undefined,
@@ -783,6 +786,12 @@ describe('deliberately incomplete or unsafe restores are detected', () => {
       }
     } finally {
       await cluster.stop();
+      // stop() resolves when the process tree exited (taskkill /t on Windows); file handles can linger
+      // briefly (EBUSY), so removal retries with backoff and a leftover is retried again in afterAll.
+      await rm(dataDir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }).catch(
+        () => undefined,
+      );
     }
-  }, 120_000);
+    // Starts and stops a second embedded cluster; allow for a loaded host.
+  }, 240_000);
 });

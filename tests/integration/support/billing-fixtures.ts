@@ -11,7 +11,12 @@ import { USER_A5 } from './patient-fixtures';
  * (downgraded role); a5 no billing scope; svc-a1 posting and reads but never corrections (a
  * service principal cannot hold a human-only correction anyway); b1 and svc-b1 in tenant beta.
  */
-export const BILLING_READS = ['ledger.read', 'paymentDistribution.read', 'undistributedFunds.read'];
+export const BILLING_READS = [
+  'ledger.read',
+  'paymentDistribution.read',
+  'undistributedFunds.read',
+  'receivables.read',
+];
 export const BILLING_WRITE = 'billing.write';
 export const BILLING_CORRECT = 'billing.correct';
 export const BILLING_ALL = [...BILLING_READS, BILLING_WRITE, BILLING_CORRECT];
@@ -76,6 +81,22 @@ export async function postCharge(
     201,
   );
   return r.data;
+}
+
+/** Records an S5 guarantor relationship (financial scope) from `patientRef` to `guarantorRef`. */
+export async function addGuarantor(
+  h: AppointmentHarness,
+  patientRef: string,
+  guarantorRef: string,
+): Promise<void> {
+  h.ok(
+    await h.call('a1', 'POST', `/v1/patients/${patientRef}/relationships`, {
+      counterpartyRef: guarantorRef,
+      kind: 'guarantor',
+      scopes: ['financial'],
+    }),
+    201,
+  );
 }
 
 export async function balanceOf(

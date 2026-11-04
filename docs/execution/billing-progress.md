@@ -2,7 +2,7 @@
 
 Branch: `codex/b-billing-1` in an isolated worktree outside the OneDrive-synced checkout. Base SHA: `2e7d61a` (foundation, S4-S11 and the practice-time requirements). Sibling worktrees build S12-S17 and C; this branch touches only `packages/domain/src/billing/**`, its contracts, transports, migrations, tests and append-only lines in shared registries. Status values: not started, in progress, blocked with cause, verified. Nothing is prechecked.
 
-Authorization basis: user instruction to build every backend workstream on synthetic data until only the UI phase remains. Scope of this batch: B1 (Money and the append-only journal) and B2 (payments, allocations and undistributed funds).
+Authorization basis: user instruction to build every backend workstream on synthetic data until only the UI phase remains. Scope of batch 1: B1 (Money and the append-only journal) and B2 (payments, allocations and undistributed funds). Scope of batch 2: B3 (payment plans), B4 (statements) and B5 (coverage and eligibility).
 
 ## Financial-safety framing
 
@@ -16,7 +16,8 @@ Authorization basis: user instruction to build every backend workstream on synth
 | Task | Status | Head SHA | Notes |
 |---|---|---|---|
 | B1 Money and append-only journal | verified on synthetic data (Windows host); decisions pending billing approval | a342b6d | 706 tests |
-| B2 Payments, allocations, undistributed funds | verified on synthetic data (Windows host); decisions pending billing approval; provider execution blocked-on-discovery (B-S1) | (this commit) | 759 tests |
+| B2 Payments, allocations, undistributed funds | verified on synthetic data (Windows host); decisions pending billing approval; provider execution blocked-on-discovery (B-S1) | 66ea613 | 759 tests |
+| B3 Payment plans, expired-card and failed-auto-pay worklists | verified on synthetic data (Windows host); decisions pending billing approval; card and auto-pay execution blocked-on-discovery (B-S1, PAY-02..04, PAY-07) | (this commit) | 805 tests |
 
 ## Pending decisions
 
@@ -31,6 +32,13 @@ Authorization basis: user instruction to build every backend workstream on synth
 | B-D1 (M-10) | Card data | no card data; synthetic provider only | blocked-on-discovery (B-S1) | billing reviewer, security owner | any real payment |
 | M-11 | Merge of patients | never relink posted rows; read-time merge set; post-merge probe | recommended-pending-billing-approval | billing reviewer, identity owner | unmerge with money |
 | M-12 | Who may correct | reversals, refunds, cross-patient transfers human only | recommended-pending-billing-approval | billing reviewer, practice owner | standing policies for corrections |
+| P-1 | Plan schedule | monthly installments from the first due date; contract total minus collected basis split evenly, residue to the earliest (M-4) | recommended-pending-billing-approval | billing reviewer | other cadences |
+| P-2 | Authorization evidence (PAY-07) | a synthetic authorization reference plus signed-agreement evidence reference per terms version; each authorization reference used once per plan, so a card update needs a new one | recommended-pending-billing-approval | billing operations lead | e-signature method, retention |
+| P-3 | Attempts per installment | one attempt per period; a further attempt only with an explicit `retry`; none while any attempt is unknown; provider key = plan, terms version, period, attempt number | recommended-pending-billing-approval | billing reviewer | PAY-04 exactly-once contract |
+| P-4 | Expired and expiring card | expired when the expiry month has ended in the plan's time zone (a run records a blocked attempt, no charge); expiring within 30 days | recommended-pending-billing-approval | billing operations lead | PAY-03 card-update service |
+| P-5 | Failed auto-pay due time | 2 days after the declined attempt; one item per plan (latest attempt) | recommended-pending-billing-approval | practice financial policy owner | user-facing release |
+| P-6 | Void and default | human-only `billing.correct` decision with a reason, refused while an attempt is unknown; collected money stays in the journal (no automatic refund or reallocation) | recommended-pending-billing-approval | billing reviewer, practice owner | collections workflow |
+| P-7 | Amendment | a new terms version whose basis is the money collected so far; refused at or below collected and while an attempt is unknown; needs a new authorization | recommended-pending-billing-approval | billing reviewer | user-facing release |
 | B-loc | Location-scoped financial access | tenant-wide (like S-D8) | recommended-pending-billing-approval | practice owner | location-restricted roles |
 
 ## Command log
@@ -124,17 +132,60 @@ Shared files touched in B2 (minimal, append-only): `policy/authorize.ts` (9 rows
 
 Deviations: `moveUnappliedFunds` takes the payment (path) and an optional `fromPatientRef` instead of patients only, so moved money keeps its payment provenance (PT-05 explainability; no FIFO guess). Allocations are journal entries of kind `allocation` (allocationRef = entryRef) rather than a separate mutable table, so an allocation is reversed by the one reversal path. A declined payment is a 201 recording command (the attempt is the created fact, `outcome: declined`), not a refusal of our command; every refusal of our command remains a typed 4xx. Provider refunds are recorded facts only (B-S1). The provider is called inside the idempotent handler: replays never call it, and a retry after a lost commit reuses the same provider key, so the synthetic provider (and any future one, by the frozen adapter rule) deduplicates it.
 
+### B3 (payment plans, expired-card and failed-auto-pay worklists)
+
+Acceptance and failure cases (tests/integration/billing-payment-plans.test.ts, 14 tests, REST and MCP under the runtime role):
+
+1. contract total, installment (residue to the earliest: 334/333/333), schedule, collected, balance, overdue and next due date, authorization, auto-pay and card state are distinct derived fields; past due dates make the plan overdue without touching the contract total; an unsigned plan is one `missing_signature` item (owner, queue, reason, due, action) and collection is 409 `unsigned_authorization`; authorization without evidence is 400; a stale expected version is 409 `stale_version`; a self-guaranteed plan names the patient (`guarantorBasis: self`);
+2. a guarantor that is not the current S5 guarantor is 422 `guarantor_unresolved`; an unknown IANA zone 422 `invalid_time_zone`; another currency 422 `currency_mismatch`; another tenant's patient is 404 identical to a missing one; malformed counts, float money, marker text and a caller `tenantId` are 400; nothing changes; a read-only role cannot create (403);
+3. a confirmed run posts one B2 card payment; the scheduler rerun under its key replays; another key is 409 `duplicate_period`; three concurrent runs for one period give one 201 and two 409 with one attempt; completion derives `completed` and refuses further collection (`plan_completed`);
+4. a declined attempt is a recorded fact (no payment), `autoPayState: failed` and exactly one `failed_autopay` item with the attempt as evidence; a second run is `duplicate_period`; after a new instrument (new authorization) an explicit retry collects and the item resolves;
+5. an unknown outcome blocks the plan (`autoPayState: blocked`); retry, another period, void and amendment are 409 `attempt_in_flight`; the only reconciliation item is B2's `unknown_payment_outcome`; reconciliation (lookup, never a new capture) posts the payment and the period reads paid;
+6. an expired card derives `expired` and an `expired_card` item; the run records a `blocked` attempt with no provider attempt and no payment, the plan is not voided; reusing the prior authorization for the card update is 409 `authorization_reused`; a new one makes the card current and a retry collects; both enrollment facts stay readable;
+7. pausing refuses collection (409 `autopay_paused`), resuming reuses the instrument; no instrument is 409 `instrument_absent`; a future period 422 `period_not_due`; an unknown period 422 `period_not_found`;
+8. a partial collection reads `partially_paid` with the exact collected amount, never rounded to paid; an amount beyond the installment is 422 `amount_exceeds_installment`;
+9. an amendment is terms version 2 with the collected money as its basis (350/350), unsigned until authorized; earlier terms and attempts stay readable; at or below collected is 422 `amendment_below_collected`;
+10. void needs a human with `billing.correct` and a reason (a3 and the service are 403, no reason 400); the voided plan keeps attempts, facts and its collected money (the payment stays `received`); collection is 409 `plan_voided`; a second closure 409 `plan_closed`; closed plans leave every worklist; default is a distinct outcome; create and close are audited;
+11. another tenant's read, collection, authorization and closure are 404 identical to a missing plan; its worklist is empty; a member without billing scopes is 403; the report-scope reader can read;
+12. MCP gives the same collection, `duplicate_period` conflict, read and worklist outcomes as REST; another tenant's MCP read is 404;
+13. the runtime role cannot update a plan's facts, update or delete terms, events or attempts (42501), and a second attempt row with the same period and attempt number is 23505; no plan table has a balance, overdue, state or status column;
+14. marker text in every caller string is 400 and never reaches a log or a row.
+
+- Red: `corepack pnpm test -- billing-payment-plans` before any B3 code → exit 1, 14 failed (14).
+- Green: `corepack pnpm test -- billing-payment-plans` → exit 0, 14 passed; full `corepack pnpm test` → exit 0, 38 files, 805 tests (759 + 14 B3 + 24 negative-harness rows + 8 billing tool drift).
+- `corepack pnpm typecheck` → exit 0; `corepack pnpm lint` → exit 0; `corepack pnpm contract:check` → exit 0.
+
+Invariants and where they are enforced:
+
+| Invariant | Database | Domain |
+|---|---|---|
+| No stored plan balance, overdue or state | no such column (tested) | `computePlan` derives every figure from terms, facts, attempts and journal payments |
+| Plan facts append-only | grants SELECT/INSERT; append-only triggers; plan row version only (aggregate guard) | no update path except the version |
+| One attempt per period and attempt number | unique (plan, terms version, period, attempt number); unique provider attempt | plan row lock; `duplicate_period` unless `retry` |
+| Unknown outcome never retried or advanced | B2 attempt resolution once | `attempt_in_flight` for every plan command that could charge, amend or close |
+| Authorization used once (card update needs a new one) | partial unique index (plan, authorization) | pre-check `authorization_reused` |
+| Closed at most once | partial unique index | `plan_closed` |
+| Blocked attempt never reaches the provider | CHECK (blocked = no provider attempt = block reason) | expired-card branch before capture |
+
+Shared files touched in B3 (append-only lines): `policy/authorize.ts` (8 rows), `patients/merge.ts` (2 exclusion rows), `billing/payments.ts` (exports `insertPayment`, `assertGuarantor`, and the extracted `captureWithProvider`), `contract-drift.ts` (7 bodies), `docs/api/openapi.yaml`, `negative-harness.test.ts` (8 rows, fixture plan, state), `tenant-isolation.test.ts` (+4 tables), `mcp-parity.test.ts` (+8 tools), `billing-tool-drift.test.ts` (one query mapping), `support/billing-fixtures.ts` (`receivables.read` in the report reads, `addGuarantor`).
+
+Deviations: `PaymentPlanView` gains `not_enrolled` and `blocked` auto-pay states and drops `revoked` (no revocation command exists; an amendment makes the new terms `unsigned`). `recordInstallmentAttempt` is `billing.plans.collect`: the outcome comes from the provider port, not from the caller, and an expired card is a recorded `blocked` attempt (B-06) rather than a refusal. `voidPlan` is `billing.plans.close` with outcome `voided` or `defaulted`, keeping default distinct from void and from collection state. Plan collection goes through the B2 capture path (`captureWithProvider` + `insertPayment`), not through a nested `billing.payments.record` command, so the provider key is bound to the installment period instead of to a caller key. Collected money is unapplied patient credit until allocated (M-5: no automatic allocation).
+
 ## Seams for later tasks
 
 - C14: drive `billing.charges.post` as a service principal with the rendered-procedure reference in place of `syn-proc-...` (a new `source` value) and the procedure code once B-S4 settles; one original charge per procedure is already enforced.
-- B3 (payment plans): installments split with `splitEvenly`/`allocateRemainder` (ADR 0008 M-4); collection through `billing.payments.record` with the plan period in the caller key; a declined attempt is the failed auto-pay fact, an unknown one the blocked state with its reconciliation item; plan balance derived from charge responsibility.
+- B3 (done; was the seam): installments split with `splitEvenly`/`allocateRemainder` (ADR 0008 M-4); collection through `billing.payments.record` with the plan period in the caller key; a declined attempt is the failed auto-pay fact, an unknown one the blocked state with its reconciliation item; plan balance derived from charge responsibility.
 - B4 (statements): `billing.balances.read` with `asOf` is the cutoff balance; `lastPostedAt` after the cutoff makes a statement stale; guarantor aggregation through the S5 guarantor relationship.
 - B5 (coverage): `insurer_receivable` lines carry `payer_ref` (`syn-payer-...`); B5 replaces it with a coverage reference (migration adds the column and dimension rule).
 - B6/B7 (claims, remittance, CL-10): add insurer payment sources and contractual-adjustment accounts by replacing the account and dimension CHECKs and `billing_check_signs`; remittance lines post insurer payments against `insurer_receivable`; ERA posting never touches `settled_cash` (settlement stays its own command).
 - B9 (adjustments, write-offs, reports): `adjustment` and `writeOff` kinds are reserved; reasons and accounts to add; the reads already use the report scopes.
+- E (portal/messaging) and S read plan state through `billing.plans.read` / the plan worklist only; a reminder for a `missing_signature` or `expired_card` item cites the item, it does not evaluate it.
+- Scheduler (worker): call `billing.plans.collect` as a service principal for each due period with key `plan:<planRef>:t<terms>:p<period>`; a rerun replays, and the provider key is period-bound regardless of the caller key.
 - CL-12 closure: a charge closes only when patient and insurer responsibility are zero by payment, approved adjustment or transfer; the journal already distinguishes allocation, transfer and (later) adjustment kinds, and unapplied credit is a first-class worklist item.
 
 ## Unresolved
+
+- B3: plan collection only by synthetic card (no cash installment link); a payment reversed after an amendment leaves the new basis stale (balance stays exact, the schedule does not re-spread); the plan worklist computes every plan per request (no projection, no performance evidence); due dates are evaluated at query time in the plan's IANA zone.
 
 - Every financial rule awaits a billing/accounting reviewer (pending-decision table above).
 - Real payment processor, tokenization and provider refunds: B-S1 blocked-on-discovery.

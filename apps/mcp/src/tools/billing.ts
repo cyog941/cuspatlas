@@ -15,6 +15,7 @@ export const BILLING_TRANSPORT: Readonly<Record<string, string>> = {
   patientRef: 'PatientRef',
   paymentRef: 'PaymentRef',
   attemptRef: 'AttemptRef',
+  planRef: 'PlanRef',
 };
 
 /** Input schema = the REST body (or query) properties plus the transport-only properties. */
@@ -41,6 +42,29 @@ export const billingEnvelope = (operation: string, args: Args, ...pathParams: st
   payload: without(args, 'idempotencyKey', ...pathParams),
 });
 const s = (args: Args, name: string) => args[name] as string;
+
+type PlanMethod = 'authorizePlan' | 'amendPlan' | 'setAutopay' | 'collectInstallment' | 'closePlan';
+/** One B3 command on a plan: the plan reference is a path parameter, the rest is the REST body. */
+function planCommand(
+  name: string,
+  operationId: ActionName,
+  body: string,
+  method: PlanMethod,
+  description: string,
+): BillingSpec[] {
+  return [
+    {
+      name,
+      operationId,
+      description,
+      body,
+      transport: ['planRef', 'idempotencyKey'],
+      readOnly: false,
+      run: (d, actor, args) =>
+        d.billing[method](actor, s(args, 'planRef'), billingEnvelope(operationId, args, 'planRef')),
+    },
+  ];
+}
 
 /** B1 journal tools. B2 appends payment and allocation tools to the same list. */
 export const BILLING_SPECS: BillingSpec[] = [
@@ -230,6 +254,74 @@ export const BILLING_SPECS: BillingSpec[] = [
     transport: [],
     readOnly: true,
     run: (d, actor, args) => d.billing.listWorklist(actor, { ...args }),
+  },
+  // B3 payment plans.
+  {
+    name: 'billing_plans_create',
+    operationId: 'billing.plans.create',
+    description:
+      'Create a payment plan (monthly installments split evenly) for a patient and its S5 guarantor; it starts unsigned.',
+    body: 'PlanCreate',
+    transport: ['idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) => d.billing.createPlan(actor, billingEnvelope('billing.plans.create', args)),
+  },
+  {
+    name: 'billing_plans_get',
+    operationId: 'billing.plans.read',
+    description:
+      'Read a payment plan: terms history, schedule, derived balance and overdue, authorization, auto-pay and card state, attempts and facts.',
+    body: null,
+    transport: ['planRef'],
+    readOnly: true,
+    async run(d, actor, args) {
+      return { data: await d.billing.getPlan(actor, s(args, 'planRef')) };
+    },
+  },
+  ...planCommand(
+    'billing_plans_authorize',
+    'billing.plans.authorize',
+    'PlanAuthorize',
+    'authorizePlan',
+    'Record the signed-agreement authorization fact for the current plan terms.',
+  ),
+  ...planCommand(
+    'billing_plans_amend',
+    'billing.plans.amend',
+    'PlanAmend',
+    'amendPlan',
+    'Amend a plan as a new terms version; collected money becomes the basis and the new terms need a new signature.',
+  ),
+  ...planCommand(
+    'billing_plans_autopay',
+    'billing.plans.autopay',
+    'PlanAutopay',
+    'setAutopay',
+    'Enroll auto-pay with a synthetic instrument, card expiry month and a new authorization, or pause or resume it.',
+  ),
+  ...planCommand(
+    'billing_plans_collect',
+    'billing.plans.collect',
+    'PlanCollect',
+    'collectInstallment',
+    'Attempt one installment period through the synthetic provider; one attempt per period unless an explicit retry.',
+  ),
+  ...planCommand(
+    'billing_plans_close',
+    'billing.plans.close',
+    'PlanClose',
+    'closePlan',
+    'Void or default a plan (human only, reason required); history and collected money stay.',
+  ),
+  {
+    name: 'billing_plans_worklist',
+    operationId: 'billing.plans.worklist',
+    description:
+      'Owned payment-plan work items: missing signature, expired card, failed auto-pay and overdue installments.',
+    body: 'PlanWorklistQuery',
+    transport: [],
+    readOnly: true,
+    run: (d, actor, args) => d.billing.listPlanWorklist(actor, { ...args }),
   },
 ];
 

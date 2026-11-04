@@ -897,7 +897,101 @@ export const COMMANDS: HarnessCommand[] = [
     rest: () => ({ method: 'GET', url: '/v1/billing/worklist', keyed: false, status: 200 }),
     mcpArgs: () => ({}),
   },
+  // B3 payment plans. Voiding or defaulting is a human-only correction (billing.correct).
+  {
+    operation: 'billing.plans.create',
+    tool: 'billing_plans_create',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({ method: 'POST', url: PLANS, body: planBody(f), keyed: true, status: 201 }),
+    mcpArgs: (f) => ({ ...planBody(f), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'billing.plans.read',
+    tool: 'billing_plans_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({ method: 'GET', url: `${PLANS}/${f.alphaPlan}`, keyed: false, status: 200 }),
+    mcpArgs: (f) => ({ planRef: f.alphaPlan }),
+  },
+  ...(
+    [
+      [
+        'billing.plans.authorize',
+        'billing_plans_authorize',
+        'authorizations',
+        () => ({
+          expectedVersion: 1,
+          authorizationRef: 'syn-auth-harness',
+          evidenceRef: 'syn-evidence-harness',
+        }),
+      ],
+      [
+        'billing.plans.amend',
+        'billing_plans_amend',
+        'amendments',
+        () => ({
+          expectedVersion: 1,
+          contractTotal: { currency: 'USD', minor: 900 },
+          installmentCount: 2,
+          firstDueOn: '2026-12-01',
+          reasonCode: 'hardship',
+        }),
+      ],
+      [
+        'billing.plans.autopay',
+        'billing_plans_autopay',
+        'autopay',
+        () => ({ expectedVersion: 1, state: 'paused' }),
+      ],
+      ['billing.plans.collect', 'billing_plans_collect', 'collections', () => ({ periodNo: 1 })],
+      [
+        'billing.plans.close',
+        'billing_plans_close',
+        'close',
+        () => ({
+          expectedVersion: 1,
+          outcome: 'voided',
+          reasonCode: 'patient_request',
+        }),
+      ],
+    ] as const
+  ).map(
+    ([operation, tool, suffix, body]): HarnessCommand => ({
+      operation,
+      tool,
+      crossTenant: 'not_found',
+      downgradedTo: 'readOnly',
+      rest: (f) => ({
+        method: 'POST',
+        url: `${PLANS}/${f.alphaPlan}/${suffix}`,
+        body: body(),
+        keyed: true,
+        status: 201,
+      }),
+      mcpArgs: (f) => ({ planRef: f.alphaPlan, ...body(), idempotencyKey: randomUUID() }),
+    }),
+  ),
+  {
+    operation: 'billing.plans.worklist',
+    tool: 'billing_plans_worklist',
+    crossTenant: 'empty_page',
+    downgradedTo: 'noPatientScopes',
+    rest: () => ({ method: 'GET', url: '/v1/billing/payment-plan-worklist', keyed: false, status: 200 }),
+    mcpArgs: () => ({}),
+  },
 ];
+
+const PLANS = '/v1/billing/payment-plans';
+function planBody(f: HarnessFixture) {
+  return {
+    patientRef: P(f),
+    contractTotal: { currency: 'USD', minor: 1200 },
+    installmentCount: 3,
+    firstDueOn: '2026-08-01',
+    timeZone: 'America/New_York',
+  };
+}
 
 const PAYMENTS = '/v1/billing/payments';
 function paymentBody(f: HarnessFixture) {
@@ -1188,7 +1282,11 @@ beforeAll(async () => {
     instrumentRef: 'syn-card-timeout-pending',
   });
   expect(attempt.json().data.outcome).toBe('unknown');
+  // B3: one unsigned payment plan for the alpha patient.
+  const plan = await owner(PLANS, planBody({ alphaPatient } as HarnessFixture));
+  expect(plan.statusCode).toBe(201);
   fixture = {
+    alphaPlan: plan.json().data.planRef,
     alphaPayment: cashPayment.json().data.paymentRef,
     alphaAttempt: attempt.json().data.attemptRef,
     alphaCharge: charge.json().data.chargeRef,
@@ -1321,6 +1419,10 @@ async function state(): Promise<string> {
     await q('SELECT count(*)::int AS n FROM cuspatlas.billing_journal_lines'),
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.billing_payments'),
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.billing_payment_attempts'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.billing_payment_plans'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.billing_payment_plan_terms'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.billing_payment_plan_events'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.billing_payment_plan_attempts'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.audit_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.outbox_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.command_idempotency'),

@@ -113,6 +113,10 @@ describe('runtime database role', () => {
       'billing_journal_entries',
       'billing_journal_lines',
       'billing_payment_attempts',
+      'billing_payment_plan_attempts',
+      'billing_payment_plan_events',
+      'billing_payment_plan_terms',
+      'billing_payment_plans',
       'billing_payments',
       'billing_settings',
       'command_idempotency',
@@ -187,6 +191,11 @@ describe('runtime database role', () => {
       // B2 payments.
       'billing_payment_attempts',
       'billing_payments',
+      // B3 payment plans.
+      'billing_payment_plans',
+      'billing_payment_plan_terms',
+      'billing_payment_plan_events',
+      'billing_payment_plan_attempts',
     ]) {
       const { rows } = await db.app.query(`SELECT count(*)::int AS n FROM cuspatlas.${t}`);
       expect([t, rows[0].n]).toStrictEqual([t, 0]);

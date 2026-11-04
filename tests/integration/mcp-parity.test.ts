@@ -114,6 +114,15 @@ const TOOL_NAMES = [
   'billing_payments_settle',
   'billing_responsibility_transfer',
   'billing_worklist_list',
+  // B3 payment-plan tools.
+  'billing_plans_amend',
+  'billing_plans_authorize',
+  'billing_plans_autopay',
+  'billing_plans_close',
+  'billing_plans_collect',
+  'billing_plans_create',
+  'billing_plans_get',
+  'billing_plans_worklist',
 ].sort();
 
 let db: TestDatabase;

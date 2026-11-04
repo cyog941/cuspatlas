@@ -26,6 +26,7 @@ const QUERIES: Record<string, string> = {
   'billing.ledger.list': 'LedgerQuery',
   'billing.balances.read': 'BalanceQuery',
   'billing.worklist.list': 'WorklistQuery',
+  'billing.plans.worklist': 'PlanWorklistQuery',
 };
 function restShape(route: (typeof routes)[number]): { properties: Schema; required?: string[] } {
   if (route.requestBody !== undefined) {

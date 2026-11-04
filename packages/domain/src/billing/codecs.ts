@@ -3,6 +3,8 @@ import type {
   ChargeCommandData,
   EntryCommandData,
   PaymentCommandData,
+  PlanCollectData,
+  PlanCommandData,
   ReconcileCommandData,
   ReversalCommandData,
 } from '@cuspatlas/contracts';
@@ -99,6 +101,59 @@ const reconcile: ReplayCodec<ReconcileCommandData> = {
   },
 };
 
+// ---- B3.
+const storedVersion = (v: unknown): number => {
+  if (typeof v !== 'number' || !Number.isSafeInteger(v) || v < 1) throw malformed();
+  return v;
+};
+const plan: ReplayCodec<PlanCommandData> = {
+  persist: (d): StoredResult => ({
+    kind: 'success',
+    planRef: d.planRef,
+    termsVersion: d.termsVersion,
+    eventRef: d.eventRef,
+  }),
+  restore(stored) {
+    success(stored);
+    return {
+      planRef: storedRef(stored.planRef),
+      termsVersion: storedVersion(stored.termsVersion),
+      eventRef: storedRefOrNull(stored.eventRef),
+    };
+  },
+};
+const PLAN_OUTCOMES = new Set(['confirmed', 'declined', 'unknown', 'blocked']);
+const collect: ReplayCodec<PlanCollectData> = {
+  persist: (d): StoredResult => ({
+    kind: 'success',
+    planRef: d.planRef,
+    planAttemptRef: d.planAttemptRef,
+    outcome: d.outcome,
+    attemptRef: d.attemptRef,
+    paymentRef: d.paymentRef,
+  }),
+  restore(stored) {
+    success(stored);
+    if (typeof stored.outcome !== 'string' || !PLAN_OUTCOMES.has(stored.outcome)) throw malformed();
+    return {
+      planRef: storedRef(stored.planRef),
+      planAttemptRef: storedRef(stored.planAttemptRef),
+      outcome: stored.outcome as PlanCollectData['outcome'],
+      attemptRef: storedRefOrNull(stored.attemptRef),
+      paymentRef: storedRefOrNull(stored.paymentRef),
+    };
+  },
+};
+
+export const BILLING_PLAN_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<unknown>>> = {
+  'billing.plans.create': plan as ReplayCodec<unknown>,
+  'billing.plans.authorize': plan as ReplayCodec<unknown>,
+  'billing.plans.amend': plan as ReplayCodec<unknown>,
+  'billing.plans.autopay': plan as ReplayCodec<unknown>,
+  'billing.plans.close': plan as ReplayCodec<unknown>,
+  'billing.plans.collect': collect as ReplayCodec<unknown>,
+};
+
 export const BILLING_PAYMENT_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<unknown>>> = {
   'billing.payments.record': payment as ReplayCodec<unknown>,
   'billing.payments.settle': entry as ReplayCodec<unknown>,
@@ -114,4 +169,5 @@ export const BILLING_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<unknown>
   'billing.charges.post': charge as ReplayCodec<unknown>,
   'billing.entries.reverse': reversal as ReplayCodec<unknown>,
   ...BILLING_PAYMENT_REPLAY_CODECS,
+  ...BILLING_PLAN_REPLAY_CODECS,
 };

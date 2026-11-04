@@ -117,7 +117,7 @@ const receivedLines = (amount: Money, patientId: string, paymentId: string): Lin
 ];
 
 /** A guarantor must be the patient's current, unrevoked guarantor (S5 relationship). */
-async function assertGuarantor(
+export async function assertGuarantor(
   tx: TenantTransaction,
   patient: PatientRow,
   guarantor: PatientRow,
@@ -131,6 +131,100 @@ async function assertGuarantor(
   if (rows.length === 0) throw failed('guarantor_unresolved');
 }
 
+/** Inserts a received payment fact and posts it (undeposited funds against unapplied credit). */
+export async function insertPayment(
+  tx: TenantTransaction,
+  o: {
+    patientId: string;
+    guarantorId: string | null;
+    method: PaymentMethod;
+    amount: Money;
+    externalRef: string | null;
+    attemptId: string | null;
+    receivedAt: string | null;
+  },
+): Promise<{ paymentId: string; entryRef: string }> {
+  let paymentId: string;
+  try {
+    const { rows } = await tx.query<{ id: string }>(
+      `INSERT INTO cuspatlas.billing_payments (tenant_id, patient_id, guarantor_id, method, amount_minor, currency,
+         external_ref, attempt_id, received_at, created_by)
+       VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6, $7, coalesce($8::timestamptz, now()),
+         cuspatlas.current_actor_id())
+       RETURNING id`,
+      [
+        o.patientId,
+        o.guarantorId,
+        o.method,
+        String(o.amount.minor),
+        o.amount.currency,
+        o.externalRef,
+        o.attemptId,
+        o.receivedAt,
+      ],
+    );
+    paymentId = rows[0]?.id as string;
+  } catch (err) {
+    if (isPgError(err, '23505')) throw conflict('duplicate_receipt');
+    throw err;
+  }
+  const entryRef = await postEntry(tx, {
+    kind: 'patientPayment',
+    currency: o.amount.currency,
+    paymentId,
+    externalRef: o.externalRef,
+    lines: receivedLines(o.amount, o.patientId, paymentId),
+  });
+  return { paymentId, entryRef };
+}
+
+/**
+ * One capture through the provider port with a stable key, recorded as an attempt row whatever the
+ * answer: confirmed (with a receipt), declined (nothing collected) or unknown (an open
+ * reconciliation item, never retried automatically). Shared by recordPayment and plan collection.
+ */
+export async function captureWithProvider(
+  tx: TenantTransaction,
+  provider: PaymentProviderPort,
+  o: {
+    patientId: string;
+    guarantorId: string | null;
+    instrumentRef: string;
+    providerKey: string;
+    amount: Money;
+  },
+): Promise<{ outcome: 'confirmed' | 'declined' | 'unknown'; attemptId: string; receiptId: string | null }> {
+  const answer = await provider.capture({
+    providerKey: o.providerKey,
+    amount: o.amount,
+    instrumentRef: o.instrumentRef,
+  });
+  const confirmed = answer.outcome === 'confirmed' && answer.receiptId !== undefined;
+  const outcome = confirmed ? 'confirmed' : answer.outcome === 'declined' ? 'declined' : 'unknown';
+  const { rows } = await tx.query<{ id: string }>(
+    `INSERT INTO cuspatlas.billing_payment_attempts (tenant_id, patient_id, guarantor_id, method, instrument_ref,
+       provider_key, amount_minor, currency, outcome, provider_receipt, created_by)
+     VALUES (cuspatlas.current_tenant_id(), $1, $2, 'card_synthetic', $3, $4, $5, $6, $7, $8,
+       cuspatlas.current_actor_id())
+     RETURNING id`,
+    [
+      o.patientId,
+      o.guarantorId,
+      o.instrumentRef,
+      o.providerKey,
+      String(o.amount.minor),
+      o.amount.currency,
+      outcome,
+      confirmed ? (answer.receiptId as string) : null,
+    ],
+  );
+  return {
+    outcome,
+    attemptId: rows[0]?.id as string,
+    receiptId: confirmed ? (answer.receiptId as string) : null,
+  };
+}
+
 /**
  * B2 payment facts: recording (manual or through the synthetic provider port), settlement,
  * reconciliation of unknown provider outcomes, refunds and transfers of unapplied funds. Every money
@@ -141,52 +235,6 @@ export function createPaymentOperations(
   provider: PaymentProviderPort = createSyntheticPaymentProvider(),
 ) {
   const { deps, execute } = base;
-
-  async function insertPayment(
-    tx: TenantTransaction,
-    o: {
-      patientId: string;
-      guarantorId: string | null;
-      method: PaymentMethod;
-      amount: Money;
-      externalRef: string | null;
-      attemptId: string | null;
-      receivedAt: string | null;
-    },
-  ): Promise<{ paymentId: string; entryRef: string }> {
-    let paymentId: string;
-    try {
-      const { rows } = await tx.query<{ id: string }>(
-        `INSERT INTO cuspatlas.billing_payments (tenant_id, patient_id, guarantor_id, method, amount_minor, currency,
-           external_ref, attempt_id, received_at, created_by)
-         VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6, $7, coalesce($8::timestamptz, now()),
-           cuspatlas.current_actor_id())
-         RETURNING id`,
-        [
-          o.patientId,
-          o.guarantorId,
-          o.method,
-          String(o.amount.minor),
-          o.amount.currency,
-          o.externalRef,
-          o.attemptId,
-          o.receivedAt,
-        ],
-      );
-      paymentId = rows[0]?.id as string;
-    } catch (err) {
-      if (isPgError(err, '23505')) throw conflict('duplicate_receipt');
-      throw err;
-    }
-    const entryRef = await postEntry(tx, {
-      kind: 'patientPayment',
-      currency: o.amount.currency,
-      paymentId,
-      externalRef: o.externalRef,
-      lines: receivedLines(o.amount, o.patientId, paymentId),
-    });
-    return { paymentId, entryRef };
-  }
 
   /** Common shape of a command on one payment: authorize, validate, lock the payment, run once. */
   function onPayment<P, T>(
@@ -275,35 +323,16 @@ export function createPaymentOperations(
               const providerKey = sha256Hex(
                 `billing-provider:${ctx.tenantId}:${ctx.actorId}:${op}:${idempotencyKeyDigest(envelope.idempotencyKey)}`,
               );
-              const answer = await provider.capture({
+              const captured = await captureWithProvider(tx, provider, {
+                patientId: patient.id,
+                guarantorId: guarantor?.id ?? null,
+                instrumentRef: p.instrumentRef as string,
                 providerKey,
                 amount,
-                instrumentRef: p.instrumentRef as string,
               });
-              const confirmed = answer.outcome === 'confirmed' && answer.receiptId !== undefined;
-              const outcome = confirmed
-                ? 'confirmed'
-                : answer.outcome === 'declined'
-                  ? 'declined'
-                  : 'unknown';
-              const { rows } = await tx.query<{ id: string }>(
-                `INSERT INTO cuspatlas.billing_payment_attempts (tenant_id, patient_id, guarantor_id, method, instrument_ref,
-                   provider_key, amount_minor, currency, outcome, provider_receipt, created_by)
-                 VALUES (cuspatlas.current_tenant_id(), $1, $2, 'card_synthetic', $3, $4, $5, $6, $7, $8,
-                   cuspatlas.current_actor_id())
-                 RETURNING id`,
-                [
-                  patient.id,
-                  guarantor?.id ?? null,
-                  p.instrumentRef,
-                  providerKey,
-                  String(amount.minor),
-                  amount.currency,
-                  outcome,
-                  confirmed ? answer.receiptId : null,
-                ],
-              );
-              attemptId = rows[0]?.id as string;
+              const outcome = captured.outcome;
+              const confirmed = outcome === 'confirmed';
+              attemptId = captured.attemptId;
               if (!confirmed) {
                 // Declined: a recorded fact, nothing collected. Unknown: an open reconciliation item,
                 // never posted as collected and never retried automatically.
@@ -322,7 +351,7 @@ export function createPaymentOperations(
                   version: 1,
                 };
               }
-              externalRef = answer.receiptId as string;
+              externalRef = captured.receiptId as string;
             }
             const posted = await insertPayment(tx, {
               patientId: patient.id,

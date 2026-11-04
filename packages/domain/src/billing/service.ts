@@ -4,6 +4,7 @@ import { createChargeOperations } from './charges';
 import { createEntryOperations } from './entries';
 import { createSyntheticPaymentProvider } from './payment-port';
 import { createPaymentOperations } from './payments';
+import { createPlanOperations } from './plans';
 import { createWorklistOperations } from './worklist';
 
 /**
@@ -14,10 +15,12 @@ import { createWorklistOperations } from './worklist';
  */
 export function createBillingService(deps: BillingDeps) {
   const base = createBillingBase(deps);
+  const provider = deps.payments ?? createSyntheticPaymentProvider();
   return {
     ...createChargeOperations(base),
     ...createEntryOperations(base),
-    ...createPaymentOperations(base, deps.payments ?? createSyntheticPaymentProvider()),
+    ...createPaymentOperations(base, provider),
+    ...createPlanOperations(base, provider),
     ...createAllocationOperations(base),
     ...createWorklistOperations(base),
   };

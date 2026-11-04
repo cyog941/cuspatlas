@@ -167,6 +167,13 @@ export const MERGE_EXCLUDED_REFERENCES: readonly { table: string; column: string
     column: 'guarantor_id',
     why: 'posted financial facts are never relinked',
   },
+  // B3: a plan names the parties that agreed it; the account follows the merge at read time.
+  { table: 'billing_payment_plans', column: 'patient_id', why: 'agreed financial terms are never relinked' },
+  {
+    table: 'billing_payment_plans',
+    column: 'guarantor_id',
+    why: 'agreed financial terms are never relinked',
+  },
 ];
 
 /**

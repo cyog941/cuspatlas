@@ -1241,6 +1241,782 @@
           "$ref": "#/$defs/Instant"
         }
       }
+    },
+    "PlanRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "PlanAttemptRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "PlanEventRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "TimeZone": {
+      "type": "string",
+      "description": "IANA time zone name (Area/Location); unknown zones are 422 invalid_time_zone.",
+      "maxLength": 64,
+      "pattern": "^[A-Z][A-Za-z_+-]*(/[A-Za-z0-9_+-]+){1,2}$"
+    },
+    "AuthorizationRef": {
+      "type": "string",
+      "description": "Synthetic reference of a recorded authorization (signature) fact. Used once per plan.",
+      "pattern": "^syn-auth-[a-z0-9-]{1,60}$"
+    },
+    "EvidenceRef": {
+      "type": "string",
+      "description": "Synthetic reference of the signed-agreement evidence (no signature image is stored).",
+      "pattern": "^syn-evidence-[a-z0-9-]{1,60}$"
+    },
+    "CardExpiry": {
+      "type": "string",
+      "description": "Card expiry month (YYYY-MM); no other card data.",
+      "pattern": "^20[0-9]{2}-(0[1-9]|1[0-2])$"
+    },
+    "InstallmentCount": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 120
+    },
+    "PlanCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "B3 plan creation. Monthly installments split the contract total evenly (largest remainder to the earliest). The guarantor, when named, must be the current S5 guarantor.",
+      "required": ["patientRef", "contractTotal", "installmentCount", "firstDueOn", "timeZone"],
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "guarantorRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "contractTotal": {
+          "$ref": "#/$defs/PositiveMoney"
+        },
+        "installmentCount": {
+          "$ref": "#/$defs/InstallmentCount"
+        },
+        "firstDueOn": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "timeZone": {
+          "$ref": "#/$defs/TimeZone"
+        }
+      }
+    },
+    "PlanAuthorize": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "authorizationRef", "evidenceRef"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "authorizationRef": {
+          "$ref": "#/$defs/AuthorizationRef"
+        },
+        "evidenceRef": {
+          "$ref": "#/$defs/EvidenceRef"
+        }
+      }
+    },
+    "PlanAmend": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "contractTotal", "installmentCount", "firstDueOn", "reasonCode"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "contractTotal": {
+          "$ref": "#/$defs/PositiveMoney"
+        },
+        "installmentCount": {
+          "$ref": "#/$defs/InstallmentCount"
+        },
+        "firstDueOn": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "PlanAutopay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "state"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "state": {
+          "enum": ["active", "paused"]
+        },
+        "instrumentRef": {
+          "$ref": "#/$defs/InstrumentRef"
+        },
+        "cardExpiry": {
+          "$ref": "#/$defs/CardExpiry"
+        },
+        "authorizationRef": {
+          "$ref": "#/$defs/AuthorizationRef"
+        }
+      }
+    },
+    "PlanCollect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["periodNo"],
+      "properties": {
+        "periodNo": {
+          "$ref": "#/$defs/InstallmentCount"
+        },
+        "amount": {
+          "$ref": "#/$defs/PositiveMoney"
+        },
+        "retry": {
+          "type": "boolean"
+        }
+      }
+    },
+    "PlanClose": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "outcome", "reasonCode"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "outcome": {
+          "enum": ["voided", "defaulted"]
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "PlanWorklistKind": {
+      "enum": ["missing_signature", "expired_card", "failed_autopay", "overdue"]
+    },
+    "PlanWorklistQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/PlanWorklistKind"
+        },
+        "limit": {
+          "type": "string",
+          "pattern": "^([1-9]|[1-9][0-9]|100)$"
+        }
+      }
+    },
+    "PlanCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["planRef", "termsVersion", "eventRef"],
+          "properties": {
+            "planRef": {
+              "$ref": "#/$defs/PlanRef"
+            },
+            "termsVersion": {
+              "$ref": "#/$defs/Version"
+            },
+            "eventRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/PlanEventRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "PlanCollectResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["planRef", "planAttemptRef", "outcome", "attemptRef", "paymentRef"],
+          "properties": {
+            "planRef": {
+              "$ref": "#/$defs/PlanRef"
+            },
+            "planAttemptRef": {
+              "$ref": "#/$defs/PlanAttemptRef"
+            },
+            "outcome": {
+              "enum": ["confirmed", "declined", "unknown", "blocked"]
+            },
+            "attemptRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AttemptRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "paymentRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/PaymentRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "PlanInstallment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["periodNo", "dueOn", "amount", "collected", "state"],
+      "properties": {
+        "periodNo": {
+          "$ref": "#/$defs/InstallmentCount"
+        },
+        "dueOn": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "amount": {
+          "$ref": "#/$defs/Money"
+        },
+        "collected": {
+          "$ref": "#/$defs/Money"
+        },
+        "state": {
+          "enum": ["scheduled", "due", "overdue", "partially_paid", "paid"]
+        }
+      }
+    },
+    "PlanAttempt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "planAttemptRef",
+        "termsVersion",
+        "periodNo",
+        "attemptNo",
+        "outcome",
+        "blockReason",
+        "amount",
+        "attemptRef",
+        "paymentRef",
+        "attemptedAt"
+      ],
+      "properties": {
+        "planAttemptRef": {
+          "$ref": "#/$defs/PlanAttemptRef"
+        },
+        "termsVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "periodNo": {
+          "$ref": "#/$defs/InstallmentCount"
+        },
+        "attemptNo": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "outcome": {
+          "enum": ["confirmed", "declined", "unknown", "blocked"]
+        },
+        "blockReason": {
+          "anyOf": [
+            {
+              "enum": ["card_expired"]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "amount": {
+          "$ref": "#/$defs/Money"
+        },
+        "attemptRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AttemptRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "paymentRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PaymentRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "attemptedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "PlanEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eventRef",
+        "kind",
+        "termsVersion",
+        "authorizationRef",
+        "evidenceRef",
+        "instrumentRef",
+        "cardExpiry",
+        "reasonCode",
+        "actorRef",
+        "recordedAt"
+      ],
+      "properties": {
+        "eventRef": {
+          "$ref": "#/$defs/PlanEventRef"
+        },
+        "kind": {
+          "enum": [
+            "authorized",
+            "autopay_enrolled",
+            "autopay_paused",
+            "autopay_resumed",
+            "voided",
+            "defaulted"
+          ]
+        },
+        "termsVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "authorizationRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AuthorizationRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidenceRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EvidenceRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "instrumentRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InstrumentRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cardExpiry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CardExpiry"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reasonCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "actorRef": {
+          "$ref": "#/$defs/PrincipalRef"
+        },
+        "recordedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "PlanTerms": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "termsVersion",
+        "contractTotal",
+        "installmentCount",
+        "firstDueOn",
+        "collectedBasis",
+        "reasonCode",
+        "agreedAt"
+      ],
+      "properties": {
+        "termsVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "contractTotal": {
+          "$ref": "#/$defs/Money"
+        },
+        "installmentCount": {
+          "$ref": "#/$defs/InstallmentCount"
+        },
+        "firstDueOn": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "collectedBasis": {
+          "$ref": "#/$defs/Money"
+        },
+        "reasonCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "agreedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "PaymentPlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Derived plan view (B3): balance, overdue, states and the schedule are computed at read time from the terms, the facts, the attempts and the journal; none is stored.",
+      "required": [
+        "planRef",
+        "patientRef",
+        "guarantorRef",
+        "guarantorBasis",
+        "timeZone",
+        "termsVersion",
+        "contractTotal",
+        "installment",
+        "installmentCount",
+        "collected",
+        "balance",
+        "overdue",
+        "overdueSince",
+        "nextDueOn",
+        "authorizationState",
+        "autoPayState",
+        "cardExpiryState",
+        "cardExpiry",
+        "instrumentRef",
+        "planState",
+        "closedReasonCode",
+        "installments",
+        "attempts",
+        "events",
+        "terms",
+        "asOf",
+        "version"
+      ],
+      "properties": {
+        "planRef": {
+          "$ref": "#/$defs/PlanRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "guarantorRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "guarantorBasis": {
+          "enum": ["relationship", "self"]
+        },
+        "timeZone": {
+          "$ref": "#/$defs/TimeZone"
+        },
+        "termsVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "contractTotal": {
+          "$ref": "#/$defs/Money"
+        },
+        "installment": {
+          "$ref": "#/$defs/Money"
+        },
+        "installmentCount": {
+          "$ref": "#/$defs/InstallmentCount"
+        },
+        "collected": {
+          "$ref": "#/$defs/Money"
+        },
+        "balance": {
+          "$ref": "#/$defs/Money"
+        },
+        "overdue": {
+          "$ref": "#/$defs/Money"
+        },
+        "overdueSince": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalDate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "nextDueOn": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalDate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "authorizationState": {
+          "enum": ["unsigned", "authorized"]
+        },
+        "autoPayState": {
+          "enum": ["not_enrolled", "active", "paused", "failed", "blocked"]
+        },
+        "cardExpiryState": {
+          "enum": ["current", "expiring", "expired", "absent"]
+        },
+        "cardExpiry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CardExpiry"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "instrumentRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InstrumentRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "planState": {
+          "enum": ["open", "completed", "voided", "defaulted"]
+        },
+        "closedReasonCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "installments": {
+          "type": "array",
+          "maxItems": 120,
+          "items": {
+            "$ref": "#/$defs/PlanInstallment"
+          }
+        },
+        "attempts": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "$ref": "#/$defs/PlanAttempt"
+          }
+        },
+        "events": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "$ref": "#/$defs/PlanEvent"
+          }
+        },
+        "terms": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/PlanTerms"
+          }
+        },
+        "asOf": {
+          "$ref": "#/$defs/Instant"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "PlanRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/PaymentPlan"
+        }
+      }
+    },
+    "PlanWorkItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "planRef",
+        "patientRef",
+        "guarantorRef",
+        "amount",
+        "owner",
+        "queue",
+        "reasonCode",
+        "dueAt",
+        "overdue",
+        "suggestedAction",
+        "evidenceRefs"
+      ],
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/PlanWorklistKind"
+        },
+        "planRef": {
+          "$ref": "#/$defs/PlanRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "guarantorRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "amount": {
+          "$ref": "#/$defs/Money"
+        },
+        "owner": {
+          "const": "practice"
+        },
+        "queue": {
+          "const": "billing"
+        },
+        "reasonCode": {
+          "enum": [
+            "authorization_missing",
+            "card_expired",
+            "card_expiring",
+            "autopay_declined",
+            "installment_overdue"
+          ]
+        },
+        "dueAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "overdue": {
+          "type": "boolean"
+        },
+        "suggestedAction": {
+          "enum": [
+            "obtain_signed_authorization",
+            "obtain_new_instrument_and_authorization",
+            "contact_guarantor_or_retry",
+            "contact_guarantor"
+          ]
+        },
+        "evidenceRefs": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "ref"],
+            "properties": {
+              "kind": {
+                "enum": ["planAttempt", "paymentAttempt", "planEvent"]
+              },
+              "ref": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "PlanWorklist": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "totalCount", "truncated", "checkedAt"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/PlanWorkItem"
+          }
+        },
+        "totalCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "checkedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
     }
   }
 }

@@ -275,3 +275,12 @@ Additions only; no frozen row changed. ADR 0008 (recommended-pending-billing-app
 - Lock order (extends B1): patients `FOR SHARE` (record, transfer), then the payment `FOR UPDATE`, then charges `FOR UPDATE` in id order. Losers of a race see the committed result and get typed 409 refusals.
 - Operations: `billing.payments.record|read|settle|allocate|refund|reconcile`, `billing.funds.transfer`, `billing.responsibility.transfer`, `billing.worklist.list`. Refunds and cross-patient transfers are human-only `billing.correct`; reads use `paymentDistribution.read` and `undistributedFunds.read`.
 - Merge: `billing_payments.patient_id|guarantor_id` and `billing_payment_attempts.patient_id|guarantor_id` are deliberate exclusions; allocation resolves the charge's merge set.
+
+## Task record: B3 payment plans (workstream B)
+
+Additions only; no frozen row changed. ADR 0008 (recommended-pending-billing-approval); card and auto-pay execution blocked-on-discovery (B-S1).
+
+- Storage (migration `20261109020000_billing_payment_plans.sql`): `billing_payment_plans` (parties, currency, IANA zone; version only), `billing_payment_plan_terms` (one row per terms version), `billing_payment_plan_events` (authorization, auto-pay and closure facts; authorization reference unique per plan; one closure) and `billing_payment_plan_attempts` (unique per plan, terms version, period and attempt number; a blocked attempt has no provider attempt). All append-only; no balance, overdue, state or status column.
+- Operations: `billing.plans.create|read|authorize|amend|autopay|collect|close|worklist`. Close is human-only `billing.correct`; reads and the worklist use the registry scope `receivables.read`; the rest `billing.write`.
+- Collection reuses the B2 provider path: provider key bound to plan, terms version, period and attempt number; a confirmed capture posts an ordinary B2 card payment (unapplied until allocated); an unknown outcome is reconciled only through `billing.payments.reconcile`.
+- Merge: `billing_payment_plans.patient_id|guarantor_id` are deliberate exclusions.

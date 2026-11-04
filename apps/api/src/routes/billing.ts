@@ -81,4 +81,23 @@ export function registerBillingRoutes(
     b.reconcileAttempt(requireActor(r), param(r, 'attemptRef'), env('billing.payments.reconcile', r)),
   );
   get('billing.worklist.list', (r) => b.listWorklist(requireActor(r), query(r)));
+  // B3 payment plans.
+  post('billing.plans.create', (r) => b.createPlan(requireActor(r), env('billing.plans.create', r)));
+  get('billing.plans.read', async (r) => ({ data: await b.getPlan(requireActor(r), param(r, 'planRef')) }));
+  post('billing.plans.authorize', (r) =>
+    b.authorizePlan(requireActor(r), param(r, 'planRef'), env('billing.plans.authorize', r)),
+  );
+  post('billing.plans.amend', (r) =>
+    b.amendPlan(requireActor(r), param(r, 'planRef'), env('billing.plans.amend', r)),
+  );
+  post('billing.plans.autopay', (r) =>
+    b.setAutopay(requireActor(r), param(r, 'planRef'), env('billing.plans.autopay', r)),
+  );
+  post('billing.plans.collect', (r) =>
+    b.collectInstallment(requireActor(r), param(r, 'planRef'), env('billing.plans.collect', r)),
+  );
+  post('billing.plans.close', (r) =>
+    b.closePlan(requireActor(r), param(r, 'planRef'), env('billing.plans.close', r)),
+  );
+  get('billing.plans.worklist', (r) => b.listPlanWorklist(requireActor(r), query(r)));
 }

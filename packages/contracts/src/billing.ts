@@ -256,3 +256,176 @@ export const validateFundsTransfer = def('FundsTransfer');
 export const validateResponsibilityTransfer = def('ResponsibilityTransfer');
 export const validateAttemptReconcile = def('AttemptReconcile');
 export const validateBillingWorklistQuery = def('WorklistQuery');
+
+// ---- B3 payment plans (recommended-pending-billing-approval; card execution B-S1).
+export type PlanWorklistKind = 'missing_signature' | 'expired_card' | 'failed_autopay' | 'overdue';
+export type PlanAttemptOutcome = 'confirmed' | 'declined' | 'unknown' | 'blocked';
+export interface PlanCreate {
+  readonly patientRef: string;
+  readonly guarantorRef?: string;
+  readonly contractTotal: Money;
+  readonly installmentCount: number;
+  readonly firstDueOn: string;
+  readonly timeZone: string;
+}
+export interface PlanAuthorize {
+  readonly expectedVersion: number;
+  readonly authorizationRef: string;
+  readonly evidenceRef: string;
+}
+export interface PlanAmend {
+  readonly expectedVersion: number;
+  readonly contractTotal: Money;
+  readonly installmentCount: number;
+  readonly firstDueOn: string;
+  readonly reasonCode: string;
+}
+export interface PlanAutopay {
+  readonly expectedVersion: number;
+  readonly state: 'active' | 'paused';
+  readonly instrumentRef?: string;
+  readonly cardExpiry?: string;
+  readonly authorizationRef?: string;
+}
+export interface PlanCollect {
+  readonly periodNo: number;
+  readonly amount?: Money;
+  readonly retry?: boolean;
+}
+export interface PlanClose {
+  readonly expectedVersion: number;
+  readonly outcome: 'voided' | 'defaulted';
+  readonly reasonCode: string;
+}
+export interface PlanWorklistQuery {
+  readonly kind?: PlanWorklistKind;
+  readonly limit?: string;
+}
+export interface PlanCommandData {
+  readonly planRef: string;
+  readonly termsVersion: number;
+  readonly eventRef: string | null;
+}
+export interface PlanCollectData {
+  readonly planRef: string;
+  readonly planAttemptRef: string;
+  readonly outcome: PlanAttemptOutcome;
+  readonly attemptRef: string | null;
+  readonly paymentRef: string | null;
+}
+export interface PlanInstallment {
+  readonly periodNo: number;
+  readonly dueOn: string;
+  readonly amount: Money;
+  readonly collected: Money;
+  readonly state: 'scheduled' | 'due' | 'overdue' | 'partially_paid' | 'paid';
+}
+export interface PlanAttemptView {
+  readonly planAttemptRef: string;
+  readonly termsVersion: number;
+  readonly periodNo: number;
+  readonly attemptNo: number;
+  readonly outcome: PlanAttemptOutcome;
+  readonly blockReason: 'card_expired' | null;
+  readonly amount: Money;
+  readonly attemptRef: string | null;
+  readonly paymentRef: string | null;
+  readonly attemptedAt: string;
+}
+export type PlanEventKind =
+  | 'authorized'
+  | 'autopay_enrolled'
+  | 'autopay_paused'
+  | 'autopay_resumed'
+  | 'voided'
+  | 'defaulted';
+export interface PlanEventView {
+  readonly eventRef: string;
+  readonly kind: PlanEventKind;
+  readonly termsVersion: number;
+  readonly authorizationRef: string | null;
+  readonly evidenceRef: string | null;
+  readonly instrumentRef: string | null;
+  readonly cardExpiry: string | null;
+  readonly reasonCode: string | null;
+  readonly actorRef: string;
+  readonly recordedAt: string;
+}
+export interface PlanTermsView {
+  readonly termsVersion: number;
+  readonly contractTotal: Money;
+  readonly installmentCount: number;
+  readonly firstDueOn: string;
+  readonly collectedBasis: Money;
+  readonly reasonCode: string | null;
+  readonly agreedAt: string;
+}
+export interface PaymentPlanView {
+  readonly planRef: string;
+  readonly patientRef: string;
+  readonly guarantorRef: string;
+  readonly guarantorBasis: 'relationship' | 'self';
+  readonly timeZone: string;
+  readonly termsVersion: number;
+  readonly contractTotal: Money;
+  readonly installment: Money;
+  readonly installmentCount: number;
+  readonly collected: Money;
+  readonly balance: Money;
+  readonly overdue: Money;
+  readonly overdueSince: string | null;
+  readonly nextDueOn: string | null;
+  readonly authorizationState: 'unsigned' | 'authorized';
+  readonly autoPayState: 'not_enrolled' | 'active' | 'paused' | 'failed' | 'blocked';
+  readonly cardExpiryState: 'current' | 'expiring' | 'expired' | 'absent';
+  readonly cardExpiry: string | null;
+  readonly instrumentRef: string | null;
+  readonly planState: 'open' | 'completed' | 'voided' | 'defaulted';
+  readonly closedReasonCode: string | null;
+  readonly installments: readonly PlanInstallment[];
+  readonly attempts: readonly PlanAttemptView[];
+  readonly events: readonly PlanEventView[];
+  readonly terms: readonly PlanTermsView[];
+  readonly asOf: string;
+  readonly version: number;
+}
+export interface PlanWorkItem {
+  readonly kind: PlanWorklistKind;
+  readonly planRef: string;
+  readonly patientRef: string;
+  readonly guarantorRef: string;
+  readonly amount: Money;
+  readonly owner: 'practice';
+  readonly queue: 'billing';
+  readonly reasonCode:
+    | 'authorization_missing'
+    | 'card_expired'
+    | 'card_expiring'
+    | 'autopay_declined'
+    | 'installment_overdue';
+  readonly dueAt: string;
+  readonly overdue: boolean;
+  readonly suggestedAction:
+    | 'obtain_signed_authorization'
+    | 'obtain_new_instrument_and_authorization'
+    | 'contact_guarantor_or_retry'
+    | 'contact_guarantor';
+  readonly evidenceRefs: readonly {
+    readonly kind: 'planAttempt' | 'paymentAttempt' | 'planEvent';
+    readonly ref: string;
+  }[];
+}
+export interface PlanWorklist {
+  readonly data: readonly PlanWorkItem[];
+  readonly totalCount: number;
+  readonly truncated: boolean;
+  readonly checkedAt: string;
+}
+
+export const validatePlanCreate = def('PlanCreate');
+export const validatePlanAuthorize = def('PlanAuthorize');
+export const validatePlanAmend = def('PlanAmend');
+export const validatePlanAutopay = def('PlanAutopay');
+export const validatePlanCollect = def('PlanCollect');
+export const validatePlanClose = def('PlanClose');
+export const validatePlanWorklistQuery = def('PlanWorklistQuery');

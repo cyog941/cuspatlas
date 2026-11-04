@@ -2014,6 +2014,260 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/billing/payment-plans:
+    post:
+      operationId: billing.plans.create
+      description: >-
+        Create a payment plan (B3; synthetic data only; pending billing approval). Monthly installments split the contract total evenly, residue to the earliest. The guarantor, when named, must be the current S5 guarantor (422 guarantor_unresolved); 422 invalid_time_zone or currency_mismatch. The plan starts unsigned. Requires billing.write.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PlanCreate'
+      responses:
+        '201':
+          description: The plan and its first terms version.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PlanCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/payment-plans/{planRef}:
+    get:
+      operationId: billing.plans.read
+      description: >-
+        A derived plan view: terms history, schedule, collected, balance, overdue, next due date, authorization, auto-pay and card-expiry state, attempts and facts. Nothing in it is stored. Requires receivables.read.
+      parameters:
+        - $ref: '#/components/parameters/PlanRef'
+      responses:
+        '200':
+          description: The derived plan view.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PlanRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/payment-plans/{planRef}/authorizations:
+    post:
+      operationId: billing.plans.authorize
+      description: >-
+        Record the signed-agreement authorization fact (synthetic authorization and evidence references, each used once per plan) for the current terms. 409 already_authorized, plan_closed or stale_version. Requires billing.write.
+      parameters:
+        - $ref: '#/components/parameters/PlanRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PlanAuthorize'
+      responses:
+        '201':
+          description: The authorization fact.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PlanCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/payment-plans/{planRef}/amendments:
+    post:
+      operationId: billing.plans.amend
+      description: >-
+        Amend the plan as a new terms version; collected money becomes the basis of the new schedule and the new terms are unsigned until authorized. 422 amendment_below_collected; 409 attempt_in_flight, plan_closed or stale_version. Requires billing.write.
+      parameters:
+        - $ref: '#/components/parameters/PlanRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PlanAmend'
+      responses:
+        '201':
+          description: The new terms version.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PlanCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/payment-plans/{planRef}/autopay:
+    post:
+      operationId: billing.plans.autopay
+      description: >-
+        Enroll auto-pay with a synthetic instrument, card expiry month and a new authorization record (a reused one is 409 authorization_reused), or pause or resume it. 409 unsigned_authorization or instrument_absent; 422 instrument_incomplete. Requires billing.write.
+      parameters:
+        - $ref: '#/components/parameters/PlanRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PlanAutopay'
+      responses:
+        '201':
+          description: The auto-pay fact.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PlanCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/payment-plans/{planRef}/collections:
+    post:
+      operationId: billing.plans.collect
+      description: >-
+        Attempt one due installment period through the synthetic provider port (B-S1 blocked-on-discovery) with a key derived from the plan, terms version, period and attempt number. Declined and unknown outcomes and an expired card (blocked, no charge) are recorded attempts, not refusals. 409 duplicate_period (a further attempt needs retry), attempt_in_flight, unsigned_authorization, instrument_absent, autopay_paused, plan_voided, plan_defaulted or plan_completed; 422 period_not_found, period_not_due or amount_exceeds_installment. Requires billing.write.
+      parameters:
+        - $ref: '#/components/parameters/PlanRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PlanCollect'
+      responses:
+        '201':
+          description: The recorded installment attempt.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PlanCollectResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/payment-plans/{planRef}/close:
+    post:
+      operationId: billing.plans.close
+      description: >-
+        Void or default the plan (a human decision with a reason). History and collected money stay. 409 plan_closed, attempt_in_flight or stale_version. Requires billing.correct (human only).
+      parameters:
+        - $ref: '#/components/parameters/PlanRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PlanClose'
+      responses:
+        '201':
+          description: The closure fact.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PlanCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/payment-plan-worklist:
+    get:
+      operationId: billing.plans.worklist
+      description: >-
+        Owned payment-plan work items (missing signature, expired or expiring card, failed auto-pay, overdue installments), one per plan and problem, each with owner, queue, reason, due time, suggested action and evidence. Derived at read time. Requires receivables.read.
+      parameters:
+        - $ref: '#/components/parameters/PlanWorklistKind'
+        - $ref: '#/components/parameters/BillingWorklistLimit'
+      responses:
+        '200':
+          description: Plan work items ordered by due time, with total and truncation.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PlanWorklist'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
 components:
   securitySchemes:
     bearer:
@@ -2021,6 +2275,18 @@ components:
       scheme: bearer
       bearerFormat: JWT (EdDSA; claims sub, tid, sid, iss, aud, exp, iat)
   parameters:
+    PlanRef:
+      name: planRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PlanRef'
+    PlanWorklistKind:
+      name: kind
+      in: query
+      required: false
+      schema:
+        $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PlanWorklistKind'
     TaskRef:
       name: taskRef
       in: path

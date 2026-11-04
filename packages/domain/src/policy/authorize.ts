@@ -111,6 +111,17 @@ export const ACTION_POLICIES = {
   'billing.funds.transfer': { scope: 'billing.correct', principals: ['human'] },
   'billing.responsibility.transfer': { scope: 'billing.write', principals: ['human', 'service'] },
   'billing.worklist.list': { scope: 'undistributedFunds.read', principals: ['human', 'service'] },
+  // B3 payment plans. Creating, authorizing (recording the signed-agreement fact), amending, auto-pay
+  // and collection are billing.write (a scheduler may collect as a service). Voiding or defaulting a
+  // plan is a human-only billing.correct decision. Reads and the plan worklist need receivables.read.
+  'billing.plans.create': { scope: 'billing.write', principals: ['human', 'service'] },
+  'billing.plans.read': { scope: 'receivables.read', principals: ['human', 'service'] },
+  'billing.plans.authorize': { scope: 'billing.write', principals: ['human', 'service'] },
+  'billing.plans.amend': { scope: 'billing.write', principals: ['human', 'service'] },
+  'billing.plans.autopay': { scope: 'billing.write', principals: ['human', 'service'] },
+  'billing.plans.collect': { scope: 'billing.write', principals: ['human', 'service'] },
+  'billing.plans.close': { scope: 'billing.correct', principals: ['human'] },
+  'billing.plans.worklist': { scope: 'receivables.read', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

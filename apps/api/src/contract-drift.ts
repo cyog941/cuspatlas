@@ -137,6 +137,14 @@ export const BILLING_BODIES = [
   'ResponsibilityTransfer',
   'AttemptReconcile',
   'WorklistQuery',
+  // B3.
+  'PlanCreate',
+  'PlanAuthorize',
+  'PlanAmend',
+  'PlanAutopay',
+  'PlanCollect',
+  'PlanClose',
+  'PlanWorklistQuery',
 ] as const;
 
 /** Definitions the proposal contract copies from the task contract; they must stay byte-identical. */

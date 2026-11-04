@@ -7,6 +7,7 @@ import type {
   PlanCommandData,
   ReconcileCommandData,
   ReversalCommandData,
+  StatementCommandData,
 } from '@cuspatlas/contracts';
 import type { ReplayCodec, StoredResult } from '../commands/execute-once';
 
@@ -145,6 +146,28 @@ const collect: ReplayCodec<PlanCollectData> = {
   },
 };
 
+// ---- B4.
+const statement: ReplayCodec<StatementCommandData> = {
+  persist: (d): StoredResult => ({
+    kind: 'success',
+    statementRef: d.statementRef,
+    statementVersion: d.statementVersion,
+    snapshotDigest: d.snapshotDigest,
+    supersedesStatementRef: d.supersedesStatementRef,
+  }),
+  restore(stored) {
+    success(stored);
+    if (typeof stored.snapshotDigest !== 'string' || !/^[0-9a-f]{64}$/.test(stored.snapshotDigest))
+      throw malformed();
+    return {
+      statementRef: storedRef(stored.statementRef),
+      statementVersion: storedVersion(stored.statementVersion),
+      snapshotDigest: stored.snapshotDigest,
+      supersedesStatementRef: storedRefOrNull(stored.supersedesStatementRef),
+    };
+  },
+};
+
 export const BILLING_PLAN_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<unknown>>> = {
   'billing.plans.create': plan as ReplayCodec<unknown>,
   'billing.plans.authorize': plan as ReplayCodec<unknown>,
@@ -152,6 +175,7 @@ export const BILLING_PLAN_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<unk
   'billing.plans.autopay': plan as ReplayCodec<unknown>,
   'billing.plans.close': plan as ReplayCodec<unknown>,
   'billing.plans.collect': collect as ReplayCodec<unknown>,
+  'billing.statements.generate': statement as ReplayCodec<unknown>,
 };
 
 export const BILLING_PAYMENT_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<unknown>>> = {

@@ -210,4 +210,22 @@ export const BILLING_ROUTES: readonly RouteContract[] = [
     success: { status: '200', schema: B('PlanWorklist') },
     refusals: ['400', '401', '403', '503'],
   },
+  // B4 statements.
+  {
+    method: 'post',
+    path: '/v1/billing/statements',
+    operationId: 'billing.statements.generate',
+    protected: true,
+    requestBody: B('StatementGenerate'),
+    success: { status: '201', schema: B('StatementCommandResult') },
+    refusals: ['400', '401', '403', '404', '409', '422', '503'],
+  },
+  {
+    method: 'get',
+    path: '/v1/billing/statements/{statementRef}',
+    operationId: 'billing.statements.read',
+    protected: true,
+    success: { status: '200', schema: B('StatementRead') },
+    refusals: ['401', '403', '404', '503'],
+  },
 ];

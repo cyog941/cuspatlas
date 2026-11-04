@@ -123,6 +123,9 @@ const TOOL_NAMES = [
   'billing_plans_create',
   'billing_plans_get',
   'billing_plans_worklist',
+  // B4 statement tools.
+  'billing_statements_generate',
+  'billing_statements_get',
 ].sort();
 
 let db: TestDatabase;

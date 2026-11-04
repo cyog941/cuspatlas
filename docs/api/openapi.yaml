@@ -2268,6 +2268,62 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/billing/statements:
+    post:
+      operationId: billing.statements.generate
+      description: >-
+        Generate a statement as one audited command (B4; synthetic data only; pending billing approval): a canonical snapshot of the guarantor accounts (its dependents through the current S5 guarantor relationship, plus its own unless another guarantor holds it, each by merge set) from the journal at the cutoff, with its sha256 digest. The row is never updated; a regeneration is a new version that supersedes the latest. Credit and zero totals are classified explicitly. Delivery is E7 (channel none). 422 cutoff_in_future, guarantor_unresolved or statement_too_large; 409 patient_merged. Requires billing.write.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/StatementGenerate'
+      responses:
+        '201':
+          description: The generated statement version.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/StatementCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/statements/{statementRef}:
+    get:
+      operationId: billing.statements.read
+      description: >-
+        The stored snapshot with its digest check and freshness derived now (posted after cutoff, account membership changed, superseded); never restated. Requires receivables.read.
+      parameters:
+        - $ref: '#/components/parameters/StatementRef'
+      responses:
+        '200':
+          description: The statement and its derived freshness.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/StatementRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
 components:
   securitySchemes:
     bearer:
@@ -2275,6 +2331,12 @@ components:
       scheme: bearer
       bearerFormat: JWT (EdDSA; claims sub, tid, sid, iss, aud, exp, iat)
   parameters:
+    StatementRef:
+      name: statementRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/billing.schema.json#/$defs/StatementRef'
     PlanRef:
       name: planRef
       in: path

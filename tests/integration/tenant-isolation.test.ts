@@ -119,6 +119,7 @@ describe('runtime database role', () => {
       'billing_payment_plans',
       'billing_payments',
       'billing_settings',
+      'billing_statements',
       'command_idempotency',
       'delivery_receipts',
       'memberships',
@@ -196,6 +197,8 @@ describe('runtime database role', () => {
       'billing_payment_plan_terms',
       'billing_payment_plan_events',
       'billing_payment_plan_attempts',
+      // B4 statements.
+      'billing_statements',
     ]) {
       const { rows } = await db.app.query(`SELECT count(*)::int AS n FROM cuspatlas.${t}`);
       expect([t, rows[0].n]).toStrictEqual([t, 0]);

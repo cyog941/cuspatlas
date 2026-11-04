@@ -17,7 +17,8 @@ Authorization basis: user instruction to build every backend workstream on synth
 |---|---|---|---|
 | B1 Money and append-only journal | verified on synthetic data (Windows host); decisions pending billing approval | a342b6d | 706 tests |
 | B2 Payments, allocations, undistributed funds | verified on synthetic data (Windows host); decisions pending billing approval; provider execution blocked-on-discovery (B-S1) | 66ea613 | 759 tests |
-| B3 Payment plans, expired-card and failed-auto-pay worklists | verified on synthetic data (Windows host); decisions pending billing approval; card and auto-pay execution blocked-on-discovery (B-S1, PAY-02..04, PAY-07) | (this commit) | 805 tests |
+| B3 Payment plans, expired-card and failed-auto-pay worklists | verified on synthetic data (Windows host); decisions pending billing approval; card and auto-pay execution blocked-on-discovery (B-S1, PAY-02..04, PAY-07) | 31f9cd6 | 805 tests |
+| B4 Audited statements, snapshot and staleness | verified on synthetic data (Windows host); decisions pending billing approval; delivery not built (E7) | (this commit) | 823 tests |
 
 ## Pending decisions
 
@@ -39,6 +40,11 @@ Authorization basis: user instruction to build every backend workstream on synth
 | P-5 | Failed auto-pay due time | 2 days after the declined attempt; one item per plan (latest attempt) | recommended-pending-billing-approval | practice financial policy owner | user-facing release |
 | P-6 | Void and default | human-only `billing.correct` decision with a reason, refused while an attempt is unknown; collected money stays in the journal (no automatic refund or reallocation) | recommended-pending-billing-approval | billing reviewer, practice owner | collections workflow |
 | P-7 | Amendment | a new terms version whose basis is the money collected so far; refused at or below collected and while an attempt is unknown; needs a new authorization | recommended-pending-billing-approval | billing reviewer | user-facing release |
+| ST-1 | Statement coverage | the guarantor's current S5 dependents plus its own account unless another guarantor holds it; each by merge set; relationships as of generation | recommended-pending-billing-approval | billing reviewer, practice manager | user-facing release |
+| ST-2 | Statement amount | patient receivable less unapplied credit, entries posted at or before the cutoff (millisecond precision); net-zero entries (allocations, settlements) omitted | recommended-pending-billing-approval | billing reviewer | user-facing release |
+| ST-3 | Credit and zero totals | explicit `totalClass` (`due`/`zero`/`credit`) with `amountDue` and `creditBalance`; never a silent negative amount due | recommended-pending-billing-approval | billing reviewer | user-facing release |
+| ST-4 | Staleness | derived on read: a net-nonzero posting after the cutoff, a changed account membership, or a newer version; never stored | recommended-pending-billing-approval | billing reviewer | E7 delivery gate |
+| B-D5 | Statement delivery | not built here: channel `none`, owner E7 (portal plus recorded manual print recommended) | open (E7) | operator | delivery |
 | B-loc | Location-scoped financial access | tenant-wide (like S-D8) | recommended-pending-billing-approval | practice owner | location-restricted roles |
 
 ## Command log
@@ -171,6 +177,40 @@ Shared files touched in B3 (append-only lines): `policy/authorize.ts` (8 rows), 
 
 Deviations: `PaymentPlanView` gains `not_enrolled` and `blocked` auto-pay states and drops `revoked` (no revocation command exists; an amendment makes the new terms `unsigned`). `recordInstallmentAttempt` is `billing.plans.collect`: the outcome comes from the provider port, not from the caller, and an expired card is a recorded `blocked` attempt (B-06) rather than a refusal. `voidPlan` is `billing.plans.close` with outcome `voided` or `defaulted`, keeping default distinct from void and from collection state. Plan collection goes through the B2 capture path (`captureWithProvider` + `insertPayment`), not through a nested `billing.payments.record` command, so the provider key is bound to the installment period instead of to a caller key. Collected money is unapplied patient credit until allocated (M-5: no automatic allocation).
 
+### B4 (audited statements, balance snapshot and staleness)
+
+Acceptance and failure cases (tests/integration/billing-statements.test.ts, 10 tests, REST and MCP under the runtime role):
+
+1. a guarantor statement groups its own account and its S5 dependent's account from the journal lines (charge +5000, payment -1000), with total, amount due, credit balance, class, a sha256 snapshot digest verified on read, delivery `none`/`not_requested`/owner E7, and fresh freshness; one audit row (`billing.statements.generate`, `billingStatement`, v1);
+2. the same key replays the same record (`replayed: true`); a new cutoff is version 2 superseding version 1, and a reissue with the old cutoff is version 3 superseding version 2; version 1 keeps its digest and total and derives stale (`superseded`); three concurrent generations serialize into versions 4, 5 and 6;
+3. a payment after generation makes the statement stale (`posted_after_cutoff`, current total 2500) while its snapshot, digest and total stay; reversing that payment returns the current total to 4000 but both later postings still count; the stored row is byte-identical before and after;
+4. a cutoff before a posting excludes it (one line, total 1000) and the statement is stale at once;
+5. a credit balance is `credit` with amount due 0 and credit balance 300; an empty account is `zero`;
+6. a merged pair is one account under the survivor (both identities covered); generating for the merged identity is 409 `patient_merged`;
+7. a future cutoff is 422 `cutoff_in_future`; a patient guaranteed by someone else who guarantees no one is 422 `guarantor_unresolved`; another tenant's guarantor and statement are 404 identical to a missing one; an unknown basis, marker text and a caller `tenantId` are 400; nothing changes; a member without billing scopes is 403 on read; the report reader cannot generate (403) but can read;
+8. a failure inside generation (outbox insert grant revoked) is a 500 with no statement, audit or outbox row;
+9. MCP generation and read match REST (same digest); another tenant's MCP read is 404; a future cutoff is the same 422; no snapshot digest, entry reference or marker reaches a log;
+10. the runtime role cannot update or delete a statement row (42501); no stale or fresh column exists.
+
+- Red: `corepack pnpm test -- billing-statements` before any B4 code → exit 1, 10 failed (10).
+- Green: `corepack pnpm test -- billing-statements` → exit 0, 10 passed; full `corepack pnpm test` → exit 0, 39 files, 823 tests (805 + 10 B4 + 6 negative-harness rows + 2 billing tool drift).
+- `corepack pnpm typecheck` → exit 0; `corepack pnpm lint` → exit 0; `corepack pnpm contract:check` → exit 0.
+
+Invariants and where they are enforced:
+
+| Invariant | Database | Domain |
+|---|---|---|
+| A statement row is never updated or deleted | grants SELECT/INSERT; append-only trigger | no update path |
+| One chain of versions per guarantor | unique (guarantor, version); unique supersedes; version 1 iff no predecessor | guarantor row lock (`FOR NO KEY UPDATE`), predecessor = latest version |
+| Snapshot integrity | digest CHECK (hex) | canonical JSON digest recomputed on every read (`integrity`) |
+| Class matches total | CHECK | explicit class, amount due, credit balance |
+| Staleness never stored | no such column (tested) | derived per read |
+| Delivery not decided here | CHECK channel = `none` | view states owner E7 |
+
+Shared files touched in B4 (append-only lines): `policy/authorize.ts` (2 rows), `patients/merge.ts` (1 exclusion row), `codecs.ts`, `contract-drift.ts` (1 body), `docs/api/openapi.yaml`, `negative-harness.test.ts` (2 rows, fixture statement, state), `tenant-isolation.test.ts` (+1 table), `mcp-parity.test.ts` (+2 tools).
+
+Deviations: `StatementRecord.state` (`generated | reissued | voided`) is replaced by the version chain (`statementVersion`, `supersedesStatementRef`, `supersededByStatementRef`); there is no void command (a statement is superseded, never voided, pending billing approval). `recordStatementDelivery` is not built: delivery, print and the suppression decision belong to E7. `deriveStatementFreshness(record, currentBalance)` is the read's `freshness` (it also reports later postings, membership changes and supersession, not only a balance difference). The refusal `garantor_unresolved` is spelled `guarantor_unresolved`. The domain statement guard forbids `pg_*` function calls, so generation serializes on the guarantor's patient row instead of an advisory lock.
+
 ## Seams for later tasks
 
 - C14: drive `billing.charges.post` as a service principal with the rendered-procedure reference in place of `syn-proc-...` (a new `source` value) and the procedure code once B-S4 settles; one original charge per procedure is already enforced.
@@ -179,6 +219,7 @@ Deviations: `PaymentPlanView` gains `not_enrolled` and `blocked` auto-pay states
 - B5 (coverage): `insurer_receivable` lines carry `payer_ref` (`syn-payer-...`); B5 replaces it with a coverage reference (migration adds the column and dimension rule).
 - B6/B7 (claims, remittance, CL-10): add insurer payment sources and contractual-adjustment accounts by replacing the account and dimension CHECKs and `billing_check_signs`; remittance lines post insurer payments against `insurer_receivable`; ERA posting never touches `settled_cash` (settlement stays its own command).
 - B9 (adjustments, write-offs, reports): `adjustment` and `writeOff` kinds are reserved; reasons and accounts to add; the reads already use the report scopes.
+- E7 (statement delivery): read `billing.statements.read`; deliver only a statement whose `freshness.state` is `fresh` and that is not superseded; a stale one needs a new `billing.statements.generate` (the reissue names the superseded version). Record delivery, print and suppression as E7 events keyed by `statementRef`; never update the statement row.
 - E (portal/messaging) and S read plan state through `billing.plans.read` / the plan worklist only; a reminder for a `missing_signature` or `expired_card` item cites the item, it does not evaluate it.
 - Scheduler (worker): call `billing.plans.collect` as a service principal for each due period with key `plan:<planRef>:t<terms>:p<period>`; a rerun replays, and the provider key is period-bound regardless of the caller key.
 - CL-12 closure: a charge closes only when patient and insurer responsibility are zero by payment, approved adjustment or transfer; the journal already distinguishes allocation, transfer and (later) adjustment kinds, and unapplied credit is a first-class worklist item.

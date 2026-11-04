@@ -2017,6 +2017,322 @@
           "$ref": "#/$defs/Instant"
         }
       }
+    },
+    "StatementRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "SnapshotDigest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "StatementGenerate": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "B4 generation: an audited snapshot of the guarantor accounts from the journal at the cutoff (millisecond precision). Delivery is E7.",
+      "required": ["guarantorRef", "cutoffAt", "basis"],
+      "properties": {
+        "guarantorRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "cutoffAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "basis": {
+          "enum": ["posted_through_cutoff"]
+        }
+      }
+    },
+    "StatementCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["statementRef", "statementVersion", "snapshotDigest", "supersedesStatementRef"],
+          "properties": {
+            "statementRef": {
+              "$ref": "#/$defs/StatementRef"
+            },
+            "statementVersion": {
+              "$ref": "#/$defs/Version"
+            },
+            "snapshotDigest": {
+              "$ref": "#/$defs/SnapshotDigest"
+            },
+            "supersedesStatementRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/StatementRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "StatementLine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entryRef", "kind", "postedAt", "serviceDate", "chargeRef", "paymentRef", "amount"],
+      "properties": {
+        "entryRef": {
+          "$ref": "#/$defs/EntryRef"
+        },
+        "kind": {
+          "$ref": "#/$defs/EntryKind"
+        },
+        "postedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "serviceDate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalDate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "chargeRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChargeRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "paymentRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PaymentRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "amount": {
+          "$ref": "#/$defs/Money"
+        }
+      }
+    },
+    "StatementAccount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["accountPatientRef", "coveredPatientRefs", "total", "lines"],
+      "properties": {
+        "accountPatientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "coveredPatientRefs": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "#/$defs/PatientRef"
+          }
+        },
+        "total": {
+          "$ref": "#/$defs/Money"
+        },
+        "lines": {
+          "type": "array",
+          "maxItems": 2000,
+          "items": {
+            "$ref": "#/$defs/StatementLine"
+          }
+        }
+      }
+    },
+    "StatementFreshness": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Derived at read time from the snapshot and the journal; never stored.",
+      "required": ["state", "reasons", "currentTotal", "postedAfterCutoff", "lastPostedAt", "checkedAt"],
+      "properties": {
+        "state": {
+          "enum": ["fresh", "stale"]
+        },
+        "reasons": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "enum": ["posted_after_cutoff", "account_membership_changed", "superseded"]
+          }
+        },
+        "currentTotal": {
+          "$ref": "#/$defs/Money"
+        },
+        "postedAfterCutoff": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "lastPostedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "checkedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "Statement": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A generated statement (B4): the stored snapshot, its digest check and the derived freshness.",
+      "required": [
+        "statementRef",
+        "guarantorRef",
+        "statementVersion",
+        "cutoffAt",
+        "basis",
+        "currency",
+        "total",
+        "amountDue",
+        "creditBalance",
+        "totalClass",
+        "coveredPatientRefs",
+        "accounts",
+        "snapshotDigest",
+        "integrity",
+        "supersedesStatementRef",
+        "supersededByStatementRef",
+        "generatedAt",
+        "generatedByRef",
+        "delivery",
+        "freshness"
+      ],
+      "properties": {
+        "statementRef": {
+          "$ref": "#/$defs/StatementRef"
+        },
+        "guarantorRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "statementVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "cutoffAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "basis": {
+          "enum": ["posted_through_cutoff"]
+        },
+        "currency": {
+          "$ref": "#/$defs/CurrencyCode"
+        },
+        "total": {
+          "$ref": "#/$defs/Money"
+        },
+        "amountDue": {
+          "$ref": "#/$defs/Money"
+        },
+        "creditBalance": {
+          "$ref": "#/$defs/Money"
+        },
+        "totalClass": {
+          "enum": ["due", "zero", "credit"]
+        },
+        "coveredPatientRefs": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "#/$defs/PatientRef"
+          }
+        },
+        "accounts": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "#/$defs/StatementAccount"
+          }
+        },
+        "snapshotDigest": {
+          "$ref": "#/$defs/SnapshotDigest"
+        },
+        "integrity": {
+          "enum": ["verified", "mismatch"]
+        },
+        "supersedesStatementRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StatementRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "supersededByStatementRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StatementRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "generatedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "generatedByRef": {
+          "$ref": "#/$defs/PrincipalRef"
+        },
+        "delivery": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["channel", "state", "owner"],
+          "properties": {
+            "channel": {
+              "const": "none"
+            },
+            "state": {
+              "const": "not_requested"
+            },
+            "owner": {
+              "const": "E7"
+            }
+          }
+        },
+        "freshness": {
+          "$ref": "#/$defs/StatementFreshness"
+        }
+      }
+    },
+    "StatementRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/Statement"
+        }
+      }
     }
   }
 }

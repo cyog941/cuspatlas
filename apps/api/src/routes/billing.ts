@@ -100,4 +100,11 @@ export function registerBillingRoutes(
     b.closePlan(requireActor(r), param(r, 'planRef'), env('billing.plans.close', r)),
   );
   get('billing.plans.worklist', (r) => b.listPlanWorklist(requireActor(r), query(r)));
+  // B4 statements.
+  post('billing.statements.generate', (r) =>
+    b.generateStatement(requireActor(r), env('billing.statements.generate', r)),
+  );
+  get('billing.statements.read', async (r) => ({
+    data: await b.getStatement(requireActor(r), param(r, 'statementRef')),
+  }));
 }

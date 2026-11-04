@@ -284,3 +284,11 @@ Additions only; no frozen row changed. ADR 0008 (recommended-pending-billing-app
 - Operations: `billing.plans.create|read|authorize|amend|autopay|collect|close|worklist`. Close is human-only `billing.correct`; reads and the worklist use the registry scope `receivables.read`; the rest `billing.write`.
 - Collection reuses the B2 provider path: provider key bound to plan, terms version, period and attempt number; a confirmed capture posts an ordinary B2 card payment (unapplied until allocated); an unknown outcome is reconciled only through `billing.payments.reconcile`.
 - Merge: `billing_payment_plans.patient_id|guarantor_id` are deliberate exclusions.
+
+## Task record: B4 statements (workstream B)
+
+Additions only; no frozen row changed. ADR 0008 (recommended-pending-billing-approval).
+
+- Storage (migration `20261109030000_billing_statements.sql`): `billing_statements`, written once per generation (grants SELECT/INSERT, append-only trigger): guarantor, version chain (unique version and unique supersedes per guarantor; no self foreign key for restore order), cutoff, basis `posted_through_cutoff`, signed snapshot total with class, covered identities, canonical snapshot JSON (references, kinds, dates, integer amounts only) and its sha256 digest, delivery channel fixed to `none`.
+- Operations: `billing.statements.generate` (`billing.write`) and `billing.statements.read` (`receivables.read`); freshness is derived on read. Delivery is E7.
+- Merge: `billing_statements.guarantor_id` is a deliberate exclusion; covered identities are a snapshot array, not foreign keys.

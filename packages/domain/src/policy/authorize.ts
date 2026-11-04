@@ -122,6 +122,10 @@ export const ACTION_POLICIES = {
   'billing.plans.collect': { scope: 'billing.write', principals: ['human', 'service'] },
   'billing.plans.close': { scope: 'billing.correct', principals: ['human'] },
   'billing.plans.worklist': { scope: 'receivables.read', principals: ['human', 'service'] },
+  // B4 statements. Generation is billing.write (a scheduled statement run may be a service); reading a
+  // statement with its derived freshness needs receivables.read. Delivery is E7's.
+  'billing.statements.generate': { scope: 'billing.write', principals: ['human', 'service'] },
+  'billing.statements.read': { scope: 'receivables.read', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

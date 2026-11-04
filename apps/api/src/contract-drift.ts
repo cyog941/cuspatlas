@@ -145,6 +145,8 @@ export const BILLING_BODIES = [
   'PlanCollect',
   'PlanClose',
   'PlanWorklistQuery',
+  // B4.
+  'StatementGenerate',
 ] as const;
 
 /** Definitions the proposal contract copies from the task contract; they must stay byte-identical. */

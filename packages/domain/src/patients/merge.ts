@@ -174,6 +174,8 @@ export const MERGE_EXCLUDED_REFERENCES: readonly { table: string; column: string
     column: 'guarantor_id',
     why: 'agreed financial terms are never relinked',
   },
+  // B4: a statement is a snapshot addressed to the guarantor it was generated for.
+  { table: 'billing_statements', column: 'guarantor_id', why: 'a generated statement is never restated' },
 ];
 
 /**

@@ -429,3 +429,64 @@ export const validatePlanAutopay = def('PlanAutopay');
 export const validatePlanCollect = def('PlanCollect');
 export const validatePlanClose = def('PlanClose');
 export const validatePlanWorklistQuery = def('PlanWorklistQuery');
+
+// ---- B4 statements (recommended-pending-billing-approval; delivery belongs to E7).
+export interface StatementGenerate {
+  readonly guarantorRef: string;
+  readonly cutoffAt: string;
+  readonly basis: 'posted_through_cutoff';
+}
+export interface StatementCommandData {
+  readonly statementRef: string;
+  readonly statementVersion: number;
+  readonly snapshotDigest: string;
+  readonly supersedesStatementRef: string | null;
+}
+export interface StatementLine {
+  readonly entryRef: string;
+  readonly kind: EntryKind;
+  readonly postedAt: string;
+  readonly serviceDate: string | null;
+  readonly chargeRef: string | null;
+  readonly paymentRef: string | null;
+  readonly amount: Money;
+}
+export interface StatementAccount {
+  readonly accountPatientRef: string;
+  readonly coveredPatientRefs: readonly string[];
+  readonly total: Money;
+  readonly lines: readonly StatementLine[];
+}
+export type StatementStaleReason = 'posted_after_cutoff' | 'account_membership_changed' | 'superseded';
+export interface StatementFreshness {
+  readonly state: 'fresh' | 'stale';
+  readonly reasons: readonly StatementStaleReason[];
+  readonly currentTotal: Money;
+  readonly postedAfterCutoff: number;
+  readonly lastPostedAt: string | null;
+  readonly checkedAt: string;
+}
+export interface StatementView {
+  readonly statementRef: string;
+  readonly guarantorRef: string;
+  readonly statementVersion: number;
+  readonly cutoffAt: string;
+  readonly basis: 'posted_through_cutoff';
+  readonly currency: string;
+  readonly total: Money;
+  readonly amountDue: Money;
+  readonly creditBalance: Money;
+  readonly totalClass: 'due' | 'zero' | 'credit';
+  readonly coveredPatientRefs: readonly string[];
+  readonly accounts: readonly StatementAccount[];
+  readonly snapshotDigest: string;
+  readonly integrity: 'verified' | 'mismatch';
+  readonly supersedesStatementRef: string | null;
+  readonly supersededByStatementRef: string | null;
+  readonly generatedAt: string;
+  readonly generatedByRef: string;
+  readonly delivery: { readonly channel: 'none'; readonly state: 'not_requested'; readonly owner: 'E7' };
+  readonly freshness: StatementFreshness;
+}
+
+export const validateStatementGenerate = def('StatementGenerate');

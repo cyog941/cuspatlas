@@ -16,6 +16,7 @@ export const BILLING_TRANSPORT: Readonly<Record<string, string>> = {
   paymentRef: 'PaymentRef',
   attemptRef: 'AttemptRef',
   planRef: 'PlanRef',
+  statementRef: 'StatementRef',
 };
 
 /** Input schema = the REST body (or query) properties plus the transport-only properties. */
@@ -322,6 +323,30 @@ export const BILLING_SPECS: BillingSpec[] = [
     transport: [],
     readOnly: true,
     run: (d, actor, args) => d.billing.listPlanWorklist(actor, { ...args }),
+  },
+  // B4 statements.
+  {
+    name: 'billing_statements_generate',
+    operationId: 'billing.statements.generate',
+    description:
+      'Generate an audited statement snapshot for a guarantor at a cutoff (never updated afterwards; delivery is E7).',
+    body: 'StatementGenerate',
+    transport: ['idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.billing.generateStatement(actor, billingEnvelope('billing.statements.generate', args)),
+  },
+  {
+    name: 'billing_statements_get',
+    operationId: 'billing.statements.read',
+    description:
+      'Read a statement snapshot with its digest check and freshness derived from the journal now.',
+    body: null,
+    transport: ['statementRef'],
+    readOnly: true,
+    async run(d, actor, args) {
+      return { data: await d.billing.getStatement(actor, s(args, 'statementRef')) };
+    },
   },
 ];
 

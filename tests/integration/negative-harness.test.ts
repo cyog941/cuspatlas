@@ -972,6 +972,23 @@ export const COMMANDS: HarnessCommand[] = [
       mcpArgs: (f) => ({ planRef: f.alphaPlan, ...body(), idempotencyKey: randomUUID() }),
     }),
   ),
+  // B4 statements.
+  {
+    operation: 'billing.statements.generate',
+    tool: 'billing_statements_generate',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({ method: 'POST', url: STATEMENTS, body: statementBody(f), keyed: true, status: 201 }),
+    mcpArgs: (f) => ({ ...statementBody(f), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'billing.statements.read',
+    tool: 'billing_statements_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({ method: 'GET', url: `${STATEMENTS}/${f.alphaStatement}`, keyed: false, status: 200 }),
+    mcpArgs: (f) => ({ statementRef: f.alphaStatement }),
+  },
   {
     operation: 'billing.plans.worklist',
     tool: 'billing_plans_worklist',
@@ -983,6 +1000,14 @@ export const COMMANDS: HarnessCommand[] = [
 ];
 
 const PLANS = '/v1/billing/payment-plans';
+const STATEMENTS = '/v1/billing/statements';
+function statementBody(f: HarnessFixture) {
+  return {
+    guarantorRef: f.alphaCounterparty,
+    cutoffAt: new Date().toISOString(),
+    basis: 'posted_through_cutoff',
+  };
+}
 function planBody(f: HarnessFixture) {
   return {
     patientRef: P(f),
@@ -1285,8 +1310,15 @@ beforeAll(async () => {
   // B3: one unsigned payment plan for the alpha patient.
   const plan = await owner(PLANS, planBody({ alphaPatient } as HarnessFixture));
   expect(plan.statusCode).toBe(201);
+  // B4: one statement for the alpha guarantor (the counterparty guarantees the alpha patient).
+  const statement = await owner(
+    STATEMENTS,
+    statementBody({ alphaPatient, alphaCounterparty } as HarnessFixture),
+  );
+  expect(statement.statusCode).toBe(201);
   fixture = {
     alphaPlan: plan.json().data.planRef,
+    alphaStatement: statement.json().data.statementRef,
     alphaPayment: cashPayment.json().data.paymentRef,
     alphaAttempt: attempt.json().data.attemptRef,
     alphaCharge: charge.json().data.chargeRef,
@@ -1423,6 +1455,7 @@ async function state(): Promise<string> {
     await q('SELECT count(*)::int AS n FROM cuspatlas.billing_payment_plan_terms'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.billing_payment_plan_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.billing_payment_plan_attempts'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.billing_statements'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.audit_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.outbox_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.command_idempotency'),

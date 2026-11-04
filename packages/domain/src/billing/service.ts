@@ -5,6 +5,7 @@ import { createEntryOperations } from './entries';
 import { createSyntheticPaymentProvider } from './payment-port';
 import { createPaymentOperations } from './payments';
 import { createPlanOperations } from './plans';
+import { createStatementOperations } from './statements';
 import { createWorklistOperations } from './worklist';
 
 /**
@@ -21,6 +22,7 @@ export function createBillingService(deps: BillingDeps) {
     ...createEntryOperations(base),
     ...createPaymentOperations(base, provider),
     ...createPlanOperations(base, provider),
+    ...createStatementOperations(base),
     ...createAllocationOperations(base),
     ...createWorklistOperations(base),
   };

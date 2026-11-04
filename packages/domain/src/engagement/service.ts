@@ -1,6 +1,7 @@
 import { createEngagementBase, type EngagementDeps } from './common';
 import { createPortalPrincipalOperations } from './portal/principals';
 import { createPortalSessionOperations } from './portal/session';
+import { createPortalViewOperations } from './portal/views';
 
 /**
  * The engagement domain (workstream E: portal and communications). REST (staff and portal
@@ -13,6 +14,7 @@ export function createEngagementService(deps: EngagementDeps) {
   return {
     ...createPortalPrincipalOperations(base),
     ...createPortalSessionOperations(base),
+    ...createPortalViewOperations(base),
   };
 }
 

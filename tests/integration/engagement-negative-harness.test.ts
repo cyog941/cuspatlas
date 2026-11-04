@@ -152,6 +152,19 @@ export const PORTAL_CALLS: PortalCall[] = [
     operation: 'portal.session.read',
     rest: () => ({ method: 'GET', url: '/portal/v1/session', keyed: false, status: 200 }),
   },
+  {
+    operation: 'portal.views.read',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/portal/v1/patients/${f.child}/views/demographics`,
+      keyed: false,
+      status: 200,
+    }),
+  },
+  {
+    operation: 'portal.views.describe',
+    rest: () => ({ method: 'GET', url: '/portal/v1/views/appointments', keyed: false, status: 200 }),
+  },
 ];
 
 beforeAll(async () => {

@@ -2788,6 +2788,68 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /portal/v1/patients/{patientRef}/views/{view}:
+    get:
+      operationId: portal.views.read
+      description: >-
+        Portal-audience operation portal.views.read (portal principals only; never a staff or MCP surface).
+      parameters:
+        - name: patientRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/PatientRef'
+        - name: view
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/PortalView'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /portal/v1/views/{view}:
+    get:
+      operationId: portal.views.describe
+      description: >-
+        Portal-audience operation portal.views.describe (portal principals only; never a staff or MCP
+        surface).
+      parameters:
+        - name: view
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/PortalView'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   # END workstream E
 components:
   securitySchemes:

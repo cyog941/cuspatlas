@@ -3,4 +3,5 @@ export type { EngagementDeps } from './common';
 export * from './portal/access';
 export * from './portal/principals';
 export * from './portal/session';
+export * from './portal/views';
 export * from './service';

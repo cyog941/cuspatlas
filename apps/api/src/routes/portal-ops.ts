@@ -28,6 +28,28 @@ export const PORTAL_OPS: readonly PortalOp[] = [
     refusals: ['400', '401', '403', '503'],
     invoke: (svc, actor, i) => data(svc.readPortalSession(actor, i.body)),
   },
+  // E2 scoped views: allowlist projections, explicit unavailable coverage, sensitive-read logged.
+  {
+    method: 'get',
+    path: '/portal/v1/patients/{patientRef}/views/{view}',
+    operationId: 'portal.views.read',
+    protected: true,
+    query: 'EmptyQuery',
+    success: { status: '200', schema: E('EngagementRead') },
+    refusals: ['400', '401', '403', '404', '503'],
+    invoke: (svc, actor, i) =>
+      data(svc.readPortalView(actor, i.params.patientRef ?? '', i.params.view ?? '', i.body)),
+  },
+  {
+    method: 'get',
+    path: '/portal/v1/views/{view}',
+    operationId: 'portal.views.describe',
+    protected: true,
+    query: 'EmptyQuery',
+    success: { status: '200', schema: E('EngagementRead') },
+    refusals: ['400', '401', '403', '404', '503'],
+    invoke: (svc, actor, i) => data(svc.describePortalView(actor, i.params.view ?? '', i.body)),
+  },
 ];
 
 export const PORTAL_ROUTES: readonly RouteContract[] = PORTAL_OPS.map((o) => ({

@@ -8,7 +8,8 @@ Authorization basis: user instruction to build every backend workstream on synth
 
 | Task | Status | Commit | Notes |
 |---|---|---|---|
-| E1 portal principals and the grant projection | verified on synthetic data (Windows host); E-S3 blocked-on-discovery | see E1 | proofing level `unverified-synthetic` |
+| E1 portal principals and the grant projection | verified on synthetic data (Windows host); E-S3 blocked-on-discovery | d335342 | proofing level `unverified-synthetic` |
+| E2 scoped portal views | verified on synthetic data (Windows host); documents, balances, messages, forms `unavailable` until C15, B4, E5, E4 | see E2 | allowlist key sets asserted |
 
 ## E1 (portal principals and the grant projection)
 
@@ -39,10 +40,28 @@ Deviations: the plan's `inviteGrantee` / `revokeGrant` are S5's commands themsel
 
 Unresolved: E-S3 (assurance level, second factor, recovery path); a contact change on the person record does not yet flag the principal for review; patient-level confinement inside the tenant is enforced by the application policy layer (RLS isolates the tenant for portal transactions, not the patient).
 
+## E2 (scoped portal views)
+
+Files: `packages/domain/src/engagement/portal/views.ts`, `apps/api/src/routes/portal-ops.ts` (two routes), `PortalView` and `PortalViewProjection` in `engagement.schema.json`, `tests/integration/portal-views.test.ts`.
+
+Design. `portal.views.read` (`/portal/v1/patients/{patientRef}/views/{view}`) and `portal.views.describe` (`/portal/v1/views/{view}`). A view is a declared allowlist (record fields, item fields of list fields, redaction report) and a relationship-scope requirement taken from the plan's view-to-scope mapping (appointments and requests: `scheduling`; balances: `financial`; documents: `clinical_read`; messages: `consent`; forms: `demographics` + `consent`; demographics: `demographics`). Only declared keys are copied out, in declared order. Producer-backed views: demographics (S4 record groups and the birth date at its precision), appointments (upcoming bookings: reference, window, zone, location label, status; no provider, operatory, creator or request), requests (reference, bounded state `pending` / `scheduled` / `closed`, origin, creation). Views whose producer is not deployed return `coverage: {status: unavailable, reason: producer_not_deployed, owner}` and `fields: null`: documents C15, balances B4, messages E5, forms E4. Authorization runs `requirePortalAccess` (E1) inside the read's transaction; each data-returning read writes a sensitive-read row (operation `portal.views.read`, principal `portal`, the patient reference, query field `view`) in that transaction.
+
+Acceptance cases (`portal-views.test.ts`, 8 tests): (1) for self and guardian, demographics, appointments and requests return exactly the declared key sets at the top level, in `fields` and in every list item, plus the declared redaction list; no tenant id, staff actor id, provider or operatory reference appears; another family member's contact never appears in the child's view; (2) documents, messages, forms (self) and balances (via a guarantor `financial` relationship) are explicit unavailable with owner and null fields; (3) a guardian without `financial`, `clinical_read` or `consent` is 403 `relationship_scope_missing` (attempt row) for balances, documents and forms, and a guarantor has no demographics; (4) an unrelated same-tenant patient, a beta patient and a random reference give byte-identical 404 bodies for two views; (5) a guardian revoked after a successful read is 403 `relationship_revoked` at the next read; (6) an empty appointment list is `available` with `upcoming: []`, distinct from unavailable; (7) a minor reading their own record is 403 `self_below_majority`, an unknown view is 404 and an extra query field is 400; (8) the sensitive-read row names the portal principal and the patient; the marker in names reaches neither logs nor the sensitive-read log.
+
+Negative harness: two portal rows appended (`portal.views.read`, `portal.views.describe`) for the six credential cases.
+
+- Red: `corepack pnpm test -- tests/integration/portal-views.test.ts` before implementation: exit 1, 7 failed / 1 passed (8). The passing case (identical 404 for foreign references) passed vacuously because the route did not exist.
+- Green: same command exit 0, 8 passed; harness exit 0, 20 passed. `typecheck`, `lint`, `contract:check` exit 0; `corepack pnpm test` exit 0, 45 files / 992 passed / 13 todo.
+
+Deviations: the plan's documents view returns a short-lived read authorization; with C15 absent it returns explicit unavailable instead. `projectionVersion` is a fixed version string, not a per-deploy allowlist digest.
+
+Unresolved: field sets for balances (B4), documents (C15), messages (E5) and forms (E4); the minimum-necessary field choice for demographics (address and contact values are shown to self and to `demographics` holders) needs a privacy reviewer.
+
 ## Pending decisions
 
 | Decision | Recommendation implemented (pending approval) | Settles it |
 |---|---|---|
 | E-S3 / E-D2 portal assurance level | invitation to a contact already on the record, staff-attested verification (`synthetic_attested`), proofing level `unverified-synthetic`; no second factor yet | security owner and practice representative |
 | E1 self access of a minor | denied until the tenant's age of majority (S5 policy), fail closed on coarse or unknown birth date | legal review per jurisdiction (with S-D4) |
+| E2 minimum-necessary demographics | legal name, preferred name, pronouns, language, birth date at its precision, contact points and address; identifiers, provenance, status and home location redacted | privacy reviewer |
 | E1 merge of an enrolled identity | portal access never follows a merge; re-enroll the survivor | security owner |

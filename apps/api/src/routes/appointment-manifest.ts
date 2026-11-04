@@ -141,4 +141,38 @@ export const APPOINTMENT_ROUTES: readonly RouteContract[] = [
     success: { status: '200', schema: S('HoldReconcileResult') },
     refusals: ['400', '401', '403', '409', '503'],
   },
+  // S11 attendance (append-only transitions; derived state) and the daily worklist.
+  {
+    method: 'post',
+    path: '/v1/scheduling/appointments/{appointmentRef}/attendance',
+    operationId: 'scheduling.attendance.record',
+    protected: true,
+    requestBody: S('AttendanceRecord'),
+    success: { status: '201', schema: S('AttendanceCommandResult') },
+    refusals: COMMAND,
+  },
+  {
+    method: 'get',
+    path: '/v1/scheduling/appointments/{appointmentRef}/attendance',
+    operationId: 'scheduling.attendance.list',
+    protected: true,
+    success: { status: '200', schema: S('AttendanceList') },
+    refusals: ['401', '403', '404', '503'],
+  },
+  {
+    method: 'get',
+    path: '/v1/scheduling/appointments/{appointmentRef}/visit-status',
+    operationId: 'scheduling.attendance.visitStatus',
+    protected: true,
+    success: { status: '200', schema: S('VisitStatus') },
+    refusals: ['401', '403', '404', '503'],
+  },
+  {
+    method: 'get',
+    path: '/v1/scheduling/worklist',
+    operationId: 'scheduling.worklist.daily',
+    protected: true,
+    success: { status: '200', schema: S('DailyWorklist') },
+    refusals: ['400', '401', '403', '404', '422', '503'],
+  },
 ];

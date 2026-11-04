@@ -54,6 +54,8 @@ export const OVERRIDE_POLICY_VERSION = 'booking-override.pending-approval.1';
 export const OVERRIDEABLE_KINDS: ReadonlySet<Conflict['kind']> = new Set(['outside_availability']);
 const MINUTE = 60_000;
 const MAX_MINUTES = 480;
+/** Bounded retry budget for an occupancy insert that lost a deadlock (40P01). */
+export const OCCUPANCY_ATTEMPTS = 5;
 
 const isPg = (err: unknown, ...codes: string[]) =>
   typeof err === 'object' && err !== null && codes.includes(String((err as { code?: unknown }).code));
@@ -140,8 +142,10 @@ function checkWindow(startsAt: string, endsAt: string): Window {
 /**
  * Resolves the resources a booking names inside the current tenant. Another tenant's resource is
  * indistinguishable from a missing one (404), and so is a resource at a location the caller may not
- * see; a visible resource at another location of the booking is a 422. Rows are locked FOR SHARE so a
- * concurrent deactivation (FOR UPDATE) serializes with the booking.
+ * see; a visible resource at another location of the booking is a 422. Rows are locked FOR NO KEY UPDATE in id order:
+ * contenders for one resource queue on its row (deadlock-free), see each other's committed occupancy in
+ * their pre-check, and a concurrent deactivation (FOR UPDATE) serializes with the booking; foreign-key
+ * inserts (KEY SHARE) from other commands are not blocked.
  */
 async function resolveBookingResources(
   tx: TenantTransaction,
@@ -156,7 +160,7 @@ async function resolveBookingResources(
     `SELECT r.id, r.kind, r.location_id, l.location_ref, r.display_label, r.display_order, r.status, r.version
      FROM cuspatlas.scheduling_resources r
      JOIN cuspatlas.scheduling_locations l ON l.id = r.location_id AND l.tenant_id = r.tenant_id
-     WHERE r.id = ANY ($1::uuid[]) ORDER BY r.id FOR SHARE OF r`,
+     WHERE r.id = ANY ($1::uuid[]) ORDER BY r.id FOR NO KEY UPDATE OF r`,
     [ids],
   );
   const byId = new Map(rows.map((r) => [r.id, r]));
@@ -322,41 +326,52 @@ async function busyConflicts(
 }
 
 /** Writes occupancy rows; the exclusion constraint is the authority (23P01 becomes a conflict). */
-async function occupy(
+/** Exported for the bounded-retry unit test. */
+export async function occupy(
   tx: TenantTransaction,
   kind: 'hold' | 'appointment',
   sourceId: string,
   location: LocationRow,
-  ids: readonly string[],
+  resources: readonly ResourceRef[],
   w: Window,
   recheck: () => Promise<Conflict[]>,
 ): Promise<void> {
-  try {
-    await tx.savepoint(() =>
-      tx.query(
-        `INSERT INTO cuspatlas.scheduling_occupancy (tenant_id, resource_id, location_id, during, source_kind, source_id,
-           created_by)
-         SELECT cuspatlas.current_tenant_id(), r, $1, tstzrange($2::timestamptz, $3::timestamptz, '[)'), $4, $5,
-           cuspatlas.current_actor_id()
-         FROM unnest($6::uuid[]) WITH ORDINALITY AS t(r, n) ORDER BY n`,
-        [location.id, new Date(w.s), new Date(w.e), kind, sourceId, [...ids].sort()],
-      ),
-    );
-  } catch (err) {
-    if (isPg(err, '40P01', '40001')) throw bookingConflict([], true);
-    if (!isPg(err, '23P01')) throw err;
-    const post = await recheck();
-    throw bookingConflict(
-      post.length > 0
-        ? post
-        : [
-            {
-              kind: 'resource_overlap',
-              explanation: 'A concurrent booking took the window.',
+  const ids = resources.map((r) => r.resourceRef);
+  // Concurrent inserts of overlapping rows can deadlock inside the exclusion check (each waits for
+  // the other's index entry; PostgreSQL aborts one with 40P01). The victim's savepoint is rolled back
+  // and the insert retried a bounded number of times: the retry waits for the surviving contender and
+  // then sees its committed row (23P01), so it ends as a named conflict, never as a partial booking.
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      await tx.savepoint(() =>
+        tx.query(
+          `INSERT INTO cuspatlas.scheduling_occupancy (tenant_id, resource_id, location_id, during, source_kind, source_id,
+             created_by)
+           SELECT cuspatlas.current_tenant_id(), r, $1, tstzrange($2::timestamptz, $3::timestamptz, '[)'), $4, $5,
+             cuspatlas.current_actor_id()
+           FROM unnest($6::uuid[]) WITH ORDINALITY AS t(r, n) ORDER BY n`,
+          [location.id, new Date(w.s), new Date(w.e), kind, sourceId, [...ids].sort()],
+        ),
+      );
+      return;
+    } catch (err) {
+      const contended = isPg(err, '40P01', '40001');
+      if (contended && attempt < OCCUPANCY_ATTEMPTS) continue;
+      if (!contended && !isPg(err, '23P01')) throw err;
+      // Re-read the committed occupancy either way: a contender that won is named to the caller.
+      const post = await recheck();
+      throw bookingConflict(
+        post.length > 0
+          ? post
+          : resources.map((resourceRef) => ({
+              kind: 'resource_overlap' as const,
+              resourceRef,
+              explanation: 'A concurrent booking is contending for the resource in this window.',
               overrideable: false,
-            },
-          ],
-    );
+            })),
+        contended && post.length === 0,
+      );
+    }
   }
 }
 
@@ -501,7 +516,7 @@ export function createBookingOperations(base: AppointmentBase) {
     );
     const id = rows[0]?.id;
     if (!id) throw new Error('insert returned no row');
-    await occupy(tx, 'appointment', id, location, ids, prepared.w, () =>
+    await occupy(tx, 'appointment', id, location, prepared.resources.map(refOf), prepared.w, () =>
       busyConflicts(tx, location, ids, prepared.w, [...o.ignoreSources, id], o.canReadBookings),
     );
     await tx.query(
@@ -696,7 +711,7 @@ export function createBookingOperations(base: AppointmentBase) {
             );
             const hold = rows[0];
             if (!hold) throw new Error('insert returned no row');
-            await occupy(tx, 'hold', hold.id, location, ids, w, () =>
+            await occupy(tx, 'hold', hold.id, location, resources.map(refOf), w, () =>
               busyConflicts(tx, location, ids, w, [hold.id], canReadBookings),
             );
             await recordCommand(
@@ -789,7 +804,7 @@ export function createBookingOperations(base: AppointmentBase) {
       ctx: ActorContext,
       appointmentRef: string,
       envelope: CommandEnvelope<unknown>,
-      guard?: (tx: TenantTransaction, appointmentId: string) => Promise<void>,
+      guard?: (tx: TenantTransaction, appointmentId: string, reasonCode: string) => Promise<void>,
     ): Promise<CommandResult<BookingResult>> {
       const op = 'scheduling.appointments.reschedule';
       return base.recorded(ctx, op, async () => {
@@ -811,7 +826,7 @@ export function createBookingOperations(base: AppointmentBase) {
                 throw new RefusalError({ code: 'stale_version', detail: { currentVersion: old.version } });
               }
               if (old.status !== 'booked') throw stateConflict('appointment_not_booked');
-              if (guard) await guard(tx, old.id);
+              if (guard) await guard(tx, old.id, p.reasonCode);
               // The old range is released first (same transaction), so the new window may overlap it.
               await releaseOccupancy(tx, 'appointment', old.id);
               const id = await insertBooking(tx, op, {
@@ -881,7 +896,7 @@ export function createBookingOperations(base: AppointmentBase) {
       ctx: ActorContext,
       appointmentRef: string,
       envelope: CommandEnvelope<unknown>,
-      guard?: (tx: TenantTransaction, appointmentId: string) => Promise<void>,
+      guard?: (tx: TenantTransaction, appointmentId: string, reasonCode: string) => Promise<void>,
     ): Promise<CommandResult<AppointmentCommandData>> {
       const op = 'scheduling.appointments.cancel';
       return base.recorded(ctx, op, async () => {
@@ -900,7 +915,7 @@ export function createBookingOperations(base: AppointmentBase) {
               if (appt.version !== p.expectedVersion) {
                 throw new RefusalError({ code: 'stale_version', detail: { currentVersion: appt.version } });
               }
-              if (guard) await guard(tx, appt.id);
+              if (guard) await guard(tx, appt.id, p.reasonCode);
               await releaseOccupancy(tx, 'appointment', appt.id);
               const { rows } = await tx.query<{ version: number }>(
                 `UPDATE cuspatlas.appointments SET status = 'cancelled', cancel_reason = $1, cancelled_at = now(),

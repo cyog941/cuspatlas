@@ -90,6 +90,24 @@ const SCHEDULING_BODIES = [
   'WeeklyInterval',
   'AvailabilitySearch',
   'AvailabilityRequirement',
+  // S8, S10, S11 request bodies, list queries and nested inputs.
+  'AppointmentRequestCreate',
+  'AppointmentRequestPreferences',
+  'AppointmentRequestReview',
+  'AppointmentRequestClose',
+  'AppointmentRequestReopen',
+  'AppointmentRequestListQuery',
+  'PreferredWindow',
+  'ProviderRef',
+  'BookingOverride',
+  'BookingCreate',
+  'AppointmentReschedule',
+  'AppointmentCancel',
+  'HoldCreate',
+  'HoldRelease',
+  'HoldReconcile',
+  'AttendanceRecord',
+  'WorklistQuery',
 ] as const;
 
 /** Definitions the proposal contract copies from the task contract; they must stay byte-identical. */

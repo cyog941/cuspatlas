@@ -657,6 +657,65 @@ export const COMMANDS: HarnessCommand[] = [
     rest: () => ({ method: 'POST', url: `${HOLDS}/reconcile`, body: {}, keyed: true, status: 200 }),
     mcpArgs: () => ({ idempotencyKey: randomUUID() }),
   },
+  // S11 attendance and the daily worklist.
+  {
+    operation: 'scheduling.attendance.record',
+    tool: 'scheduling_attendance_record',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `${APPT}/${f.alphaAppointment}/attendance`,
+      body: { kind: 'arrived', note: `Synthetic ${MARKER}` },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      appointmentRef: f.alphaAppointment,
+      kind: 'arrived',
+      note: `Synthetic ${MARKER}`,
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'scheduling.attendance.list',
+    tool: 'scheduling_attendance_list',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `${APPT}/${f.alphaAppointment}/attendance`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ appointmentRef: f.alphaAppointment }),
+  },
+  {
+    operation: 'scheduling.attendance.visitStatus',
+    tool: 'scheduling_attendance_visit_status',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `${APPT}/${f.alphaAppointment}/visit-status`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ appointmentRef: f.alphaAppointment }),
+  },
+  {
+    operation: 'scheduling.worklist.daily',
+    tool: 'scheduling_worklist_daily',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/scheduling/worklist?locationRef=${f.alphaLocation}&date=2030-01-07`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ locationRef: f.alphaLocation, date: '2030-01-07' }),
+  },
 ];
 
 const APPT = '/v1/scheduling/appointments';
@@ -1025,6 +1084,7 @@ async function state(): Promise<string> {
     await q('SELECT count(*)::int AS n FROM cuspatlas.scheduling_occupancy WHERE released_at IS NULL'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.appointment_overrides'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.appointment_lifecycle_events'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.appointment_attendance_transitions'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.audit_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.outbox_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.command_idempotency'),

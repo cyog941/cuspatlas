@@ -83,6 +83,12 @@ export const ACTION_POLICIES = {
   'scheduling.holds.create': { scope: 'scheduling.write', principals: ['human', 'service'] },
   'scheduling.holds.release': { scope: 'scheduling.write', principals: ['human', 'service'] },
   'scheduling.holds.reconcile': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  // S11 attendance: recording a transition is front-desk scheduling work (scheduling.write);
+  // automated confirmation may come from a service principal with its provenance.
+  'scheduling.attendance.record': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.attendance.list': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  'scheduling.attendance.visitStatus': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  'scheduling.worklist.daily': { scope: 'scheduling.read', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

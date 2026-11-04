@@ -1,5 +1,6 @@
 import type {
   AppointmentCommandData,
+  AttendanceCommandData,
   AvailabilitySummary,
   BookingResult,
   HoldCommandData,
@@ -151,6 +152,55 @@ const appointmentStatus: ReplayCodec<AppointmentCommandData> = {
   },
 };
 
+const ATTENDANCE_KINDS: readonly string[] = [
+  'confirmed_manual',
+  'confirmed_automated',
+  'arrived',
+  'arrived_curbside',
+  'waiting',
+  'in_care',
+  'late',
+  'left_without_treatment',
+  'no_show',
+];
+const ATTENDANCE_STATES: readonly string[] = [
+  'confirmed',
+  'arrived',
+  'waiting',
+  'in_care',
+  'late',
+  'left_without_treatment',
+  'no_show',
+];
+/** S11: a transition stores its server references, kind, derived state and sequence. */
+const attendance: ReplayCodec<AttendanceCommandData> = {
+  persist: (d): StoredResult => ({
+    kind: 'success',
+    transitionRef: d.transitionRef,
+    appointmentRef: d.appointmentRef,
+    transitionKind: d.kind,
+    state: d.state,
+    sequence: d.sequence,
+  }),
+  restore(stored) {
+    if (
+      stored.kind !== 'success' ||
+      !ATTENDANCE_KINDS.includes(String(stored.transitionKind)) ||
+      !ATTENDANCE_STATES.includes(String(stored.state)) ||
+      !Number.isSafeInteger(stored.sequence)
+    ) {
+      throw malformed();
+    }
+    return {
+      transitionRef: ref(stored.transitionRef),
+      appointmentRef: ref(stored.appointmentRef),
+      kind: stored.transitionKind as AttendanceCommandData['kind'],
+      state: stored.state as AttendanceCommandData['state'],
+      sequence: stored.sequence as number,
+    };
+  },
+};
+
 export const APPOINTMENT_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<unknown>>> = {
   'scheduling.requests.create': request as ReplayCodec<unknown>,
   'scheduling.requests.updatePreferences': request as ReplayCodec<unknown>,
@@ -163,4 +213,5 @@ export const APPOINTMENT_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<unkn
   'scheduling.holds.create': bookingResult as ReplayCodec<unknown>,
   'scheduling.holds.release': holdReleased as ReplayCodec<unknown>,
   'scheduling.holds.reconcile': reconciled as ReplayCodec<unknown>,
+  'scheduling.attendance.record': attendance as ReplayCodec<unknown>,
 };

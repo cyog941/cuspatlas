@@ -13,6 +13,7 @@ const TRANSPORT: Record<string, string> = {
   requestRef: 'RequestRef',
   appointmentRef: 'AppointmentRef',
   holdRef: 'HoldRef',
+  transitionRef: 'TransitionRef',
 };
 
 /**
@@ -229,6 +230,55 @@ const SPECS: readonly Spec[] = [
     readOnly: false,
     run: (d, actor, args) =>
       d.appointments.reconcileHolds(actor, envelope('scheduling.holds.reconcile', args)),
+  },
+  {
+    name: 'scheduling_attendance_record',
+    operationId: 'scheduling.attendance.record',
+    description:
+      'Append an attendance transition (confirmation, arrival, presence or exception). Out-of-order transitions are refused; clinical completion and billing are not attendance.',
+    body: 'AttendanceRecord',
+    transport: ['appointmentRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.appointments.recordAttendance(
+        actor,
+        args.appointmentRef as string,
+        envelope('scheduling.attendance.record', args, 'appointmentRef'),
+      ),
+  },
+  {
+    name: 'scheduling_attendance_list',
+    operationId: 'scheduling.attendance.list',
+    description: 'List the append-only attendance transitions of one appointment.',
+    body: null,
+    transport: ['appointmentRef'],
+    readOnly: true,
+    async run(d, actor, args) {
+      return { data: await d.appointments.listAttendance(actor, args.appointmentRef as string) };
+    },
+  },
+  {
+    name: 'scheduling_attendance_visit_status',
+    operationId: 'scheduling.attendance.visitStatus',
+    description: 'Separated facts of one visit: booking, derived attendance, and the C5/B1-owned references.',
+    body: null,
+    transport: ['appointmentRef'],
+    readOnly: true,
+    async run(d, actor, args) {
+      return { data: await d.appointments.getVisitStatus(actor, args.appointmentRef as string) };
+    },
+  },
+  {
+    name: 'scheduling_worklist_daily',
+    operationId: 'scheduling.worklist.daily',
+    description:
+      'Daily worklist for one location and local date: bookings with derived attendance and counts.',
+    body: 'WorklistQuery',
+    transport: [],
+    readOnly: true,
+    async run(d, actor, args) {
+      return { data: await d.appointments.dailyWorklist(actor, { ...args }) };
+    },
   },
 ];
 

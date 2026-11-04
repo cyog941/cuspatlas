@@ -20,7 +20,11 @@ import Fastify, {
 } from 'fastify';
 import { createAuthenticator, type IdentityVerifierConfig, isConfiguredIdentity, isTestIssuer } from './auth';
 import { mapErrorToRefusal, safeErrorKind } from './errors';
-import { registerAppointmentRoutes, registerBookingRoutes } from './routes/appointments';
+import {
+  registerAppointmentRoutes,
+  registerAttendanceRoutes,
+  registerBookingRoutes,
+} from './routes/appointments';
 import { registerPatientRoutes } from './routes/patients';
 import { registerProposalRoutes } from './routes/proposals';
 import { registerSchedulingRoutes } from './routes/scheduling';
@@ -176,6 +180,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       });
       registerAppointmentRoutes(app, { authenticator, appointments });
       registerBookingRoutes(app, { authenticator, appointments });
+      registerAttendanceRoutes(app, { authenticator, appointments });
     }
   }
 

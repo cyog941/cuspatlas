@@ -1684,6 +1684,424 @@
           "$ref": "#/$defs/Appointment"
         }
       }
+    },
+    "TransitionRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque attendance transition reference."
+    },
+    "ProvenanceRef": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$"
+    },
+    "AttendanceKind": {
+      "description": "AttendanceTransition kinds. Clinical completion (C5) and billing (B1) are not attendance kinds; cancelled and rescheduled are appended by the booking commands only.",
+      "enum": [
+        "confirmed_manual",
+        "confirmed_automated",
+        "arrived",
+        "arrived_curbside",
+        "waiting",
+        "in_care",
+        "late",
+        "left_without_treatment",
+        "no_show",
+        "cancelled",
+        "rescheduled"
+      ]
+    },
+    "AttendanceState": {
+      "description": "Derived from the transition sequence; never stored.",
+      "enum": [
+        "scheduled",
+        "confirmed",
+        "late",
+        "arrived",
+        "waiting",
+        "in_care",
+        "left_without_treatment",
+        "no_show",
+        "cancelled",
+        "rescheduled"
+      ]
+    },
+    "AttendanceRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/AttendanceKind"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "note": {
+          "$ref": "#/$defs/RequestNote"
+        },
+        "claimedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "provenanceRef": {
+          "$ref": "#/$defs/ProvenanceRef"
+        },
+        "amendsTransitionRef": {
+          "$ref": "#/$defs/TransitionRef"
+        }
+      }
+    },
+    "AttendanceTransition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "transitionRef",
+        "appointmentRef",
+        "sequence",
+        "kind",
+        "source",
+        "provenanceRef",
+        "reasonCode",
+        "note",
+        "claimedAt",
+        "amendsTransitionRef",
+        "actorRef",
+        "occurredAt"
+      ],
+      "properties": {
+        "transitionRef": {
+          "$ref": "#/$defs/TransitionRef"
+        },
+        "appointmentRef": {
+          "$ref": "#/$defs/AppointmentRef"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "kind": {
+          "$ref": "#/$defs/AttendanceKind"
+        },
+        "source": {
+          "enum": ["staff", "automation", "booking_command"]
+        },
+        "provenanceRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProvenanceRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reasonCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "note": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RequestNote"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "claimedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "amendsTransitionRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TransitionRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "actorRef": {
+          "$ref": "#/$defs/EntityRef"
+        },
+        "occurredAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "AttendanceList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "#/$defs/AttendanceTransition"
+          }
+        }
+      }
+    },
+    "AttendanceCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["transitionRef", "appointmentRef", "kind", "state", "sequence"],
+          "properties": {
+            "transitionRef": {
+              "$ref": "#/$defs/TransitionRef"
+            },
+            "appointmentRef": {
+              "$ref": "#/$defs/AppointmentRef"
+            },
+            "kind": {
+              "$ref": "#/$defs/AttendanceKind"
+            },
+            "state": {
+              "$ref": "#/$defs/AttendanceState"
+            },
+            "sequence": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "Confirmation": {
+      "enum": ["manual", "automated"]
+    },
+    "OwnedPlaceholder": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "owner", "statement"],
+      "description": "A fact owned by another workstream; always null here until that workstream records it.",
+      "properties": {
+        "ref": {
+          "type": "null"
+        },
+        "owner": {
+          "enum": ["C5", "B1"]
+        },
+        "statement": {
+          "type": "string"
+        }
+      }
+    },
+    "VisitStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["appointmentRef", "booking", "attendance", "clinicalCompletion", "billing"],
+          "properties": {
+            "appointmentRef": {
+              "$ref": "#/$defs/AppointmentRef"
+            },
+            "booking": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["status", "version"],
+              "properties": {
+                "status": {
+                  "$ref": "#/$defs/AppointmentStatus"
+                },
+                "version": {
+                  "$ref": "#/$defs/Version"
+                }
+              }
+            },
+            "attendance": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["state", "confirmation", "lastTransitionAt", "transitions"],
+              "properties": {
+                "state": {
+                  "$ref": "#/$defs/AttendanceState"
+                },
+                "confirmation": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/Confirmation"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "lastTransitionAt": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/Instant"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "transitions": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            },
+            "clinicalCompletion": {
+              "$ref": "#/$defs/OwnedPlaceholder"
+            },
+            "billing": {
+              "$ref": "#/$defs/OwnedPlaceholder"
+            }
+          }
+        }
+      }
+    },
+    "WorklistQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locationRef", "date"],
+      "properties": {
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "date": {
+          "$ref": "#/$defs/LocalDate"
+        }
+      }
+    },
+    "DailyWorklist": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["locationRef", "date", "timeZone", "counts", "appointments"],
+          "properties": {
+            "locationRef": {
+              "$ref": "#/$defs/LocationRef"
+            },
+            "date": {
+              "$ref": "#/$defs/LocalDate"
+            },
+            "timeZone": {
+              "$ref": "#/$defs/TimeZone"
+            },
+            "counts": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "description": "Counts by booking status and derived attendance state; confirmedManual and confirmedAutomated are separate."
+            },
+            "appointments": {
+              "type": "array",
+              "maxItems": 200,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "appointmentRef",
+                  "patientRef",
+                  "startsAt",
+                  "endsAt",
+                  "provider",
+                  "operatory",
+                  "noOperatoryReason",
+                  "status",
+                  "attendanceState",
+                  "confirmation"
+                ],
+                "properties": {
+                  "appointmentRef": {
+                    "$ref": "#/$defs/AppointmentRef"
+                  },
+                  "patientRef": {
+                    "$ref": "#/$defs/PatientRef"
+                  },
+                  "startsAt": {
+                    "$ref": "#/$defs/Instant"
+                  },
+                  "endsAt": {
+                    "$ref": "#/$defs/Instant"
+                  },
+                  "provider": {
+                    "$ref": "#/$defs/ProviderRef"
+                  },
+                  "operatory": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/OperatoryRef"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "noOperatoryReason": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/NoOperatoryReason"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "status": {
+                    "$ref": "#/$defs/AppointmentStatus"
+                  },
+                  "attendanceState": {
+                    "$ref": "#/$defs/AttendanceState"
+                  },
+                  "confirmation": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/Confirmation"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

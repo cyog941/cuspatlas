@@ -117,3 +117,36 @@ export function registerBookingRoutes(
     a.reconcileHolds(requireActor(r), env('scheduling.holds.reconcile', r)),
   );
 }
+
+/** S11 attendance and the daily worklist. */
+export function registerAttendanceRoutes(
+  app: FastifyInstance,
+  deps: { authenticator: Authenticator; appointments: AppointmentService },
+): void {
+  const a = deps.appointments;
+  const on = (operationId: string) => ({ onRequest: authenticateOnRequest(deps.authenticator, operationId) });
+  const param = (request: FastifyRequest, name: string) =>
+    (request.params as Record<string, string>)[name] ?? '';
+  const rec = routeFor('scheduling.attendance.record');
+  app.post(rec.fastifyPath, on(rec.operationId), async (r, reply) =>
+    reply.code(201).send(
+      await a.recordAttendance(requireActor(r), param(r, 'appointmentRef'), {
+        operation: 'scheduling.attendance.record',
+        idempotencyKey: key(r),
+        payload: r.body,
+      }),
+    ),
+  );
+  const list = routeFor('scheduling.attendance.list');
+  app.get(list.fastifyPath, on(list.operationId), async (r) => ({
+    data: await a.listAttendance(requireActor(r), param(r, 'appointmentRef')),
+  }));
+  const status = routeFor('scheduling.attendance.visitStatus');
+  app.get(status.fastifyPath, on(status.operationId), async (r) => ({
+    data: await a.getVisitStatus(requireActor(r), param(r, 'appointmentRef')),
+  }));
+  const worklist = routeFor('scheduling.worklist.daily');
+  app.get(worklist.fastifyPath, on(worklist.operationId), async (r) => ({
+    data: await a.dailyWorklist(requireActor(r), { ...(r.query as object) }),
+  }));
+}

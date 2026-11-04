@@ -427,3 +427,100 @@ export const validateAppointmentCancel = def('AppointmentCancel');
 export const validateHoldCreate = def('HoldCreate');
 export const validateHoldRelease = def('HoldRelease');
 export const validateHoldReconcile = def('HoldReconcile');
+
+/** S11 attendance: an append-only transition sequence; the state is derived. */
+export type AttendanceKind =
+  | 'confirmed_manual'
+  | 'confirmed_automated'
+  | 'arrived'
+  | 'arrived_curbside'
+  | 'waiting'
+  | 'in_care'
+  | 'late'
+  | 'left_without_treatment'
+  | 'no_show'
+  | 'cancelled'
+  | 'rescheduled';
+export type AttendanceState =
+  | 'scheduled'
+  | 'confirmed'
+  | 'late'
+  | 'arrived'
+  | 'waiting'
+  | 'in_care'
+  | 'left_without_treatment'
+  | 'no_show'
+  | 'cancelled'
+  | 'rescheduled';
+export interface AttendanceRecord {
+  readonly kind: AttendanceKind;
+  readonly reasonCode?: string;
+  readonly note?: string;
+  readonly claimedAt?: string;
+  readonly provenanceRef?: string;
+  readonly amendsTransitionRef?: string;
+}
+export interface AttendanceTransitionRecord {
+  readonly transitionRef: string;
+  readonly appointmentRef: string;
+  readonly sequence: number;
+  readonly kind: AttendanceKind;
+  readonly source: 'staff' | 'automation' | 'booking_command';
+  readonly provenanceRef: string | null;
+  readonly reasonCode: string | null;
+  readonly note: string | null;
+  readonly claimedAt: string | null;
+  readonly amendsTransitionRef: string | null;
+  readonly actorRef: string;
+  readonly occurredAt: string;
+}
+export interface AttendanceCommandData {
+  readonly transitionRef: string;
+  readonly appointmentRef: string;
+  readonly kind: AttendanceKind;
+  readonly state: AttendanceState;
+  readonly sequence: number;
+}
+export interface OwnedPlaceholder {
+  readonly ref: null;
+  readonly owner: 'C5' | 'B1';
+  readonly statement: string;
+}
+export interface VisitStatusData {
+  readonly appointmentRef: string;
+  readonly booking: { readonly status: AppointmentStatus; readonly version: number };
+  readonly attendance: {
+    readonly state: AttendanceState;
+    readonly confirmation: 'manual' | 'automated' | null;
+    readonly lastTransitionAt: string | null;
+    readonly transitions: number;
+  };
+  readonly clinicalCompletion: OwnedPlaceholder;
+  readonly billing: OwnedPlaceholder;
+}
+export interface WorklistQuery {
+  readonly locationRef: string;
+  readonly date: string;
+}
+export interface WorklistEntry {
+  readonly appointmentRef: string;
+  readonly patientRef: string;
+  readonly startsAt: string;
+  readonly endsAt: string;
+  readonly provider: { readonly kind: 'provider'; readonly resourceRef: string };
+  readonly operatory: { readonly kind: 'operatory'; readonly resourceRef: string } | null;
+  readonly noOperatoryReason: NoOperatoryReason | null;
+  readonly status: AppointmentStatus;
+  readonly attendanceState: AttendanceState;
+  readonly confirmation: 'manual' | 'automated' | null;
+}
+export interface DailyWorklistData {
+  readonly locationRef: string;
+  readonly date: string;
+  readonly timeZone: string;
+  readonly counts: Readonly<Record<string, number>>;
+  readonly appointments: readonly WorklistEntry[];
+}
+
+export const validateAttendanceRecord = def('AttendanceRecord');
+export const validateWorklistQuery = def('WorklistQuery');

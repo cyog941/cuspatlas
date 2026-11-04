@@ -1,11 +1,12 @@
 import type { ActorContext, CommandEnvelope, TenantTransaction } from '@cuspatlas/contracts';
 import { createAppointmentBase } from './appointment-base';
+import { bookingAttendanceGuard, createAttendanceOperations } from './attendance';
 import { createBookingOperations, loadAppointment } from './booking';
 import { createRequestOperations, type LinkHook, linkRequestToBookingIn } from './requests';
 import type { SchedulingDeps } from './resources';
 
 /**
- * The appointment service: S8 requests and S10 booking (S11 attendance joins it). The only
+ * The appointment service: S8 requests, S10 booking and S11 attendance. The only
  * command/query layer for these tables; REST and MCP call these functions, none of which takes a
  * tenant from its input.
  */
@@ -27,6 +28,7 @@ export function createAppointmentService(deps: SchedulingDeps) {
   };
   const requests = createRequestOperations(base, link);
   const booking = createBookingOperations(base);
+  const attendance = createAttendanceOperations(base);
   const bookingStillActive = async (tx: TenantTransaction, appointmentId: string) => {
     const { rows } = await tx.query<{ status: string }>(
       'SELECT status FROM cuspatlas.appointments WHERE id = $1',
@@ -37,12 +39,17 @@ export function createAppointmentService(deps: SchedulingDeps) {
   return {
     ...requests,
     ...booking,
+    ...attendance,
     reopenRequest: (ctx: ActorContext, requestRef: string, envelope: CommandEnvelope<unknown>) =>
       requests.reopenRequest(ctx, requestRef, envelope, bookingStillActive),
     rescheduleAppointment: (ctx: ActorContext, appointmentRef: string, envelope: CommandEnvelope<unknown>) =>
-      booking.rescheduleAppointment(ctx, appointmentRef, envelope),
+      booking.rescheduleAppointment(ctx, appointmentRef, envelope, (tx, id, reason) =>
+        bookingAttendanceGuard(tx, 'scheduling.appointments.reschedule', id, 'rescheduled', reason),
+      ),
     cancelAppointment: (ctx: ActorContext, appointmentRef: string, envelope: CommandEnvelope<unknown>) =>
-      booking.cancelAppointment(ctx, appointmentRef, envelope),
+      booking.cancelAppointment(ctx, appointmentRef, envelope, (tx, id, reason) =>
+        bookingAttendanceGuard(tx, 'scheduling.appointments.cancel', id, 'cancelled', reason),
+      ),
   };
 }
 

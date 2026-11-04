@@ -25,6 +25,7 @@ const LIST_QUERIES: Record<string, string> = {
   'scheduling.resources.list': 'ResourceListQuery',
   'scheduling.locations.list': 'LocationListQuery',
   'scheduling.requests.list': 'AppointmentRequestListQuery',
+  'scheduling.worklist.daily': 'WorklistQuery',
 };
 function restShape(route: (typeof routes)[number]): { properties: Schema; required?: string[] } {
   if (route.requestBody !== undefined) {

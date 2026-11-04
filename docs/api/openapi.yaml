@@ -1461,6 +1461,108 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/scheduling/appointments/{appointmentRef}/attendance:
+    post:
+      operationId: scheduling.attendance.record
+      description: >-
+        Append one attendance transition (S11) with actor, server instant, optional client-claimed instant and source. confirmed_automated needs provenanceRef and is kept distinct from confirmed_manual; late, no_show and left_without_treatment need a configured reasonCode; a correction is an amendment of the latest transition with a configured reason. Out-of-order transitions are 409 attendance_transition_invalid; cancelled and rescheduled belong to the booking commands (422 useBookingCommand). Writes no booking, clinical or financial state. Requires scheduling.write.
+      parameters:
+        - $ref: '#/components/parameters/AppointmentRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/AttendanceRecord'
+      responses:
+        '201':
+          description: Transition appended; data.state is the derived attendance state.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/AttendanceCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: scheduling.attendance.list
+      description: >-
+        The append-only attendance transitions of one appointment, oldest first. Requires scheduling.read.
+      parameters:
+        - $ref: '#/components/parameters/AppointmentRef'
+      responses:
+        '200':
+          description: Transitions.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/AttendanceList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/appointments/{appointmentRef}/visit-status:
+    get:
+      operationId: scheduling.attendance.visitStatus
+      description: >-
+        The separated facts of one visit: booking status, derived attendance state and confirmation kind, and the clinical-completion (C5) and billing (B1) references, which attendance never sets. Requires scheduling.read.
+      parameters:
+        - $ref: '#/components/parameters/AppointmentRef'
+      responses:
+        '200':
+          description: Visit status.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/VisitStatus'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/worklist:
+    get:
+      operationId: scheduling.worklist.daily
+      description: >-
+        Daily worklist for one location (query locationRef and local date in the location zone): bookings with derived attendance and confirmation kind, and counts with manual and automated confirmation separate. Requires scheduling.read.
+      responses:
+        '200':
+          description: The worklist (at most 200 appointments).
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/DailyWorklist'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
 components:
   securitySchemes:
     bearer:

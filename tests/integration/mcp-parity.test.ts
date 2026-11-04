@@ -91,6 +91,11 @@ const TOOL_NAMES = [
   'scheduling_holds_create',
   'scheduling_holds_reconcile',
   'scheduling_holds_release',
+  // S11 attendance tools.
+  'scheduling_attendance_list',
+  'scheduling_attendance_record',
+  'scheduling_attendance_visit_status',
+  'scheduling_worklist_daily',
 ].sort();
 
 let db: TestDatabase;

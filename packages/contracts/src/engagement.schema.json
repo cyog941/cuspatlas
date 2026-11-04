@@ -1,0 +1,1052 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cuspatlas.invalid/schemas/engagement/v1",
+  "title": "Portal and communications contract v1 (E1-E7; synthetic data only, decisions pending approval)",
+  "$defs": {
+    "EntityRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "PatientRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque patient reference (same pattern as patient.schema.json PatientRef)."
+    },
+    "PrincipalRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "Version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "IdempotencyKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$"
+    },
+    "Instant": {
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 40
+    },
+    "RelationshipScope": {
+      "enum": ["demographics", "scheduling", "clinical_read", "financial", "consent"]
+    },
+    "ContactValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["channel", "value"],
+      "description": "A contact point that must already be on the person's own record. Only its keyed digest is stored.",
+      "properties": {
+        "channel": {
+          "enum": ["email", "phone"]
+        },
+        "value": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 254,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        }
+      }
+    },
+    "PortalEnroll": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["personRef", "contact"],
+      "description": "E1: enroll a portal principal bound to exactly one person record. The principal is pending until its contact is verified (E-S3 blocked-on-discovery; proofing level unverified-synthetic).",
+      "properties": {
+        "personRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "contact": {
+          "$ref": "#/$defs/ContactValue"
+        }
+      }
+    },
+    "PortalVerify": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "method"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "method": {
+          "const": "synthetic_attested",
+          "description": "The only method until E-S3 decides the assurance level; it never raises the proofing level."
+        }
+      }
+    },
+    "PortalRevoke": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "reasonCode"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reasonCode": {
+          "enum": ["patient_request", "guardian_request", "security_concern", "entered_in_error", "other"]
+        }
+      }
+    },
+    "EmptyQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "PortalGrant": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Projection of one S5 relationship (grantRef = relationshipRef). Expiry and revocation are S5's, evaluated now.",
+      "required": [
+        "grantRef",
+        "relationshipRef",
+        "patientRef",
+        "granteeRef",
+        "kind",
+        "scope",
+        "effectiveFrom",
+        "effectiveUntil",
+        "revokedAt",
+        "status",
+        "statusReason",
+        "projectedAt"
+      ],
+      "properties": {
+        "grantRef": {
+          "$ref": "#/$defs/EntityRef"
+        },
+        "relationshipRef": {
+          "$ref": "#/$defs/EntityRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "granteeRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "kind": {
+          "enum": ["guardian", "guarantor", "dependent", "proxy"]
+        },
+        "scope": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RelationshipScope"
+          }
+        },
+        "effectiveFrom": {
+          "$ref": "#/$defs/Instant"
+        },
+        "effectiveUntil": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "revokedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "enum": ["active", "pending", "expired", "revoked"]
+        },
+        "statusReason": {
+          "type": "string"
+        },
+        "projectedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "EngagementCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "$ref": "#/$defs/EntityRef"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "EngagementRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": ["object", "array"]
+        }
+      }
+    },
+    "PortalView": {
+      "enum": ["demographics", "appointments", "requests", "documents", "balances", "messages", "forms"],
+      "description": "E2 portal view names. Each maps to relationship scopes (appointments/requests: scheduling; balances: financial; documents: clinical_read; messages: consent; forms: demographics and consent); none is a scope itself."
+    },
+    "PortalViewProjection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "view",
+        "patientRef",
+        "coverage",
+        "fields",
+        "redacted",
+        "projectionVersion",
+        "generatedAt"
+      ],
+      "description": "Explicit allowlist projection with a redaction report; coverage unavailable (with owner) never reads as empty.",
+      "properties": {
+        "view": {
+          "$ref": "#/$defs/PortalView"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "coverage": {
+          "type": "object",
+          "required": ["status"],
+          "properties": {
+            "status": {
+              "enum": ["available", "unavailable"]
+            },
+            "reason": {
+              "type": "string"
+            },
+            "owner": {
+              "type": "string"
+            }
+          }
+        },
+        "fields": {
+          "type": ["object", "null"]
+        },
+        "redacted": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "projectionVersion": {
+          "type": "string"
+        },
+        "generatedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "PortalRequestSubmit": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "E3 portal request input, delegated to S8 createAppointmentRequest with origin portal. No tenant, no patient (the path patient), no urgency, no free text; location and provider are validated by S8. Needs preferredWindows or flexibility.",
+      "required": ["locationRef", "contactConsent"],
+      "properties": {
+        "locationRef": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,64}$"
+        },
+        "appointmentTypeCode": {
+          "type": "string",
+          "pattern": "^[a-z0-9_-]{1,40}$"
+        },
+        "providerPreference": {
+          "$ref": "#/$defs/EntityRef"
+        },
+        "preferredWindows": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["startsAt", "endsAt"],
+            "properties": {
+              "startsAt": {
+                "$ref": "#/$defs/Instant"
+              },
+              "endsAt": {
+                "$ref": "#/$defs/Instant"
+              }
+            }
+          }
+        },
+        "flexibility": {
+          "enum": ["any_time", "mornings", "afternoons", "evenings", "weekdays", "weekends"]
+        },
+        "contactConsent": {
+          "enum": ["granted", "declined"],
+          "description": "Whether the practice may contact the requester about this request (recorded on the request; outreach consent is E6's)."
+        }
+      }
+    },
+    "ConsentChannel": {
+      "enum": ["portal", "email", "sms", "voice"]
+    },
+    "ConsentPurpose": {
+      "enum": ["reminders", "recall", "messaging"]
+    },
+    "ConsentVersion": {
+      "type": "string",
+      "pattern": "^[a-z0-9.-]{1,32}$"
+    },
+    "IntentPurpose": {
+      "enum": ["reminder", "cancellation", "waitlist_offer", "recall", "message_notice"]
+    },
+    "TemplateRef": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,64}$"
+    },
+    "LocalTime": {
+      "type": "string",
+      "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+    },
+    "SuppressionReason": {
+      "enum": [
+        "no_consent",
+        "opt_out",
+        "quiet_hours",
+        "missing_contact",
+        "policy_off",
+        "appointment_cancelled",
+        "appointment_missing",
+        "template_withdrawn",
+        "recall_not_due",
+        "grant_expired",
+        "offer_closed",
+        "subject_past",
+        "no_verified_channel"
+      ],
+      "description": "The single suppression reason vocabulary (portal and communications plan, Shared interfaces). S14 and B4 cite it; no consumer defines its own."
+    },
+    "ConsentRecordInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["channel", "purpose", "state", "source", "consentVersion"],
+      "description": "E6 staff-recorded consent fact (append-only; the latest fact for a channel and purpose wins).",
+      "properties": {
+        "channel": {
+          "$ref": "#/$defs/ConsentChannel"
+        },
+        "purpose": {
+          "$ref": "#/$defs/ConsentPurpose"
+        },
+        "state": {
+          "enum": ["granted", "denied"]
+        },
+        "source": {
+          "enum": ["staff_recorded", "written_form", "patient_reported"]
+        },
+        "consentVersion": {
+          "$ref": "#/$defs/ConsentVersion"
+        }
+      }
+    },
+    "OptOutInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["channel", "source"],
+      "description": "E6 opt-out of every purpose on one channel; authoritative until a later recorded fact.",
+      "properties": {
+        "channel": {
+          "$ref": "#/$defs/ConsentChannel"
+        },
+        "source": {
+          "enum": ["staff_recorded", "patient_reported", "provider_stop_reply"]
+        }
+      }
+    },
+    "PortalConsentInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["channel", "purpose", "state", "consentVersion"],
+      "description": "E6 consent recorded through the portal by the patient (self) or a relationship holding the consent scope.",
+      "properties": {
+        "channel": {
+          "$ref": "#/$defs/ConsentChannel"
+        },
+        "purpose": {
+          "$ref": "#/$defs/ConsentPurpose"
+        },
+        "state": {
+          "enum": ["granted", "denied", "opted_out"]
+        },
+        "consentVersion": {
+          "$ref": "#/$defs/ConsentVersion"
+        }
+      }
+    },
+    "ChannelPolicyDefine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["purpose", "channel"],
+      "description": "E6 channel policy per intent purpose (versioned). channel none is the default; a live channel needs an approved template and explicit quiet hours (E-D7, no shipped default send window).",
+      "properties": {
+        "purpose": {
+          "$ref": "#/$defs/IntentPurpose"
+        },
+        "channel": {
+          "enum": ["none", "email", "sms"]
+        },
+        "templateRef": {
+          "$ref": "#/$defs/TemplateRef"
+        },
+        "quietHours": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["start", "end"],
+          "properties": {
+            "start": {
+              "$ref": "#/$defs/LocalTime"
+            },
+            "end": {
+              "$ref": "#/$defs/LocalTime"
+            }
+          }
+        },
+        "reminderLeadMinutes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10080
+        }
+      }
+    },
+    "TemplateDefine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["templateRef", "purpose", "channel", "body"],
+      "description": "E6 notice-only template (E-D8): no placeholders, so no clinical content can be merged in. Approved by practice administration.",
+      "properties": {
+        "templateRef": {
+          "$ref": "#/$defs/TemplateRef"
+        },
+        "purpose": {
+          "$ref": "#/$defs/IntentPurpose"
+        },
+        "channel": {
+          "enum": ["email", "sms"]
+        },
+        "body": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 320,
+          "pattern": "^[^{}<>\\u0000-\\u001f]+$"
+        }
+      }
+    },
+    "TemplateWithdraw": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "SuppressionPreviewQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["purpose"],
+      "description": "Side-effect-free decideSuppression for a patient (recorded false).",
+      "properties": {
+        "purpose": {
+          "$ref": "#/$defs/IntentPurpose"
+        },
+        "channel": {
+          "enum": ["email", "sms"]
+        },
+        "at": {
+          "$ref": "#/$defs/Instant"
+        },
+        "locationRef": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,64}$"
+        }
+      }
+    },
+    "RecallEnroll": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["category", "asOf", "patientRefs"],
+      "description": "E6 recall enrollment of S16 due items (the due list is computed by S16; nothing is re-derived and nothing is sent).",
+      "properties": {
+        "category": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,64}$"
+        },
+        "asOf": {
+          "$ref": "#/$defs/Instant"
+        },
+        "patientRefs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/PatientRef"
+          }
+        }
+      }
+    },
+    "RecallEnrollmentsQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["category"],
+      "properties": {
+        "category": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,64}$"
+        }
+      }
+    },
+    "DeliveryResolve": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "action"],
+      "description": "E7 staff resolution of a failed or unknown delivery: resend with the same delivery key, or abandon.",
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "action": {
+          "enum": ["resend", "abandon"]
+        }
+      }
+    },
+    "ReceiptInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["providerRef", "providerEventId", "state", "occurredAt"],
+      "description": "E7 provider receipt (normalized; never a message body). Deduplicated on providerEventId; monotonic.",
+      "properties": {
+        "providerRef": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._:-]{1,128}$"
+        },
+        "providerEventId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._:-]{1,128}$"
+        },
+        "state": {
+          "enum": ["delivered", "failed", "bounced"]
+        },
+        "occurredAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "deliveryKey": {
+          "type": "string",
+          "description": "The idempotency key the message was sent with; matches a receipt that arrives before the send is recorded (stored pending).",
+          "pattern": "^[A-Za-z0-9._:-]{1,160}$"
+        }
+      }
+    },
+    "ContactVerify": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["channel", "value", "method"],
+      "description": "E6 contact verification fact (staff-attested on synthetic data; E-S3 open). The value must be a contact point on the record; only its digest is stored and the value is never echoed.",
+      "properties": {
+        "channel": {
+          "enum": ["email", "phone"]
+        },
+        "value": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 254,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "method": {
+          "enum": ["synthetic_attested"]
+        }
+      }
+    },
+    "PortalOfferRespond": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "outcome"],
+      "description": "S15 offer answer through the portal (patient, or a relationship holding scheduling). Acceptance books from the hold; withdrawal is staff only.",
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "outcome": {
+          "enum": ["accepted", "declined"]
+        }
+      }
+    },
+    "FormRef": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,64}$"
+    },
+    "FormFieldKey": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,39}$"
+    },
+    "FormLabel": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "pattern": "^[^{}<>\u0000-\u001f]+$"
+    },
+    "FormField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "label", "kind", "required"],
+      "description": "One question of a form version. A target maps the answer to a record the submission never writes: S4 demographics (staff review, applied through S4) or C8 medical history (hand-off by reference).",
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/FormFieldKey"
+        },
+        "label": {
+          "$ref": "#/$defs/FormLabel"
+        },
+        "kind": {
+          "enum": ["text", "choice", "date", "boolean"]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "maxLength": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500
+        },
+        "options": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]{1,40}$"
+          }
+        },
+        "target": {
+          "enum": [
+            "demographics.preferredName",
+            "demographics.pronouns",
+            "demographics.language",
+            "medical_history"
+          ]
+        }
+      }
+    },
+    "FormConsent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "label", "channel", "purpose", "consentVersion"],
+      "description": "A communications or portal consent question (E6). Clinical treatment consent is C13 and is never captured on an intake form.",
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/FormFieldKey"
+        },
+        "label": {
+          "$ref": "#/$defs/FormLabel"
+        },
+        "channel": {
+          "$ref": "#/$defs/ConsentChannel"
+        },
+        "purpose": {
+          "enum": ["reminders", "recall", "messaging"]
+        },
+        "consentVersion": {
+          "$ref": "#/$defs/ConsentVersion"
+        }
+      }
+    },
+    "FormPublish": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["formRef", "title", "fields"],
+      "description": "E4: publish the next version of a form (synthetic content; clinical sign-off pending). The latest published version is the only one that accepts new submissions.",
+      "properties": {
+        "formRef": {
+          "$ref": "#/$defs/FormRef"
+        },
+        "title": {
+          "$ref": "#/$defs/FormLabel"
+        },
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/FormField"
+          }
+        },
+        "consents": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "$ref": "#/$defs/FormConsent"
+          }
+        },
+        "validUntil": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "FormRetire": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "FormSubmissionInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["formRef", "formVersion", "answers"],
+      "description": "E4 submission bound to one form version. Answer keys are checked against that version (unknown keys and missing required answers are refused with field-level detail only).",
+      "properties": {
+        "formRef": {
+          "$ref": "#/$defs/FormRef"
+        },
+        "formVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "answers": {
+          "type": "object",
+          "maxProperties": 50,
+          "propertyNames": {
+            "$ref": "#/$defs/FormFieldKey"
+          },
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500,
+                "pattern": "^[^\u0000-\b\u000b\f\u000e-\u001f]+$"
+              },
+              {
+                "type": "boolean"
+              }
+            ]
+          }
+        },
+        "consents": {
+          "type": "object",
+          "maxProperties": 8,
+          "propertyNames": {
+            "$ref": "#/$defs/FormFieldKey"
+          },
+          "additionalProperties": {
+            "enum": ["granted", "denied"]
+          }
+        }
+      }
+    },
+    "IntakeReviewResolve": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision", "expectedVersion"],
+      "description": "Staff resolution of an intake review item. apply (demographics only) calls S4's own update with the patient version the reviewer saw; reject records a reason. Medical-history hand-offs cannot be applied here (C8).",
+      "properties": {
+        "decision": {
+          "enum": ["apply", "reject"]
+        },
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "patientVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reasonCode": {
+          "type": "string",
+          "pattern": "^[a-z_]{1,64}$"
+        }
+      }
+    },
+    "ThreadTopic": {
+      "enum": ["appointment", "billing", "forms", "general"]
+    },
+    "MessageBody": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000,
+      "pattern": "^[^\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f]+$"
+    },
+    "MessageAttachment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "ref"],
+      "description": "A reference to an image (I) or a stored object; never bytes. Each reference is authorized separately from the message when it is opened.",
+      "properties": {
+        "kind": {
+          "enum": ["imageRef", "objectRef"]
+        },
+        "ref": {
+          "$ref": "#/$defs/EntityRef"
+        }
+      }
+    },
+    "ThreadOpen": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["topic", "locationRef", "body"],
+      "description": "E5: open a secure-message thread for a patient with its first message (portal or staff).",
+      "properties": {
+        "topic": {
+          "$ref": "#/$defs/ThreadTopic"
+        },
+        "locationRef": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,64}$"
+        },
+        "body": {
+          "$ref": "#/$defs/MessageBody"
+        },
+        "attachments": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "$ref": "#/$defs/MessageAttachment"
+          }
+        }
+      }
+    },
+    "MessagePost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["body"],
+      "description": "E5: post one immutable message to a thread.",
+      "properties": {
+        "body": {
+          "$ref": "#/$defs/MessageBody"
+        },
+        "attachments": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "$ref": "#/$defs/MessageAttachment"
+          }
+        }
+      }
+    },
+    "ThreadClose": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "reasonCode"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reasonCode": {
+          "type": "string",
+          "pattern": "^[a-z_]{1,64}$"
+        }
+      }
+    },
+    "ThreadAssign": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "assigneeRef"],
+      "description": "Assign a thread to a staff member of the tenant holding messaging.write, or clear it (null).",
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "assigneeRef": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/EntityRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "ThreadLegalHold": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "hold"],
+      "description": "Legal-hold placeholder (E-D5 pending legal review): a held thread is never eligible under any future retention period.",
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "hold": {
+          "type": "boolean"
+        },
+        "reasonCode": {
+          "type": "string",
+          "pattern": "^[a-z_]{1,64}$"
+        }
+      }
+    },
+    "SyntheticPhoneNumber": {
+      "type": "string",
+      "description": "A fictional 555-01xx number (synthetic only).",
+      "pattern": "^\\+1-[0-9]{3}-555-01[0-9]{2}$"
+    },
+    "TimeZoneName": {
+      "type": "string",
+      "pattern": "^[A-Za-z_]+(/[A-Za-z0-9_+-]+){0,2}$"
+    },
+    "WeeklyWindow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["weekday", "start", "end"],
+      "properties": {
+        "weekday": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 6
+        },
+        "start": {
+          "$ref": "#/$defs/LocalTime"
+        },
+        "end": {
+          "$ref": "#/$defs/LocalTime"
+        }
+      }
+    },
+    "TelephonyRouting": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["open", "closed"],
+      "properties": {
+        "open": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["action", "queue"],
+          "properties": {
+            "action": {
+              "enum": ["ring_queue"]
+            },
+            "queue": {
+              "enum": ["front_desk", "billing"]
+            }
+          }
+        },
+        "closed": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["action"],
+          "properties": {
+            "action": {
+              "enum": ["voicemail", "external_reference"]
+            }
+          }
+        }
+      }
+    },
+    "TelephonyConfigDefine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["numbers", "timeZone", "hours", "routing", "recording"],
+      "description": "E8: the next version of the practice telephony configuration (synthetic numbers; E-S2 blocks any provider). Recording stays off.",
+      "properties": {
+        "numbers": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/SyntheticPhoneNumber"
+          }
+        },
+        "timeZone": {
+          "$ref": "#/$defs/TimeZoneName"
+        },
+        "hours": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 21,
+          "items": {
+            "$ref": "#/$defs/WeeklyWindow"
+          }
+        },
+        "routing": {
+          "$ref": "#/$defs/TelephonyRouting"
+        },
+        "recording": {
+          "enum": ["off", "on"]
+        }
+      }
+    },
+    "HandlingQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["at"],
+      "properties": {
+        "at": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "CallEventInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["providerCallRef", "direction", "callerNumber", "dialedNumber", "occurredAt", "outcome"],
+      "description": "A normalized call event from the (fake) telephony adapter: metadata only, never a recording.",
+      "properties": {
+        "providerCallRef": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._:-]{1,128}$"
+        },
+        "direction": {
+          "enum": ["inbound", "outbound"]
+        },
+        "callerNumber": {
+          "$ref": "#/$defs/SyntheticPhoneNumber"
+        },
+        "dialedNumber": {
+          "$ref": "#/$defs/SyntheticPhoneNumber"
+        },
+        "occurredAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "outcome": {
+          "enum": ["answered", "missed", "voicemail"]
+        }
+      }
+    },
+    "CallLink": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["patientRef", "reasonCode"],
+      "description": "A person's confirmation that a call was with this patient (null removes the link). Never inferred from the caller number alone.",
+      "properties": {
+        "patientRef": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/PatientRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reasonCode": {
+          "type": "string",
+          "pattern": "^[a-z_]{1,64}$"
+        }
+      }
+    }
+  }
+}

@@ -3,10 +3,11 @@ import { buildApp } from '@cuspatlas/api';
 import { REFUSAL_HTTP_STATUS, type RefusalCode } from '@cuspatlas/contracts';
 import {
   createMembershipSource,
+  createPortalPrincipalSource,
   createSecurityAttemptSink,
   createTenantTransactionRunner,
 } from '@cuspatlas/db';
-import type { ImageRefResolver } from '@cuspatlas/domain';
+import type { AttachmentRefResolver, ImageRefResolver } from '@cuspatlas/domain';
 import { buildMcpServer, type McpServerHandle } from '@cuspatlas/mcp';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -19,6 +20,7 @@ import { seedSchedulingScopes, USER_A5 } from './scheduling-fixtures';
 import { createTestTokenIssuer, TEST_AUDIENCE, type TestTokenIssuer } from './test-token-issuer';
 
 const MCP_AUDIENCE = 'urn:cuspatlas:mcp:synthetic';
+const PORTAL_AUDIENCE = 'urn:cuspatlas:portal:synthetic';
 
 export interface McpOutcome {
   readonly status: number;
@@ -53,7 +55,13 @@ export interface AppointmentHarness {
 
 export async function openAppointmentHarness(
   db: TestDatabase,
-  opts: { pool?: number; mcp?: boolean; imageRefResolver?: ImageRefResolver } = {},
+  opts: {
+    pool?: number;
+    mcp?: boolean;
+    portal?: boolean;
+    imageRefResolver?: ImageRefResolver;
+    attachmentRefs?: AttachmentRefResolver;
+  } = {},
 ): Promise<AppointmentHarness> {
   await seedTenancy(db.admin);
   await seedPatientScopes(db.admin);
@@ -72,6 +80,14 @@ export async function openAppointmentHarness(
     attempts,
     tenantTransactions,
     ...(opts.imageRefResolver ? { imageRefResolver: opts.imageRefResolver } : {}),
+    ...(opts.attachmentRefs ? { attachmentRefs: opts.attachmentRefs } : {}),
+    // E1: the portal transport (its own audience) is registered only when asked for.
+    ...(opts.portal
+      ? {
+          portalIdentity: { ...issuer.verifierConfig, audience: PORTAL_AUDIENCE },
+          portalPrincipals: createPortalPrincipalSource(db.app),
+        }
+      : {}),
   });
   let server: McpServerHandle | null = null;
   let mcpUrl = '';
@@ -84,6 +100,7 @@ export async function openAppointmentHarness(
       attempts,
       tenantTransactions,
       ...(opts.imageRefResolver ? { imageRefResolver: opts.imageRefResolver } : {}),
+      ...(opts.attachmentRefs ? { attachmentRefs: opts.attachmentRefs } : {}),
       logger: { stream: { write: (l: string) => logLines.push(l) } },
     });
     mcpUrl = (await server.listen({ host: '127.0.0.1', port: 0 })).url;

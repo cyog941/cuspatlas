@@ -351,6 +351,64 @@ export const MERGE_EXCLUDED_REFERENCES: readonly { table: string; column: string
     column: 'origin_patient_id',
     why: 'the patient a referral was recorded for is a historical fact (C17); the subject moves',
   },
+  // E1 (recommended-pending-approval): a portal principal stays bound to the identity it was enrolled
+  // for; once that identity is merged the principal is denied (portal_identity_merged) and staff
+  // enroll a new principal for the survivor. A merge never retargets portal access silently.
+  {
+    table: 'portal_principals',
+    column: 'person_patient_id',
+    why: 'portal access never follows a merge silently; the merged identity is denied and re-enrolled',
+  },
+  // E6 (recommended-pending-approval): consent and opt-out facts, decisions and recall enrollments
+  // stay with the identity they were recorded for; after a merge the survivor's own facts decide
+  // (an absent consent suppresses: fail closed), and nothing is reassigned silently.
+  {
+    table: 'communication_consents',
+    column: 'patient_id',
+    why: 'consent facts stay with the identity that gave them; the survivor needs its own consent',
+  },
+  {
+    table: 'suppression_decisions',
+    column: 'subject_patient_id',
+    why: 'decisions are history of what was decided for that identity at that time',
+  },
+  {
+    table: 'recall_enrollments',
+    column: 'patient_id',
+    why: 'an enrollment records an S16 due item of that identity; recall is recomputed for the survivor',
+  },
+  {
+    table: 'contact_verifications',
+    column: 'patient_id',
+    why: 'a verification attests a contact value of that identity; the survivor verifies its own contacts',
+  },
+  // E4/E5/E8 (recommended-pending-approval): submissions, review items, threads and call links are
+  // facts about the identity they were recorded for; a merge never re-addresses them silently.
+  {
+    table: 'intake_submissions',
+    column: 'patient_id',
+    why: 'a submission is a fact given for that identity; staff re-enter what the survivor still needs',
+  },
+  {
+    table: 'intake_review_items',
+    column: 'patient_id',
+    why: 'a review item proposes a change to that identity; an open one is rejected and re-proposed',
+  },
+  {
+    table: 'message_threads',
+    column: 'patient_id',
+    why: 'a thread is correspondence about that identity; it is never re-addressed by a merge',
+  },
+  {
+    table: 'call_links',
+    column: 'patient_id',
+    why: 'a call link is a confirmation about that identity; staff relink a merged call explicitly',
+  },
+  {
+    table: 'outbound_messages',
+    column: 'patient_id',
+    why: 'a message is history of what was sent to that identity; it is never re-addressed by a merge',
+  },
 ];
 
 /**

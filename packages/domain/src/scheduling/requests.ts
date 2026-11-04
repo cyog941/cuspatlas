@@ -203,6 +203,16 @@ export async function linkRequestToBookingIn(
   return version;
 }
 
+/**
+ * E3 portal authority for a request created with origin `portal`: `authorize` is the fresh portal
+ * check (it runs before the idempotency executor, so replays are reauthorized) and `bound` the abuse
+ * bounds (inside the executor, so a replay returns the original instead of counting again).
+ */
+export interface PortalRequestAuthority {
+  authorize(tx: TenantTransaction, patientRef: string): Promise<void>;
+  bound(tx: TenantTransaction, patientRef: string): Promise<void>;
+}
+
 export type LinkHook = (
   tx: TenantTransaction,
   decision: AuthorizationDecision,
@@ -259,20 +269,33 @@ export function createRequestOperations(base: AppointmentBase, link: LinkHook) {
       ctx: ActorContext,
       envelope: CommandEnvelope<unknown>,
       origin: 'staff' | 'portal' = 'staff',
+      portal?: PortalRequestAuthority,
     ): Promise<CommandResult<RequestCommandData>> {
       return base.guarded(ctx, 'scheduling.requests.create', async () => {
-        const decision = await base.authorize(ctx, 'scheduling.requests.create');
+        // E3 seam: the portal origin is authorized by E's portal authority (S5 relationship scopes,
+        // checked in the command transaction), never by a staff role; a staff call can never carry
+        // the portal origin and a portal principal can never use the staff path.
+        if ((origin === 'portal') !== (ctx.principal === 'portal') || (origin === 'portal' && !portal)) {
+          throw new RefusalError({ code: 'forbidden', reasonCode: 'principal_kind_denied' });
+        }
+        const decision: AuthorizationDecision =
+          origin === 'portal'
+            ? { action: 'scheduling.requests.create', locationRefs: null }
+            : await base.authorize(ctx, 'scheduling.requests.create');
         checkEnvelope(envelope, 'scheduling.requests.create');
         const p = envelope.payload;
         assertValid<AppointmentRequestCreate>(validateAppointmentRequestCreate, p, SCHEDULING_PROPERTIES);
         assertLocation(decision.locationRefs, p.locationRef);
         return deps.withTenantTransaction(ctx, async (tx) => {
+          // Before the executor, so a replay of a portal key is reauthorized too.
+          if (portal) await portal.authorize(tx, p.patientRef);
           const location = await loadLocation(tx, p.locationRef, 'share');
           return execute<RequestCommandData>(
             ctx,
             { ...envelope, payload: { ...p, origin } },
             tx,
             async () => {
+              if (portal) await portal.bound(tx, p.patientRef);
               await assertPatientSchedulable(tx, p.patientRef);
               if (location.status !== 'active') throw failedAt('/locationRef', 'locationInactive');
               const windows = checkWindows(p.preferredWindows);

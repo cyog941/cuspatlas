@@ -1,5 +1,11 @@
 import type { KeyObject } from 'node:crypto';
-import { type ActorContext, type MembershipSource, RefusalError } from '@cuspatlas/contracts';
+import {
+  type ActorContext,
+  type MembershipSource,
+  type PortalPrincipalSource,
+  RefusalError,
+  type SecurityReasonCode,
+} from '@cuspatlas/contracts';
 import { type AttemptRecordingDeps, recordDenial } from '@cuspatlas/domain';
 import type { FastifyRequest } from 'fastify';
 import { type CryptoKey, importSPKI, jwtVerify } from 'jose';
@@ -75,38 +81,9 @@ export function createAuthenticator(
   return {
     async authenticate(authorization, correlationId, operation) {
       const anonymous = { correlationId, operation, tenantId: null, actorId: null };
-      if (typeof authorization !== 'string' || !authorization.startsWith('Bearer ')) {
-        return refuse(new RefusalError({ code: 'unauthenticated', reasonCode: 'token_missing' }), anonymous);
-      }
-      const token = authorization.slice('Bearer '.length).trim();
-      let sub: string;
-      let tid: string;
-      let sid: string;
-      try {
-        if (token.length === 0 || token.length > MAX_TOKEN_LENGTH) throw new Error('length');
-        const { payload } = await jwtVerify(token, identity.publicKey, {
-          issuer: identity.issuer,
-          audience: identity.audience,
-          algorithms: ['EdDSA'],
-          requiredClaims: ['sub', 'exp', 'iat', 'tid', 'sid'],
-          clockTolerance: identity.clockToleranceSec ?? 5,
-        });
-        if (
-          typeof payload.sub !== 'string' ||
-          typeof payload.tid !== 'string' ||
-          typeof payload.sid !== 'string'
-        ) {
-          throw new Error('claims');
-        }
-        if (!UUID.test(payload.sub) || !UUID.test(payload.tid) || !/^[A-Za-z0-9-]{1,64}$/.test(payload.sid)) {
-          throw new Error('claims');
-        }
-        sub = payload.sub;
-        tid = payload.tid;
-        sid = payload.sid;
-      } catch {
-        return refuse(new RefusalError({ code: 'unauthenticated', reasonCode: 'token_invalid' }), anonymous);
-      }
+      const claims = await verifyBearer(identity, authorization);
+      if ('refusal' in claims) return refuse(claims.refusal, anonymous);
+      const { sub, tid, sid } = claims;
 
       const m = await memberships.load(sub, tid);
       if (!m?.active) {
@@ -124,6 +101,85 @@ export function createAuthenticator(
         principal: m.principal,
         sessionId: sid,
         scopes: m.scopes,
+        correlationId,
+      });
+    },
+  };
+}
+
+/** Signature, issuer, audience, expiry and claim-shape check shared by every transport. */
+async function verifyBearer(
+  identity: IdentityVerifierConfig,
+  authorization: string | undefined,
+): Promise<{ sub: string; tid: string; sid: string } | { refusal: RefusalError }> {
+  if (typeof authorization !== 'string' || !authorization.startsWith('Bearer ')) {
+    return { refusal: new RefusalError({ code: 'unauthenticated', reasonCode: 'token_missing' }) };
+  }
+  const token = authorization.slice('Bearer '.length).trim();
+  try {
+    if (token.length === 0 || token.length > MAX_TOKEN_LENGTH) throw new Error('length');
+    const { payload } = await jwtVerify(token, identity.publicKey, {
+      issuer: identity.issuer,
+      audience: identity.audience,
+      algorithms: ['EdDSA'],
+      requiredClaims: ['sub', 'exp', 'iat', 'tid', 'sid'],
+      clockTolerance: identity.clockToleranceSec ?? 5,
+    });
+    if (
+      typeof payload.sub !== 'string' ||
+      typeof payload.tid !== 'string' ||
+      typeof payload.sid !== 'string'
+    ) {
+      throw new Error('claims');
+    }
+    if (!UUID.test(payload.sub) || !UUID.test(payload.tid) || !/^[A-Za-z0-9-]{1,64}$/.test(payload.sid)) {
+      throw new Error('claims');
+    }
+    return { sub: payload.sub, tid: payload.tid, sid: payload.sid };
+  } catch {
+    return { refusal: new RefusalError({ code: 'unauthenticated', reasonCode: 'token_invalid' }) };
+  }
+}
+
+/**
+ * E1 portal authenticator: the same EdDSA verifier bound to the portal audience (distinct from the
+ * staff and MCP audiences), then the subject's live portal enrolment in the token's tenant. A staff
+ * subject is never a portal principal (principal_kind_denied); a missing, revoked or other-tenant
+ * enrolment is membership_inactive; a pending one is portal_contact_unverified. The context carries
+ * principal `portal` and no scopes, so no staff policy can ever admit it.
+ */
+export function createPortalAuthenticator(
+  identity: IdentityVerifierConfig,
+  portalPrincipals: PortalPrincipalSource,
+  recording: AttemptRecordingDeps,
+): Authenticator {
+  return {
+    async authenticate(authorization, correlationId, operation) {
+      const anonymous = { correlationId, operation, tenantId: null, actorId: null };
+      const claims = await verifyBearer(identity, authorization);
+      if ('refusal' in claims) {
+        await recordDenial(recording, anonymous, claims.refusal);
+        throw claims.refusal;
+      }
+      const row = await portalPrincipals.load(claims.sub, claims.tid);
+      const denyAs = async (reasonCode: SecurityReasonCode, tenantKnown: boolean) => {
+        const err = new RefusalError({ code: 'forbidden', reasonCode });
+        await recordDenial(
+          recording,
+          { correlationId, operation, actorId: claims.sub, tenantId: tenantKnown ? claims.tid : null },
+          err,
+        );
+        throw err;
+      };
+      if (row && row.kind !== 'portal') return denyAs('principal_kind_denied', false);
+      if (!row || row.state === null || row.state === 'revoked') return denyAs('membership_inactive', false);
+      if (row.state !== 'active') return denyAs('portal_contact_unverified', true);
+      return Object.freeze({
+        tenantId: claims.tid,
+        actorId: claims.sub,
+        principal: 'portal' as const,
+        sessionId: claims.sid,
+        scopes: Object.freeze([]) as readonly string[],
         correlationId,
       });
     },

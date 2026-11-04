@@ -52,6 +52,15 @@ import { recordNotificationIntent } from './notification-intent';
 import { checkEnvelope, failedAt, type LocationRow, loadLocation, notFound } from './resources';
 import { reopenEntryIn, WAITLIST_ENTRY_RESOURCE, WAITLIST_OFFER_RESOURCE } from './waitlist-offers';
 
+/**
+ * E portal authority for answering an offer (the seam S documented in respondToOffer): `authorize`
+ * receives the offer's patient and throws E's typed refusal unless the acting portal principal holds
+ * `scheduling` for that patient (and the patient is the one the portal route names).
+ */
+export interface PortalOfferAuthority {
+  authorize(tx: TenantTransaction, patientRef: string): Promise<void>;
+}
+
 export const RECOVERY_RESOURCE = 'cancellationRecovery';
 export const STANDING_POLICY_RESOURCE = 'standingPolicy';
 const MINUTE = 60_000;
@@ -774,17 +783,30 @@ export function createWaitlistOperations(base: AppointmentBase) {
       ctx: ActorContext,
       offerRef: string,
       envelope: CommandEnvelope<unknown>,
+      portal?: PortalOfferAuthority,
     ): Promise<CommandResult<OfferRespondData>> {
       const op = 'scheduling.waitlist.respond';
       return base.recorded(ctx, op, async () => {
-        const decision = await base.authorize(ctx, op);
+        // E seam: a portal principal answers only through E's portal authority (S5 relationship
+        // scopes, rechecked in this transaction before the executor, so a replay is reauthorized), and
+        // a staff call can never carry that authority. The portal sees every location of the tenant
+        // (its confinement is the patient, enforced by the authority).
+        if ((ctx.principal === 'portal') !== (portal !== undefined)) {
+          throw new RefusalError({ code: 'forbidden', reasonCode: 'principal_kind_denied' });
+        }
+        const decision: AuthorizationDecision = portal
+          ? { action: op, locationRefs: null }
+          : await base.authorize(ctx, op);
         checkEnvelope(envelope, op);
         const p = envelope.payload as OfferRespond;
         assertValid<OfferRespond>(validateOfferRespond, p, SCHEDULING_PROPERTIES);
-        // S-D6: an offer books only on explicit acceptance. Acceptance by staff is a person's command;
-        // acceptance by the patient arrives later through the E portal principals (seam: a patient
-        // principal kind will be admitted here). A service principal never accepts.
-        if (p.outcome === 'accepted' && ctx.principal !== 'human') {
+        // S-D6: an offer books only on explicit acceptance, by a person: staff (human) or the patient
+        // or a guardian holding `scheduling` through the E portal. A service principal never accepts,
+        // and only staff withdraw an offer.
+        if (p.outcome === 'accepted' && ctx.principal !== 'human' && ctx.principal !== 'portal') {
+          throw new RefusalError({ code: 'forbidden', reasonCode: 'principal_kind_denied' });
+        }
+        if (p.outcome === 'withdrawn' && ctx.principal === 'portal') {
           throw new RefusalError({ code: 'forbidden', reasonCode: 'principal_kind_denied' });
         }
         const canReadBookings = await base.can(ctx, 'scheduling.appointments.read');
@@ -798,6 +820,7 @@ export function createWaitlistOperations(base: AppointmentBase) {
           const hold: HoldRow = await loadHold(tx, decision, peek.hold_id, 'FOR UPDATE OF h');
           const o = await loadOffer(tx, decision, offerRef, 'FOR UPDATE OF o');
           const entry = await loadEntry(tx, decision, o.entry_id, 'FOR UPDATE OF e');
+          if (portal) await portal.authorize(tx, entry.subject_patient_id);
           return execute<OfferRespondData>(
             ctx,
             { ...envelope, payload: { offerRef, ...p } },

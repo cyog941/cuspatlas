@@ -465,3 +465,14 @@ Additions only; no frozen row changed. Migration `20261109100000_review_hardenin
 - C17 export: only `prepared` or `sent` outgoing referrals, with the disclosure consent still standing.
 - S12 port (S-owned, minimal): `VisitProducerRecord.patientRef` is required; C `listFor` producers filter by the visit patient.
 - Lab case rows (case, transition, attachment) are authored by the acting human member (`human_actor_guard`).
+
+## Task record: E4-E9 review hardening (workstream E, independent review of 6ec293d)
+
+Additions to shared contracts and policy tables; no frozen row relaxed. Details and evidence in `docs/execution/engagement-progress.md`.
+
+- Authorization: `messaging.threads.read` (REST and MCP `messaging_threads_get`) is human only; the per-tenant policy that could enable agent access to thread bodies is a pending security decision and is not built. `communications.export` additionally requires `messaging.read`, `patients.read` and `communications.read` (human, tenant-wide).
+- Sensitive reads: `sensitive_read_events.total_count` (nullable) records the true count of a bulk read whose reference list is capped at 100; the export writes one entry per table.
+- Digests: every E digest (contact verification, caller) is HMAC-SHA-256 under the S4 match-key pepper, tenant and purpose bound; `digest_scheme` 2 is the keyed scheme and scheme 1 rows never match.
+- Shared vocabulary: `ConsentPurpose` no longer contains `treatment` (C13); the SQL CHECK agrees.
+- Ports: `AttachmentRefResolver` (E-owned port, implemented by I) gates every message attachment; S4's `updatePatientDemographics` accepts an optional open transaction so E can apply a reviewed answer and resolve its item atomically.
+- Migration `20261110090000_review_hardening_e2.sql`: digest scheme columns, caller match keys, `total_count`, closed-thread guard, principal-kind agreement triggers, consent purpose CHECK, review item to submission patient key.

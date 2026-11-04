@@ -1,6 +1,6 @@
 import { CLINICAL_EXPORT_FORMAT, CLINICAL_EXPORT_TABLES, type ClinicalExport } from '@cuspatlas/contracts';
 import type pg from 'pg';
-import { assertSyntheticDatabaseName } from './migrate';
+import { importExports } from './export-import';
 
 export { CLINICAL_EXPORT_FORMAT };
 
@@ -30,7 +30,8 @@ const quote = (name: string): string => {
   return `"${name}"`;
 };
 
-async function assertForeignKeys(client: pg.PoolClient, tenantId: string): Promise<void> {
+/** C18 foreign-key validation (tenant-scoped parents, principal membership); used by importExports. */
+export async function assertClinicalForeignKeys(client: pg.PoolClient, tenantId: string): Promise<void> {
   const { rows } = await client.query<{
     conname: string;
     child: string;
@@ -92,7 +93,8 @@ export interface ClinicalImportQueryable {
 /** Recomputes the note version digests of one tenant; returns the versions that do not verify. */
 export type NoteDigestVerifier = (q: ClinicalImportQueryable, tenantId: string) => Promise<readonly string[]>;
 
-async function assertInvariants(
+/** C18 invariant query set and note digests; used by importExports. */
+export async function assertClinicalInvariants(
   client: pg.PoolClient,
   tenantId: string,
   verifyNoteDigests: NoteDigestVerifier,
@@ -107,43 +109,18 @@ async function assertInvariants(
   if (bad.length > 0) throw new Error(`Import verification failed: note_version_digest (${bad[0]})`);
 }
 
-export async function importClinicalExport(
+/**
+ * The C18 document alone, after the S17 (and E9) documents it references were imported into the same
+ * database; prefer one `importExports` call with every document. Same checks either way.
+ */
+export function importClinicalExport(
   pool: pg.Pool,
   tenantId: string,
   doc: ClinicalExport,
   verifyNoteDigests: NoteDigestVerifier,
 ): Promise<Record<string, number>> {
-  if (doc.format !== CLINICAL_EXPORT_FORMAT) throw new Error('Unsupported clinical export format');
-  const known = new Set<string>(CLINICAL_EXPORT_TABLES);
-  for (const t of Object.keys(doc.tables)) if (!known.has(t)) throw new Error('Unknown table in export');
-  const client = await pool.connect();
-  try {
-    const { rows } = await client.query<{ d: string; su: boolean }>(
-      'SELECT current_database() AS d, (SELECT rolsuper FROM pg_roles WHERE rolname = current_user) AS su',
-    );
-    assertSyntheticDatabaseName(String(rows[0]?.d));
-    if (rows[0]?.su !== true) throw new Error('Clinical import requires the privileged fixture role');
-    await client.query('BEGIN');
-    await client.query("SET LOCAL session_replication_role = 'replica'");
-    const counts: Record<string, number> = {};
-    for (const table of CLINICAL_EXPORT_TABLES) {
-      const list = doc.tables[table] ?? [];
-      for (const row of list) {
-        await client.query(
-          `INSERT INTO cuspatlas.${table} SELECT * FROM jsonb_populate_record(NULL::cuspatlas.${table}, $1::jsonb)`,
-          [JSON.stringify({ ...row, tenant_id: tenantId })],
-        );
-      }
-      counts[table] = list.length;
-    }
-    await assertForeignKeys(client, tenantId);
-    await assertInvariants(client, tenantId, verifyNoteDigests);
-    await client.query('COMMIT');
-    return counts;
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => undefined);
-    throw err;
-  } finally {
-    client.release();
+  if (doc.format !== CLINICAL_EXPORT_FORMAT) {
+    return Promise.reject(new Error('Unsupported clinical export format'));
   }
+  return importExports(pool, tenantId, [doc], { verifyNoteDigests });
 }

@@ -1,6 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { CLINICAL_EXPORT_FORMAT, CLINICAL_EXPORT_TABLES, validateClinicalExport } from '@cuspatlas/contracts';
-import { importClinicalExport as importClinical, importSchedulingExport } from '@cuspatlas/db';
+import {
+  IMPORT_ORDER,
+  importClinicalExport as importClinical,
+  importExports,
+  importSchedulingExport,
+} from '@cuspatlas/db';
 import { verifyImportedNoteDigests } from '@cuspatlas/domain';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -18,6 +23,7 @@ import {
 } from './support/clinical-fixtures';
 import { buildClinicalRecord } from './support/clinical-record-fixture';
 import { openTestDatabase, type TestDatabase } from './support/db';
+import { seedEngagementScopes } from './support/engagement-fixtures';
 import { fakeImageResolver } from './support/image-ref-resolver';
 import { seedNoteScopes } from './support/note-fixtures';
 
@@ -45,6 +51,7 @@ beforeAll(async () => {
   h = await openAppointmentHarness(source, { mcp: true, imageRefResolver: images });
   await seedClinicalScopes(source.admin);
   await seedNoteScopes(source.admin);
+  await seedEngagementScopes(source.admin);
   await seedPerioConfiguration(source.admin, T_ALPHA);
   await source.admin.query(
     `INSERT INTO cuspatlas.clinical_referral_policies (tenant_id, disclosure_consent_template_ref)
@@ -55,6 +62,7 @@ beforeAll(async () => {
   rec = await buildClinicalRecord(h, loc, images, 'Synthetic Export Record');
   target = await openTestDatabase('clinical_export_target');
   t = await openAppointmentHarness(target, { imageRefResolver: images });
+  await seedEngagementScopes(target.admin);
 });
 
 afterAll(async () => {
@@ -71,6 +79,9 @@ const exportOf = async (harness: AppointmentHarness) => {
 };
 const schedulingOf = async (harness: AppointmentHarness) =>
   harness.ok<{ data: Doc }>(await harness.call('a1', 'GET', '/v1/scheduling/export')).data;
+/** E9: S intents reference E suppression decisions, so the S17 document never imports without it. */
+const engagementOf = async (harness: AppointmentHarness) =>
+  harness.ok<{ data: Doc }>(await harness.call('a1', 'GET', '/v1/communications/export')).data;
 const codesIn = (v: unknown, out: string[] = []): string[] => {
   if (Array.isArray(v)) for (const x of v) codesIn(x, out);
   else if (v !== null && typeof v === 'object') {
@@ -141,7 +152,7 @@ describe('C18 clinical export round trip', () => {
   it('re-imports into a fresh synthetic database with every foreign key validated and exports identically', async () => {
     const sched = await schedulingOf(h);
     const doc = await exportOf(h);
-    await importSchedulingExport(target.admin, T_ALPHA, sched as never);
+    await importSchedulingExport(target.admin, T_ALPHA, sched as never, [(await engagementOf(h)) as never]);
     await copyTenancy(target);
     const counts = await importClinicalExport(target.admin, T_ALPHA, doc as never);
     expect(counts.clinical_encounters).toBe(doc.tables.clinical_encounters?.length);
@@ -167,7 +178,9 @@ describe('C18 clinical export round trip', () => {
       const sched = await schedulingOf(h);
       const fh = await openAppointmentHarness(fresh);
       try {
-        await importSchedulingExport(fresh.admin, T_ALPHA, sched as never);
+        await importSchedulingExport(fresh.admin, T_ALPHA, sched as never, [
+          (await engagementOf(h)) as never,
+        ]);
         await copyTenancy(fresh);
         const tampered: Doc = {
           ...doc,
@@ -214,7 +227,9 @@ describe('C18 clinical export round trip', () => {
       const sched = await schedulingOf(h);
       const fh = await openAppointmentHarness(fresh);
       try {
-        await importSchedulingExport(fresh.admin, T_ALPHA, sched as never);
+        await importSchedulingExport(fresh.admin, T_ALPHA, sched as never, [
+          (await engagementOf(h)) as never,
+        ]);
         await copyTenancy(fresh);
         const tamper = (
           table: string,
@@ -260,6 +275,73 @@ describe('C18 clinical export round trip', () => {
         // The untampered export still imports into the same database (control).
         await importClinicalExport(fresh.admin, T_ALPHA, doc as never);
         expect(await empty()).toBe(doc.tables.clinical_encounters?.length);
+      } finally {
+        await fh.close();
+      }
+    } finally {
+      await fresh.close();
+    }
+  });
+
+  it('S17 + C18 + E9 import in one call (any document order) in the S, C, E order and round-trip identically', {
+    timeout: 240_000,
+  }, async () => {
+    expect(IMPORT_ORDER).toStrictEqual([
+      'cuspatlas-scheduling-export/1',
+      CLINICAL_EXPORT_FORMAT,
+      'cuspatlas-engagement-export/1',
+    ]);
+    const fresh = await openTestDatabase('integration_export_all');
+    try {
+      const s = await schedulingOf(h);
+      const c = await exportOf(h);
+      const e = await engagementOf(h);
+      // The engagement document of a booked record is not empty: S intents point at E decisions.
+      expect(e.tables.suppression_decisions?.length ?? 0).toBeGreaterThan(0);
+      const fh = await openAppointmentHarness(fresh, { imageRefResolver: images });
+      try {
+        await seedEngagementScopes(fresh.admin);
+        await copyTenancy(fresh);
+        // A C18 document needs the domain's note digest verifier.
+        await expect(importExports(fresh.admin, T_ALPHA, [s, c, e] as never)).rejects.toThrow(
+          /digest verifier/,
+        );
+        // A cross-document orphan (a C row naming a patient absent from S) rolls back all three.
+        const orphan: Doc = {
+          ...c,
+          tables: {
+            ...c.tables,
+            clinical_lab_cases: (c.tables.clinical_lab_cases ?? []).map((r, i) =>
+              i === 0 ? { ...r, subject_patient_id: randomUUID() } : r,
+            ),
+          },
+        };
+        await expect(
+          importExports(fresh.admin, T_ALPHA, [e, orphan, s] as never, {
+            verifyNoteDigests: verifyImportedNoteDigests,
+          }),
+        ).rejects.toThrow(/foreign key/);
+        for (const table of ['appointments', 'clinical_encounters', 'suppression_decisions']) {
+          const n = (await fresh.admin.query(`SELECT count(*)::int AS n FROM cuspatlas.${table}`)).rows[0].n;
+          expect([table, n]).toStrictEqual([table, 0]);
+        }
+        await expect(
+          importExports(fresh.admin, T_ALPHA, [s, s] as never, {
+            verifyNoteDigests: verifyImportedNoteDigests,
+          }),
+        ).rejects.toThrow(/Duplicate/);
+        // Given in reverse order, loaded S, C, E: every cross-document reference resolves.
+        const counts = await importExports(fresh.admin, T_ALPHA, [e, c, s] as never, {
+          verifyNoteDigests: verifyImportedNoteDigests,
+        });
+        expect(counts.clinical_encounters).toBe(c.tables.clinical_encounters?.length);
+        expect(counts.suppression_decisions).toBe(e.tables.suppression_decisions?.length);
+        expect(counts.appointments).toBe(s.tables.appointments?.length);
+        const same = (x: Doc, y: Doc) =>
+          expect({ ...y, exportedAt: null }).toStrictEqual({ ...x, exportedAt: null });
+        same(s, await schedulingOf(fh));
+        same(c, await exportOf(fh));
+        same(e, await engagementOf(fh));
       } finally {
         await fh.close();
       }

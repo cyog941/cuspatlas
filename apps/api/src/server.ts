@@ -34,6 +34,7 @@ export async function startServer(env: NodeJS.ProcessEnv): Promise<FastifyInstan
     membership: createMembershipSource(appPool),
     attempts: createSecurityAttemptSink(attemptPool),
     tenantTransactions: createTenantTransactionRunner(appPool),
+    ...(env.CUSPATLAS_MCP_AUDIENCE ? { mcpAudience: env.CUSPATLAS_MCP_AUDIENCE } : {}),
     ...(env.CUSPATLAS_MATCH_KEY_PEPPER
       ? { matchKeyPepper: new Uint8Array(Buffer.from(env.CUSPATLAS_MATCH_KEY_PEPPER, 'base64')) }
       : {}),

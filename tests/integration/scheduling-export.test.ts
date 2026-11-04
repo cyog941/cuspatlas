@@ -1,5 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import type { SchedulingExport } from '@cuspatlas/contracts';
+import {
+  ENGAGEMENT_EXPORT_FORMAT,
+  ENGAGEMENT_EXPORT_TABLES,
+  type EngagementExport,
+  type SchedulingExport,
+} from '@cuspatlas/contracts';
 import { importSchedulingExport, SCHEDULING_EXPORT_FORMAT } from '@cuspatlas/db';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -21,6 +26,20 @@ import { seedTenancy, T_BETA } from './support/fixtures';
  * role, re-imported into a fresh synthetic database by the privileged import routine, and exported
  * again: identical, with every identifier preserved and the records readable through the domain.
  */
+/** The tenant's E rows as an engagement export document (privileged read of the source fixture). */
+async function engagementRowsOf(db: TestDatabase): Promise<EngagementExport> {
+  const tables: Record<string, Record<string, unknown>[]> = {};
+  for (const table of ENGAGEMENT_EXPORT_TABLES) {
+    const { rows } = await db.admin.query<{ rows: Record<string, unknown>[] }>(
+      `SELECT coalesce(jsonb_agg(to_jsonb(r) - 'tenant_id'), '[]'::jsonb) AS rows FROM cuspatlas.${table} r
+       WHERE r.tenant_id = $1`,
+      [T_ALPHA],
+    );
+    tables[table] = rows[0]?.rows ?? [];
+  }
+  return { format: ENGAGEMENT_EXPORT_FORMAT, exportedAt: new Date(0).toISOString(), tables };
+}
+
 let source: TestDatabase;
 let target: TestDatabase;
 let h: AppointmentHarness;
@@ -189,7 +208,12 @@ describe('S17 scheduling export round trip', () => {
 
   it('re-imports into a fresh synthetic database without identifier loss and exports identically', async () => {
     const doc = await exportOf(h);
-    const counts = await importSchedulingExport(target.admin, T_ALPHA, doc as unknown as SchedulingExport);
+    // S intents reference E6 suppression decisions (and E rows reference S rows): the round trip
+    // carries the engagement rows as a companion document so every foreign key validates.
+    const companion = await engagementRowsOf(source);
+    const counts = await importSchedulingExport(target.admin, T_ALPHA, doc as unknown as SchedulingExport, [
+      companion,
+    ]);
     expect(counts.appointments).toBe(doc.tables.appointments?.length);
     const again = await exportOf(t);
     expect({ ...again, exportedAt: null }).toStrictEqual({ ...doc, exportedAt: null });

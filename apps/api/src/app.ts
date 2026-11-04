@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import type { MembershipSource, SecurityAttemptSink, WithTenantTransaction } from '@cuspatlas/contracts';
+import type {
+  MembershipSource,
+  PortalPrincipalSource,
+  SecurityAttemptSink,
+  WithTenantTransaction,
+} from '@cuspatlas/contracts';
 import {
+  type AttachmentRefResolver,
   type AttemptRecordingDeps,
   CLINICAL_POST_MERGE_FACT_PROBES,
   type CommandExecutor,
@@ -9,6 +15,7 @@ import {
   createAuthorize,
   createClinicalService,
   createClinicalVisitContextProducers,
+  createEngagementService,
   createPatientService,
   createProposalService,
   createSchedulingResourceService,
@@ -24,7 +31,13 @@ import Fastify, {
   type FastifyRequest,
   LogController,
 } from 'fastify';
-import { createAuthenticator, type IdentityVerifierConfig, isConfiguredIdentity, isTestIssuer } from './auth';
+import {
+  createAuthenticator,
+  createPortalAuthenticator,
+  type IdentityVerifierConfig,
+  isConfiguredIdentity,
+  isTestIssuer,
+} from './auth';
 import { mapErrorToRefusal, safeErrorKind } from './errors';
 import {
   registerAppointmentRoutes,
@@ -34,6 +47,7 @@ import {
 import { registerClinicalRoutes } from './routes/clinical';
 import { registerClinicalRecordRoutes } from './routes/clinical-record';
 import { registerPatientRoutes } from './routes/patients';
+import { registerEngagementOpRoutes, registerPortalRoutes } from './routes/portal-routes';
 import { registerProposalRoutes } from './routes/proposals';
 import { registerSchedulingRoutes } from './routes/scheduling';
 import { registerSchedulingOpRoutes } from './routes/scheduling-ops-routes';
@@ -68,6 +82,17 @@ export interface AppDeps {
   readonly matchKeyPepper?: Uint8Array;
   /** C15: the I3 imageRef seam (absent: image link commands are refused typed). */
   readonly imageRefResolver?: ImageRefResolver;
+  /** I's attachment reference read (another branch); without it message attachments are refused. */
+  readonly attachmentRefs?: AttachmentRefResolver;
+  /**
+   * E1 portal transport: the same verifier key with the portal audience (distinct from the staff
+   * audience). Portal routes are registered only when this and `portalPrincipals` are configured.
+   */
+  readonly portalIdentity?: IdentityVerifierConfig;
+  /** The MCP resource audience, when an MCP server runs beside this API: the portal must differ. */
+  readonly mcpAudience?: string;
+  /** Live portal-enrolment lookups on the runtime-role pool. */
+  readonly portalPrincipals?: PortalPrincipalSource;
 }
 
 function sendRefusal(request: FastifyRequest, reply: FastifyReply, err: unknown): FastifyReply {
@@ -114,6 +139,25 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   }
   if (deps.identity && (!deps.membership || !deps.attempts)) {
     throw new Error('Refusing to start: identity requires a membership source and a security-attempt sink');
+  }
+  if (deps.portalIdentity) {
+    if (
+      deps.env !== 'synthetic-test' &&
+      (isTestIssuer(deps.portalIdentity) || !isConfiguredIdentity(deps.portalIdentity))
+    ) {
+      throw new Error('Refusing to start: the portal verifier must be a configured key source');
+    }
+    if (!deps.identity || deps.portalIdentity.audience === deps.identity.audience) {
+      throw new Error(
+        'Refusing to start: the portal audience must be configured and differ from the staff audience',
+      );
+    }
+    if (deps.mcpAudience !== undefined && deps.portalIdentity.audience === deps.mcpAudience) {
+      throw new Error('Refusing to start: the portal audience must differ from the MCP audience');
+    }
+    if (!deps.portalPrincipals) {
+      throw new Error('Refusing to start: the portal transport requires a portal-principal source');
+    }
   }
 
   const app = Fastify({
@@ -213,6 +257,26 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       registerClinicalRoutes(app, { authenticator, clinical });
       registerClinicalRecordRoutes(app, { authenticator, clinical });
       registerSchedulingOpRoutes(app, { authenticator, appointments });
+      const engagement = createEngagementService({
+        patients,
+        completedProcedures: readLatestCompletedProcedures,
+        appointments,
+        matchKeyPepper: resolveMatchKeyPepper(deps.env, deps.matchKeyPepper),
+        ...(deps.attachmentRefs ? { attachmentRefs: deps.attachmentRefs } : {}),
+        authorize,
+        withTenantTransaction: deps.tenantTransactions,
+        recording,
+        execute: deps.execute ?? executeOnce,
+      });
+      registerEngagementOpRoutes(app, { authenticator, engagement });
+      if (deps.portalIdentity && deps.portalPrincipals) {
+        const portalAuthenticator = createPortalAuthenticator(
+          deps.portalIdentity,
+          deps.portalPrincipals,
+          recording,
+        );
+        registerPortalRoutes(app, { authenticator: portalAuthenticator, engagement });
+      }
     }
   }
 

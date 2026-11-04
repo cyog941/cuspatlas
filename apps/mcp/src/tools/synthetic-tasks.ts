@@ -3,6 +3,7 @@ import {
   type ActorContext,
   CLINICAL_PROPERTIES,
   createAjv,
+  ENGAGEMENT_PROPERTIES,
   PATIENT_PROPERTIES,
   RefusalError,
   SCHEDULING_PROPERTIES,
@@ -16,6 +17,7 @@ import {
   type AttemptRecordingDeps,
   type Authorize,
   type ClinicalService,
+  type EngagementService,
   type PatientService,
   type ProposalService,
   type SchedulingResourceService,
@@ -94,6 +96,8 @@ export interface ToolDeps {
   readonly appointments: AppointmentService;
   /** C5/C8 clinical record (workstream C). */
   readonly clinical: ClinicalService;
+  /** Workstream E staff operations (portal principals, consent, suppression, delivery). */
+  readonly engagement?: EngagementService;
   readonly authorize: Authorize;
   readonly recording: AttemptRecordingDeps;
 }
@@ -130,6 +134,7 @@ const KNOWN_PROPERTIES: ReadonlySet<string> = new Set([
   ...PATIENT_PROPERTIES,
   ...SCHEDULING_PROPERTIES,
   ...CLINICAL_PROPERTIES,
+  ...ENGAGEMENT_PROPERTIES,
   'idempotencyKey',
   'proposalRef',
   'patientRef',

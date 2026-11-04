@@ -23,6 +23,7 @@ import {
   type WithTenantTransaction,
 } from '@cuspatlas/contracts';
 import {
+  type AttachmentRefResolver,
   type AttemptRecordingDeps,
   CLINICAL_POST_MERGE_FACT_PROBES,
   type CommandExecutor,
@@ -31,6 +32,7 @@ import {
   createAuthorize,
   createClinicalService,
   createClinicalVisitContextProducers,
+  createEngagementService,
   createPatientService,
   createProposalService,
   createSchedulingResourceService,
@@ -52,6 +54,7 @@ import { assertDistinctAudience, assertIdentityAllowed, createMcpAuthenticator }
 import { APPOINTMENT_TOOLS } from './tools/appointments';
 import { CLINICAL_TOOLS } from './tools/clinical';
 import { CLINICAL_RECORD_TOOLS } from './tools/clinical-record';
+import { ENGAGEMENT_OP_TOOLS } from './tools/engagement-ops';
 import { PATIENT_TOOLS } from './tools/patients';
 import { PROPOSAL_TOOLS } from './tools/proposals';
 import { SCHEDULING_TOOLS } from './tools/scheduling';
@@ -87,10 +90,14 @@ export interface McpServerDeps {
   readonly env: RuntimeEnvironment;
   /** Match-key pepper (CUSPATLAS_MATCH_KEY_PEPPER); optional only under synthetic-test. */
   readonly matchKeyPepper?: Uint8Array;
+  /** I's attachment reference read (another branch); without it message attachments are refused. */
+  readonly attachmentRefs?: AttachmentRefResolver;
   /** Verifier whose audience is the MCP resource identifier (distinct from the REST audience). */
   readonly identity: IdentityVerifierConfig;
   /** The REST audience; the server refuses to start if it equals the MCP audience. */
   readonly restAudience?: string;
+  /** The portal audience; the server refuses to start if it equals the MCP audience. */
+  readonly portalAudience?: string;
   readonly membership: MembershipSource;
   readonly attempts: SecurityAttemptSink;
   readonly tenantTransactions: WithTenantTransaction;
@@ -135,6 +142,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   ...CLINICAL_TOOLS,
   ...CLINICAL_RECORD_TOOLS,
   ...SCHEDULING_OP_TOOLS,
+  ...ENGAGEMENT_OP_TOOLS,
 ];
 
 /** Path parameters of the REST twin. A malformed one is a 404 there, decided by the domain. */
@@ -176,6 +184,11 @@ const REF_PARAMS = [
   'recoveryRef',
   'policyRef',
   'recallTaskRef',
+  // Workstream E path parameters.
+  'principalRef',
+  'templateRef',
+  'decisionRef',
+  'messageRef',
 ] as const;
 const PLACEHOLDER_REF = '00000000-0000-4000-8000-000000000000';
 
@@ -227,6 +240,7 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
   assertDistinctAudience({
     identity: deps.identity,
     ...(deps.restAudience === undefined ? {} : { restAudience: deps.restAudience }),
+    ...(deps.portalAudience === undefined ? {} : { portalAudience: deps.portalAudience }),
   });
 
   const write = (line: Record<string, unknown>) =>
@@ -294,6 +308,17 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     ...(deps.cursors ? { cursors: deps.cursors } : {}),
     ...(deps.imageRefResolver ? { imageRefResolver: deps.imageRefResolver } : {}),
   });
+  const engagement = createEngagementService({
+    patients,
+    completedProcedures: readLatestCompletedProcedures,
+    appointments,
+    matchKeyPepper: resolveMatchKeyPepper(deps.env, deps.matchKeyPepper),
+    ...(deps.attachmentRefs ? { attachmentRefs: deps.attachmentRefs } : {}),
+    authorize,
+    withTenantTransaction: deps.tenantTransactions,
+    recording,
+    execute: deps.execute ?? executeOnce,
+  });
   const toolDeps: ToolDeps = {
     service,
     proposals,
@@ -301,6 +326,7 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     scheduling,
     appointments,
     clinical,
+    engagement,
     authorize,
     recording,
   };

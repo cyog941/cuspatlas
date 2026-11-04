@@ -4,7 +4,11 @@
  * server-derived context and server-produced records only.
  */
 
-export type PrincipalKind = 'human' | 'service';
+/**
+ * `portal` (E1): a patient, guardian or proxy authenticated on the portal audience. It never holds
+ * a staff membership (the database refuses one) and no staff action policy admits it.
+ */
+export type PrincipalKind = 'human' | 'service' | 'portal';
 
 /** Built server-side from a verified token plus a live membership row. Never from caller input. */
 export interface ActorContext {
@@ -156,6 +160,12 @@ export const SECURITY_REASON_CODES = [
   'consent_signer_minor',
   // Review hardening: a frozen note version whose digest no longer verifies (alert, read or command).
   'clinical_note_tampered',
+  // E1: portal principals (their own audience and kind; never staff).
+  'portal_contact_unverified',
+  'portal_identity_merged',
+  'portal_self_below_majority',
+  // E3: portal abuse bounds (open requests per patient, submissions per principal per day).
+  'portal_rate_limited',
 ] as const;
 export type SecurityReasonCode = (typeof SECURITY_REASON_CODES)[number];
 
@@ -321,7 +331,7 @@ export const auditEventSchema = {
     eventRef: { type: 'string', pattern: UUID_PATTERN },
     tenantId: { type: 'string', pattern: UUID_PATTERN },
     actorId: { type: 'string', pattern: UUID_PATTERN },
-    principal: { enum: ['human', 'service'] },
+    principal: { enum: ['human', 'service', 'portal'] },
     operation: { type: 'string', pattern: OPERATION_PATTERN },
     resourceType: { type: 'string', pattern: '^[a-z][A-Za-z]{0,63}$' },
     resourceRef: { type: 'string', pattern: UUID_PATTERN },

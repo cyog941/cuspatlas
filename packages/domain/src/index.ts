@@ -6,6 +6,7 @@ export * from './commands/executor';
 export * from './commands/proposals';
 export * from './commands/replay-codecs';
 export * from './cursor';
+export * from './engagement';
 export * from './events/record-command';
 export * from './events/record-sensitive-read';
 export * from './integrations/adapter';

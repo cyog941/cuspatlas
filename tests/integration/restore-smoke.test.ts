@@ -377,7 +377,7 @@ afterAll(async () => {
     [restored?.admin, restored?.app, restored?.sink].map((p) => p?.end().catch(() => undefined)),
   );
   for (const n of createdTargets) await dropDatabase(n).catch(() => undefined);
-  for (const d of scratch) rmSync(d, { recursive: true, force: true });
+  for (const d of scratch) rmSync(d, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   await db?.close();
 });
 
@@ -731,7 +731,9 @@ describe('deliberately incomplete or unsafe restores are detected', () => {
       user: 'postgres',
       password,
       port: srv,
-      persistent: false,
+      // Kept on stop and removed by the scratch cleanup with retries: on Windows the postmaster can
+      // still hold the data directory for a moment after stop (EBUSY on an immediate rmdir).
+      persistent: true,
       initdbFlags: ['--encoding=UTF8', '--locale=C'],
       postgresFlags: ['-c', 'listen_addresses=127.0.0.1', '-c', 'log_min_error_statement=panic'],
       onLog: () => undefined,

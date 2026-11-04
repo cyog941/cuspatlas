@@ -18,9 +18,10 @@ import { actorFor, domainAppointments, envelope } from './support/domain-harness
 
 /**
  * S14: the booking, cancel and reschedule transactions record a NotificationIntent and never send.
- * No channel is verified (S-S2 / S-D5 pending), so every intent has channel `none`; the suppression
- * decision belongs to E6 (not built) and is a typed placeholder (`undecided`, owner E6, no
- * reference). Scheduling reads no consent state. Staff see intents without a channel as work items.
+ * No channel is verified (S-S2 / S-D5 pending), so every intent has channel `none`. The suppression
+ * decision belongs to E6: since E6 it is recorded through E6's published seam in the same transaction
+ * and the intent stores only its reference (default: suppressed, policy_off). Scheduling itself reads
+ * no consent state. Staff see intents without a channel as work items.
  */
 let db: TestDatabase;
 let h: AppointmentHarness;
@@ -74,7 +75,13 @@ type Intent = {
   templateRef: string | null;
   deliveryKey: string;
   supersedes: string | null;
-  suppressionDecision: { ref: null; owner: string; state: string; statement: string };
+  suppressionDecision: {
+    ref: string | null;
+    owner: string;
+    state: string;
+    reason: string | null;
+    statement: string;
+  };
 };
 async function intentsFor(subject: string): Promise<{ id: string; purpose: string }[]> {
   const { rows } = await db.admin.query(
@@ -101,8 +108,8 @@ async function worklist(who: 'a1' | 'a3' | 'b1' = 'a1', query = '') {
   ).data;
 }
 
-describe('S14 acceptance (no verified channel; E6 not built)', () => {
-  it('a booking records exactly one intent with channel none and an E6-owned placeholder decision, and sends nothing', async () => {
+describe('S14 acceptance (no verified channel; E6 decides through its seam)', () => {
+  it('a booking records exactly one intent with channel none and an E6 decision reference (policy_off by default), and sends nothing', async () => {
     const receipts = await count(db, 'delivery_receipts');
     const { ref } = await book();
     const rows = await intentsFor(ref);
@@ -117,8 +124,9 @@ describe('S14 acceptance (no verified channel; E6 not built)', () => {
       templateRef: null,
       deliveryKey: `reminder:${ref}`,
       supersedes: null,
-      suppressionDecision: { ref: null, owner: 'E6', state: 'undecided' },
+      suppressionDecision: { owner: 'E6', state: 'suppressed', reason: 'policy_off' },
     });
+    expect(intent.suppressionDecision.ref).toMatch(/^[0-9a-f-]{36}$/);
     expect(intent.policyRef).toMatch(/pending-approval/);
     expect(await count(db, 'delivery_receipts')).toBe(receipts);
     // Staff-visible work item: no channel, owned by the practice, blocked on S-S2 and E6/E7.
@@ -201,15 +209,15 @@ describe('S14 acceptance (no verified channel; E6 not built)', () => {
     expect(await count(db, 'notification_intents')).toBe(before + 3);
   });
 
-  it('5. structurally, scheduling reads no consent state: no consent table exists or is touched, no consent field is stored', async () => {
-    const statements: string[] = [];
+  it('5. structurally, scheduling reads no consent state: every consent statement comes from E6, no consent field is stored', async () => {
+    const statements: { text: string; stack: string }[] = [];
     const runner = createTenantTransactionRunner(db.app);
     const capturing: WithTenantTransaction = (ctx, work) =>
       runner(ctx, (tx) => {
         const proxy: TenantTransaction = {
           ctx: tx.ctx,
           query: (text, values) => {
-            statements.push(text);
+            statements.push({ text, stack: new Error('trace').stack ?? '' });
             return tx.query(text, values);
           },
           savepoint: (w) => tx.savepoint(w),
@@ -243,14 +251,31 @@ describe('S14 acceptance (no verified channel; E6 not built)', () => {
       envelope('scheduling.appointments.cancel', { expectedVersion: 1, reasonCode: 'patient_request' }),
     );
     expect(statements.length).toBeGreaterThan(10);
-    for (const s of statements) expect(s).not.toMatch(/consent|opt_?out|suppression_decision|quiet_hours/i);
-    // C13 clinical treatment consent (clinical_consent*) is a clinical record, not communication consent.
+    // Since E6: consent and suppression statements run in the booking transaction, but only from E6's
+    // published decision module (packages/domain/src/engagement/communications/suppression.ts).
+    const consentStatements = statements.filter((st) =>
+      /communication_consents|suppression_decisions|channel_policies|message_templates|quiet_/i.test(st.text),
+    );
+    expect(consentStatements.length).toBeGreaterThan(0);
+    // Scheduling's own statements only store the decision reference E6 returned.
+    for (const st of statements.filter((x) => !consentStatements.includes(x))) {
+      expect(st.text).not.toMatch(/communication_consents|consent_state|opt_?out|quiet_hours/i);
+    }
+    for (const st of consentStatements)
+      expect(st.stack).toMatch(/engagement[\\/]communications[\\/]suppression/);
     const tables = await db.admin.query(
       `SELECT table_name FROM information_schema.tables WHERE table_schema = 'cuspatlas'
        AND table_name ~ '(consent|opt_?out|suppression)'
-       AND table_name !~ '^clinical_'`,
+       -- C13 clinical treatment consent (clinical_consent*) is a clinical record, not communication consent.
+       AND table_name !~ '^clinical_' ORDER BY 1`,
     );
-    expect(tables.rows).toStrictEqual([]);
+    // The only consent and suppression tables are E's (E6 facts and decisions; E4's link of an intake
+    // submission to the E6 facts it recorded).
+    expect(tables.rows.map((r) => r.table_name)).toStrictEqual([
+      'communication_consents',
+      'intake_submission_consents',
+      'suppression_decisions',
+    ]);
     const cols = await db.admin.query(
       `SELECT column_name FROM information_schema.columns WHERE table_schema = 'cuspatlas'
        AND table_name = 'notification_intents' ORDER BY column_name`,
@@ -321,16 +346,22 @@ describe('S14 failure and recovery', () => {
     expect(await count(db, 'notification_intents')).toBe(before + 1);
   });
 
-  it('2. an intent without a decision is recorded undecided and listed for reconciliation, never sent', async () => {
+  it('2. an intent is decided by E6 in its own transaction (suppressed by default), listed for manual contact, never sent', async () => {
     const { ref } = await book();
     const [row] = await intentsFor(ref);
     const items = (await worklist()).items;
     expect(items.some((i) => i.workItemRef === row?.id)).toBe(true);
     const { rows } = await db.admin.query(
-      'SELECT suppression_decision_ref, channel FROM cuspatlas.notification_intents WHERE id = $1',
+      `SELECT i.channel, d.outcome, d.reason, d.stage FROM cuspatlas.notification_intents i
+       JOIN cuspatlas.suppression_decisions d ON d.id = i.suppression_decision_ref WHERE i.id = $1`,
       [row?.id],
     );
-    expect(rows[0]).toStrictEqual({ suppression_decision_ref: null, channel: 'none' });
+    expect(rows[0]).toStrictEqual({
+      channel: 'none',
+      outcome: 'suppressed',
+      reason: 'policy_off',
+      stage: 'intent',
+    });
   });
 
   it('cross-tenant and other-location callers cannot read or list an intent; REST and MCP agree', async () => {
@@ -394,19 +425,31 @@ describe('S14 worklist relevance (review hardening)', () => {
   });
 });
 
-describe('S14 cases owned by E (open until E6/E7 exist)', () => {
-  it.todo('E6: booking with a suppressed decision stores E6 decision reference and reason, enqueues nothing');
-  it.todo(
-    'E7: an allowed decision yields exactly one delivery through the fake provider; a retry after timeout none',
-  );
-  it.todo('E6/E7: an opt-out recorded between intent and delivery blocks delivery at execution');
-  it.todo(
-    'E6: missing contact data and quiet hours are distinguished by E6 vocabulary in the appointment history',
-  );
-  it.todo(
-    'E6: E suppresses intents derived from a cancelled appointment; a delivered message stays as history',
-  );
-  it.todo(
-    'E7: a withdrawn template is suppressed at E7 execution; a crash after provider acceptance is reconciled',
-  );
+describe('S14 cases owned by E (closed by E6/E7)', () => {
+  it('E6: booking with a suppressed decision stores E6 decision reference and reason, enqueues nothing', async () => {
+    const before = await count(db, 'delivery_receipts');
+    const { ref } = await book();
+    const { rows } = await db.admin.query(
+      `SELECT d.id, d.outcome, d.reason FROM cuspatlas.notification_intents i
+       JOIN cuspatlas.suppression_decisions d ON d.id = i.suppression_decision_ref
+       WHERE i.subject_id = $1 AND i.purpose = 'reminder'`,
+      [ref],
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ outcome: 'suppressed', reason: 'policy_off' });
+    const intent = h.ok<{ data: Intent }>(
+      await h.call('a1', 'GET', `/v1/scheduling/notifications/${(await intentsFor(ref))[0]?.id}`),
+    ).data;
+    expect(intent.suppressionDecision).toMatchObject({
+      ref: rows[0].id,
+      state: 'suppressed',
+      reason: 'policy_off',
+    });
+    expect(await count(db, 'delivery_receipts')).toBe(before);
+  });
+  // The five E7-owned cases are implemented with these titles in tests/integration/comms-delivery.test.ts
+  // ("S14 cases owned by E (closed by E6/E7)"): exactly-once delivery through the fake provider with no
+  // retry after a timeout, an opt-out between intent and delivery, missing contact data versus quiet
+  // hours, suppression of intents of a cancelled appointment, and a withdrawn template plus crash
+  // reconciliation.
 });

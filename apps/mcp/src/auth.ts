@@ -30,6 +30,8 @@ export interface McpIdentityOptions {
   readonly identity: IdentityVerifierConfig;
   /** The REST API audience. When given, the MCP audience must differ from it. */
   readonly restAudience?: string;
+  /** The portal audience. When given, the MCP audience must differ from it too. */
+  readonly portalAudience?: string;
 }
 
 /** Throws when the MCP verifier could be confused with the REST one. */
@@ -37,6 +39,9 @@ export function assertDistinctAudience(opts: McpIdentityOptions): void {
   if (opts.identity.audience.length === 0) throw new Error('MCP audience must be configured');
   if (opts.restAudience !== undefined && opts.identity.audience === opts.restAudience) {
     throw new Error('Refusing to start: the MCP audience must differ from the REST API audience');
+  }
+  if (opts.portalAudience !== undefined && opts.identity.audience === opts.portalAudience) {
+    throw new Error('Refusing to start: the MCP audience must differ from the portal audience');
   }
 }
 

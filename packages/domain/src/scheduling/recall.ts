@@ -266,6 +266,29 @@ async function computeDue(
   };
 }
 
+/**
+ * E6 seam (published for recall enrollment): S16's due computation for the current policy of a
+ * category, unchanged. E consumes the due list; it never re-derives recall policy. A
+ * `completed_procedure` policy is a clinical read as in `scheduling.recall.due`: it needs the caller's
+ * `clinical.procedures.list` (otherwise forbidden) and the C14 reader (otherwise `basis_unavailable`).
+ */
+export async function recallDueFor(
+  tx: TenantTransaction,
+  locations: readonly string[] | null,
+  category: string,
+  asOf: number,
+  canReadPatients: boolean,
+  clinical: { readonly canReadClinical: boolean; readonly procedures?: CompletedProcedureReader } = {
+    canReadClinical: false,
+  },
+): Promise<RecallDueData> {
+  const policy = await currentPolicy(tx, category);
+  if (policy.basis === 'completed_procedure' && !clinical.canReadClinical) {
+    throw new RefusalError({ code: 'forbidden', reasonCode: 'scope_missing' });
+  }
+  return computeDue(tx, locations, policy, asOf, canReadPatients, clinical.procedures);
+}
+
 const scopeOf = (decision: AuthorizationDecision, locationRef: string | undefined) =>
   locationRef !== undefined ? [locationRef] : decision.locationRefs;
 

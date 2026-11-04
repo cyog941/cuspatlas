@@ -262,6 +262,72 @@ export const ACTION_POLICIES = {
   'scheduling.followUp.worklist': { scope: 'scheduling.read', principals: ['human', 'service'] },
   // S17 minimal scheduling export: a tenant-wide human administrator only (sensitive-read logged).
   'scheduling.export': { scope: 'admin.configure', principals: ['human'] },
+  // E1 portal principals (staff side). Enrollment, verification and revocation manage portal access
+  // (`portal.manage`); reads need patients.read. Grants themselves are S5 relationships managed by
+  // patients.relationships.add/revoke. No staff policy admits a `portal` principal.
+  'portal.principals.enroll': { scope: 'portal.manage', principals: ['human', 'service'] },
+  'portal.principals.verify': { scope: 'portal.manage', principals: ['human'] },
+  'portal.principals.revoke': { scope: 'portal.manage', principals: ['human', 'service'] },
+  'portal.principals.read': { scope: 'patients.read', principals: ['human', 'service'] },
+  'portal.grants.list': { scope: 'patients.read', principals: ['human', 'service'] },
+  // E6 consent, opt-out and the suppression decision (owned by E; S and B only consume it). Channel
+  // policy and template approval are practice administration by a person (E-D6 pending).
+  'communications.consents.record': { scope: 'communications.write', principals: ['human', 'service'] },
+  'communications.consents.optOut': { scope: 'communications.write', principals: ['human', 'service'] },
+  'communications.consents.list': { scope: 'communications.read', principals: ['human', 'service'] },
+  // Review hardening: a contact point is addressed only after a person attests its verification.
+  'communications.contacts.verify': { scope: 'communications.write', principals: ['human'] },
+  'communications.channelPolicies.define': { scope: 'admin.configure', principals: ['human'] },
+  'communications.channelPolicies.list': { scope: 'communications.read', principals: ['human', 'service'] },
+  'communications.templates.define': { scope: 'admin.configure', principals: ['human'] },
+  'communications.templates.withdraw': { scope: 'admin.configure', principals: ['human'] },
+  'communications.decisions.read': { scope: 'communications.read', principals: ['human', 'service'] },
+  'communications.suppression.preview': { scope: 'communications.read', principals: ['human', 'service'] },
+  'communications.recall.enroll': { scope: 'communications.write', principals: ['human', 'service'] },
+  'communications.recall.enrollments': { scope: 'communications.read', principals: ['human', 'service'] },
+  // E7 delivery: the messaging worker's own principal (service only), receipt ingestion by the
+  // provider-integration principal (service only), and the staff delivery worklist and resolution.
+  'communications.deliver': { scope: 'communications.deliver', principals: ['service'] },
+  'communications.receipts.record': { scope: 'communications.receipts', principals: ['service'] },
+  'communications.deliveries.worklist': { scope: 'communications.read', principals: ['human', 'service'] },
+  'communications.deliveries.read': { scope: 'communications.read', principals: ['human', 'service'] },
+  'communications.deliveries.resolve': { scope: 'communications.write', principals: ['human'] },
+  // E4 intake forms. Form content is practice configuration (admin.configure, a person); submissions
+  // and review items are patient data (patients.read / patients.write). A reviewed demographics change
+  // is applied through S4's own update, which authorizes the reviewer again.
+  'intake.forms.publish': { scope: 'admin.configure', principals: ['human'] },
+  'intake.forms.retire': { scope: 'admin.configure', principals: ['human'] },
+  'intake.forms.list': { scope: 'patients.read', principals: ['human', 'service'] },
+  'intake.submissions.submit': { scope: 'patients.write', principals: ['human'] },
+  'intake.submissions.list': { scope: 'patients.read', principals: ['human', 'service'] },
+  'intake.submissions.read': { scope: 'patients.read', principals: ['human', 'service'] },
+  'intake.reviews.worklist': { scope: 'patients.read', principals: ['human', 'service'] },
+  'intake.reviews.read': { scope: 'patients.read', principals: ['human', 'service'] },
+  'intake.reviews.resolve': { scope: 'patients.write', principals: ['human'] },
+  // E5 secure messaging: its own scopes, so patient access alone never opens a thread. Writing is a
+  // person's act; reads and the worklist are access-audited. Legal hold is administration.
+  'messaging.threads.open': { scope: 'messaging.write', principals: ['human'] },
+  'messaging.messages.post': { scope: 'messaging.write', principals: ['human'] },
+  // Thread bodies are the most sensitive free text E holds: human staff only. A service principal
+  // (an agent) is denied by default; a per-tenant policy that could enable it is a pending security
+  // decision and is NOT implemented (review hardening, item 3).
+  'messaging.threads.read': { scope: 'messaging.read', principals: ['human'] },
+  'messaging.threads.worklist': { scope: 'messaging.read', principals: ['human', 'service'] },
+  'messaging.threads.close': { scope: 'messaging.write', principals: ['human'] },
+  'messaging.threads.assign': { scope: 'messaging.write', principals: ['human'] },
+  'messaging.threads.hold': { scope: 'admin.configure', principals: ['human'] },
+  'messaging.retention.evaluate': { scope: 'messaging.read', principals: ['human', 'service'] },
+  // E8 telephony (E-S2 blocked): configuration is administration; call events come only from the
+  // telephony integration principal; linking a call to a patient is a person's confirmation.
+  'telephony.config.define': { scope: 'admin.configure', principals: ['human'] },
+  'telephony.config.read': { scope: 'communications.read', principals: ['human', 'service'] },
+  'telephony.handling.resolve': { scope: 'communications.read', principals: ['human', 'service'] },
+  'telephony.calls.record': { scope: 'telephony.events', principals: ['service'] },
+  'telephony.calls.read': { scope: 'communications.read', principals: ['human', 'service'] },
+  'telephony.calls.list': { scope: 'communications.read', principals: ['human', 'service'] },
+  'telephony.calls.link': { scope: 'communications.write', principals: ['human'] },
+  // E9 minimal engagement export: a tenant-wide human administrator only (sensitive-read logged).
+  'communications.export': { scope: 'admin.configure', principals: ['human'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

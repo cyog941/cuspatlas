@@ -4,6 +4,7 @@ export * from './clinical-care';
 export * from './clinical-chart';
 export * from './clinical-notes';
 export * from './context';
+export * from './engagement';
 export * from './patient';
 export * from './ports';
 export * from './scheduling';

@@ -728,7 +728,12 @@ export type WorkItemKind =
   | 'lab_return_overdue'
   | 'lab_case_review'
   | 'referral_response_due'
-  | 'referral_review';
+  | 'referral_review'
+  // E7: a failed or unknown delivery (owned by E; listed by communications.deliveries.worklist).
+  | 'delivery_exception'
+  // E4/E5: an intake review item and a secure-message thread awaiting the practice.
+  | 'intake_review'
+  | 'message_awaiting_reply';
 export interface WorkItem {
   readonly workItemRef: string;
   readonly kind: WorkItemKind;
@@ -777,13 +782,16 @@ export interface NotificationIntentRecord {
   readonly supersedes: string | null;
   readonly supersededBy: string | null;
   readonly dueAt: string | null;
+  /** E6's decision (recorded with the intent); `undecided` only for an intent recorded before E6. */
   readonly suppressionDecision: {
-    readonly ref: null;
+    readonly ref: string | null;
     readonly owner: 'E6';
-    readonly state: 'undecided';
+    readonly state: 'undecided' | 'allowed' | 'suppressed';
+    readonly reason: string | null;
     readonly statement: string;
   };
-  readonly delivery: { readonly owner: 'E7'; readonly state: 'not_sent_no_verified_channel' };
+  /** E7's delivery state: its outbound message, or why there is none. */
+  readonly delivery: { readonly owner: 'E7'; readonly state: string; readonly messageRef?: string | null };
   readonly createdAt: string;
 }
 export const validateNotificationWorklistQuery = def('NotificationWorklistQuery');

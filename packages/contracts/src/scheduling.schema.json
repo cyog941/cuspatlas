@@ -3155,9 +3155,12 @@
             "lab_return_overdue",
             "lab_case_review",
             "referral_response_due",
-            "referral_review"
+            "referral_review",
+            "delivery_exception",
+            "intake_review",
+            "message_awaiting_reply"
           ],
-          "description": "S kinds plus the C kinds adopted from this shared model (C16 lab returns, C17 referral responses; PT-03)."
+          "description": "S kinds plus the C kinds (C16 lab returns, C17 referral responses; PT-03) and the E kinds (E7 delivery exceptions, E4 intake review, E5 messages awaiting reply) adopted from this shared model."
         },
         "reasonCode": {
           "$ref": "#/$defs/ReasonCode"
@@ -3420,17 +3423,20 @@
             "suppressionDecision": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["ref", "owner", "state", "statement"],
-              "description": "Typed placeholder: the decision is E6's; scheduling evaluates no consent and stores no reason of its own.",
+              "required": ["ref", "owner", "state", "reason", "statement"],
+              "description": "E6's decision recorded with the intent (engagement.schema.json SuppressionReason); scheduling evaluates no consent and stores only the reference. undecided only for intents recorded before E6.",
               "properties": {
                 "ref": {
-                  "type": "null"
+                  "anyOf": [{ "$ref": "#/$defs/EntityRef" }, { "type": "null" }]
                 },
                 "owner": {
                   "const": "E6"
                 },
                 "state": {
-                  "const": "undecided"
+                  "enum": ["undecided", "allowed", "suppressed"]
+                },
+                "reason": {
+                  "anyOf": [{ "type": "string", "pattern": "^[a-z_]{1,64}$" }, { "type": "null" }]
                 },
                 "statement": {
                   "type": "string"
@@ -3446,7 +3452,21 @@
                   "const": "E7"
                 },
                 "state": {
-                  "const": "not_sent_no_verified_channel"
+                  "enum": [
+                    "not_sent_no_verified_channel",
+                    "not_queued",
+                    "queued",
+                    "sending",
+                    "sent",
+                    "delivered",
+                    "failed",
+                    "suppressed",
+                    "unknown",
+                    "abandoned"
+                  ]
+                },
+                "messageRef": {
+                  "anyOf": [{ "$ref": "#/$defs/EntityRef" }, { "type": "null" }]
                 }
               }
             },

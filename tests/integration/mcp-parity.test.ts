@@ -119,6 +119,15 @@ const TOOL_NAMES = [
   'clinical_note_templates_get_version',
   'clinical_note_templates_retire',
   'clinical_note_templates_revise',
+  // C10 note tools (parity in clinical-notes and negative-harness tests).
+  'clinical_notes_add_addendum',
+  'clinical_notes_amend',
+  'clinical_notes_cosign',
+  'clinical_notes_create_draft',
+  'clinical_notes_get',
+  'clinical_notes_list',
+  'clinical_notes_sign',
+  'clinical_notes_update_draft',
 ].sort();
 
 let db: TestDatabase;

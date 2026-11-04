@@ -16,6 +16,7 @@ const TRANSPORT: Record<string, string> = {
   historyVersionRef: 'HistoryVersionRef',
   templateRef: 'NoteTemplateRef',
   templateVersionRef: 'NoteTemplateVersionRef',
+  noteRef: 'NoteRef',
 };
 
 /**
@@ -290,6 +291,110 @@ const SPECS: readonly Spec[] = [
         ),
       };
     },
+  },
+  // C10 notes. Nothing here generates note text; signing is human-only.
+  {
+    name: 'clinical_notes_create_draft',
+    operationId: 'clinical.notes.createDraft',
+    description: `Create a mutable note draft at an open encounter, optionally pinned to the current version of an active template. source=ai_draft is a provenance label (model and prompt references required); nothing generates text. ${SAFETY}`,
+    body: 'NoteDraftCreate',
+    transport: ['encounterRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.createNoteDraft(
+        actor,
+        args.encounterRef as string,
+        envelope('clinical.notes.createDraft', args, 'encounterRef'),
+      ),
+  },
+  {
+    name: 'clinical_notes_list',
+    operationId: 'clinical.notes.list',
+    description: 'List the notes of a visible encounter with every frozen version.',
+    body: null,
+    transport: ['encounterRef'],
+    readOnly: true,
+    async run(d, actor, args) {
+      return { data: await d.clinical.listNotes(actor, args.encounterRef as string) };
+    },
+  },
+  {
+    name: 'clinical_notes_get',
+    operationId: 'clinical.notes.read',
+    description:
+      'Read a note: the draft (with its template check) or every frozen version with its digest verified on read.',
+    body: null,
+    transport: ['noteRef'],
+    readOnly: true,
+    async run(d, actor, args) {
+      return { data: await d.clinical.readNote(actor, args.noteRef as string) };
+    },
+  },
+  {
+    name: 'clinical_notes_update_draft',
+    operationId: 'clinical.notes.updateDraft',
+    description:
+      'Replace the content of a draft (optionally re-pin the template) if expectedVersion matches. A signed note is never updated; amend or add an addendum instead.',
+    body: 'NoteDraftUpdate',
+    transport: ['noteRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.updateNoteDraft(
+        actor,
+        args.noteRef as string,
+        envelope('clinical.notes.updateDraft', args, 'noteRef'),
+      ),
+  },
+  {
+    name: 'clinical_notes_sign',
+    operationId: 'clinical.notes.sign',
+    description: `Sign a draft as the authenticated human clinician: freezes content, signer, instant, template and history versions and a content digest. An enforced template refuses with the deficit list. Human only. ${SAFETY}`,
+    body: 'NoteSign',
+    transport: ['noteRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.signNote(actor, args.noteRef as string, envelope('clinical.notes.sign', args, 'noteRef')),
+  },
+  {
+    name: 'clinical_notes_amend',
+    operationId: 'clinical.notes.amend',
+    description:
+      'Append an amendment (a complete replacement statement with a reason) to a signed note. Another clinician’s note needs the clinical-oversight scope; prefer an addendum for clarification.',
+    body: 'NoteAmend',
+    transport: ['noteRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.amendNote(actor, args.noteRef as string, envelope('clinical.notes.amend', args, 'noteRef')),
+  },
+  {
+    name: 'clinical_notes_add_addendum',
+    operationId: 'clinical.notes.addendum',
+    description:
+      'Append an addendum (additional text with a reason) to a signed note. Never alters a signed version.',
+    body: 'NoteAddendum',
+    transport: ['noteRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.addNoteAddendum(
+        actor,
+        args.noteRef as string,
+        envelope('clinical.notes.addendum', args, 'noteRef'),
+      ),
+  },
+  {
+    name: 'clinical_notes_cosign',
+    operationId: 'clinical.notes.cosign',
+    description:
+      'Co-sign a frozen version that requires it (supervising assignment at signing), bound to the content digest seen. The co-signer must differ from the author.',
+    body: 'NoteCosign',
+    transport: ['noteRef', 'idempotencyKey'],
+    readOnly: false,
+    run: (d, actor, args) =>
+      d.clinical.cosignNote(
+        actor,
+        args.noteRef as string,
+        envelope('clinical.notes.cosign', args, 'noteRef'),
+      ),
   },
 ];
 

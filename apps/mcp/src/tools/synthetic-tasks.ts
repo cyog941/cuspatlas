@@ -143,6 +143,7 @@ const KNOWN_PROPERTIES: ReadonlySet<string> = new Set([
   'historyVersionRef',
   'templateRef',
   'templateVersionRef',
+  'noteRef',
 ]);
 
 const ajv = createAjv();

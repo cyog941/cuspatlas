@@ -1003,7 +1003,142 @@ export const COMMANDS: HarnessCommand[] = [
     }),
     mcpArgs: (f) => ({ encounterRef: f.alphaEncounter, procedureCodeRefs: 'SYN-PROC-001' }),
   },
+  // C10 notes: drafting, signing, amendment, addendum and co-signature (workstream C).
+  {
+    operation: 'clinical.notes.createDraft',
+    tool: 'clinical_notes_create_draft',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/encounters/${f.alphaEncounter}/notes`,
+      body: noteBody(),
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({ encounterRef: f.alphaEncounter, ...noteBody(), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'clinical.notes.list',
+    tool: 'clinical_notes_list',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/encounters/${f.alphaEncounter}/notes`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ encounterRef: f.alphaEncounter }),
+  },
+  {
+    operation: 'clinical.notes.read',
+    tool: 'clinical_notes_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/clinical/notes/${f.alphaSignedNote}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ noteRef: f.alphaSignedNote }),
+  },
+  {
+    operation: 'clinical.notes.updateDraft',
+    tool: 'clinical_notes_update_draft',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/notes/${f.alphaNote}/draft`,
+      body: { expectedVersion: 1, content: NOTE_CONTENT },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({
+      noteRef: f.alphaNote,
+      ...{ expectedVersion: 1, content: NOTE_CONTENT },
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.notes.sign',
+    tool: 'clinical_notes_sign',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/notes/${f.alphaNote}/sign`,
+      body: { expectedVersion: 1 },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ noteRef: f.alphaNote, ...{ expectedVersion: 1 }, idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'clinical.notes.amend',
+    tool: 'clinical_notes_amend',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/notes/${f.alphaSignedNote}/amendments`,
+      body: { expectedVersion: 2, reasonCode: 'correction', content: NOTE_CONTENT },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      noteRef: f.alphaSignedNote,
+      ...{ expectedVersion: 2, reasonCode: 'correction', content: NOTE_CONTENT },
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.notes.addendum',
+    tool: 'clinical_notes_add_addendum',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/notes/${f.alphaSignedNote}/addenda`,
+      body: { expectedVersion: 2, reasonCode: 'clarification', text: `Synthetic ${MARKER}` },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      noteRef: f.alphaSignedNote,
+      ...{ expectedVersion: 2, reasonCode: 'clarification', text: `Synthetic ${MARKER}` },
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'clinical.notes.cosign',
+    tool: 'clinical_notes_cosign',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/clinical/notes/${f.alphaSignedNote}/cosignatures`,
+      body: { sequence: 1, contentDigest: f.alphaSignedDigest },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      noteRef: f.alphaSignedNote,
+      ...{ sequence: 1, contentDigest: f.alphaSignedDigest },
+      idempotencyKey: randomUUID(),
+    }),
+  },
 ];
+
+const NOTE_CONTENT = {
+  sections: [{ sectionKey: 'subjective', text: `Synthetic ${MARKER}` }],
+  procedureCodeRefs: [],
+};
+function noteBody() {
+  return { noteType: 'progress', content: NOTE_CONTENT };
+}
 
 const TEMPLATE_SECTIONS = [{ sectionKey: 'subjective', label: 'Synthetic subjective', required: true }];
 /** A fresh label per call: a second active template with the same type and label is refused. */
@@ -1290,7 +1425,31 @@ beforeAll(async () => {
   // C9: one active alpha note template (version 1).
   const template = await owner('/v1/clinical/note-templates', templateBody());
   expect(template.statusCode).toBe(201);
+  // C10: one alpha draft (version 1) and one signed alpha note (version 2) at the alpha encounter.
+  const encounterRef = encounter.json().data.encounter.encounterRef;
+  const noteDraft = await owner(`/v1/clinical/encounters/${encounterRef}/notes`, {
+    noteType: 'progress',
+    content: {
+      sections: [{ sectionKey: 'subjective', text: 'Synthetic harness note' }],
+      procedureCodeRefs: [],
+    },
+  });
+  expect(noteDraft.statusCode).toBe(201);
+  const toSign = await owner(`/v1/clinical/encounters/${encounterRef}/notes`, {
+    noteType: 'progress',
+    content: {
+      sections: [{ sectionKey: 'subjective', text: 'Synthetic harness signed note' }],
+      procedureCodeRefs: [],
+    },
+  });
+  const signedNote = await owner(`/v1/clinical/notes/${toSign.json().data.noteRef}/sign`, {
+    expectedVersion: 1,
+  });
+  expect(signedNote.statusCode).toBe(200);
   fixture = {
+    alphaNote: noteDraft.json().data.noteRef,
+    alphaSignedNote: signedNote.json().data.noteRef,
+    alphaSignedDigest: signedNote.json().data.versions[0].contentDigest,
     alphaTemplate: template.json().data.templateRef,
     alphaTemplateVersion: template.json().data.currentVersion.templateVersionRef,
     alphaHistoryVersion: recorded.header.historyVersionRef,
@@ -1431,6 +1590,10 @@ async function state(): Promise<string> {
     await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_history_reviews'),
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_note_templates'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_note_template_versions'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_notes'),
+    await q('SELECT json_agg(n.draft_sections ORDER BY n.id)::text AS d FROM cuspatlas.clinical_notes n'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_note_versions'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_note_cosignatures'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.audit_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.outbox_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.command_idempotency'),

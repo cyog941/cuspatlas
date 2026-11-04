@@ -2119,6 +2119,259 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/clinical/encounters/{encounterRef}/notes:
+    post:
+      operationId: clinical.notes.createDraft
+      description: >-
+        Create a mutable note draft at an open, visible encounter (409 encounter_closed with alternative clinical.notes.addendum otherwise), optionally pinned to the current version of an active template of the same note type (409 template_retired or template_version_superseded; 422 templateNoteTypeMismatch). source=ai_draft is a provenance label only and needs model and prompt version references (422 aiDraftUnattributed); nothing in the service generates note text. Drafting is never blocked by template enforcement (C-D4). Requires clinical.write, a human principal and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/EncounterRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteDraftCreate'
+      responses:
+        '201':
+          description: Draft created.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: clinical.notes.list
+      description: >-
+        The notes of a visible encounter, oldest first, each with its draft or frozen versions (digest verified on read). A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/EncounterRef'
+      responses:
+        '200':
+          description: The encounter's notes.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/notes/{noteRef}:
+    get:
+      operationId: clinical.notes.read
+      description: >-
+        One note: while a draft, the draft content with its live template check; once signed, every frozen version (original, amendments, addenda) with author, instant, reason, referenced version, template and history versions recorded against, co-signature state and its content digest, recomputed on read (digestVerified). A sensitive read. Requires clinical.read.
+      parameters:
+        - $ref: '#/components/parameters/NoteRef'
+      responses:
+        '200':
+          description: The note.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/notes/{noteRef}/draft:
+    post:
+      operationId: clinical.notes.updateDraft
+      description: >-
+        Replace a draft's content (and optionally re-pin its template) if expectedVersion matches (409 stale_version otherwise). A signed note is never updated: 409 note_signed with alternative clinical.notes.amend. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/NoteRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteDraftUpdate'
+      responses:
+        '200':
+          description: Draft updated.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/notes/{noteRef}/sign:
+    post:
+      operationId: clinical.notes.sign
+      description: >-
+        Sign a draft as the authenticated human clinician: freezes the content as the original version with the signer, instant, pinned template version, the C8 history versions current at signing, the supervising assignment (co-signature pending) and a content digest. The enforcement point of C-D4: an enforced template that is not satisfied refuses with 409 template_deficit and the deficit list; a non-enforced template records the check as a warning. A concurrent second signature gets 409 note_signed with alternative clinical.notes.addendum. Requires clinical.sign, a human principal and a resolvable clinical author; a model is never the signer.
+      parameters:
+        - $ref: '#/components/parameters/NoteRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteSign'
+      responses:
+        '200':
+          description: Note signed.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/notes/{noteRef}/amendments:
+    post:
+      operationId: clinical.notes.amend
+      description: >-
+        Append an amendment to a signed note: a complete replacement statement with a reason code, referencing the latest version; the signed versions stay byte-identical. Template enforcement applies as at signing. Amending a note signed by another clinician needs the clinical-oversight scope (403 clinical_oversight_required with alternative clinical.notes.addendum; C-D5). A racing amendment gets 409 stale_version. Requires clinical.sign, a human principal and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/NoteRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteAmend'
+      responses:
+        '201':
+          description: Amendment appended.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/notes/{noteRef}/addenda:
+    post:
+      operationId: clinical.notes.addendum
+      description: >-
+        Append an addendum (additional text with a reason code) to a signed note, referencing the latest version; the preferred path for clarification. Never alters a frozen version. Requires clinical.write and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/NoteRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteAddendum'
+      responses:
+        '201':
+          description: Addendum appended.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/clinical/notes/{noteRef}/cosignatures:
+    post:
+      operationId: clinical.notes.cosign
+      description: >-
+        Co-sign one frozen version that requires it (the encounter had a supervising assignment when it was frozen), bound to the content digest the co-signer saw (409 content_digest_mismatch otherwise). The co-signer must differ from the author (409 cosigner_is_author); one co-signature per version. Who must co-sign which note class is pending clinical decision C-S2-Q5. Requires clinical.sign, a human principal and a resolvable clinical author.
+      parameters:
+        - $ref: '#/components/parameters/NoteRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteCosign'
+      responses:
+        '201':
+          description: Co-signature recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
 components:
   securitySchemes:
     bearer:
@@ -2276,6 +2529,12 @@ components:
       description: Comma-separated synthetic SYN- procedure codes proposed or rendered at the encounter.
       schema:
         $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteTemplateApplicableQuery/properties/procedureCodeRefs'
+    NoteRef:
+      name: noteRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/clinical.schema.json#/$defs/NoteRef'
   responses:
     Refusal:
       description: Typed refusal (code, retryable, correlationId, optional safe detail).

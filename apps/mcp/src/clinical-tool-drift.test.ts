@@ -33,6 +33,7 @@ const PATH_PARAMS: Record<string, string> = {
   historyVersionRef: 'HistoryVersionRef',
   templateRef: 'NoteTemplateRef',
   templateVersionRef: 'NoteTemplateVersionRef',
+  noteRef: 'NoteRef',
 };
 
 function restShape(route: (typeof routes)[number]): { properties: Schema; required?: string[] } {

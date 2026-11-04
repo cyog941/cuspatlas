@@ -78,6 +78,8 @@ Registered by workstream C clinical record (batch 1, synthetic implementation; c
 
 Workstream C batch 2b, C9 (synthetic implementation; C-D4 recommended-pending-clinical-approval in ADR 0006): progress-note templates are practice configuration under `admin.configure` (human principals only); template reads and applicability need `clinical.read`. No new scope.
 
+Registered by workstream C batch 2b, C10 (synthetic implementation; C-D4 and C-D5 recommended-pending-clinical-approval in ADR 0006): `clinical.sign` is now used (human only: signing a note, amending a note, co-signing a frozen version; always with a resolvable clinical author) and `clinical.oversight` (human only; an additional capability of the amend caller, required to amend a note signed by another clinician; never sufficient on its own). Drafting and addenda remain `clinical.write`.
+
 Camel-case scope names (`receivables.read` written as `receivablesRead`) are a defect. A scope used in any plan must appear in the registry; a plan that needs a new scope adds it there first.
 
 ### Relationship scopes

@@ -61,6 +61,11 @@
         }
       }
     },
+    "AiRef": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+      "description": "Opaque model or prompt version reference of an AI-assisted draft (provenance only; nothing generates text here)."
+    },
     "AlertSection": {
       "type": "object",
       "additionalProperties": false,
@@ -396,6 +401,11 @@
       "enum": ["dentist", "hygienist", "assistant", "other_clinical"],
       "description": "Configured clinical role of an author (recommended-pending-clinical-approval)."
     },
+    "ContentDigest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "SHA-256 over the canonical form of a frozen note version (content, references, author, instant)."
+    },
     "CredentialRef": {
       "type": "string",
       "pattern": "^[A-Za-z0-9._:-]{1,128}$",
@@ -729,6 +739,46 @@
       "type": "string",
       "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
       "description": "Opaque encounter reference (C5)."
+    },
+    "HistoryAtSigning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["recorded", "versions"],
+      "properties": {
+        "recorded": {
+          "type": "boolean",
+          "description": "False when no history was recorded at signing: unknown, not empty."
+        },
+        "versions": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["streamRef", "version", "historyVersionRef"],
+            "properties": {
+              "streamRef": {
+                "$ref": "#/$defs/HistoryStreamRef"
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 2147483647
+              },
+              "historyVersionRef": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/HistoryVersionRef"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
     },
     "HistoryChange": {
       "type": "object",
@@ -1379,6 +1429,371 @@
         }
       }
     },
+    "Note": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "noteRef",
+        "encounterRef",
+        "patientRef",
+        "noteType",
+        "status",
+        "source",
+        "templateVersionRef",
+        "draft",
+        "versions",
+        "createdBy",
+        "createdAt",
+        "version"
+      ],
+      "properties": {
+        "noteRef": {
+          "$ref": "#/$defs/NoteRef"
+        },
+        "encounterRef": {
+          "$ref": "#/$defs/EncounterRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "noteType": {
+          "$ref": "#/$defs/NoteType"
+        },
+        "status": {
+          "enum": ["draft", "signed", "amended"]
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "aiModelRef", "aiPromptVersionRef"],
+          "properties": {
+            "kind": {
+              "$ref": "#/$defs/NoteSourceKind"
+            },
+            "aiModelRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AiRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "aiPromptVersionRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AiRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "templateVersionRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NoteTemplateVersionRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "draft": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NoteDraft"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "versions": {
+          "type": "array",
+          "maxItems": 1000,
+          "items": {
+            "$ref": "#/$defs/NoteVersion"
+          }
+        },
+        "createdBy": {
+          "$ref": "#/$defs/ClinicalAuthor"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "NoteAddendum": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "reasonCode", "text"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "text": {
+          "$ref": "#/$defs/NoteText"
+        }
+      }
+    },
+    "NoteAmend": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "reasonCode", "content"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "content": {
+          "$ref": "#/$defs/NoteContent"
+        }
+      }
+    },
+    "NoteCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/Note"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "NoteContent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sections"],
+      "properties": {
+        "sections": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "$ref": "#/$defs/NoteSectionEntry"
+          }
+        },
+        "procedureCodeRefs": {
+          "$ref": "#/$defs/ProcedureCodeRefs"
+        }
+      }
+    },
+    "NoteContentRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sections", "procedureCodeRefs"],
+      "properties": {
+        "sections": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "$ref": "#/$defs/NoteSectionEntry"
+          }
+        },
+        "procedureCodeRefs": {
+          "$ref": "#/$defs/ProcedureCodeRefs"
+        }
+      }
+    },
+    "NoteCosign": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sequence", "contentDigest"],
+      "properties": {
+        "sequence": {
+          "$ref": "#/$defs/Version"
+        },
+        "contentDigest": {
+          "$ref": "#/$defs/ContentDigest"
+        }
+      }
+    },
+    "NoteCosignature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "supervisingResourceRef", "status", "cosignedBy", "cosignedAt"],
+      "properties": {
+        "required": {
+          "type": "boolean"
+        },
+        "supervisingResourceRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ResourceRefId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "enum": ["not_required", "pending", "cosigned"]
+        },
+        "cosignedBy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ClinicalAuthor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cosignedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "NoteDraft": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["content", "templateCheck", "updatedBy", "updatedAt"],
+      "properties": {
+        "content": {
+          "$ref": "#/$defs/NoteContentRead"
+        },
+        "templateCheck": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TemplateCheck"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "updatedBy": {
+          "$ref": "#/$defs/ClinicalAuthor"
+        },
+        "updatedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "NoteDraftCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["noteType"],
+      "properties": {
+        "noteType": {
+          "$ref": "#/$defs/NoteType"
+        },
+        "templateVersionRef": {
+          "$ref": "#/$defs/NoteTemplateVersionRef"
+        },
+        "source": {
+          "$ref": "#/$defs/NoteSourceKind"
+        },
+        "aiModelRef": {
+          "$ref": "#/$defs/AiRef"
+        },
+        "aiPromptVersionRef": {
+          "$ref": "#/$defs/AiRef"
+        },
+        "content": {
+          "$ref": "#/$defs/NoteContent"
+        }
+      }
+    },
+    "NoteDraftUpdate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "content"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "templateVersionRef": {
+          "$ref": "#/$defs/NoteTemplateVersionRef"
+        },
+        "content": {
+          "$ref": "#/$defs/NoteContent"
+        }
+      }
+    },
+    "NoteList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/Note"
+          }
+        }
+      }
+    },
+    "NoteRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/Note"
+        }
+      }
+    },
+    "NoteRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque clinical note reference (C10)."
+    },
+    "NoteSectionEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sectionKey", "text"],
+      "properties": {
+        "sectionKey": {
+          "$ref": "#/$defs/SectionKey"
+        },
+        "text": {
+          "$ref": "#/$defs/NoteText"
+        }
+      }
+    },
+    "NoteSign": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "NoteSourceKind": {
+      "enum": ["human", "ai_draft"]
+    },
     "NoteTemplate": {
       "type": "object",
       "additionalProperties": false,
@@ -1676,10 +2091,143 @@
       "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
       "description": "Opaque note template version reference (C9); a signed note pins one."
     },
+    "NoteText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8000,
+      "description": "Clinical note text as written; never interpreted."
+    },
     "NoteType": {
       "type": "string",
       "pattern": "^[a-z][a-z_]{0,63}$",
       "description": "Note type key (for example progress). Configuration, not a clinical code."
+    },
+    "NoteVersion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "noteVersionRef",
+        "sequence",
+        "kind",
+        "referencesSequence",
+        "supersededBySequence",
+        "reasonCode",
+        "content",
+        "addendumText",
+        "templateVersionRef",
+        "templateCheck",
+        "historyAtSigning",
+        "authoredBy",
+        "authoredAt",
+        "contentDigest",
+        "digestVerified",
+        "cosignature"
+      ],
+      "properties": {
+        "noteVersionRef": {
+          "$ref": "#/$defs/NoteVersionRef"
+        },
+        "sequence": {
+          "$ref": "#/$defs/Version"
+        },
+        "kind": {
+          "enum": ["original", "amendment", "addendum"]
+        },
+        "referencesSequence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Version"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "supersededBySequence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Version"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reasonCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "content": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NoteContentRead"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "addendumText": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NoteText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "templateVersionRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NoteTemplateVersionRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "templateCheck": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TemplateCheck"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "historyAtSigning": {
+          "$ref": "#/$defs/HistoryAtSigning"
+        },
+        "authoredBy": {
+          "$ref": "#/$defs/ClinicalAuthor"
+        },
+        "authoredAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "contentDigest": {
+          "$ref": "#/$defs/ContentDigest"
+        },
+        "digestVerified": {
+          "type": "boolean",
+          "description": "The stored digest recomputed on read; false means altered content."
+        },
+        "cosignature": {
+          "$ref": "#/$defs/NoteCosignature"
+        }
+      }
+    },
+    "NoteVersionRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque frozen note version reference (C10)."
     },
     "PatientRef": {
       "type": "string",
@@ -1727,6 +2275,46 @@
       "type": "string",
       "pattern": "^SYN-[A-Z0-9-]{1,40}$",
       "description": "Provisional internal synthetic code (C-D2). Not a licensed terminology code; carries no clinical meaning."
+    },
+    "TemplateCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enforced",
+        "satisfied",
+        "blocksSigning",
+        "missingSections",
+        "missingCodeRefs",
+        "unresolvedSections"
+      ],
+      "properties": {
+        "enforced": {
+          "type": "boolean"
+        },
+        "satisfied": {
+          "type": "boolean"
+        },
+        "blocksSigning": {
+          "type": "boolean"
+        },
+        "missingSections": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "$ref": "#/$defs/SectionKey"
+          }
+        },
+        "missingCodeRefs": {
+          "$ref": "#/$defs/ProcedureCodeRefs"
+        },
+        "unresolvedSections": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "$ref": "#/$defs/SectionKey"
+          }
+        }
+      }
     },
     "Version": {
       "type": "integer",

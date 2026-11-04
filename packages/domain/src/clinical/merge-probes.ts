@@ -1,5 +1,6 @@
 import type { TenantTransaction } from '@cuspatlas/contracts';
 import type { PostMergeFactProbe } from '../patients/merge';
+import { NOTE_POST_MERGE_FACT_PROBE } from './notes/notes';
 
 /**
  * S-D2 seam (ADR 0003, pending approval): clinical facts recorded on a merge survivor after the merge
@@ -33,4 +34,6 @@ export const CLINICAL_POST_MERGE_FACT_PROBES: readonly PostMergeFactProbe[] = [
       return Number(rows[0]?.n ?? 0);
     },
   },
+  // C10: notes drafted, signed, amended, addended or co-signed on the survivor after the merge.
+  NOTE_POST_MERGE_FACT_PROBE,
 ];

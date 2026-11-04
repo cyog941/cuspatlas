@@ -2,6 +2,7 @@ import { createAuthorshipOperations } from './authorship';
 import { type ClinicalDeps, createClinicalBase } from './base';
 import { createEncounterOperations } from './encounters';
 import { createHistoryOperations } from './history';
+import { createNoteOperations } from './notes/notes';
 import { createNoteTemplateOperations } from './notes/templates';
 
 /**
@@ -16,6 +17,7 @@ export function createClinicalService(deps: ClinicalDeps) {
     ...createEncounterOperations(base),
     ...createHistoryOperations(base),
     ...createNoteTemplateOperations(base),
+    ...createNoteOperations(base),
   };
 }
 

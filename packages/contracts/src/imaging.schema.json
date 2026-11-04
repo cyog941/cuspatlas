@@ -87,12 +87,24 @@
       "required": ["source"],
       "description": "Recorded once per ingress and never rewritten. The uploader is the authenticated actor, never a body field.",
       "properties": {
-        "source": { "$ref": "#/$defs/ProvenanceSource" },
-        "deviceRef": { "$ref": "#/$defs/DeviceRef" },
-        "captureSoftware": { "$ref": "#/$defs/CaptureSoftware" },
-        "originalFilename": { "$ref": "#/$defs/OriginalFilename" },
-        "acquiredAt": { "$ref": "#/$defs/Instant" },
-        "acquiredTimeZone": { "$ref": "#/$defs/TimeZone" }
+        "source": {
+          "$ref": "#/$defs/ProvenanceSource"
+        },
+        "deviceRef": {
+          "$ref": "#/$defs/DeviceRef"
+        },
+        "captureSoftware": {
+          "$ref": "#/$defs/CaptureSoftware"
+        },
+        "originalFilename": {
+          "$ref": "#/$defs/OriginalFilename"
+        },
+        "acquiredAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "acquiredTimeZone": {
+          "$ref": "#/$defs/TimeZone"
+        }
       }
     },
     "Provenance": {
@@ -111,16 +123,78 @@
         "recordedAt"
       ],
       "properties": {
-        "provenanceRef": { "$ref": "#/$defs/EntityRef" },
-        "source": { "$ref": "#/$defs/ProvenanceSource" },
-        "operatorRef": { "$ref": "#/$defs/EntityRef" },
-        "deviceRef": { "anyOf": [{ "$ref": "#/$defs/DeviceRef" }, { "type": "null" }] },
-        "captureSoftware": { "anyOf": [{ "$ref": "#/$defs/CaptureSoftware" }, { "type": "null" }] },
-        "originalFilename": { "anyOf": [{ "$ref": "#/$defs/OriginalFilename" }, { "type": "null" }] },
-        "acquiredAt": { "anyOf": [{ "$ref": "#/$defs/Instant" }, { "type": "null" }] },
-        "acquiredTimeZone": { "anyOf": [{ "$ref": "#/$defs/TimeZone" }, { "type": "null" }] },
-        "ingressRef": { "anyOf": [{ "$ref": "#/$defs/EntityRef" }, { "type": "null" }] },
-        "recordedAt": { "$ref": "#/$defs/Instant" }
+        "provenanceRef": {
+          "$ref": "#/$defs/EntityRef"
+        },
+        "source": {
+          "$ref": "#/$defs/ProvenanceSource"
+        },
+        "operatorRef": {
+          "$ref": "#/$defs/EntityRef"
+        },
+        "deviceRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DeviceRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "captureSoftware": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CaptureSoftware"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "originalFilename": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OriginalFilename"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "acquiredAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "acquiredTimeZone": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeZone"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ingressRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EntityRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recordedAt": {
+          "$ref": "#/$defs/Instant"
+        }
       }
     },
     "ImageObject": {
@@ -140,19 +214,47 @@
       ],
       "description": "Object metadata. The storage key is internal and never returned; bytes are read only through a short-lived read grant on REST.",
       "properties": {
-        "objectRef": { "$ref": "#/$defs/ObjectRef" },
-        "kind": { "$ref": "#/$defs/ObjectKind" },
-        "state": { "$ref": "#/$defs/ObjectState" },
-        "contentType": { "$ref": "#/$defs/ContentType" },
-        "byteLength": { "type": "integer", "minimum": 1 },
-        "digestSha256": { "$ref": "#/$defs/Sha256" },
-        "receivedAt": { "$ref": "#/$defs/Instant" },
-        "quarantineReason": { "anyOf": [{ "$ref": "#/$defs/ReasonCode" }, { "type": "null" }] },
-        "version": { "$ref": "#/$defs/Version" },
+        "objectRef": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "kind": {
+          "$ref": "#/$defs/ObjectKind"
+        },
+        "state": {
+          "$ref": "#/$defs/ObjectState"
+        },
+        "contentType": {
+          "$ref": "#/$defs/ContentType"
+        },
+        "byteLength": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "digestSha256": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "receivedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "quarantineReason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
         "provenance": {
           "type": "array",
           "maxItems": 50,
-          "items": { "$ref": "#/$defs/Provenance" }
+          "items": {
+            "$ref": "#/$defs/Provenance"
+          }
         }
       }
     },
@@ -160,14 +262,23 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["data"],
-      "properties": { "data": { "$ref": "#/$defs/ImageObject" } }
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/ImageObject"
+        }
+      }
     },
     "ObjectListQuery": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "state": { "$ref": "#/$defs/ObjectState" },
-        "limit": { "type": "string", "pattern": "^([1-9]|[1-9][0-9]|100)$" }
+        "state": {
+          "$ref": "#/$defs/ObjectState"
+        },
+        "limit": {
+          "type": "string",
+          "pattern": "^([1-9]|[1-9][0-9]|100)$"
+        }
       }
     },
     "ImageObjectList": {
@@ -175,7 +286,13 @@
       "additionalProperties": false,
       "required": ["data"],
       "properties": {
-        "data": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/ImageObject" } }
+        "data": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/ImageObject"
+          }
+        }
       }
     },
     "ReadGrantRequest": {
@@ -195,22 +312,35 @@
       "additionalProperties": false,
       "required": ["grantRef", "objectRef", "token", "expiresAt", "contentPath"],
       "properties": {
-        "grantRef": { "$ref": "#/$defs/GrantRef" },
-        "objectRef": { "$ref": "#/$defs/ObjectRef" },
+        "grantRef": {
+          "$ref": "#/$defs/GrantRef"
+        },
+        "objectRef": {
+          "$ref": "#/$defs/ObjectRef"
+        },
         "token": {
           "type": "string",
           "pattern": "^v1\\.[0-9a-f-]{36}\\.[0-9]{10}\\.[A-Za-z0-9_-]{43}$",
           "description": "HMAC token bound to tenant, principal, object, grant and expiry. Sent in the x-object-read-token header with the caller's own bearer token; useless to any other principal. Never logged."
         },
-        "expiresAt": { "$ref": "#/$defs/Instant" },
-        "contentPath": { "type": "string", "maxLength": 120 }
+        "expiresAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "contentPath": {
+          "type": "string",
+          "maxLength": 120
+        }
       }
     },
     "ReadGrantResult": {
       "type": "object",
       "additionalProperties": false,
       "required": ["data"],
-      "properties": { "data": { "$ref": "#/$defs/ReadGrant" } }
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/ReadGrant"
+        }
+      }
     },
     "ReadGrantRevoke": {
       "type": "object",
@@ -227,14 +357,27 @@
           "additionalProperties": false,
           "required": ["grantRef", "objectRef", "state"],
           "properties": {
-            "grantRef": { "$ref": "#/$defs/GrantRef" },
-            "objectRef": { "$ref": "#/$defs/ObjectRef" },
-            "state": { "enum": ["revoked"] }
+            "grantRef": {
+              "$ref": "#/$defs/GrantRef"
+            },
+            "objectRef": {
+              "$ref": "#/$defs/ObjectRef"
+            },
+            "state": {
+              "enum": ["revoked"]
+            }
           }
         },
-        "version": { "$ref": "#/$defs/Version" },
-        "correlationId": { "type": "string", "format": "uuid" },
-        "replayed": { "type": "boolean" }
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
       }
     },
     "ObjectBytes": {
@@ -256,18 +399,476 @@
           "additionalProperties": false,
           "required": ["checked", "quarantined", "tombstoned", "abandonedIngress", "bytesRemoved", "more"],
           "properties": {
-            "checked": { "type": "integer", "minimum": 0 },
-            "quarantined": { "type": "integer", "minimum": 0 },
-            "tombstoned": { "type": "integer", "minimum": 0 },
-            "abandonedIngress": { "type": "integer", "minimum": 0 },
-            "bytesRemoved": { "type": "integer", "minimum": 0 },
-            "more": { "type": "boolean" }
+            "checked": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "quarantined": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "tombstoned": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "abandonedIngress": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "bytesRemoved": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "more": {
+              "type": "boolean"
+            }
           }
         },
-        "version": { "$ref": "#/$defs/Version" },
-        "correlationId": { "type": "string", "format": "uuid" },
-        "replayed": { "type": "boolean" }
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
       }
+    },
+    "IngressRef": {
+      "$ref": "#/$defs/EntityRef",
+      "description": "Opaque ingress session reference (staging; never an object)."
+    },
+    "ScanVerdict": {
+      "enum": ["clean", "infected", "unknown"],
+      "description": "Malware gate verdict. unknown is never clean."
+    },
+    "IngressState": {
+      "enum": ["awaiting_bytes", "staged", "accepted", "quarantined", "abandoned"]
+    },
+    "IngressBegin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contentType", "byteLength", "declaredDigest", "provenance"],
+      "properties": {
+        "contentType": {
+          "$ref": "#/$defs/ContentType"
+        },
+        "byteLength": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "declaredDigest": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "provenance": {
+          "$ref": "#/$defs/ProvenanceInput"
+        },
+        "intendedPatientRef": {
+          "$ref": "#/$defs/PatientRef",
+          "description": "Patient the uploader names (scopes dedupe and becomes a match candidate); never an association by itself."
+        }
+      },
+      "description": "Begin an ingress: declare the media type, exact length and SHA-256; the server checks them all again against the bytes."
+    },
+    "IngressBeginResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ingressRef", "state", "maxBytes", "expiresAt"],
+          "properties": {
+            "ingressRef": {
+              "$ref": "#/$defs/IngressRef"
+            },
+            "state": {
+              "const": "awaiting_bytes"
+            },
+            "maxBytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "expiresAt": {
+              "$ref": "#/$defs/Instant"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "IngressUploadResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ingressRef", "state", "observedDigest", "byteLength"],
+          "properties": {
+            "ingressRef": {
+              "$ref": "#/$defs/IngressRef"
+            },
+            "state": {
+              "const": "staged"
+            },
+            "observedDigest": {
+              "$ref": "#/$defs/Sha256"
+            },
+            "byteLength": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "IngressComplete": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["observedDigest"],
+      "properties": {
+        "observedDigest": {
+          "$ref": "#/$defs/Sha256"
+        }
+      }
+    },
+    "IngressCompleteResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ingressRef", "objectRef", "state", "deduplicated", "provenanceRef"],
+          "properties": {
+            "ingressRef": {
+              "$ref": "#/$defs/IngressRef"
+            },
+            "objectRef": {
+              "$ref": "#/$defs/ObjectRef"
+            },
+            "state": {
+              "const": "available"
+            },
+            "deduplicated": {
+              "type": "boolean"
+            },
+            "provenanceRef": {
+              "$ref": "#/$defs/EntityRef"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "IngressData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ingressRef",
+        "state",
+        "declaredContentType",
+        "declaredByteLength",
+        "declaredDigest",
+        "observedDigest",
+        "observedByteLength",
+        "scan",
+        "quarantineReason",
+        "objectRef",
+        "createdAt",
+        "version"
+      ],
+      "properties": {
+        "ingressRef": {
+          "$ref": "#/$defs/IngressRef"
+        },
+        "state": {
+          "$ref": "#/$defs/IngressState"
+        },
+        "declaredContentType": {
+          "$ref": "#/$defs/ContentType"
+        },
+        "declaredByteLength": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "declaredDigest": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "observedDigest": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "observedByteLength": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scan": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ScanVerdict"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "quarantineReason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "objectRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ObjectRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "IngressRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/IngressData"
+        }
+      }
+    },
+    "ImagingWorkItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workItemRef",
+        "kind",
+        "reasonCode",
+        "explanation",
+        "evidenceRefs",
+        "owner",
+        "nextActionOwedBy",
+        "dueAt",
+        "priority",
+        "priorityRationale",
+        "suggestedNextAction",
+        "blockingDependencies"
+      ],
+      "properties": {
+        "workItemRef": {
+          "$ref": "#/$defs/EntityRef"
+        },
+        "kind": {
+          "enum": ["ingress_quarantined", "ingress_scan_pending", "ingress_incomplete", "image_unmatched"]
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "explanation": {
+          "type": "string",
+          "maxLength": 300,
+          "description": "Server-authored; never caller text."
+        },
+        "evidenceRefs": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "ref"],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "pattern": "^[a-z][A-Za-z]{0,63}$"
+              },
+              "ref": {
+                "$ref": "#/$defs/EntityRef"
+              }
+            }
+          }
+        },
+        "owner": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["queue", "principalRef"],
+          "properties": {
+            "queue": {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            "principalRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/EntityRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "nextActionOwedBy": {
+          "enum": ["practice", "patient", "payer", "vendor", "platform"]
+        },
+        "dueAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "priority": {
+          "enum": ["routine", "elevated", "urgent"]
+        },
+        "priorityRationale": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "suggestedNextAction": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "blockingDependencies": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "$ref": "#/$defs/ReasonCode"
+          }
+        },
+        "ageHours": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "description": "Imaging work item: the same exception-first shape as the S proposed WorkItem, with imaging kinds."
+    },
+    "ImagingWorkItemList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["asOf", "coverage", "count", "items"],
+          "properties": {
+            "asOf": {
+              "$ref": "#/$defs/Instant"
+            },
+            "coverage": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["status"],
+                  "properties": {
+                    "status": {
+                      "const": "available"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["status", "reason", "owner"],
+                  "properties": {
+                    "status": {
+                      "const": "unavailable"
+                    },
+                    "reason": {
+                      "$ref": "#/$defs/ReasonCode"
+                    },
+                    "owner": {
+                      "type": "string",
+                      "pattern": "^[A-Z][A-Z0-9-]{0,15}$"
+                    }
+                  }
+                }
+              ]
+            },
+            "count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "items": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "$ref": "#/$defs/ImagingWorkItem"
+              }
+            }
+          }
+        }
+      }
+    },
+    "IngressFailureQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {}
     }
   }
 }

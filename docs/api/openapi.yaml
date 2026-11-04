@@ -2802,6 +2802,168 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/imaging/ingress:
+    post:
+      operationId: imaging.ingress.begin
+      description: >-
+        Begin an ingress: declare media type, exact length, SHA-256 and provenance (and optionally the
+        patient the uploader names). Oversize is refused here. The bytes go to the content path on REST.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/IngressBegin'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/IngressBeginResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/ingress/failures:
+    get:
+      operationId: imaging.ingress.failures
+      description: >-
+        Work items for uploads that did not become objects: quarantined (with the gate that failed), held on
+        an undecided malware scan, or incomplete.
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ImagingWorkItemList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/ingress/{ingressRef}:
+    get:
+      operationId: imaging.ingress.read
+      description: >-
+        Read one ingress: declared and observed digest and length, scan verdict, quarantine reason and the
+        resulting object.
+      parameters:
+        - name: ingressRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/IngressRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/IngressRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/ingress/{ingressRef}/content:
+    post:
+      operationId: imaging.ingress.upload
+      description: >-
+        Upload the bytes of your own ingress (application/octet-stream, at most the declared length). Staged
+        only: nothing is available until completion. REST only.
+      parameters:
+        - name: ingressRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/IngressRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectBytes'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/IngressUploadResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/ingress/{ingressRef}/complete:
+    post:
+      operationId: imaging.ingress.complete
+      description: >-
+        Complete your own ingress: length, digest, malware scan (unknown is never clean) and magic-byte
+        media checks, then patient-scoped dedupe. A failed gate quarantines the bytes and refuses with the
+        reason; nothing failed is ever served.
+      parameters:
+        - name: ingressRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/IngressRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/IngressComplete'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/IngressCompleteResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   # --- end imaging ---
 components:
   securitySchemes:

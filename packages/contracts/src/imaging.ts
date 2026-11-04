@@ -168,3 +168,33 @@ export const validateObjectListQuery = def('ObjectListQuery');
 export const validateReadGrantRequest = def('ReadGrantRequest');
 export const validateReadGrantRevoke = def('ReadGrantRevoke');
 export const validateStorageReconcile = def('StorageReconcile');
+
+// I2 ingress.
+export type IngressState = 'awaiting_bytes' | 'staged' | 'accepted' | 'quarantined' | 'abandoned';
+export interface IngressBegin {
+  readonly contentType: ImagingContentType;
+  readonly byteLength: number;
+  readonly declaredDigest: string;
+  readonly provenance: ProvenanceInput;
+  readonly intendedPatientRef?: string;
+}
+export interface IngressComplete {
+  readonly observedDigest: string;
+}
+export interface IngressRead {
+  readonly ingressRef: string;
+  readonly state: IngressState;
+  readonly declaredContentType: ImagingContentType;
+  readonly declaredByteLength: number;
+  readonly declaredDigest: string;
+  readonly observedDigest: string | null;
+  readonly observedByteLength: number | null;
+  readonly scan: ScanVerdict | null;
+  readonly quarantineReason: string | null;
+  readonly objectRef: string | null;
+  readonly createdAt: string;
+  readonly version: number;
+}
+export const validateIngressBegin = def('IngressBegin');
+export const validateIngressComplete = def('IngressComplete');
+export const validateIngressFailureQuery = def('IngressFailureQuery');

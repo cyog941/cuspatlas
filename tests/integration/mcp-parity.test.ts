@@ -143,6 +143,10 @@ const TOOL_NAMES = [
   'imaging_objects_grant_read',
   'imaging_objects_revoke_grant',
   'imaging_storage_reconcile',
+  'imaging_ingress_begin',
+  'imaging_ingress_failures',
+  'imaging_ingress_get',
+  'imaging_ingress_complete',
 ].sort();
 
 let db: TestDatabase;

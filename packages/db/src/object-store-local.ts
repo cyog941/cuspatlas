@@ -121,6 +121,13 @@ export function createLocalObjectStore(options: LocalObjectStoreOptions): Object
       checkStaging(tenantId, stagingKey);
       if (!DIGEST_RE.test(expectedDigest)) throw new ObjectStoreError('digest_mismatch');
       const staged = pathOf(stagingKey);
+      if (!(await exists(staged))) {
+        // Retry after a promotion whose database transaction rolled back: the bytes already moved to
+        // their content key; verify them there instead of failing.
+        const current = await readFile(pathOf(contentKey(tenantId, expectedDigest))).catch(fsFailure);
+        if (sha256(current) !== expectedDigest) throw new ObjectStoreError('digest_mismatch');
+        return { storageKey: contentKey(tenantId, expectedDigest), created: false };
+      }
       const bytes = await readFile(staged).catch(fsFailure);
       if (sha256(bytes) !== expectedDigest) throw new ObjectStoreError('digest_mismatch');
       const out = await storeContent(tenantId, bytes, expectedDigest);

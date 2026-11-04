@@ -10,6 +10,7 @@ export const IMAGING_TRANSPORT: Record<string, string> = {
   idempotencyKey: 'IdempotencyKey',
   objectRef: 'ObjectRef',
   grantRef: 'GrantRef',
+  ingressRef: 'IngressRef',
 };
 
 /** Input schema = the REST body (or GET query) properties plus path parameters and `idempotencyKey`. */

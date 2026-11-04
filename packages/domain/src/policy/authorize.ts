@@ -151,6 +151,12 @@ export const ACTION_POLICIES = {
   // Capability probe: revoking another principal's grant needs imaging.write.
   'imaging.grants.revokeAny': { scope: 'imaging.write', principals: ['human', 'service'] },
   'imaging.storage.reconcile': { scope: 'admin.configure', principals: ['human', 'service'] },
+  // I2 ingress: staging and completing an upload is imaging work (a bridge may be a service principal).
+  'imaging.ingress.begin': { scope: 'imaging.write', principals: ['human', 'service'] },
+  'imaging.ingress.upload': { scope: 'imaging.write', principals: ['human', 'service'] },
+  'imaging.ingress.complete': { scope: 'imaging.write', principals: ['human', 'service'] },
+  'imaging.ingress.read': { scope: 'imaging.read', principals: ['human', 'service'] },
+  'imaging.ingress.failures': { scope: 'imaging.read', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

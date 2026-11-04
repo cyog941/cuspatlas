@@ -10,7 +10,11 @@ const FILE = resolve(import.meta.dirname, '../docs/api/openapi.yaml');
 const START = '  # --- imaging (generated from IMAGING_OPS by scripts/gen-imaging-openapi.ts) ---';
 const END = '  # --- end imaging ---';
 const REF = '../../packages/contracts/src/imaging.schema.json#/$defs/';
-const PARAM_DEF: Record<string, string> = { objectRef: 'ObjectRef', grantRef: 'GrantRef' };
+const PARAM_DEF: Record<string, string> = {
+  objectRef: 'ObjectRef',
+  grantRef: 'GrantRef',
+  ingressRef: 'IngressRef',
+};
 const defs = imagingSchema.$defs as Record<string, { properties?: Record<string, { $ref?: string }> }>;
 
 const wrap = (text: string, indent: string) => {

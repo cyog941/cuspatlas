@@ -1,4 +1,5 @@
 import { createImagingBase, type ImagingDeps } from './base';
+import { createIngressOperations, sweepAbandonedIngress } from './ingress';
 import { createObjectOperations } from './objects';
 
 /**
@@ -8,7 +9,8 @@ import { createObjectOperations } from './objects';
 export function createImagingService(deps: ImagingDeps) {
   const base = createImagingBase(deps);
   return {
-    ...createObjectOperations(base, [], []),
+    ...createObjectOperations(base, [], [sweepAbandonedIngress]),
+    ...createIngressOperations(base),
   };
 }
 

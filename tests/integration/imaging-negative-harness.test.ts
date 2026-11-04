@@ -8,6 +8,7 @@ import {
   type ImagingStack,
   pngBytes,
   putFixtureObject,
+  sha256,
   startImagingStack,
   type Who,
 } from './support/imaging-fixtures';
@@ -45,6 +46,14 @@ export interface ImagingHarnessRow {
   /** Absent for REST-only byte transports (no MCP tool exists). */
   mcpArgs?(f: ImagingFixture): Record<string, unknown>;
 }
+
+const HARNESS_BYTES = pngBytes(12);
+const BEGIN = {
+  contentType: 'image/png',
+  byteLength: HARNESS_BYTES.byteLength,
+  declaredDigest: sha256(HARNESS_BYTES),
+  provenance: { source: 'operatorUpload', originalFilename: `harness-${MARKER}.png` },
+};
 
 const toolOf = (operation: string) => IMAGING_OPS.find((o) => o.operationId === operation)?.tool ?? '';
 
@@ -115,6 +124,57 @@ export const ROWS: ImagingHarnessRow[] = [
     }),
     mcpArgs: () => ({ idempotencyKey: randomUUID() }),
   },
+  // I2 ingress.
+  {
+    operation: 'imaging.ingress.begin',
+    crossTenant: 'own_tenant_only',
+    downgradedTo: 'imagingReadOnly',
+    rest: () => ({ method: 'POST', url: '/v1/imaging/ingress', body: BEGIN, keyed: true, status: 201 }),
+    mcpArgs: () => ({ ...BEGIN, idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'imaging.ingress.upload',
+    crossTenant: 'not_found',
+    downgradedTo: 'imagingReadOnly',
+    rest: (x) => ({
+      method: 'POST',
+      url: `/v1/imaging/ingress/${x.ingress}/content`,
+      body: HARNESS_BYTES,
+      keyed: true,
+      status: 200,
+    }),
+  },
+  {
+    operation: 'imaging.ingress.complete',
+    crossTenant: 'not_found',
+    downgradedTo: 'imagingReadOnly',
+    rest: (x) => ({
+      method: 'POST',
+      url: `/v1/imaging/ingress/${x.staged}/complete`,
+      body: { observedDigest: sha256(HARNESS_BYTES) },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (x) => ({
+      ingressRef: x.staged,
+      observedDigest: sha256(HARNESS_BYTES),
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'imaging.ingress.read',
+    crossTenant: 'not_found',
+    downgradedTo: 'noImagingScopes',
+    rest: (x) => ({ method: 'GET', url: `/v1/imaging/ingress/${x.ingress}`, keyed: false, status: 200 }),
+    mcpArgs: (x) => ({ ingressRef: x.ingress }),
+  },
+  {
+    operation: 'imaging.ingress.failures',
+    crossTenant: 'own_tenant_only',
+    downgradedTo: 'noImagingScopes',
+    rest: () => ({ method: 'GET', url: '/v1/imaging/ingress/failures', keyed: false, status: 200 }),
+    mcpArgs: () => ({}),
+  },
 ];
 
 beforeAll(async () => {
@@ -128,7 +188,20 @@ beforeAll(async () => {
   const g = await s.inject('owner', 'POST', `/v1/imaging/objects/${object}/read-grants`, { ttlSeconds: 300 });
   expect(g.status).toBe(201);
   const grant = g.json.data as { grantRef: string; token: string };
-  f = { object, grant: grant.grantRef, token: grant.token };
+  const begin = async () => {
+    const r = await s.inject('owner', 'POST', '/v1/imaging/ingress', BEGIN, {
+      'idempotency-key': randomUUID(),
+    });
+    expect(r.status).toBe(201);
+    return (r.json.data as { ingressRef: string }).ingressRef;
+  };
+  const ingress = await begin();
+  const staged = await begin();
+  const up = await s.inject('owner', 'POST', `/v1/imaging/ingress/${staged}/content`, HARNESS_BYTES, {
+    'idempotency-key': randomUUID(),
+  });
+  expect(up.status).toBe(200);
+  f = { object, grant: grant.grantRef, token: grant.token, ingress, staged };
 });
 afterAll(async () => {
   await s?.close();

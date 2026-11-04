@@ -128,6 +128,73 @@ export const IMAGING_OPS: readonly ImagingOp[] = [
       'Integrity sweep: verify stored bytes of available objects against their digest and quarantine missing or altered ones (bounded per run).',
     invoke: (svc, actor, i) => svc.reconcileStorage(actor, env('imaging.storage.reconcile', i)),
   },
+  // I2 ingress: staging, gating and patient-scoped dedupe (bytes on REST only).
+  {
+    method: 'post',
+    path: '/v1/imaging/ingress',
+    operationId: 'imaging.ingress.begin',
+    protected: true,
+    requestBody: I('IngressBegin'),
+    success: { status: '201', schema: I('IngressBeginResult') },
+    refusals: COMMAND,
+    tool: 'imaging_ingress_begin',
+    description:
+      'Begin an ingress: declare media type, exact length, SHA-256 and provenance (and optionally the patient the uploader names). Oversize is refused here. The bytes go to the content path on REST.',
+    invoke: (svc, actor, i) => svc.beginIngress(actor, env('imaging.ingress.begin', i)),
+  },
+  {
+    method: 'get',
+    path: '/v1/imaging/ingress/failures',
+    operationId: 'imaging.ingress.failures',
+    protected: true,
+    success: { status: '200', schema: I('ImagingWorkItemList') },
+    refusals: ['401', '403', '503'],
+    tool: 'imaging_ingress_failures',
+    description:
+      'Work items for uploads that did not become objects: quarantined (with the gate that failed), held on an undecided malware scan, or incomplete.',
+    invoke: (svc, actor) => data(svc.listIngressFailures(actor)),
+  },
+  {
+    method: 'get',
+    path: '/v1/imaging/ingress/{ingressRef}',
+    operationId: 'imaging.ingress.read',
+    protected: true,
+    success: { status: '200', schema: I('IngressRead') },
+    refusals: READ,
+    tool: 'imaging_ingress_get',
+    description:
+      'Read one ingress: declared and observed digest and length, scan verdict, quarantine reason and the resulting object.',
+    invoke: (svc, actor, i) => data(svc.readIngress(actor, param(i, 'ingressRef'))),
+  },
+  {
+    method: 'post',
+    path: '/v1/imaging/ingress/{ingressRef}/content',
+    operationId: 'imaging.ingress.upload',
+    protected: true,
+    requestBody: I('ObjectBytes'),
+    requestMedia: 'application/octet-stream',
+    success: { status: '200', schema: I('IngressUploadResult') },
+    refusals: COMMAND,
+    restOnly: true,
+    tool: 'imaging_ingress_upload',
+    description:
+      'Upload the bytes of your own ingress (application/octet-stream, at most the declared length). Staged only: nothing is available until completion. REST only.',
+    invoke: (svc, actor, i) => svc.uploadIngressContent(actor, param(i, 'ingressRef'), i.key, i.body),
+  },
+  {
+    method: 'post',
+    path: '/v1/imaging/ingress/{ingressRef}/complete',
+    operationId: 'imaging.ingress.complete',
+    protected: true,
+    requestBody: I('IngressComplete'),
+    success: { status: '201', schema: I('IngressCompleteResult') },
+    refusals: COMMAND,
+    tool: 'imaging_ingress_complete',
+    description:
+      'Complete your own ingress: length, digest, malware scan (unknown is never clean) and magic-byte media checks, then patient-scoped dedupe. A failed gate quarantines the bytes and refuses with the reason; nothing failed is ever served.',
+    invoke: (svc, actor, i) =>
+      svc.completeIngress(actor, param(i, 'ingressRef'), env('imaging.ingress.complete', i)),
+  },
 ];
 
 /** The route contracts only (spread into ROUTES). */

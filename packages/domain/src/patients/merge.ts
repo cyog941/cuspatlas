@@ -173,6 +173,16 @@ export const MERGE_EXCLUDED_REFERENCES: readonly { table: string; column: string
   },
   { table: 'patients', column: 'merged_into', why: 'the merge link itself' },
   {
+    table: 'imaging_ingress_sessions',
+    column: 'intended_patient_id',
+    why: 'I2: what the uploader named at upload time (a match candidate, never an association); the association decision is the record that follows the patient',
+  },
+  {
+    table: 'imaging_objects',
+    column: 'dedupe_patient_id',
+    why: 'I2: the dedupe scope recorded at ingress; the association decision is the record that follows the patient',
+  },
+  {
     table: 'patient_status_history',
     column: 'patient_id',
     why: 'status facts stay with the identity they describe',

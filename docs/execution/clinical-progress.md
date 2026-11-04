@@ -15,7 +15,7 @@ Clinical semantics need dentist validation, which was not available. Per AGENTS.
 | C-S1 chart semantics decision record | recommended-pending-clinical-approval (no reviewer) | e4bcc6e | ADR 0005 |
 | C-S2 note signing decision record | recommended-pending-clinical-approval (no reviewer) | e4bcc6e | ADR 0006 |
 | C5 encounter and clinical authorship | verified on synthetic data (Windows host); semantics pending clinical approval | b0e6d6f | 703 tests |
-| C8 medical history, allergies, medications | verified on synthetic data (Windows host); semantics pending clinical approval | (this commit) | 743 tests |
+| C8 medical history, allergies, medications | verified on synthetic data (Windows host); semantics pending clinical approval | c16317f | 743 tests |
 
 ## Pending decisions (none decided)
 
@@ -104,3 +104,8 @@ Deviations: history items are addressed by `itemRef` and versions by `historyVer
 Seam for the integrator (S12 visit context, not edited here): S12 resolves C8 by reference with `resolveHistoryReference(tx, patientRef)` from `@cuspatlas/domain`, inside its own tenant transaction, after probing a clinical read (for example `clinical.history.alerts`) with `authorize` before the transaction; it records its own sensitive read and shows `unknown` as unknown (never as none). The returned shape carries no clinical text. Inputs for later tasks: C10 references `historyVersionRef` (the version a note was signed against); C6 and C9 reuse the encounter seam and the `SYN-` code pattern; C14 uses the treating/supervising assignments.
 
 Unresolved: C8-P2 (verifier roles) and C8-P3 (reason vocabulary) have no plan recommendation and block a user-facing release; S11 visit status still reports `clinicalCompletion: {ref: null, owner: 'C5'}` because S-owned code was not edited.
+
+### Batch 1 gate
+
+- `corepack pnpm run ci` at c16317f → exit 0: typecheck, lint, contract drift, 35 files / 743 tests passed (test summary 743/743), privacy scan ok, SBOM, evidence generated and verified (integrity and freshness only; controls unreviewed, not certified).
+- Status language: C5 and C8 are tested on synthetic data on a Windows host. Nothing is approved, deployed, compliant or clinically validated; every clinical semantic above is recommended-pending-clinical-approval or blocking.

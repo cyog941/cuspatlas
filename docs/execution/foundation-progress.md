@@ -24,13 +24,13 @@ Limitations: Windows-only spike; CI must prove the Linux path. The embedded bina
 
 | Batch | Status | Head SHA | Notes |
 |---|---|---|---|
-| E0 environment and baseline | verified | (this commit) | see above |
+| E0 environment and baseline | verified | d14c960 | see above |
 | E1 reproducible service (Task 1) | verified | bb25a6b | pnpm workspace, contracts, safe error boundary, ADR 0001 |
-| E2 identity and contracts (Tasks 2–3) | verified (revision cycle 1 applied) | Task 2 013ef79; Task 3 bd2cfc7; revision see git log | exit gate met on the Windows host; Linux CI pending (Task 8) |
-| E3 trustworthy mutations (Tasks 4–5) | verified | Task 4 473a748; Task 5 see git log | exit gate met on the Windows host; Linux CI pending (Task 8) |
-| E4 durable integrations (Task 6) | not started | | |
-| E5 programmatic control (Tasks 7–7a) | not started | | |
-| E6 reproducibility and recovery (Task 8) | not started | | |
+| E2 identity and contracts (Tasks 2–3) | verified (revision cycle 1 applied) | Task 2 013ef79; Task 3 bd2cfc7; revision 6f929ab | exit gate met on the Windows host; Linux CI pending first push |
+| E3 trustworthy mutations (Tasks 4–5) | verified | Task 4 473a748; Task 5 088d9d3; hardening 19abaa0 | exit gate met on the Windows host; Linux CI pending first push |
+| E4 durable integrations (Task 6) | verified | Task 6 8f45038; hardening f44ecfd | exit gate met on the Windows host; Linux CI pending first push |
+| E5 programmatic control (Tasks 7–7a) | verified | Task 7 07f182f (merge c34688e); Task 7a 337a4d5; hardening f44ecfd and 66b867a | exit gate met on the Windows host; Linux CI pending first push |
+| E6 reproducibility and recovery (Task 8) | verified on Windows host; Linux CI pending first push | part 1 da0aa1b, 3873252 (merge 6540a56); part 2 488b6d1, 370b9c8, 8607db7, cef109f; ledger/handoff: the commit containing this row | CI workflow configured but never run on GitHub |
 
 ## Command log
 
@@ -278,3 +278,70 @@ Base cef109f (E6 part 2 docs). This entry is committed as "Harden Task 7a after 
 - `corepack pnpm run ci`: exit 0, 19 files, 342 tests; privacy scan, SBOM, evidence and evidence-verify ok
 
 Unresolved: the approve-time version read is not locked (a relabel landing between approval and commit is still caught only at commit, by design); the griefing vector stays open until an operation policy chooses a mitigation.
+
+### E6 / Task 8 part 2: restore proof, privacy log, evidence manifest
+
+Base 6540a56 (Tasks 1-7a + CI, 299 tests). Commits 488b6d1 (backup/restore + restore-smoke), 370b9c8 (privacy-log), 8607db7 (evidence manifest), cef109f (restore runbook, ADR 0002, Task 8 decision record, development runbook links, SETUP status paragraph). Status: verified on the Windows host; Linux CI pending the first push. Decisions: foundation-contract-decisions.md ("Task record: F Task 8 recovery and assurance").
+
+Deviation from the brief, recorded as a decision: the brief assumed `pg_dump`/`pg_restore`/`psql` ship in `@embedded-postgres/windows-x64/native/bin`. They do not (only `initdb`, `pg_ctl`, `postgres`, checked in 17.11.0-beta.19), none is on PATH, and host installs are out of scope. The backup is therefore an in-repo logical export (`cuspatlas-logical-backup/1`) that needs no external binary; restore rebuilds the schema from the reviewed migrations and proves it equal to the source's catalog fingerprint. The Linux package contents were not inspected.
+
+Restore preservation (tests/integration/restore-smoke.test.ts; the whole snapshot is equal, including every outbox state, attempt, lease, next attempt and dead-letter reason, every receipt, every reservation state/digest/expiry, every proposal state/version/approval/digest/policy/expiry/result and every provenance row):
+
+| Entity | Before | After |
+|---|---|---|
+| tenants | 2 | 2 |
+| principals | 8 | 8 |
+| memberships | 9 | 9 |
+| synthetic_tasks (versions > 1 in both tenants) | 16 | 16 |
+| audit_events | 11 | 11 |
+| outbox_events (delivered, dead_letter `provider_rejected`, reconciliation, 2 leased with a future lease) | 11 | 11 |
+| delivery_receipts | 7 | 7 |
+| security_attempt_events | 3 | 3 |
+| command_idempotency (committed and failed) | 24 | 24 |
+| action_proposals (prepared, approved x2, committed, expired, rejected) | 6 | 6 |
+| action_proposal_provenance | 14 | 14 |
+
+On the restored database: cross-tenant read 404 and raw cross-tenant select 0 rows under `cuspatlas_app`; restored leased (lease in the future) and reconciliation (not due) events are not leased at all, then after expiry are only looked up (3 lookups, 0 sends) while the provider is unavailable, and delivered via `reconciled` with 0 sends once it answers, `attempt` +1 and +2 from the restored value; the committed proposal replays (`replayed: true`, version 2, no new audit row); the expired proposal and an approved one expired after restore fail `proposal_expired`; an approved proposal whose task moved fails `stale_version` and is rejected; the migrator returns `applied: []`, then refuses once a `schema_migrations` checksum is tampered.
+
+Deliberately incomplete or unsafe backups, each detected: (a1) receipts table omitted with a consistent manifest: `RestoreVerificationError` "table delivery_receipts exists in the schema but is missing from the backup"; (a2) one receipt row removed and the file digest recomputed: "6 rows restored, 7 backed up"; (b) one flipped byte: `backup_digest_mismatch`, no database created; edited manifest: `manifest_digest_mismatch`; (c) target = source: `target_is_source`; existing database: `target_exists`; the connection's database: `target_is_connection_database`; mismatched confirmation: `target_unconfirmed`; (d) no synthetic marker: `target_not_synthetic`; missing confirmation or target: `target_unconfirmed`; host 10.0.0.5: `host_not_allowed`; (e) a second throwaway cluster without `cuspatlas_app`: `runtime_role_missing` and no database created; after `CREATE ROLE cuspatlas_app NOLOGIN` the restore verifies and the runtime role sees 0 rows without tenant context. The backup refuses a directory inside the repository and a role filtered by RLS.
+
+Commands:
+- Red: `corepack pnpm test:integration -- restore-smoke` before the db package exported the new modules: exit 1, 16 skipped (`TypeError: createBackup is not a function`, after the fixture had been built). Honest note: backup.ts/restore.ts were written before the test file, as in earlier tasks; the mutation checks are the stronger evidence.
+- Mutation 1 (reverted): restore skips loading `delivery_receipts` (silent row loss): exit 1, the main restore itself fails with `restore verification failed (1): table delivery_receipts: 0 rows restored, 7 backed up`.
+- Mutation 2 (reverted): `target_exists` check removed: exit 1, 1 failed / 15 passed (case c).
+- Green: `corepack pnpm test:integration -- restore-smoke`: exit 0, 16 tests.
+- CLI: `pnpm restore` without `--confirm-target`: exit 3 (`target_unconfirmed`); with a 10.1.2.3 URL: exit 3 (`host_not_allowed`); unknown flag: exit 2; `pnpm backup` without env/`--out`: exit 2. No URL or password printed.
+- privacy-log: first run green, 10 tests (the code under test predates the file). Mutation (reverted): REST request serializer logs `url` and `headers`: exit 1, 1 failed / 9 passed (the log assertion). The scanner self-test catches marker, authorization header, SQL text and stack-trace lines from a throwaway Fastify logger.
+- evidence: first run 1 failed / 10 passed (a fixture bug in the test, fixed); green 11 tests. Mutation (reverted): reviewer allowlist, stale-evidence and artifact-digest checks disabled: exit 1, 3 failed / 8 passed.
+- Fresh at cef109f: `rm -rf node_modules artifacts apps/*/node_modules packages/*/node_modules tests/integration/node_modules && corepack pnpm install --frozen-lockfile`: exit 0; `corepack pnpm run ci`: exit 0, 19 files, 336 tests, privacy scan ok (161 tracked files), SBOM 270 components, evidence 4 controls all passed, evidence-verify ok, artifact scan ok; `corepack pnpm evidence-verify`: exit 0; one byte appended to `artifacts/sbom.cdx.json`: exit 1 `AS-04: artifact artifacts/sbom.cdx.json digest mismatch`.
+
+Unresolved: Linux CI and the GitHub artifact upload not run; the Linux embedded-postgres package was not inspected for `pg_dump`; backup authenticity (`manifest.sha256` is not a signature) and backup storage, retention, encryption and WORM are not addressed; restore holds each table in memory (synthetic scale only); no timed restore drill; the plan's "unauthorized download" evidence case is not tested here (CI artifacts are protected only by GitHub repository permissions); the evidence signature uses a per-run key (integrity, not identity); `cuspatlas_maintenance` is recommended but not created.
+
+## Handoff
+
+Head: the commit containing this section, on `codex/foundation-core` (not pushed). Base 6f560db (main, untouched).
+
+Passed checks on this host: typecheck, Biome lint, contract drift check, 19 test files / 342 tests (unit and integration against embedded PostgreSQL 17.11) after the Task 7a hardening, test summary, privacy scan of tracked files, CycloneDX SBOM (270 components), AS-01..AS-04 evidence manifest signed and verified, artifact privacy scan; evidence-verify exits 1 on a tampered artifact. The final fresh run on this head is reported with the batch handoff.
+
+Environment: Windows 11 Pro 10.0.26220, Node v24.13.1, corepack pnpm 10.18.3, Git 2.53.0, PostgreSQL 17.11 via embedded-postgres 17.11.0-beta.19, TypeScript 5.9.3, Vitest 4.1.12, Biome 2.6.4 (full set in docs/adr/0001-runtime.md).
+
+Residual limitations (every "Unresolved" item of the task records, collected):
+- Linux CI (ubuntu-24.04 verify job, Windows smoke job, cache, artifact upload, the Vitest `--outputFile.json` flag on the runner) has never run; branch protection and required checks are not configured; no Dependabot.
+- Supabase security advisors not run (no cloud connection by instruction); OpenAPI checked only by the in-repo drift check.
+- Some tests were written alongside or after their code (contracts unit test, migrate.test.ts, digest unit test, worker, proposal, restore and privacy code before their test files); mutation checks are recorded as the stronger evidence.
+- List cursor HMAC key is per process (multi-instance pagination needs a shared key).
+- The REST `pnpm start` (`apps/api/src/main.ts`) and the MCP entrypoints were exercised only through tests (`app.inject`, in-process listeners on port 0); neither was started as a process against a live database, and the MCP server has no `main.ts`.
+- Trace ids derive from the server correlation id; no OpenTelemetry/traceparent.
+- Maintenance role: `cuspatlas_maintenance` (BYPASSRLS limited by grants) recommended in ADR 0002, not created; tests use the embedded superuser.
+- Worker: the aggregate location is not rechecked at delivery for task events (field-names-only payload); tenant iteration/scheduling and an operator dead-letter re-drive path are not implemented; no real provider; deliver-timeout and quiet-period defaults untuned; the residual in-flight window beyond deliver timeout + quiet period relies on provider deduplication by delivery key.
+- MCP: no authorization server, dynamic client registration or consent (token validation only); no rate limiting; Origin, Host and 405/413/404 transport refusals are not recorded as security attempts (they occur before identity).
+- Proposals: proposer/approver memberships are loaded just before the commit transaction (a revocation in that window is not seen by that commit); human separation of duties not enforced; direct write routes remain for write-scoped principals; no live model, so no model/provider/prompt provenance; the approve-time version read is unlocked (commit stays authoritative); the payload-mismatch griefing vector is open by design (ADR 0010).
+- Audit tamper evidence against owner/superuser, production retention/archival and WORM storage are deployment gates.
+- Backup/restore: the E6 part 2 unresolved list above.
+- Evidence: per-run signing key; no organizational review (allowlist empty); unauthorized-download case not tested; 66 SBOM components without license data (foreign-platform optional packages, NOASSERTION); `pnpm audit` not rerun since Task 7.
+
+Rollback: nothing is deployed and no shared resource was changed. To roll back, do not merge `codex/foundation-core` (or revert its commits on a branch); main stays at 6f560db. Local state to discard: the worktree, `artifacts/`, `node_modules/`, and any `cuspatlas_synthetic_*` database or backup directory created by hand (test runs remove theirs; the embedded cluster lives in the OS temp directory and is deleted on stop).
+
+Completion language (AGENTS.md): the synthetic foundation is configured and tested on this Windows host. It is not approved (no independent sign-off of E6 yet), not deployed, not compliant (HIPAA or any regime), not certified (AS-01..AS-04 evidence is unreviewed; a passing test is not certification) and not clinically validated. It is not a production-ready PMS and holds no PHI.
+
+Next scoped recommendation: push the branch and open a draft PR so the Linux CI job runs; obtain the independent review of E6; then choose and authorize the first domain workstream plan. UI remains deferred.

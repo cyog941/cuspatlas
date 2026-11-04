@@ -25,7 +25,7 @@ Limitations: Windows-only spike; CI must prove the Linux path. The embedded bina
 | Batch | Status | Head SHA | Notes |
 |---|---|---|---|
 | E0 environment and baseline | verified | (this commit) | see above |
-| E1 reproducible service (Task 1) | not started | | |
+| E1 reproducible service (Task 1) | verified | see E1 log | pnpm workspace, contracts, safe error boundary, ADR 0001 |
 | E2 identity and contracts (Tasks 2–3) | not started | | |
 | E3 trustworthy mutations (Tasks 4–5) | not started | | |
 | E4 durable integrations (Task 6) | not started | | |
@@ -40,3 +40,17 @@ Each batch appends exact commands, exit codes and a safe result summary. No secr
 
 - `git worktree add -b codex/foundation-core <outside-OneDrive path> 6f560db` → exit 0
 - Scratchpad spike: `node spike.mjs` with `embedded-postgres@17.11.0-beta.19`, `pg@8.23.1` → exit 0, output summarized in the table above
+
+### E1 (Task 1)
+
+Acceptance cases: `/healthz` returns exactly `{status:'ok'}`; unknown route/method returns a typed safe 404 refusal; error mapping never copies messages, stacks, SQL or payloads; the marker `SYNTHETIC_SECRET_42` placed in path, query, headers and body never reaches the response body, headers or any captured log line (logger at `trace`); unknown runtime environment refuses to build; runtime JSON Schemas for `AuditEvent`/`SecurityAttemptEvent` reject extra fields and fabricated identity.
+
+- `corepack pnpm@10.18.3 --version` → exit 0 (corepack works without `corepack enable`; every command below is invoked as `corepack pnpm ...`)
+- `corepack pnpm install` → exit 0; blocked lifecycle scripts reviewed and allowed only for `@embedded-postgres/*` and `esbuild` (`onlyBuiltDependencies`)
+- Red: `corepack pnpm test -- service-boundary` before `apps/api` existed → exit 1 (`Failed to resolve entry for package "@cuspatlas/api"`)
+- Green: `corepack pnpm test -- service-boundary` → exit 0, 1 file, 5 tests (the `scripts/run-vitest.mjs` wrapper strips the literal `--` so the documented filter form works)
+- `rm -rf node_modules ... && corepack pnpm install --frozen-lockfile` → exit 0
+- `corepack pnpm typecheck` → exit 0; `corepack pnpm lint` → exit 0; `corepack pnpm test` → exit 0, 2 files, 11 tests (contracts unit 6, service-boundary 5)
+- `corepack pnpm licenses list --json` → exit 0, summarized in docs/adr/0001-runtime.md; `corepack pnpm audit` → no known vulnerabilities
+
+Unresolved: Linux CI not yet run (Task 8). The contracts unit test was written alongside the schemas rather than strictly red-first.

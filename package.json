@@ -1,0 +1,26 @@
+{
+  "name": "cuspatlas",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "packageManager": "pnpm@10.18.3",
+  "engines": {
+    "node": ">=24.13 <25"
+  },
+  "scripts": {
+    "test": "node scripts/run-vitest.mjs",
+    "test:integration": "node scripts/run-vitest.mjs --project integration",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "biome check .",
+    "migrate": "tsx packages/db/src/migrate-cli.ts",
+    "contract:check": "tsx scripts/check-contract-drift.ts"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.4",
+    "@types/node": "24.19.2",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "4.1.12"
+  }
+}

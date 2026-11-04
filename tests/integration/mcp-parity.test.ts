@@ -135,6 +135,8 @@ const TOOL_NAMES = [
   'scheduling_recall_create_task',
   'scheduling_recall_resolve_task',
   'scheduling_follow_up_worklist',
+  // S17 export.
+  'scheduling_export',
 ].sort();
 
 let db: TestDatabase;

@@ -12,7 +12,8 @@ export default defineConfig({
       {
         test: {
           name: 'integration',
-          include: ['tests/integration/*.test.ts'],
+          // Scenarios share the integration database server (one global setup).
+          include: ['tests/integration/*.test.ts', 'tests/scenarios/*.test.ts'],
           globalSetup: ['tests/integration/support/global-setup.ts'],
           env: { CUSPATLAS_ENV: 'synthetic-test' },
           testTimeout: 30_000,

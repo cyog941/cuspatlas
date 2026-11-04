@@ -484,6 +484,19 @@ export const SCHEDULING_OPS: readonly SchedulingOp[] = [
       'Follow-up work items: open recall tasks, unbooked requests and requests whose booking was lost, each with reason, owner, due time and next action. Treatment, lab and referral follow-up are listed as not covered (C11, C16, C17).',
     invoke: (svc, actor, i) => data(svc.followUpWorklist(actor, i.body)),
   },
+  // S17 minimal export (M1 owns the full export contract).
+  {
+    method: 'get',
+    path: '/v1/scheduling/export',
+    operationId: 'scheduling.export',
+    protected: true,
+    success: { status: '200', schema: S('SchedulingExport') },
+    refusals: ['401', '403', '503'],
+    tool: 'scheduling_export',
+    description:
+      'Versioned JSON export of every scheduling and patient record of the tenant (references preserved, no tenant field). Tenant-wide human administrators only; sensitive-read logged.',
+    invoke: (svc, actor) => data(svc.exportScheduling(actor)),
+  },
 ];
 
 /** The route contracts only (spread into ROUTES). */

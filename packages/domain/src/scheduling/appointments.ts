@@ -2,6 +2,7 @@ import type { ActorContext, CommandEnvelope, TenantTransaction } from '@cuspatla
 import { createAppointmentBase } from './appointment-base';
 import { bookingAttendanceGuard, createAttendanceOperations } from './attendance';
 import { createBookingOperations, loadAppointment } from './booking';
+import { createExportOperations } from './export';
 import { createNotificationOperations } from './notification-intent';
 import { createRecallOperations } from './recall';
 import { createRecurrenceOperations, recordSeriesException } from './recurrence';
@@ -39,6 +40,7 @@ export function createAppointmentService(deps: SchedulingDeps) {
   const notifications = createNotificationOperations(base);
   const waitlist = createWaitlistOperations(base);
   const recall = createRecallOperations(base);
+  const exports = createExportOperations(base);
   const bookingStillActive = async (tx: TenantTransaction, appointmentId: string) => {
     const { rows } = await tx.query<{ status: string }>(
       'SELECT status FROM cuspatlas.appointments WHERE id = $1',
@@ -55,6 +57,7 @@ export function createAppointmentService(deps: SchedulingDeps) {
     ...notifications,
     ...waitlist,
     ...recall,
+    ...exports,
     reopenRequest: (ctx: ActorContext, requestRef: string, envelope: CommandEnvelope<unknown>) =>
       requests.reopenRequest(ctx, requestRef, envelope, bookingStillActive),
     rescheduleAppointment: (ctx: ActorContext, appointmentRef: string, envelope: CommandEnvelope<unknown>) =>

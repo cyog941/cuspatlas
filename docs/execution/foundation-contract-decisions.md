@@ -284,3 +284,8 @@ Additions only; no frozen row changed. Synthetic data only. Policy items come fr
 - Operations `scheduling.recall.definePolicy` (`admin.configure`), `.policies|due` (`scheduling.read`), `.createTask|resolveTask` (`scheduling.write`); `scheduling.followUp.worklist` (`scheduling.read`). Human or service.
 - Storage (migration `20261107040000_recall.sql`): append-only `recall_policies` (unique tenant, category, version; basis CHECK allows `attended_visit` only until C14), `recall_tasks` (one open task per patient and policy version; resolved with a reason, never deleted; merge-excluded).
 - The due list is computed on read from stored state (appointments, S11 attendance, patients, open tasks) and states policy version and freshness; S owns recall policy and due computation, E6 consumes due items for enrollment and decides contact. `WorkItemList` gains optional `notCovered = [{area, owner, reason}]` for areas whose producer is not deployed.
+
+## Task record: S17 parity, export and scenario (batch 3, 2026-11-07)
+
+- Operation `scheduling.export` (`admin.configure`, human only, tenant-wide members only; sensitive-read logged): format `cuspatlas-scheduling-export/1`, tables `SCHEDULING_EXPORT_TABLES` in foreign-key order, rows without `tenant_id`. `importSchedulingExport` in `packages/db` is a privileged synthetic-only round-trip loader, not the M1 import.
+- The integration vitest project also runs `tests/scenarios/*.test.ts` (one global database setup).

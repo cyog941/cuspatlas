@@ -4726,6 +4726,36 @@
           "$ref": "#/$defs/LocationRef"
         }
       }
+    },
+    "SchedulingExport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["format", "exportedAt", "tables"],
+          "description": "S17 minimal scheduling export (the full export contract, manifest and completeness validation are M1). One array of row objects per table, foreign-key order, references preserved, no tenant field.",
+          "properties": {
+            "format": {
+              "const": "cuspatlas-scheduling-export/1"
+            },
+            "exportedAt": {
+              "$ref": "#/$defs/Instant"
+            },
+            "tables": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

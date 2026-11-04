@@ -746,6 +746,17 @@ export const COMMANDS: HarnessCommand[] = [
   ...waitlistRows(),
   // S16 recall and the PT-03 follow-up worklist.
   ...recallRows(),
+  // S17 minimal export: another tenant exports only its own records (which legitimately include the
+  // marker its own harness create wrote; that alpha records never appear in a beta export is asserted
+  // in scheduling-export.test.ts).
+  {
+    operation: 'scheduling.export',
+    tool: 'scheduling_export',
+    crossTenant: 'own_tenant_only',
+    downgradedTo: 'readOnly',
+    rest: () => ({ method: 'GET', url: '/v1/scheduling/export', keyed: false, status: 200 }),
+    mcpArgs: () => ({}),
+  },
 ];
 
 const APPT = '/v1/scheduling/appointments';

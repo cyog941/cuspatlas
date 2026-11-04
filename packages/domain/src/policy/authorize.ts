@@ -139,6 +139,8 @@ export const ACTION_POLICIES = {
   'scheduling.recall.resolveTask': { scope: 'scheduling.write', principals: ['human', 'service'] },
   // PT-03 (S part): the follow-up worklist of recall tasks and unbooked or lost-booking requests.
   'scheduling.followUp.worklist': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  // S17 minimal scheduling export: a tenant-wide human administrator only (sensitive-read logged).
+  'scheduling.export': { scope: 'admin.configure', principals: ['human'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

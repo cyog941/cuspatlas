@@ -878,3 +878,49 @@ export const validateRecallDueQuery = def('RecallDueQuery');
 export const validateRecallTaskCreate = def('RecallTaskCreate');
 export const validateRecallTaskResolve = def('RecallTaskResolve');
 export const validateFollowUpWorklistQuery = def('FollowUpWorklistQuery');
+
+/**
+ * S17 minimal scheduling export (S scope; the full export contract is M1). Versioned; one array of
+ * row objects per table in foreign-key order, references preserved, no tenant field.
+ */
+export const SCHEDULING_EXPORT_FORMAT = 'cuspatlas-scheduling-export/1';
+export const SCHEDULING_EXPORT_TABLES = [
+  'scheduling_policy_settings',
+  'scheduling_attendance_reasons',
+  'scheduling_locations',
+  'scheduling_resources',
+  'scheduling_availability_versions',
+  'scheduling_offer_policies',
+  'scheduling_time_blocks',
+  'patients',
+  'patient_status_history',
+  'patient_relationships',
+  'patient_merges',
+  'patient_merge_moves',
+  'patient_merge_reversals',
+  'appointment_requests',
+  'appointment_request_transitions',
+  'scheduling_holds',
+  'appointments',
+  'scheduling_occupancy',
+  'appointment_lifecycle_events',
+  'appointment_overrides',
+  'appointment_attendance_transitions',
+  'visit_context_items',
+  'appointment_series',
+  'appointment_series_occurrences',
+  'appointment_series_exceptions',
+  'notification_intents',
+  'waitlist_entries',
+  'cancellation_recoveries',
+  'scheduling_standing_policies',
+  'waitlist_offers',
+  'recall_policies',
+  'recall_tasks',
+] as const;
+export type SchedulingExportTable = (typeof SCHEDULING_EXPORT_TABLES)[number];
+export interface SchedulingExport {
+  readonly format: typeof SCHEDULING_EXPORT_FORMAT;
+  readonly exportedAt: string;
+  readonly tables: Readonly<Record<string, readonly Record<string, unknown>[]>>;
+}

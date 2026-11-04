@@ -349,3 +349,16 @@ Next scoped recommendation: push the branch and open a draft PR so the Linux CI 
 ### Post-handoff fix: timing margin in one worker-recovery test
 
 The final fresh `corepack pnpm run ci` on d380955 failed once: 1 failed / 341 passed. In worker-recovery "accepted, but the response never returns ..." (lease 0.3 s, deliver timeout 0.2 s) the slow worker returned `lease-lost` instead of `reconciliation`: under full-suite load (the restore test now starts a second embedded cluster concurrently) the lease check, the 0.2 s deliver timeout and the fenced finalization took longer than the 0.3 s lease. The worker behaved safely (fenced off, no second send); the margin was too tight for the assertion. Three isolated reruns of worker-recovery passed 22/22 before the change. Fix: that case uses a 0.6 s lease (deliver timeout unchanged at 0.2 s, so the timeout still ends the attempt inside the lease; the quiet-period assertions do not depend on the lease). No product code changed. The final fresh run result is in the batch report.
+
+## Clean-checkout reproduction (orchestrator, 2026-11-04)
+
+Independent of every worker run above, the branch at `170cbd9` was cloned fresh with `git clone --branch codex/foundation-core` into a new directory outside the worktree and outside OneDrive, then:
+
+- `corepack pnpm install --frozen-lockfile` → exit 0
+- `corepack pnpm run ci` → exit 0: typecheck, lint, contract drift check, 19 files / 342 tests, privacy scan ok (162 tracked files), SBOM 270 components, evidence manifest 4 controls, evidence-verify ok, artifact scan ok
+- `corepack pnpm evidence-verify` → exit 0; after appending one byte to `artifacts/sbom.cdx.json` → exit 1 (`AS-04: artifact artifacts/sbom.cdx.json digest mismatch`)
+- No `postgres.exe` left running.
+
+Observed limitation: an identical clone placed under the user's `%TEMP%` directory failed at PostgreSQL initialisation with Windows status `0xC0000006` on every attempt; the same binaries work from a normal path. Treat the Temp directory as unsupported for the embedded server's binaries on this host (likely an execution policy on that folder; not root-caused). Each failed initialisation left its `cuspatlas-pg-*` data directory behind; cleanup on init failure is a known gap in the test global setup, listed under residual limitations.
+
+Linux CI remains unverified until the first push.

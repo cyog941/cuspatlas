@@ -24,6 +24,7 @@ const tools = TOOLS.filter((t) => isScheduling(t.operationId));
 const LIST_QUERIES: Record<string, string> = {
   'scheduling.resources.list': 'ResourceListQuery',
   'scheduling.locations.list': 'LocationListQuery',
+  'scheduling.requests.list': 'AppointmentRequestListQuery',
 };
 function restShape(route: (typeof routes)[number]): { properties: Schema; required?: string[] } {
   if (route.requestBody !== undefined) {
@@ -41,6 +42,7 @@ function transportOf(route: (typeof routes)[number]): string[] {
     out.push('idempotencyKey');
   if (route.path.includes('{resourceRef}')) out.push('resourceRef');
   if (route.path.includes('{locationRef}')) out.push('locationRef');
+  for (const p of ['requestRef', 'appointmentRef', 'holdRef']) if (route.path.includes(`{${p}}`)) out.push(p);
   return out.sort();
 }
 
@@ -80,6 +82,9 @@ describe('REST/MCP contract drift (scheduling resources and availability)', () =
       idempotencyKey: 'IdempotencyKey',
       resourceRef: 'ResourceRefId',
       locationRef: 'LocationRef',
+      requestRef: 'RequestRef',
+      appointmentRef: 'AppointmentRef',
+      holdRef: 'HoldRef',
     };
     for (const p of transport) {
       expect(resolve(schema.properties[p], local)).toStrictEqual(

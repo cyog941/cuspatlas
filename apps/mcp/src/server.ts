@@ -26,6 +26,7 @@ import {
   type AttemptRecordingDeps,
   type CommandExecutor,
   type CursorCodec,
+  createAppointmentService,
   createAuthorize,
   createPatientService,
   createProposalService,
@@ -42,6 +43,7 @@ import {
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
 import { assertDistinctAudience, assertIdentityAllowed, createMcpAuthenticator } from './auth';
+import { APPOINTMENT_TOOLS } from './tools/appointments';
 import { PATIENT_TOOLS } from './tools/patients';
 import { PROPOSAL_TOOLS } from './tools/proposals';
 import { SCHEDULING_TOOLS } from './tools/scheduling';
@@ -116,6 +118,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   ...PROPOSAL_TOOLS,
   ...PATIENT_TOOLS,
   ...SCHEDULING_TOOLS,
+  ...APPOINTMENT_TOOLS,
 ];
 
 /** Path parameters of the REST twin. A malformed one is a 404 there, decided by the domain. */
@@ -127,6 +130,9 @@ const REF_PARAMS = [
   'mergeRef',
   'resourceRef',
   'locationRef',
+  'requestRef',
+  'appointmentRef',
+  'holdRef',
 ] as const;
 const PLACEHOLDER_REF = '00000000-0000-4000-8000-000000000000';
 
@@ -223,7 +229,13 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     recording,
     execute: deps.execute ?? executeOnce,
   });
-  const toolDeps: ToolDeps = { service, proposals, patients, scheduling, authorize, recording };
+  const appointments = createAppointmentService({
+    authorize,
+    withTenantTransaction: deps.tenantTransactions,
+    recording,
+    execute: deps.execute ?? executeOnce,
+  });
+  const toolDeps: ToolDeps = { service, proposals, patients, scheduling, appointments, authorize, recording };
   const allowedOrigins = new Set(deps.allowedOrigins ?? []);
   if (deps.env !== 'synthetic-test' && !deps.resourceMetadataUrl) {
     throw new Error('Refusing to start: resourceMetadataUrl must be configured outside synthetic-test');

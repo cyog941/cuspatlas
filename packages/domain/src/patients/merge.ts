@@ -44,7 +44,7 @@ export const MERGE_POLICY_VERSION = 'patient-merge.pending-approval.1';
  */
 export interface MergeRecordClass {
   readonly recordClass: string;
-  readonly table: 'patient_relationships';
+  readonly table: 'patient_relationships' | 'appointment_requests';
   readonly column: 'subject_patient_id' | 'counterparty_patient_id';
   /** Public name of the reference in the record's contract. */
   readonly referenceField: string;
@@ -56,6 +56,23 @@ export interface MergeRecordClass {
 const RELATIONSHIP_DIGEST_EXCLUDE = [
   'subject_patient_id',
   'counterparty_patient_id',
+  'version',
+  'updated_at',
+];
+
+const REQUEST_DIGEST_EXCLUDE = [
+  'subject_patient_id',
+  'provider_preference_id',
+  'preferred_windows',
+  'flexibility',
+  'urgent',
+  'contact_consent',
+  'note',
+  'state',
+  'state_reason',
+  'appointment_id',
+  'expiry_policy_ref',
+  'closed_at',
   'version',
   'updated_at',
 ];
@@ -76,6 +93,18 @@ export const MERGE_RECORD_CLASSES: readonly MergeRecordClass[] = [
     referenceField: 'counterpartyRef',
     factKind: 'administrative',
     digestExclude: RELATIONSHIP_DIGEST_EXCLUDE,
+  },
+  // S8: an open (or closed) appointment request follows its patient. Lifecycle and preference
+  // columns change through later commands and are left out of the digest, so a later state change
+  // never blocks an unmerge; the digest covers the request's immutable facts (origin, channel,
+  // location, type, creator, creation).
+  {
+    recordClass: 'appointmentRequest',
+    table: 'appointment_requests',
+    column: 'subject_patient_id',
+    referenceField: 'patientRef',
+    factKind: 'administrative',
+    digestExclude: REQUEST_DIGEST_EXCLUDE,
   },
 ];
 
@@ -211,8 +240,9 @@ interface MoveRow extends Record<string, unknown> {
   content_digest_before: string;
 }
 
-const fieldOf = (column: string) =>
-  MERGE_RECORD_CLASSES.find((c) => c.column === column)?.referenceField ?? column;
+const fieldOf = (recordClass: string, column: string) =>
+  MERGE_RECORD_CLASSES.find((c) => c.recordClass === recordClass && c.column === column)?.referenceField ??
+  column;
 
 async function loadMerge(tx: TenantTransaction, mergeRef: string): Promise<MergeResult> {
   const { rows } = await tx.query<MergeRow>(`${MERGE_SELECT} WHERE m.id = $1`, [mergeRef]);
@@ -243,7 +273,7 @@ async function loadMerge(tx: TenantTransaction, mergeRef: string): Promise<Merge
       (r): MergeMove => ({
         recordClass: r.record_class,
         recordRef: r.record_ref,
-        referenceField: fieldOf(r.reference_column),
+        referenceField: fieldOf(r.record_class, r.reference_column),
         priorPatientRef: r.prior_patient_id,
         newPatientRef: r.new_patient_id,
       }),
@@ -309,7 +339,7 @@ async function relink(
     );
     const ids = before.rows
       .map((r) => r.id)
-      .filter((id) => only === undefined || only.has(`${cls.column}:${id}`));
+      .filter((id) => only === undefined || only.has(`${cls.recordClass}:${cls.column}:${id}`));
     if (ids.length === 0) continue;
     const after = await tx.query<{ id: string; version: number; digest: string }>(
       `UPDATE cuspatlas.${cls.table} r SET ${cls.column} = $1, version = version + 1, updated_at = now()
@@ -591,10 +621,14 @@ export function createMergeCommands(s: PatientServiceContext) {
                 [mergeRef],
               );
               // Every moved record must still reference the survivor; otherwise it was re-pointed since.
-              const wanted = new Set(moves.rows.map((m) => `${m.reference_column}:${m.record_ref}`));
+              const wanted = new Set(
+                moves.rows.map((m) => `${m.record_class}:${m.reference_column}:${m.record_ref}`),
+              );
               const restored = await relink(tx, survivor.id, merged.id, wanted);
-              const got = new Set(restored.map((r) => `${r.cls.column}:${r.id}`));
-              const missing = moves.rows.filter((m) => !got.has(`${m.reference_column}:${m.record_ref}`));
+              const got = new Set(restored.map((r) => `${r.cls.recordClass}:${r.cls.column}:${r.id}`));
+              const missing = moves.rows.filter(
+                (m) => !got.has(`${m.record_class}:${m.reference_column}:${m.record_ref}`),
+              );
               if (missing.length > 0) {
                 throw conflict(
                   'unmerge_blocked',
@@ -602,10 +636,13 @@ export function createMergeCommands(s: PatientServiceContext) {
                 );
               }
               const digests = new Map(
-                moves.rows.map((m) => [`${m.reference_column}:${m.record_ref}`, m.content_digest_before]),
+                moves.rows.map((m) => [
+                  `${m.record_class}:${m.reference_column}:${m.record_ref}`,
+                  m.content_digest_before,
+                ]),
               );
               for (const r of restored) {
-                if (digests.get(`${r.cls.column}:${r.id}`) !== r.digest)
+                if (digests.get(`${r.cls.recordClass}:${r.cls.column}:${r.id}`) !== r.digest)
                   throw new Error('content digest changed since merge');
                 await recordCommand(
                   tx,

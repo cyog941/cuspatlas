@@ -1,3 +1,5 @@
+import { APPOINTMENT_ROUTES } from './appointment-manifest';
+
 /**
  * Every HTTP operation the service implements, in OpenAPI path syntax. Routes are registered from
  * this table and the contract drift check compares it with docs/api/openapi.yaml, so the two cannot
@@ -323,6 +325,7 @@ export const ROUTES: readonly RouteContract[] = [
     success: { status: '200', schema: 'scheduling:AvailabilitySearchResult' },
     refusals: ['400', '401', '403', '404', '422', '503'],
   },
+  ...APPOINTMENT_ROUTES,
 ];
 
 export function routeFor(operationId: string): RouteContract & { fastifyPath: string } {

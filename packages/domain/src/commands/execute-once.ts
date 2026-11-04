@@ -11,7 +11,7 @@ import {
   type TenantTransaction,
 } from '@cuspatlas/contracts';
 import { PATIENT_REPLAY_CODECS } from '../patients/replay-codecs';
-import { SCHEDULING_REPLAY_CODECS } from '../scheduling/codecs';
+import { APPOINTMENT_REPLAY_CODECS, SCHEDULING_REPLAY_CODECS } from '../scheduling/codecs';
 import { idempotencyKeyDigest, payloadDigest } from './digest';
 import type { CommandExecutor } from './executor';
 import { SYNTHETIC_TASK_REPLAY_CODECS } from './replay-codecs';
@@ -205,5 +205,10 @@ export function createExecuteOnce(options: ExecuteOnceOptions): CommandExecutor 
 
 /** Default executor for every transport: durable idempotency over every registered operation. */
 export const executeOnce: CommandExecutor = createExecuteOnce({
-  codecs: { ...SYNTHETIC_TASK_REPLAY_CODECS, ...PATIENT_REPLAY_CODECS, ...SCHEDULING_REPLAY_CODECS },
+  codecs: {
+    ...SYNTHETIC_TASK_REPLAY_CODECS,
+    ...PATIENT_REPLAY_CODECS,
+    ...SCHEDULING_REPLAY_CODECS,
+    ...APPOINTMENT_REPLAY_CODECS,
+  },
 });

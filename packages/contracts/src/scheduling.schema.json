@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cuspatlas.invalid/schemas/scheduling/v1",
-  "title": "Scheduling resources and availability contract v1 (S7, S9; synthetic data only)",
+  "title": "Scheduling resources, availability, requests, booking and attendance contract v1 (S7-S11; synthetic data only)",
   "$defs": {
     "AvailabilityRequirement": {
       "type": "object",
@@ -528,6 +528,580 @@
         "version": { "$ref": "#/$defs/Version" },
         "correlationId": { "type": "string", "format": "uuid" },
         "replayed": { "type": "boolean" }
+      }
+    },
+    "PatientRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque patient reference (same pattern as patient.schema.json PatientRef)."
+    },
+    "RequestRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque appointment request reference."
+    },
+    "AppointmentRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Opaque appointment (booking) reference."
+    },
+    "ReasonCode": {
+      "type": "string",
+      "pattern": "^[a-z_]{1,64}$",
+      "description": "Server-checked reason enumeration value; never free text."
+    },
+    "AppointmentTypeCode": {
+      "type": "string",
+      "pattern": "^[a-z0-9_-]{1,40}$"
+    },
+    "PolicyRef": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,64}$"
+    },
+    "RequestState": {
+      "enum": ["open", "in_review", "scheduled", "declined", "expired", "withdrawn"]
+    },
+    "RequestOrigin": {
+      "description": "Server-set surface the request came through; never caller input.",
+      "enum": ["staff", "portal"]
+    },
+    "RequestSourceChannel": {
+      "enum": ["phone", "walk_in", "email", "portal", "referral", "recall", "other"]
+    },
+    "RequestFlexibility": {
+      "enum": ["any_time", "mornings", "afternoons", "evenings", "weekdays", "weekends"]
+    },
+    "ContactConsent": {
+      "description": "Contact-consent state as recorded on the request; the consent decision itself belongs to E.",
+      "enum": ["unknown", "granted", "declined"]
+    },
+    "RequestNote": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "PreferredWindow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["startsAt", "endsAt"],
+      "properties": {
+        "startsAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "endsAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "PreferredWindows": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "$ref": "#/$defs/PreferredWindow"
+      }
+    },
+    "AppointmentRequestCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "S8 request. Holds no resource and blocks no slot. Needs preferredWindows or flexibility (422 preferenceRequired).",
+      "required": ["patientRef", "locationRef", "sourceChannel", "contactConsent"],
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "sourceChannel": {
+          "$ref": "#/$defs/RequestSourceChannel"
+        },
+        "appointmentTypeCode": {
+          "$ref": "#/$defs/AppointmentTypeCode"
+        },
+        "providerPreference": {
+          "$ref": "#/$defs/ResourceRefId"
+        },
+        "preferredWindows": {
+          "$ref": "#/$defs/PreferredWindows"
+        },
+        "flexibility": {
+          "$ref": "#/$defs/RequestFlexibility"
+        },
+        "urgent": {
+          "type": "boolean"
+        },
+        "contactConsent": {
+          "$ref": "#/$defs/ContactConsent"
+        },
+        "note": {
+          "$ref": "#/$defs/RequestNote"
+        }
+      }
+    },
+    "AppointmentRequestPreferences": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "providerPreference": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ResourceRefId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "preferredWindows": {
+          "$ref": "#/$defs/PreferredWindows"
+        },
+        "flexibility": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RequestFlexibility"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "urgent": {
+          "type": "boolean"
+        },
+        "contactConsent": {
+          "$ref": "#/$defs/ContactConsent"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RequestNote"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "AppointmentRequestReview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "AppointmentRequestClose": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "state", "reasonCode"],
+      "description": "Close with a reason. `scheduled` requires appointmentRef (422 otherwise) and links both records; `expired` requires the configured expiryPolicyRef.",
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "state": {
+          "enum": ["scheduled", "declined", "expired", "withdrawn"]
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "appointmentRef": {
+          "$ref": "#/$defs/AppointmentRef"
+        },
+        "expiryPolicyRef": {
+          "$ref": "#/$defs/PolicyRef"
+        }
+      }
+    },
+    "AppointmentRequestReopen": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "reasonCode"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "AppointmentRequestListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "state": {
+          "$ref": "#/$defs/RequestState"
+        },
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "limit": {
+          "type": "string",
+          "pattern": "^([1-9]|[1-9][0-9]|100)$"
+        },
+        "cursor": {
+          "$ref": "#/$defs/Cursor"
+        }
+      }
+    },
+    "RequestTransition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to", "reasonCode", "appointmentRef", "occurredAt", "version"],
+      "properties": {
+        "from": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RequestState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "to": {
+          "$ref": "#/$defs/RequestState"
+        },
+        "reasonCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "appointmentRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AppointmentRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "occurredAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "AppointmentRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requestRef",
+        "patientRef",
+        "locationRef",
+        "origin",
+        "sourceChannel",
+        "appointmentTypeCode",
+        "providerPreference",
+        "preferredWindows",
+        "flexibility",
+        "urgent",
+        "contactConsent",
+        "note",
+        "state",
+        "stateReason",
+        "appointmentRef",
+        "version",
+        "createdAt",
+        "closedAt",
+        "transitions"
+      ],
+      "properties": {
+        "requestRef": {
+          "$ref": "#/$defs/RequestRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "origin": {
+          "$ref": "#/$defs/RequestOrigin"
+        },
+        "sourceChannel": {
+          "$ref": "#/$defs/RequestSourceChannel"
+        },
+        "appointmentTypeCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AppointmentTypeCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "providerPreference": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ResourceRefId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "preferredWindows": {
+          "$ref": "#/$defs/PreferredWindows"
+        },
+        "flexibility": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RequestFlexibility"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "urgent": {
+          "type": "boolean"
+        },
+        "contactConsent": {
+          "$ref": "#/$defs/ContactConsent"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RequestNote"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "$ref": "#/$defs/RequestState"
+        },
+        "stateReason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "appointmentRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AppointmentRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "closedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "transitions": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/RequestTransition"
+          }
+        }
+      }
+    },
+    "AppointmentRequestSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requestRef",
+        "patientRef",
+        "locationRef",
+        "state",
+        "urgent",
+        "appointmentRef",
+        "version",
+        "createdAt"
+      ],
+      "properties": {
+        "requestRef": {
+          "$ref": "#/$defs/RequestRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "state": {
+          "$ref": "#/$defs/RequestState"
+        },
+        "urgent": {
+          "type": "boolean"
+        },
+        "appointmentRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AppointmentRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "AppointmentRequestRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/AppointmentRequest"
+        }
+      }
+    },
+    "AppointmentRequestList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "nextCursor"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/AppointmentRequestSummary"
+          }
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Cursor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "AppointmentRequestCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["requestRef", "state"],
+          "properties": {
+            "requestRef": {
+              "$ref": "#/$defs/RequestRef"
+            },
+            "state": {
+              "$ref": "#/$defs/RequestState"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "UnbookedRequestReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["checkedAt", "count", "requests"],
+          "description": "Requests that reached a terminal state without a booking (at most 100 listed; count is the total).",
+          "properties": {
+            "checkedAt": {
+              "$ref": "#/$defs/Instant"
+            },
+            "count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "requests": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["requestRef", "locationRef", "state", "reasonCode", "closedAt"],
+                "properties": {
+                  "requestRef": {
+                    "$ref": "#/$defs/RequestRef"
+                  },
+                  "locationRef": {
+                    "$ref": "#/$defs/LocationRef"
+                  },
+                  "state": {
+                    "enum": ["declined", "expired", "withdrawn"]
+                  },
+                  "reasonCode": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/ReasonCode"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "closedAt": {
+                    "$ref": "#/$defs/Instant"
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     }
   }

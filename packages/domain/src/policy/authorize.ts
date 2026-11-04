@@ -63,6 +63,16 @@ export const ACTION_POLICIES = {
   'scheduling.resources.dataQuality': { scope: 'admin.configure', principals: ['human', 'service'] },
   'scheduling.timeBlocks.create': { scope: 'scheduling.write', principals: ['human', 'service'] },
   'scheduling.availability.search': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  // S8 appointment requests: staff record and work requests (scheduling.write); reads need
+  // scheduling.read. The portal (E3) will call the same create command with origin 'portal'.
+  'scheduling.requests.create': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.requests.updatePreferences': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.requests.review': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.requests.close': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.requests.reopen': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.requests.read': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  'scheduling.requests.list': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  'scheduling.requests.unbookedReport': { scope: 'scheduling.read', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

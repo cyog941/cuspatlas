@@ -11,6 +11,7 @@ import {
 } from '@cuspatlas/contracts';
 import {
   type ActionName,
+  type AppointmentService,
   type AttemptRecordingDeps,
   type Authorize,
   type PatientService,
@@ -87,6 +88,8 @@ export interface ToolDeps {
   readonly patients: PatientService;
   /** S7/S9 scheduling resources and availability (resources track). */
   readonly scheduling: SchedulingResourceService;
+  /** S8/S10/S11 appointment requests, booking and attendance. */
+  readonly appointments: AppointmentService;
   readonly authorize: Authorize;
   readonly recording: AttemptRecordingDeps;
 }
@@ -127,6 +130,9 @@ const KNOWN_PROPERTIES: ReadonlySet<string> = new Set([
   'patientRef',
   'relationshipRef',
   'mergeRef',
+  'requestRef',
+  'appointmentRef',
+  'holdRef',
 ]);
 
 const ajv = createAjv();

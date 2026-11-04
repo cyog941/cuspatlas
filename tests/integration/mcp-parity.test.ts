@@ -74,6 +74,15 @@ const TOOL_NAMES = [
   'patients_list_merge_history',
   'patients_merge',
   'patients_unmerge',
+  // S8 appointment request tools (parity in appointment-requests and negative-harness tests).
+  'scheduling_requests_close',
+  'scheduling_requests_create',
+  'scheduling_requests_get',
+  'scheduling_requests_list',
+  'scheduling_requests_reopen',
+  'scheduling_requests_review',
+  'scheduling_requests_unbooked_report',
+  'scheduling_requests_update_preferences',
 ].sort();
 
 let db: TestDatabase;

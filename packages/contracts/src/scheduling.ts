@@ -209,3 +209,115 @@ export const validateSchedulingLocationRef = def('LocationRef');
 export const validateSchedulingIdempotencyKey = def('IdempotencyKey');
 export const validateAppointmentOperatoryAssignment = def('AppointmentOperatoryAssignment');
 export const validateAvailabilitySearch = def('AvailabilitySearch');
+
+/** S8 appointment request (a separate fact from the booking). */
+export type RequestState = 'open' | 'in_review' | 'scheduled' | 'declined' | 'expired' | 'withdrawn';
+export type RequestOrigin = 'staff' | 'portal';
+export type RequestFlexibility =
+  | 'any_time'
+  | 'mornings'
+  | 'afternoons'
+  | 'evenings'
+  | 'weekdays'
+  | 'weekends';
+export type ContactConsent = 'unknown' | 'granted' | 'declined';
+export interface PreferredWindow {
+  readonly startsAt: string;
+  readonly endsAt: string;
+}
+export interface AppointmentRequestCreate {
+  readonly patientRef: string;
+  readonly locationRef: string;
+  readonly sourceChannel: string;
+  readonly appointmentTypeCode?: string;
+  readonly providerPreference?: string;
+  readonly preferredWindows?: readonly PreferredWindow[];
+  readonly flexibility?: RequestFlexibility;
+  readonly urgent?: boolean;
+  readonly contactConsent: ContactConsent;
+  readonly note?: string;
+}
+export interface AppointmentRequestPreferences {
+  readonly expectedVersion: number;
+  readonly providerPreference?: string | null;
+  readonly preferredWindows?: readonly PreferredWindow[];
+  readonly flexibility?: RequestFlexibility | null;
+  readonly urgent?: boolean;
+  readonly contactConsent?: ContactConsent;
+  readonly note?: string | null;
+}
+export interface AppointmentRequestReview {
+  readonly expectedVersion: number;
+}
+export interface AppointmentRequestClose {
+  readonly expectedVersion: number;
+  readonly state: 'scheduled' | 'declined' | 'expired' | 'withdrawn';
+  readonly reasonCode: string;
+  readonly appointmentRef?: string;
+  readonly expiryPolicyRef?: string;
+}
+export interface AppointmentRequestReopen {
+  readonly expectedVersion: number;
+  readonly reasonCode: string;
+}
+export interface AppointmentRequestListQuery {
+  readonly state?: RequestState;
+  readonly locationRef?: string;
+  readonly patientRef?: string;
+  readonly limit?: string;
+  readonly cursor?: string;
+}
+export interface RequestTransition {
+  readonly from: RequestState | null;
+  readonly to: RequestState;
+  readonly reasonCode: string | null;
+  readonly appointmentRef: string | null;
+  readonly occurredAt: string;
+  readonly version: number;
+}
+export interface AppointmentRequestSummary {
+  readonly requestRef: string;
+  readonly patientRef: string;
+  readonly locationRef: string;
+  readonly state: RequestState;
+  readonly urgent: boolean;
+  readonly appointmentRef: string | null;
+  readonly version: number;
+  readonly createdAt: string;
+}
+export interface AppointmentRequestRecord extends AppointmentRequestSummary {
+  readonly origin: RequestOrigin;
+  readonly sourceChannel: string;
+  readonly appointmentTypeCode: string | null;
+  readonly providerPreference: string | null;
+  readonly preferredWindows: readonly PreferredWindow[];
+  readonly flexibility: RequestFlexibility | null;
+  readonly contactConsent: ContactConsent;
+  readonly note: string | null;
+  readonly stateReason: string | null;
+  readonly closedAt: string | null;
+  readonly transitions: readonly RequestTransition[];
+}
+export interface RequestCommandData {
+  readonly requestRef: string;
+  readonly state: RequestState;
+}
+export interface UnbookedRequestReport {
+  readonly checkedAt: string;
+  readonly count: number;
+  readonly requests: readonly {
+    readonly requestRef: string;
+    readonly locationRef: string;
+    readonly state: 'declined' | 'expired' | 'withdrawn';
+    readonly reasonCode: string | null;
+    readonly closedAt: string;
+  }[];
+}
+
+export const validateAppointmentRequestCreate = def('AppointmentRequestCreate');
+export const validateAppointmentRequestPreferences = def('AppointmentRequestPreferences');
+export const validateAppointmentRequestReview = def('AppointmentRequestReview');
+export const validateAppointmentRequestClose = def('AppointmentRequestClose');
+export const validateAppointmentRequestReopen = def('AppointmentRequestReopen');
+export const validateAppointmentRequestListQuery = def('AppointmentRequestListQuery');
+export const validateSchedulingEntityRef = def('EntityRef');

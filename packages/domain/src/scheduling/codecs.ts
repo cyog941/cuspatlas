@@ -1,6 +1,7 @@
 import type {
   AvailabilitySummary,
   LocationSummary,
+  RequestCommandData,
   ResourceKind,
   ResourceSummary,
   TimeBlockSummary,
@@ -73,4 +74,29 @@ export const SCHEDULING_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<unkno
   'scheduling.resources.deactivate': resource('inactive') as ReplayCodec<unknown>,
   'scheduling.resources.setAvailability': availability as ReplayCodec<unknown>,
   'scheduling.timeBlocks.create': timeBlock as ReplayCodec<unknown>,
+};
+
+const REQUEST_STATES: readonly string[] = [
+  'open',
+  'in_review',
+  'scheduled',
+  'declined',
+  'expired',
+  'withdrawn',
+];
+/** S8: a request command stores its reference and the resulting state (a server enumeration). */
+const request: ReplayCodec<RequestCommandData> = {
+  persist: (d): StoredResult => ({ kind: 'success', requestRef: d.requestRef, state: d.state }),
+  restore(stored) {
+    if (stored.kind !== 'success' || !REQUEST_STATES.includes(String(stored.state))) throw malformed();
+    return { requestRef: ref(stored.requestRef), state: stored.state as RequestCommandData['state'] };
+  },
+};
+
+export const APPOINTMENT_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<unknown>>> = {
+  'scheduling.requests.create': request as ReplayCodec<unknown>,
+  'scheduling.requests.updatePreferences': request as ReplayCodec<unknown>,
+  'scheduling.requests.review': request as ReplayCodec<unknown>,
+  'scheduling.requests.close': request as ReplayCodec<unknown>,
+  'scheduling.requests.reopen': request as ReplayCodec<unknown>,
 };

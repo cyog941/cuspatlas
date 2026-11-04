@@ -1006,6 +1006,238 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/scheduling/appointment-requests:
+    post:
+      operationId: scheduling.requests.create
+      description: >-
+        Record an appointment request (S8, origin staff). A request is its own fact: it holds no resource, writes no occupancy and blocks no slot. The patient must be schedulable (409 with detail.reason patient_inactive, patient_deceased or patient_merged); another tenant's patient or location is 404. Needs preferredWindows or flexibility (422 preferenceRequired). Requires scheduling.write.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/AppointmentRequestCreate'
+      responses:
+        '201':
+          description: Request recorded in state open (version 1).
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/AppointmentRequestCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: scheduling.requests.list
+      description: >-
+        Open and in-review requests by default, or one state; filters by location and patient. Location-restricted callers see only their locations. Requires scheduling.read.
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: One bounded page of request summaries.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/AppointmentRequestList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/appointment-requests/{requestRef}:
+    get:
+      operationId: scheduling.requests.read
+      description: >-
+        One request with its append-only transition history. Hidden, other-location and missing requests return the same 404. Requires scheduling.read.
+      parameters:
+        - $ref: '#/components/parameters/RequestRef'
+      responses:
+        '200':
+          description: The request.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/AppointmentRequestRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/appointment-requests/{requestRef}/preferences:
+    post:
+      operationId: scheduling.requests.updatePreferences
+      description: >-
+        Replace the provided preference fields if expectedVersion matches (409 stale_version otherwise). Refused once the request is closed (409 request_closed). Requires scheduling.write.
+      parameters:
+        - $ref: '#/components/parameters/RequestRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/AppointmentRequestPreferences'
+      responses:
+        '200':
+          description: Preferences updated; version incremented.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/AppointmentRequestCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/appointment-requests/{requestRef}/review:
+    post:
+      operationId: scheduling.requests.review
+      description: >-
+        Move an open request to in_review (recorded transition). Requires scheduling.write.
+      parameters:
+        - $ref: '#/components/parameters/RequestRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/AppointmentRequestReview'
+      responses:
+        '200':
+          description: Request in review.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/AppointmentRequestCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/appointment-requests/{requestRef}/close:
+    post:
+      operationId: scheduling.requests.close
+      description: >-
+        Close a request with a reason code. scheduled requires appointmentRef (422 otherwise) and records the link on both records; expired requires the tenant's configured expiry policy reference (422 expiryPolicyNotConfigured without one). Concurrent closes give one transition and a 409. Requires scheduling.write.
+      parameters:
+        - $ref: '#/components/parameters/RequestRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/AppointmentRequestClose'
+      responses:
+        '200':
+          description: Request closed.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/AppointmentRequestCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/appointment-requests/{requestRef}/reopen:
+    post:
+      operationId: scheduling.requests.reopen
+      description: >-
+        Reopen a closed request with a reason code (never automatic). A request whose booking still stands is 409 booking_still_active. Requires scheduling.write.
+      parameters:
+        - $ref: '#/components/parameters/RequestRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/AppointmentRequestReopen'
+      responses:
+        '200':
+          description: Request open again.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/AppointmentRequestCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/reports/unbooked-requests:
+    get:
+      operationId: scheduling.requests.unbookedReport
+      description: >-
+        Requests that reached a terminal state (declined, expired, withdrawn) without ever becoming a booking, within the caller's locations. Requires scheduling.read.
+      responses:
+        '200':
+          description: The report (at most 100 listed; count is the total).
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/UnbookedRequestReport'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
 components:
   securitySchemes:
     bearer:
@@ -1043,6 +1275,12 @@ components:
       required: true
       schema:
         $ref: '../../packages/contracts/src/patient.schema.json#/$defs/MergeRef'
+    RequestRef:
+      name: requestRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/RequestRef'
     IdempotencyKey:
       name: Idempotency-Key
       in: header

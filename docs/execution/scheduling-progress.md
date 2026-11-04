@@ -213,3 +213,28 @@ Pending decisions (ADR 0009, all recommended-pending-approval, no decision-maker
 `tests/integration/resources-negative.test.ts` was folded into `tests/integration/negative-harness.test.ts` (11 S7/S9 rows plus the live-downgrade test; new cross-tenant mode `tenant_own_data` for tenant-scoped listings and a beta location define). No assertion was weakened: the harness checks the exact security-attempt reason per refused call (the old file counted rows), its state snapshot now covers every scheduling table plus audit/outbox/idempotency, refusals and own-tenant successes are scanned for the marker and for every alpha fixture reference. The matrix-length self-check of the old file was dropped (it only counted its own pushes). `seedSchedulingScopes` now tolerates `seedPatientScopes` having created the shared synthetic principal a5 (`ON CONFLICT DO NOTHING`). The resources ledger was appended above and its file deleted.
 
 Verification: `corepack pnpm install --frozen-lockfile` exit 0 (lockfile unchanged); before the fold `corepack pnpm test` exit 0, 28 files / 519 tests (342 + 96 + 81); after the fold `corepack pnpm run ci` exit 0, 27 files / 518 tests (the 35 resources-negative tests became 34 harness tests).
+
+### S8 appointment request as a separate fact
+
+Files: `supabase/migrations/20261106000000_appointment_requests.sql`, `packages/domain/src/scheduling/{appointment-base,appointments,requests}.ts`, `apps/api/src/routes/{appointments,appointment-manifest}.ts`, `apps/mcp/src/tools/appointments.ts`, S8 definitions in `packages/contracts/src/scheduling.schema.json`, `tests/integration/appointment-requests.test.ts`, `tests/integration/support/appointment-fixtures.ts`.
+
+Acceptance cases (`appointment-requests.test.ts`, REST under the runtime role):
+
+1. a request is created in `open` (version 1) with no appointment row, no occupancy row, and availability search still offers the requested window; urgency is a boolean flag; the note (carrying the marker) never reaches audit, outbox, attempts, idempotency or logs;
+2. the same key replays the same request (`replayed: true`); a second request for the patient is independent; both are listed;
+3. inactive and deceased patients are 409 `conflict` with `detail.reason` `patient_inactive` / `patient_deceased` (via `assertPatientSchedulable`), nothing written;
+4. another tenant's patient or location is 404 with the same body as a random reference;
+5. closing as `scheduled` without `appointmentRef` is 422 (`/appointmentRef` `required`) and changes nothing; review then decline produces three transitions (`null→open`, `open→in_review`, `in_review→declined` with reason) and three audit rows; the declined request is on the unbooked report, an open one is not;
+6. `expired` without a configured expiry policy is 422 `expiryPolicyNotConfigured`; with the tenant policy configured, a missing or different `expiryPolicyRef` is 422 and the matching one closes as `expired`;
+plus preference updates under `expectedVersion` (stale is 409 `stale_version`) and the stated-preference rule (422 `preferenceRequired`).
+
+Failure cases: (1) a merge re-points an open request to the survivor (registered in `MERGE_RECORD_CLASSES` as `appointmentRequest.subject_patient_id`, listed in merge history) and it stays open; (2) a deactivated location is 422 `/locationRef` `locationInactive`; (3) two concurrent closes of one request give 200 and 409 and exactly one closing transition; (4) reopening needs a reason code (400 without), works from a closed state and is 409 `request_not_closed` from `open`. A location-restricted scheduler gets 403 creating at another location (the location is named by the caller) and 404 reading another location's request (indistinguishable from missing), and never sees it listed.
+
+Negative harness: 8 rows (create, list, read, updatePreferences, review, close, reopen, unbookedReport) x cross-tenant / revoked / downgraded on REST and MCP; the harness state snapshot now covers `appointment_requests` and its transitions.
+
+- Red: `corepack pnpm test -- tests/integration/appointment-requests.test.ts` before implementation: exit 1, 13 failed / 1 passed (the cross-tenant case passed vacuously because the route returned 404 before it existed).
+- Green: same command exit 0, 14 passed. `typecheck`, `lint`, `contract:check` exit 0; `corepack pnpm test` exit 0, 28 files / 564 tests.
+
+Deviations: S8, S10 and S11 definitions live in `scheduling.schema.json` (one `scheduling:` drift prefix) instead of separate `appointment-request|booking|attendance.schema.json` files. `linkRequestToBooking` and close-as-`scheduled` need a booking, so they are completed in S10 (until then a named appointment is 404). Operation names are `scheduling.requests.*`. `origin` is a server parameter of `createRequest` (staff routes pass `staff`), never a body field. Other-location requests are 404 for location-restricted readers (the S7 resources returned 403; see the review hardening task).
+
+Unresolved: request reads are not written to the sensitive-read log (no scheduling read-audit decision exists); the request note is free text up to 500 characters with no classification beyond "never copied out of the request row"; there is no automatic expiry job (expiry is an explicit command under the configured policy, as the plan requires).

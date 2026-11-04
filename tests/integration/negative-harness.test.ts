@@ -462,8 +462,129 @@ export const COMMANDS: HarnessCommand[] = [
     }),
     mcpArgs: (f) => searchBody(f),
   },
+  // S8 appointment requests. Writes downgrade to a scheduling-read-only member; reads to a member
+  // holding no scheduling scope.
+  {
+    operation: 'scheduling.requests.create',
+    tool: 'scheduling_requests_create',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({ method: 'POST', url: REQ, body: requestBody(f), keyed: true, status: 201 }),
+    mcpArgs: (f) => ({ ...requestBody(f), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'scheduling.requests.list',
+    tool: 'scheduling_requests_list',
+    crossTenant: 'tenant_own_data',
+    downgradedTo: 'noPatientScopes',
+    rest: () => ({ method: 'GET', url: REQ, keyed: false, status: 200 }),
+    mcpArgs: () => ({}),
+  },
+  {
+    operation: 'scheduling.requests.read',
+    tool: 'scheduling_requests_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({ method: 'GET', url: `${REQ}/${f.alphaRequest}`, keyed: false, status: 200 }),
+    mcpArgs: (f) => ({ requestRef: f.alphaRequest }),
+  },
+  {
+    operation: 'scheduling.requests.updatePreferences',
+    tool: 'scheduling_requests_update_preferences',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `${REQ}/${f.alphaRequest}/preferences`,
+      body: { expectedVersion: 1, note: `Synthetic ${MARKER}` },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({
+      requestRef: f.alphaRequest,
+      expectedVersion: 1,
+      note: `Synthetic ${MARKER}`,
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'scheduling.requests.review',
+    tool: 'scheduling_requests_review',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `${REQ}/${f.alphaRequest}/review`,
+      body: { expectedVersion: 1 },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ requestRef: f.alphaRequest, expectedVersion: 1, idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'scheduling.requests.close',
+    tool: 'scheduling_requests_close',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `${REQ}/${f.alphaRequest}/close`,
+      body: { expectedVersion: 1, state: 'withdrawn', reasonCode: 'patient_request' },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({
+      requestRef: f.alphaRequest,
+      expectedVersion: 1,
+      state: 'withdrawn',
+      reasonCode: 'patient_request',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'scheduling.requests.reopen',
+    tool: 'scheduling_requests_reopen',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `${REQ}/${f.alphaClosedRequest}/reopen`,
+      body: { expectedVersion: 2, reasonCode: 'patient_called_back' },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({
+      requestRef: f.alphaClosedRequest,
+      expectedVersion: 2,
+      reasonCode: 'patient_called_back',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'scheduling.requests.unbookedReport',
+    tool: 'scheduling_requests_unbooked_report',
+    crossTenant: 'tenant_own_data',
+    downgradedTo: 'noPatientScopes',
+    rest: () => ({
+      method: 'GET',
+      url: '/v1/scheduling/reports/unbooked-requests',
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: () => ({}),
+  },
 ];
 
+const REQ = '/v1/scheduling/appointment-requests';
+function requestBody(f: HarnessFixture) {
+  return {
+    patientRef: f.alphaPatient,
+    locationRef: f.alphaLocation,
+    sourceChannel: 'phone',
+    contactConsent: 'granted',
+    flexibility: 'mornings',
+  };
+}
 function uniqueLocation(): string {
   return `loc-${randomUUID().slice(0, 8)}`;
 }
@@ -607,7 +728,29 @@ beforeAll(async () => {
       })
     ).statusCode,
   ).toBe(201);
+  // S8: one open request and one withdrawn request (version 2) at the alpha location.
+  const reqBody = {
+    patientRef: alphaPatient,
+    locationRef: alphaLocation,
+    sourceChannel: 'phone',
+    contactConsent: 'granted',
+    flexibility: 'mornings',
+  };
+  const openRequest = await owner(REQ, reqBody);
+  expect(openRequest.statusCode).toBe(201);
+  const closedRequest = (await owner(REQ, reqBody)).json().data.requestRef as string;
+  expect(
+    (
+      await owner(`${REQ}/${closedRequest}/close`, {
+        expectedVersion: 1,
+        state: 'withdrawn',
+        reasonCode: 'patient_request',
+      })
+    ).statusCode,
+  ).toBe(200);
   fixture = {
+    alphaRequest: openRequest.json().data.requestRef,
+    alphaClosedRequest: closedRequest,
     alphaLocation,
     alphaResource,
     alphaOtherResource,
@@ -718,6 +861,8 @@ async function state(): Promise<string> {
     await q('SELECT count(*)::int AS n FROM cuspatlas.scheduling_availability_versions'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.scheduling_time_blocks'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.scheduling_occupancy'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.appointment_requests'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.appointment_request_transitions'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.audit_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.outbox_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.command_idempotency'),

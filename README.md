@@ -19,6 +19,7 @@ Give dental practices ownership of their data and software, complete practice wo
 - [Research evidence and its limits](docs/RESEARCH.md)
 - [Authenticated Tab32 surface map](docs/TAB32-AUTHENTICATED-MAP.md)
 - [Tab32 HTTP surface and conventions](docs/TAB32-API-SURFACE.md)
+- [Tab32 domain model observations](docs/TAB32-DOMAIN-MODEL.md)
 - [Foundation status and Supabase provisioning](docs/SETUP.md)
 - [Delivery sequence](docs/ROADMAP.md)
 

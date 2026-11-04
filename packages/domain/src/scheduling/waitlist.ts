@@ -395,7 +395,12 @@ export function createWaitlistOperations(base: AppointmentBase) {
     decision: AuthorizationDecision,
     entry: EntryRow,
     window: WaitlistOffer,
-    o: { recoveryId: string | null; policy: PolicyRow | null; canReadBookings: boolean },
+    o: {
+      recoveryId: string | null;
+      policy: PolicyRow | null;
+      canReadBookings: boolean;
+      canReadPatients: boolean;
+    },
   ): Promise<{ data: OfferCommandData; version: number }> {
     if (entry.state === 'offered') throw refused('offer_pending');
     if (entry.state !== 'active') throw refused('entry_closed');
@@ -418,7 +423,7 @@ export function createWaitlistOperations(base: AppointmentBase) {
       throw failedAt('/provider', 'providerMismatch');
     }
     const extra: Conflict[] = [
-      ...(await patientConflicts(tx, entry.subject_patient_id)),
+      ...(await patientConflicts(tx, entry.subject_patient_id, o.canReadPatients)),
       ...(await availabilityConflicts(tx, prepared.resources, prepared.w, location.time_zone)),
     ];
     if (await patientBookedIn(tx, entry.subject_patient_id, prepared.w.s, prepared.w.e)) {
@@ -656,10 +661,16 @@ export function createWaitlistOperations(base: AppointmentBase) {
         const p = envelope.payload as WaitlistOffer;
         assertValid<WaitlistOffer>(validateWaitlistOffer, p, SCHEDULING_PROPERTIES);
         const canReadBookings = await base.can(ctx, 'scheduling.appointments.read');
+        const canReadPatients = await base.can(ctx, 'patients.read');
         return deps.withTenantTransaction(ctx, async (tx) => {
           const e = await loadEntry(tx, decision, entryRef, 'FOR UPDATE OF e');
           return execute<OfferCommandData>(ctx, { ...envelope, payload: { entryRef, ...p } }, tx, () =>
-            offerIn(tx, op, decision, e, p, { recoveryId: null, policy: null, canReadBookings }),
+            offerIn(tx, op, decision, e, p, {
+              recoveryId: null,
+              policy: null,
+              canReadBookings,
+              canReadPatients,
+            }),
           );
         });
       });
@@ -702,6 +713,7 @@ export function createWaitlistOperations(base: AppointmentBase) {
         const p = envelope.payload as OfferRespond;
         assertValid<OfferRespond>(validateOfferRespond, p, SCHEDULING_PROPERTIES);
         const canReadBookings = await base.can(ctx, 'scheduling.appointments.read');
+        const canReadPatients = await base.can(ctx, 'patients.read');
         return deps.withTenantTransaction(ctx, async (tx) => {
           const o = await loadOffer(tx, decision, offerRef, 'FOR UPDATE OF o');
           const entry = await loadEntry(tx, decision, o.entry_id, 'FOR UPDATE OF e');
@@ -745,6 +757,7 @@ export function createWaitlistOperations(base: AppointmentBase) {
                   rescheduledFrom: null,
                   ignoreSources: [hold.id],
                   canReadBookings,
+                  canReadPatients,
                   override: undefined,
                   canOverride: false,
                   extraConflicts: [],
@@ -959,6 +972,7 @@ export function createWaitlistOperations(base: AppointmentBase) {
         const p = envelope.payload as RecoveryExecute;
         assertValid<RecoveryExecute>(validateRecoveryExecute, p, SCHEDULING_PROPERTIES);
         const canReadBookings = await base.can(ctx, 'scheduling.appointments.read');
+        const canReadPatients = await base.can(ctx, 'patients.read');
         return deps.withTenantTransaction(ctx, async (tx) => {
           const r = await loadRecovery(tx, decision, recoveryRef, 'FOR UPDATE OF r');
           // Automation authority (PT-02): a person executing is the approval of the prepared offer; a
@@ -1017,7 +1031,7 @@ export function createWaitlistOperations(base: AppointmentBase) {
                     r.operatory_id === null ? null : { kind: 'operatory', resourceRef: r.operatory_id },
                   ...(r.operatory_id === null ? { noOperatoryReason: 'not_yet_assigned' as const } : {}),
                 },
-                { recoveryId: r.id, policy, canReadBookings },
+                { recoveryId: r.id, policy, canReadBookings, canReadPatients },
               );
               await tx.query(
                 'UPDATE cuspatlas.cancellation_recoveries SET version = version + 1, updated_at = now() WHERE id = $1',

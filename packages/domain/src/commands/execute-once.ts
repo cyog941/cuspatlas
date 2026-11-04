@@ -79,6 +79,23 @@ function refusalFrom(result: Record<string, unknown>): RefusalError {
 }
 
 /**
+ * A stored refusal is replayed for 7 days to any reauthorized caller, whose visibility may have
+ * narrowed since: conflict entries keep their kind, resource and explanation but never the
+ * visibility-filtered `existingRef` (review hardening, batch 3).
+ */
+function withoutVisibilityRefs(detail: RefusalDetail): RefusalDetail {
+  const strip = (list: NonNullable<RefusalDetail['conflicts']>) =>
+    list.map(({ existingRef: _ref, ...c }) => c);
+  return {
+    ...detail,
+    ...(detail.conflicts ? { conflicts: strip(detail.conflicts) } : {}),
+    ...(detail.occurrences
+      ? { occurrences: detail.occurrences.map((o) => ({ ...o, conflicts: strip(o.conflicts) })) }
+      : {}),
+  };
+}
+
+/**
  * Builds the durable `executeOnce` command executor. It has the `CommandExecutor` signature and runs
  * inside the caller's tenant transaction, after authorization, so every replay is reauthorized:
  *
@@ -176,11 +193,12 @@ export function createExecuteOnce(options: ExecuteOnceOptions): CommandExecutor 
       outcome = await tx.savepoint(handler);
     } catch (err) {
       if (!isRefusalError(err) || !TERMINAL.has(err.code) || err.retryable || !err.replayable) throw err;
+      const detail = err.detail === undefined ? undefined : withoutVisibilityRefs(err.detail);
       const stored = {
         kind: 'refusal',
         code: err.code,
         retryable: err.retryable,
-        ...(err.detail === undefined ? {} : { detail: err.detail }),
+        ...(detail === undefined ? {} : { detail }),
       };
       await tx.query(
         `UPDATE cuspatlas.command_idempotency SET state = 'failed', result = $3::jsonb, updated_at = now()

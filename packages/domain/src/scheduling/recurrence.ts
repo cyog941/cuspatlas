@@ -218,8 +218,9 @@ async function check(
   shape: Shape,
   occurrences: readonly Planned[],
   canReadBookings: boolean,
+  canReadPatients: boolean,
 ) {
-  const patient = await patientConflicts(tx, shape.patientRef);
+  const patient = await patientConflicts(tx, shape.patientRef, canReadPatients);
   const out: { o: Planned; conflicts: Conflict[]; prepared: Awaited<ReturnType<typeof prepareWindow>> }[] =
     [];
   for (const o of occurrences) {
@@ -279,8 +280,9 @@ export function createRecurrenceOperations(base: AppointmentBase) {
     occurrences: readonly Planned[],
     skip: boolean,
     canReadBookings: boolean,
+    canReadPatients: boolean,
   ) {
-    const checked = await check(tx, decision, location, shape, occurrences, canReadBookings);
+    const checked = await check(tx, decision, location, shape, occurrences, canReadBookings, canReadPatients);
     const blocked = checked.filter((c) => c.conflicts.length > 0);
     if (blocked.length > 0 && (!skip || blocked.length === checked.length)) throw seriesConflict(checked);
     const appointmentRefs: string[] = [];
@@ -303,6 +305,7 @@ export function createRecurrenceOperations(base: AppointmentBase) {
         rescheduledFrom: null,
         ignoreSources: [],
         canReadBookings,
+        canReadPatients,
         override: undefined,
         canOverride: false,
         extraConflicts: [],
@@ -361,6 +364,7 @@ export function createRecurrenceOperations(base: AppointmentBase) {
         assertValid<SeriesCreate>(validateSeriesCreate, p, SCHEDULING_PROPERTIES);
         assertLocation(decision.locationRefs, p.locationRef);
         const canReadBookings = await base.can(ctx, 'scheduling.appointments.read');
+        const canReadPatients = await base.can(ctx, 'patients.read');
         return deps.withTenantTransaction(ctx, async (tx) => {
           const location = await loadLocation(tx, p.locationRef);
           const limit = await occurrenceLimit(tx);
@@ -373,6 +377,7 @@ export function createRecurrenceOperations(base: AppointmentBase) {
             shapeOfRequest(p, location.time_zone),
             occurrences,
             canReadBookings,
+            canReadPatients,
           );
           return {
             limit: { name: SERIES_LIMIT_NAME, value: limit, ceiling: SERIES_LIMIT_CEILING },
@@ -402,6 +407,7 @@ export function createRecurrenceOperations(base: AppointmentBase) {
         assertValid<SeriesCreate>(validateSeriesCreate, p, SCHEDULING_PROPERTIES);
         assertLocation(decision.locationRefs, p.locationRef);
         const canReadBookings = await base.can(ctx, 'scheduling.appointments.read');
+        const canReadPatients = await base.can(ctx, 'patients.read');
         return deps.withTenantTransaction(ctx, async (tx) => {
           const location = await loadLocation(tx, p.locationRef, 'share');
           return execute<SeriesCommandData>(ctx, envelope, tx, async () => {
@@ -458,6 +464,7 @@ export function createRecurrenceOperations(base: AppointmentBase) {
               occurrences,
               p.skipConflicts === true,
               canReadBookings,
+              canReadPatients,
             );
             await recordCommand(
               tx,
@@ -494,6 +501,7 @@ export function createRecurrenceOperations(base: AppointmentBase) {
         const p = envelope.payload as SeriesExtend;
         assertValid<SeriesExtend>(validateSeriesExtend, p, SCHEDULING_PROPERTIES);
         const canReadBookings = await base.can(ctx, 'scheduling.appointments.read');
+        const canReadPatients = await base.can(ctx, 'patients.read');
         return deps.withTenantTransaction(ctx, async (tx) => {
           const series = await loadSeries(tx, decision, seriesRef, 'FOR UPDATE OF s');
           const location = await loadLocation(tx, series.location_ref, 'share');
@@ -525,6 +533,7 @@ export function createRecurrenceOperations(base: AppointmentBase) {
                 occurrences,
                 p.skipConflicts === true,
                 canReadBookings,
+                canReadPatients,
               );
               const { rows } = await tx.query<{ version: number }>(
                 `UPDATE cuspatlas.appointment_series SET occurrence_count = occurrence_count + $1, version = version + 1,

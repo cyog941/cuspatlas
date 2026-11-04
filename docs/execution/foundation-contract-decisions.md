@@ -289,3 +289,12 @@ Additions only; no frozen row changed. Synthetic data only. Policy items come fr
 
 - Operation `scheduling.export` (`admin.configure`, human only, tenant-wide members only; sensitive-read logged): format `cuspatlas-scheduling-export/1`, tables `SCHEDULING_EXPORT_TABLES` in foreign-key order, rows without `tenant_id`. `importSchedulingExport` in `packages/db` is a privileged synthetic-only round-trip loader, not the M1 import.
 - The integration vitest project also runs `tests/scenarios/*.test.ts` (one global database setup).
+
+## Task record: review hardening of S8-S11 (batch 3, 2026-11-07)
+
+- Booking and reschedule validate the window and resolve resources inside the idempotent handler, so a same-key retry is answered from the reservation (replay or `idempotency_conflict`) before any validation of a changed world.
+- Booking resource conflicts are `replayable: false` (not stored by `executeOnce`). A stored refusal never keeps a conflict `existingRef` (stripped at storage, including per-occurrence conflicts). Validation refusals stay terminal and replayed.
+- Attendance confirmation provenance: `confirmed_automated` only by a service principal, `confirmed_manual` only by a person (403 `forbidden`, attempt reason `principal_kind_denied`).
+- Every occupancy-writing path (S7 time blocks included) releases expired holds on its resources before checking; a 23P01 conflict list is never empty.
+- Patient conflicts name merged, deceased or inactive state only to callers holding `patients.read`; others get `patient_unavailable` with a generic explanation.
+- Hold ownership decision: any member with `scheduling.write` at a visible location may convert or release a hold; a waitlist offer hold only through `scheduling.waitlist.respond`.

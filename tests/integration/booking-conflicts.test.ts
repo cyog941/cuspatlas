@@ -639,7 +639,8 @@ describe('S10 concurrency: repeated contention on one slot, REST and MCP mixed',
         );
         return {
           status: m.status,
-          body: m.status === 201 ? m.body : { code: m.code, detail: m.body.detail },
+          body:
+            m.status === 201 ? m.body : { code: m.code, retryable: m.body.retryable, detail: m.body.detail },
         };
       });
       const results = await Promise.all(attempts);
@@ -653,13 +654,24 @@ describe('S10 concurrency: repeated contention on one slot, REST and MCP mixed',
         const detail = l.body.detail as {
           conflicts: { kind: string; resourceRef: { resourceRef: string }; existingRef?: string }[];
         };
+        expect(l.body.code).toBe('conflict');
         expect(detail.conflicts.length).toBeGreaterThan(0);
+        // Terminal vs retryable: a conflict naming the committed winner is not retryable; a contended
+        // attempt that exhausted its deadlock budget without seeing a winner is retryable and names
+        // only the contended resources (review hardening, batch 3).
         for (const c of detail.conflicts) {
           expect(c.kind).toBe('resource_overlap');
           expect([loc.provider, loc.operatory]).toContain(c.resourceRef.resourceRef);
-          expect(c.existingRef).toBe(winner);
+          if (l.body.retryable === true) expect(c.existingRef).toBeUndefined();
+          else expect(c.existingRef).toBe(winner);
         }
       }
+      // Resource conflicts are never stored as replayable refusals (they depend on other bookings).
+      const stored = await db.admin.query(
+        `SELECT count(*)::int AS n FROM cuspatlas.command_idempotency
+         WHERE operation = 'scheduling.appointments.book' AND state = 'failed' AND result ->> 'code' = 'conflict'`,
+      );
+      expect(stored.rows[0].n).toBe(0);
       const audits = await db.admin.query(
         `SELECT count(*)::int AS n FROM cuspatlas.audit_events a
          JOIN cuspatlas.appointments p ON p.id = a.resource_ref

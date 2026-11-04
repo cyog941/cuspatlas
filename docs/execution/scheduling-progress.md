@@ -24,6 +24,7 @@ Authorization basis: user instruction on 2026-11-04 to build workstream S on syn
 | S15 waitlist + PT-02 cancellation recovery | verified on synthetic data (Windows host); S-D6 pending approval | see S15 | 817 tests + 12 todo |
 | S16 recall + PT-03 follow-up (S part) | verified on synthetic data (Windows host); S-D7 pending; completion basis blocked on C14 | see S16 | 854 tests + 13 todo |
 | S17 parity (77 ops), harness, ordinary day, export round trip, downtime runbook | verified on synthetic data (Windows host) | see S17 | 941 tests + 13 todo |
+| Review hardening of S8-S11 | verified on synthetic data (Windows host) | see hardening | 953 tests + 13 todo |
 
 ## Command log
 
@@ -451,3 +452,56 @@ Downtime runbook: `docs/runbooks/downtime-scheduling.md` (proposed): read-only c
 - Red: `corepack pnpm test -- tests/integration/scheduling-parity.test.ts tests/integration/scheduling-export.test.ts tests/scenarios/ordinary-day-scheduling.test.ts` before the export operation existed: exit 1, 6 failed / 72 passed / 4 skipped (export suite setup failed on the missing import; the parity probe exposed a REST/MCP difference for parameterless GETs, fixed in the test by sending unknown properties only to GETs that have a query definition; the scenario failed on the missing export).
 - Fixed during green: a second vitest project for scenarios started a second embedded server and crashed a worker; scenarios now run in the integration project. The export fixture offer body carried `timeZone` (400, closed schema). The export harness row uses `own_tenant_only`, because the beta export legitimately contains the marker the harness wrote into beta.
 - Green: the three files exit 0 (78 + 5 tests). `typecheck`, `lint`, `contract:check` exit 0; `corepack pnpm test` exit 0, 41 files / 941 passed / 13 todo.
+
+### Review hardening of S8-S11 (independent review of 4b1a2e2; no MUST-FAIL)
+
+Test file: `tests/integration/review-hardening-s2.test.ts` (12 cases, runtime role, synthetic data); `booking-conflicts.test.ts` 10 x 5 loop tightened; `attendance.test.ts` updated for SHOULD 3.
+
+1. Replay preempted by validation: `bookAppointment` and `rescheduleAppointment` now run `prepareWindow` (window, duration, start-in-future, resource resolution) inside the idempotent handler, as `holdSlot` does. Tests: a same-key booking retry after its start passed returns the recorded booking (201, `replayed: true`, same reference); a same-key reschedule retry after the new start passed returns the recorded result (200, replayed); a same-key retry with a different, invalid window is 409 `idempotency_conflict` (was 422); booking-specific same key with a different valid payload is 409 `idempotency_conflict`.
+2. Stored conflict detail: booking resource conflicts (`bookingConflict`) are `replayable: false` (not stored, so a conflict cleared by a cancellation books on the same-key retry: test); refusals that are still stored (validation, other terminal conflicts such as S7 time-block conflicts) are stored without the visibility-filtered `existingRef` (`withoutVisibilityRefs` in `execute-once.ts`), so a caller downgraded after the first attempt never sees a reference on replay (test, and no stored row contains `existingRef`). Decision: resource conflicts are not terminal; validation refusals stay terminal.
+3. Confirmation provenance: `confirmed_automated` requires a service principal and `confirmed_manual` a person (403 `forbidden`, attempt reason `principal_kind_denied`; tests for both refusals and for the service principal recording `source: automation`). S11 tests now record automated confirmations as the service principal.
+4. Orphaned requests: scheduled requests whose booking was cancelled or ended in a no-show without a rebook appear in the follow-up worklist as `request_booking_lost` with `linked_booking_cancelled` / `linked_booking_no_show` (implemented and tested with S16 / PT-03). `unbookedReport` is unchanged (terminal requests without a booking).
+5. Expired-hold mismatch: `createTimeBlock` reaps expired holds on its resources before the pre-check (as every booking path does), and a 23P01 with no visible occupant names the contended resources, so the conflict list is never empty. Test: a time block over an expired, unreaped hold is created and the hold is `released` / `expired`.
+6. Concurrency tests: the 10 x 5 loop distinguishes terminal (names the winner, `retryable: false`) from retryable (no winner visible, `retryable: true`, resources only) 409s and asserts no booking conflict is stored as a replayable refusal; hold conversion vs release (5 rounds: exactly one wins, state consistent), conversion vs reconciliation of an expired hold (3 rounds: 409 and `released` / `expired`, never a booking), reschedule vs a booking into the vacated slot (5 rounds: no overlapping live occupancy), cancel vs an attendance transition (5 rounds: exactly one succeeds).
+
+Nits: conflict explanations no longer reveal patient status to a caller without `patients.read` (generic `patient_unavailable`, "The patient cannot be scheduled."; test with the service principal downgraded); with `patients.read` the specific kind stays. Not changed, decided and recorded: hold ownership (any member with `scheduling.write` at a visible location may convert or release a hold; a waitlist offer hold only through the offer response); refusing `arrived` / `no_show` for appointments starting beyond a tolerance in the future (not implemented: every synthetic fixture is future-dated because bookings refuse a past start, and a tolerance needs a clock seam; recorded as unresolved); a single lock order request -> appointment -> patient across close, reschedule and merge (not changed: no deadlock reproduced; the order in force is location -> request -> hold -> resources -> patient for bookings and is documented here).
+
+- Red: `corepack pnpm test -- tests/integration/review-hardening-s2.test.ts tests/integration/booking-conflicts.test.ts` before the fixes: exit 1, 9 failed / 23 passed (each failure reproduced a reviewed defect: 422 on replay after start, 422 instead of `idempotency_conflict`, 409 replayed after the blocker was cancelled, `existingRef` in the replay, human automated confirmation accepted, 409 for a time block over an expired hold, patient status in the explanation, 19 stored booking conflicts).
+- Green: the hardening file exit 0 (12 passed), `booking-conflicts` and `attendance` exit 0. `typecheck`, `lint`, `contract:check` exit 0; `corepack pnpm test` exit 0, 42 files / 953 passed / 13 todo.
+
+## Workstream S handoff (batch 3 close)
+
+Honest status: everything below is **tested on the Windows host against embedded PostgreSQL 17 with synthetic data only**. Nothing is approved, deployed, compliant, clinically validated or production-ready; no real patient data, cloud connection or outbound message was involved. Every decision record (ADR 0003, ADR 0009) is recommended-pending-approval.
+
+### Built (S4-S17)
+
+- S4-S6 patient identity, relationships, duplicate review, merge and unmerge; S7 resources, operatories and time blocks; S8 appointment requests; S9 availability search; S10 booking, holds and the inspectable conflict result; S11 attendance (batches 1-2, see above).
+- S12 visit-context container (references only; every producer-bound item explicit `unavailable`); S13 recurrence series with the cap, explicit continuation, atomic or documented partial creation, month-end and DST rules; S14 notification intents (channel `none`, E6 placeholder, no send, structural no-consent test) and the S-S2 qualification note; S15 waitlist offers as holds with explicit acceptance; PT-02 cancellation recovery with prepare-for-approval and the standing-policy gate; S16 recall policy, due list and recall tasks; PT-03 (S part) follow-up worklist; S17 parity matrix (77 operations), negative harness (77 commands, 234 tests), ordinary-day scenario, export round trip, downtime runbook; review hardening of S8-S11.
+- Single operation table for S12-S17 (`SCHEDULING_OPS`), proposed shared work-item model (`packages/domain/src/work-items/`) and standing-policy record.
+
+### Pending approval (no reviewer available)
+
+ADR 0003: S-S1 identity matching and merge workflow, S-D2 merge reversibility, S-D3 candidate presentation, S-D4 guardian and proxy terms, S-D8 patient scope. ADR 0009: S-D1 recurrence cap (26 / ceiling 52 / explicit continuation), S-D6 offer hold semantics and duration (synthetic 15 / 30 / 1440 minutes in tests only), S-D7 recall basis and exclusion default, S-S3-R1 month-end rule, S-S3-R2 daylight-saving rule, S-S3-R3 search horizon. Plan S-D5 first-release channels (recommended intent-only). Proposed vocabularies and rules: override policy, cancellation reasons, attendance transition guards and reason vocabulary, confirmation provenance, recall qualifying event (attended visit) and restricted-caller population, waitlist ranking (priority then age) and exclusion reasons, standing-policy limits (1-3 offers, 90 days), notification policy reference, work-item kinds and next actions, downtime procedure.
+
+### Blocked on discovery or another workstream
+
+- S-S2 notification channels: every channel `unknown` (no vendor); E7 delivery blocked; S14 runs with channel `none`.
+- C8, C10, C11, C13, C16 producers: S12 producer-bound cases (6 it.todo) and the visit-workspace claim stay open.
+- C14 completed procedures: S16 completion basis refused (`basis_unavailable`, 1 it.todo).
+- C11, C16, C17: PT-03 accepted-unscheduled treatment, lab returns and referral responses (reported as `notCovered`).
+- E6 consent and suppression: decision placeholder `undecided` (6 S14 it.todo for E6/E7); E1/E3/E5 portal paths for requests, offer answers and messaging.
+- A: standing-policy registration and adoption of the work-item model (both S-owned proposals for now); AI evaluation gates (no model in S).
+- M1: full export contract, manifest and completeness validation (S export is the minimal round-trip check); M import pipeline.
+- F worker: no S operation runs on the outbox worker; S automation runs through REST/MCP under a service principal.
+- Deployment (ADR 0002): roles, maintenance, protected storage for downtime lists, sensitive-read logging of scheduling reads (not implemented for appointment, attendance, recall and worklist reads; the export is logged).
+
+### Unresolved inside S
+
+No deadlock-reproduction test (S10); no reinstate command for a cancelled appointment (S11 failure 4 half); no arrival tolerance for future appointments; age of majority computed at UTC midnight; recall tasks are merge-excluded (flagged `patient_merged`); appointment-type rules are not modelled; per-tenant configuration commands are missing for attendance reasons, offer policies and series limits (fixtures write them).
+
+### Practice-time and usability requirements (docs/PRACTICE-TIME-AND-AUTOMATION.md)
+
+- Consumed: PT-02 (cancellation recovery: provider, resource, duration, window and booking checks; consent referenced as E6; race-safe offers as holds; recorded intents with channel none; invitation is not attendance; prepare-for-approval default; policy-authorized execution under a revocable standing policy rechecked at execution and recorded); PT-03 S part (recall tasks and unbooked or lost-booking requests with owner, reason, due time and next action); exception-first work items (reason code, safe explanation, evidence, owner queue, due time, priority rationale, next action, who owes it, blocking dependencies; unavailable distinct from empty via `coverage` and `notCovered`) for intents without a channel, cancellation recoveries, recall and request follow-up; UX-01 in contract terms (plain-language explanations, consistent operation names, sensible defaults such as exclusion on); UX-02 in contract terms (automatic offers are inspectable with policy reference and version; revocation is the pause mechanism).
+- Not consumed (owner): PT-01 huddle preparation (S/E with B for balances and eligibility, C for forms and labs); PT-03 treatment, lab and referral parts (C11, C16, C17); PT-04 documentation drafting (C); PT-05 balances and reconciliation (B); PT-06 analytics (A reporting); UX-01/UX-02 interaction design (deferred UI); UX-03 role-based usability measurement (R); waitlist offer outcomes as measured filled or attended cancellations (R, with E for outreach); MG-01..MG-05 (M), CL-01..CL-12 (B).
+
+Head at the time of this entry: the commit containing it (`git log -1`); the batch 3 gate is recorded below.

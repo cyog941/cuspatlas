@@ -53,6 +53,7 @@ import {
   assertLocation,
 } from '../policy/authorize';
 import { assertAvailabilitySearch, searchAvailabilityIn } from './availability';
+import { releaseExpiredHolds } from './booking';
 import { createSchedulingCursorCodec, type SchedulingCursorCodec } from './cursor';
 import type { VisitContextProducers } from './visit-context';
 import { isKnownTimeZone, isRealDate, minutesOf } from './zoned-time';
@@ -721,6 +722,15 @@ export function createSchedulingResourceService(deps: SchedulingDeps) {
               if (r.status !== 'active') throw failedAt('/resources', 'resourceInactive');
             }
             if (location.status !== 'active') throw failedAt('/locationRef', 'locationInactive');
+            // Expired holds are hidden from scheduling_busy but still occupy the exclusion constraint
+            // until released: reap them first, as every booking path does (review hardening, batch 3).
+            if (!wide) {
+              await releaseExpiredHolds(
+                tx,
+                resources.map((r) => r.id),
+                { s: startsAt.getTime(), e: endsAt.getTime() },
+              );
+            }
             const overlapping = () =>
               tx.query<BusyRow>(
                 `SELECT b.resource_id, r.kind AS resource_kind, b.source_kind, b.source_id
@@ -761,7 +771,20 @@ export function createSchedulingResourceService(deps: SchedulingDeps) {
               } catch (err) {
                 if (!isPgError(err, '23P01')) throw err;
                 const post = await overlapping();
-                throw conflicts(post.rows.map((b) => busyConflict(b, 'resource_overlap', canRead)));
+                // Never an empty conflict list: name the contended resources when no occupant is visible.
+                throw conflicts(
+                  post.rows.length > 0
+                    ? post.rows.map((b) => busyConflict(b, 'resource_overlap', canRead))
+                    : resources.map(
+                        (r): Conflict => ({
+                          kind: 'resource_overlap',
+                          resourceRef: { kind: r.kind, resourceRef: r.id },
+                          explanation:
+                            'A concurrent booking or hold is contending for the resource in this window.',
+                          overrideable: false,
+                        }),
+                      ),
+                );
               }
             }
             await recordCommand(

@@ -97,7 +97,8 @@ describe('S11 acceptance', () => {
     ];
     const seen: Transition[][] = [];
     for (const s of steps) {
-      h.ok(await record(ref, s), 201);
+      // An automated confirmation is recorded by the service principal (review hardening, batch 3).
+      h.ok(await record(ref, s, s.kind === 'confirmed_automated' ? 'svcA1' : 'a1'), 201);
       seen.push(await history(ref));
     }
     const final = seen[seen.length - 1] as Transition[];
@@ -135,9 +136,12 @@ describe('S11 acceptance', () => {
   it('2. automated and manual confirmation are distinct facts with provenance, counted separately', async () => {
     const auto = await appointment();
     const manual = await appointment();
-    h.ok(await record(auto, { kind: 'confirmed_automated', provenanceRef: 'reminder-run.2030-03-31' }), 201);
+    h.ok(
+      await record(auto, { kind: 'confirmed_automated', provenanceRef: 'reminder-run.2030-03-31' }, 'svcA1'),
+      201,
+    );
     h.ok(await record(manual, { kind: 'confirmed_manual' }), 201);
-    const noProvenance = await record(await appointment(), { kind: 'confirmed_automated' });
+    const noProvenance = await record(await appointment(), { kind: 'confirmed_automated' }, 'svcA1');
     expect([noProvenance.statusCode, noProvenance.json().detail.violations]).toStrictEqual([
       422,
       [{ pointer: '/provenanceRef', rule: 'required' }],

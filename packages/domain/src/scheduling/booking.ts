@@ -67,6 +67,9 @@ export const bookingConflict = (list: readonly Conflict[], retryable = false) =>
   new RefusalError({
     code: 'conflict',
     retryable,
+    // Not stored by the idempotency executor: a cancellation can clear the blocker, and the conflict
+    // detail is filtered for the caller on every attempt (review hardening, batch 3).
+    replayable: false,
     reasonCode: 'booking_conflict',
     detail: { reason: 'booking_conflict', conflicts: list.slice(0, MAX_CONFLICTS) },
   });
@@ -420,12 +423,23 @@ export async function prepareWindow(
   };
 }
 
-export async function patientConflicts(tx: TenantTransaction, patientRef: string): Promise<Conflict[]> {
+export async function patientConflicts(
+  tx: TenantTransaction,
+  patientRef: string,
+  canReadPatients: boolean,
+): Promise<Conflict[]> {
   try {
     await assertPatientSchedulable(tx, patientRef);
     return [];
   } catch (err) {
     if (!isRefusalError(err) || err.code !== 'conflict') throw err;
+    // A caller who may not read patients learns only that the patient cannot be scheduled, never
+    // whether the record is merged, deceased or inactive.
+    if (!canReadPatients) {
+      return [
+        { kind: 'patient_unavailable', explanation: 'The patient cannot be scheduled.', overrideable: false },
+      ];
+    }
     const reason = err.detail?.reason;
     if (reason === 'patient_merged') {
       return [
@@ -477,6 +491,7 @@ export async function insertBookingIn(
     rescheduledFrom: string | null;
     ignoreSources: string[];
     canReadBookings: boolean;
+    canReadPatients: boolean;
     override: BookingWindowInput['override'];
     canOverride: boolean;
     extraConflicts: Conflict[];
@@ -487,7 +502,7 @@ export async function insertBookingIn(
   await releaseExpiredHolds(tx, ids, prepared.w);
   const conflicts = [
     ...o.extraConflicts,
-    ...(await patientConflicts(tx, o.patientRef)),
+    ...(await patientConflicts(tx, o.patientRef, o.canReadPatients)),
     ...(await availabilityConflicts(tx, prepared.resources, prepared.w, location.time_zone)),
     ...(await busyConflicts(tx, location, ids, prepared.w, o.ignoreSources, o.canReadBookings)),
   ];
@@ -669,9 +684,10 @@ export function createBookingOperations(base: AppointmentBase) {
 
   async function probes(ctx: ActorContext, override: unknown) {
     const canReadBookings = await base.can(ctx, 'scheduling.appointments.read');
+    const canReadPatients = await base.can(ctx, 'patients.read');
     const canOverride =
       override === undefined ? false : await base.can(ctx, 'scheduling.appointments.override');
-    return { canReadBookings, canOverride };
+    return { canReadBookings, canReadPatients, canOverride };
   }
 
   async function releaseOccupancy(tx: TenantTransaction, kind: 'hold' | 'appointment', sourceId: string) {
@@ -694,11 +710,10 @@ export function createBookingOperations(base: AppointmentBase) {
         const p = envelope.payload;
         assertValid<BookingCreate>(validateBookingCreate, p, SCHEDULING_PROPERTIES);
         assertLocation(decision.locationRefs, p.locationRef);
-        const { canReadBookings, canOverride } = await probes(ctx, p.override);
+        const { canReadBookings, canReadPatients, canOverride } = await probes(ctx, p.override);
         return deps.withTenantTransaction(ctx, async (tx) => {
           // FOR SHARE: serializes with a location-wide block (which takes the row FOR UPDATE).
           const location = await loadLocation(tx, p.locationRef, 'share');
-          const prepared = await prepareWindow(tx, decision, location, p);
           const request =
             p.requestRef === undefined
               ? null
@@ -706,6 +721,9 @@ export function createBookingOperations(base: AppointmentBase) {
           const hold =
             p.holdRef === undefined ? null : await loadHold(tx, decision, p.holdRef, 'FOR UPDATE OF h');
           return execute<BookingResult>(ctx, envelope, tx, async () => {
+            // Window and resource validation run inside the handler, so a same-key retry replays the
+            // recorded result even after the start has passed (review hardening, batch 3).
+            const prepared = await prepareWindow(tx, decision, location, p);
             const extra: Conflict[] = [];
             const ignore: string[] = [];
             if (hold) {
@@ -747,6 +765,7 @@ export function createBookingOperations(base: AppointmentBase) {
               rescheduledFrom: null,
               ignoreSources: ignore,
               canReadBookings,
+              canReadPatients,
               override: p.override,
               canOverride,
               extraConflicts: extra,
@@ -903,16 +922,16 @@ export function createBookingOperations(base: AppointmentBase) {
         checkEnvelope(envelope, op);
         const p = envelope.payload;
         assertValid<AppointmentReschedule>(validateAppointmentReschedule, p, SCHEDULING_PROPERTIES);
-        const { canReadBookings, canOverride } = await probes(ctx, p.override);
+        const { canReadBookings, canReadPatients, canOverride } = await probes(ctx, p.override);
         return deps.withTenantTransaction(ctx, async (tx) => {
           const old = await loadAppointment(tx, decision, appointmentRef, 'FOR UPDATE OF a');
           const location = await loadLocation(tx, old.location_ref, 'share');
-          const prepared = await prepareWindow(tx, decision, location, p);
           return execute<BookingResult>(
             ctx,
             { ...envelope, payload: { appointmentRef, ...p } },
             tx,
             async () => {
+              const prepared = await prepareWindow(tx, decision, location, p);
               if (old.version !== p.expectedVersion) {
                 throw new RefusalError({ code: 'stale_version', detail: { currentVersion: old.version } });
               }
@@ -931,6 +950,7 @@ export function createBookingOperations(base: AppointmentBase) {
                 rescheduledFrom: old.id,
                 ignoreSources: [],
                 canReadBookings,
+                canReadPatients,
                 override: p.override,
                 canOverride,
                 extraConflicts: [],

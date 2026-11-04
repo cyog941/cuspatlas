@@ -250,6 +250,14 @@ export function createAttendanceOperations(base: AppointmentBase) {
         checkEnvelope(envelope, op);
         const p = envelope.payload;
         assertValid<AttendanceRecord>(validateAttendanceRecord, p, SCHEDULING_PROPERTIES);
+        // An automated confirmation is recorded by a service principal and a manual one by a person;
+        // the source is never derived from the claimed kind alone (review hardening, batch 3).
+        if (
+          (p.kind === 'confirmed_automated' && ctx.principal !== 'service') ||
+          (p.kind === 'confirmed_manual' && ctx.principal !== 'human')
+        ) {
+          throw new RefusalError({ code: 'forbidden', reasonCode: 'principal_kind_denied' });
+        }
         return deps.withTenantTransaction(ctx, async (tx) => {
           // Serializes with other transitions and with cancel/reschedule of the same booking.
           const appt = await loadAppointment(tx, decision, appointmentRef, 'FOR UPDATE OF a');

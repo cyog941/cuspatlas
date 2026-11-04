@@ -13,7 +13,11 @@ Authorization basis: user instruction on 2026-11-04 to build workstream S on syn
 | S5 guardian, guarantor and proxy relationships | verified on synthetic data (Windows host); decisions pending approval | 1a54fe8 | 409 tests |
 | S6 duplicate review, merge and unmerge | verified on synthetic data (Windows host); decisions pending approval | 45bcce2 | 438 tests |
 | S-S3, S7, S9 (resources track) | verified on synthetic data (Windows host); decisions pending approval | 7929f77 | see Resources track |
-| Batch 2 merge of both tracks | verified on synthetic data (Windows host) | merge commit | 518 tests |
+| Batch 2 merge of both tracks | verified on synthetic data (Windows host) | 6bf3114 | 518 tests |
+| S8 appointment requests | verified on synthetic data (Windows host); decisions pending approval | 62ac4d3 | 564 tests |
+| S10 booking, holds, conflict result | verified on synthetic data (Windows host); decisions pending approval | 7e0b5c6 | 612 tests |
+| S11 attendance (+ S10 contention fix) | verified on synthetic data (Windows host); decisions pending approval | 8648aa9 | 644 tests |
+| Review hardening of S4-S9 | verified on synthetic data (Windows host) | 427979e | 655 tests |
 
 ## Command log
 
@@ -323,3 +327,7 @@ NITS
 Existing tests updated for the new rules: `patient-merge.test.ts` digest expression (revocation columns excluded) and two direct `createPatientService` constructions (explicit test pepper); `mcp-parity.test.ts` development build passes a configured pepper and asserts both refusals.
 
 Verification: `typecheck`, `lint`, `contract:check` exit 0; `corepack pnpm test` exit 0, 32 files / 655 tests.
+
+### Batch 2 gate
+
+`corepack pnpm run ci` at 427979e: exit 0 (typecheck, lint, contract drift, 32 files / 655 tests, privacy scan of 222 tracked files and the artifacts, SBOM 270 components, evidence manifest and verification: unreviewed, not certified). Re-run on the commit containing this entry. Nothing here is approved, deployed, compliant or clinically validated; every ADR 0003 / ADR 0009 item and every proposed vocabulary (override, cancellation, attendance transitions and reasons) remains recommended-pending-approval.

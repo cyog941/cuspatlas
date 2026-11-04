@@ -12,7 +12,8 @@ Authorization basis: user instruction to build every backend workstream on synth
 | E2 scoped portal views | verified on synthetic data (Windows host); documents, balances, messages, forms `unavailable` until C15, B4, E5, E4 | 5e03539 | allowlist key sets asserted |
 | E3 portal appointment requests | verified on synthetic data (Windows host); abuse bounds pending approval | 2abed5a | S8 command with origin `portal` |
 | E6 consent, suppression and recall enrollment | verified on synthetic data (Windows host); E-S1 blocked-on-discovery; rules pending legal/compliance review | a6e8d54 | S14 placeholder replaced; 1 of 6 S14 todo closed |
-| E7 delivery receipts, retries and unknown outcomes | verified against a FAKE provider only (Windows host); provider semantics blocked-on-discovery (E-S1) | see E7 | remaining 5 S14 todo closed |
+| E7 delivery receipts, retries and unknown outcomes | verified against a FAKE provider only (Windows host); provider semantics blocked-on-discovery (E-S1) | c489ca6 | remaining 5 S14 todo closed |
+| Batch 1 gate | `corepack pnpm run ci` exit 0 | see Branch gate | 48 files / 1068 passed / 7 todo (C-owned) |
 
 ## E1 (portal principals and the grant projection)
 
@@ -118,6 +119,20 @@ Negative harness: 4 staff rows appended (worklist, read, resolve, receipts); rec
 Deviations: the plan's `dispatchOutbound` is the sender's `dispatch`; receipts are a staff-surface REST/MCP operation for the integration principal instead of a provider webhook (no provider exists, so no webhook signing can be qualified); an unknown outcome whose lookup finds nothing is escalated rather than resent (the F6 outbox resends on `not_found`; for patient messages a person decides); reschedules suppress the old reminder with `appointment_cancelled` (no separate vocabulary value).
 
 Unresolved (blocked-on-discovery under E-S1): real delivery-receipt semantics, bounce classes, provider retention, webhook signing and replay protection, per-message cost, per-channel rate bounds, sender registration; the SMS channel is modelled but untested beyond the fake; message-thread delivery (E5) and acknowledgements for portal requests are not built.
+
+## Branch gate and handoff (batch 1)
+
+`corepack pnpm run ci` at c489ca6: exit 0 (typecheck, lint, contract drift, 48 files / 1068 passed / 7 todo, privacy scan of 288 tracked files and the artifacts, SBOM 270 components, evidence manifest and verification: unreviewed, not certified). Re-run on the commit containing this entry. Commits of batch 1: d335342 (E1), 5e03539 (E2), 2abed5a (E3), a6e8d54 (E6), c489ca6 (E7), and this ledger entry. Not pushed. Nothing here is approved, deployed, compliant or clinically validated.
+
+S files touched (all minimal, for the orchestrator's merge): `packages/domain/src/scheduling/requests.ts` (portal authority seam of `createRequest`), `packages/domain/src/scheduling/notification-intent.ts` (E6 decision reference at intent time; worklist excludes allowed intents; E7 delivery state in the read), `packages/domain/src/scheduling/recall.ts` (`recallDueFor` export), `packages/domain/src/patients/merge.ts` (five `MERGE_EXCLUDED_REFERENCES` entries), `packages/contracts/src/scheduling.{ts,schema.json}` (intent decision and delivery shapes; work-item kind `delivery_exception`), `tests/integration/notification-separation.test.ts` (placeholder expectations to E6 expectations, structural test rewritten for the seam, six E todos closed), `tests/integration/support/appointment-fixtures.ts` (opt-in portal transport). Foundation files touched: `packages/contracts/src/context.ts`, `packages/db/src/tenant-transaction.ts`, `packages/domain/src/{commands/execute-once.ts,policy/authorize.ts}`, `apps/api/src/{app.ts,auth.ts,contract-drift.ts,routes/manifest.ts}`, `apps/mcp/src/{server.ts,tools/synthetic-tasks.ts}`, `apps/worker/src/index.ts`, `docs/api/openapi.yaml` (one generated E block between markers), `docs/SHARED-CONTRACTS.md` (scope registry line), `tests/integration/{tenant-isolation,mcp-parity}.test.ts`.
+
+Seams for the next E batch:
+
+- E4 intake: `requirePortalAccess(tx, patientRef, ['demographics', 'consent'])` is the portal authority; consent captured in a submission writes `communication_consents` through `insertConsent` semantics (source `patient_portal` / `guardian_portal`, relationship recorded); the `forms` view flips from `unavailable` (owner E4) when the producer lands.
+- E5 messaging: the `messages` view (scope `consent`, owner E5) and an S14-style intent purpose for unread-message notices; E7 delivers any intent E6 allows, so a new purpose needs a channel-policy purpose, a template purpose and a consent-purpose mapping (`CONSENT_PURPOSE`); retention classes (E-D5) are open.
+- E8 telephony: nothing built; `consent` channel `voice` exists in the vocabulary only.
+- E9 parity and release evidence: `ENGAGEMENT_OPS` (20 staff operations, REST + MCP) and `PORTAL_OPS` (5 portal operations, REST only) are the derivation tables; the E negative harness already runs every staff row in three dimensions on both surfaces and every portal row against six credentials; an export manifest for principals, consent facts, decisions, messages, attempts, receipts and enrollments is not built.
+- B4 consumes `communications.suppression.preview` (or `evaluateSuppression` in-process) and cites `SuppressionReason`; S's PT-02 recovery read can replace its consent placeholder with the same preview.
 
 ## Pending decisions
 

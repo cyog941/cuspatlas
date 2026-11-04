@@ -7,6 +7,7 @@ import {
   type IntentPurpose,
   type MessageChannel,
   type SubjectRef,
+  VERIFIED_POINTS_SQL,
 } from './suppression';
 
 /**
@@ -271,11 +272,9 @@ export async function prepareSend(
     await moveTo(tx, m, row.version, 'suppressed', { suppression: d.reason, reason: 'suppressed_at_send' });
     return { action: 'done' };
   }
+  // Only a contact point whose current value carries a verification is ever addressed.
   const recipient = await tx.query<{ value: string }>(
-    `SELECT cp ->> 'value' AS value FROM cuspatlas.patients p, jsonb_array_elements(
-       CASE WHEN (p.contact ->> 'known')::boolean THEN p.contact -> 'points' ELSE '[]'::jsonb END) AS cp
-     WHERE p.id = $1 AND cp ->> 'channel' = $2 AND cp ->> 'preference' <> 'avoid'
-     ORDER BY (cp ->> 'preference') = 'preferred' DESC LIMIT 1`,
+    `SELECT v.value FROM (${VERIFIED_POINTS_SQL}) v ORDER BY v.preferred DESC LIMIT 1`,
     [row.patient_id, CONTACT_CHANNEL[row.channel]],
   );
   const template = await tx.query<{ template_ref: string; version: number; body: string; state: string }>(
@@ -300,6 +299,45 @@ export async function prepareSend(
   };
 }
 
+const RECEIPT_RANK: Readonly<Record<string, number>> = { sent: 1, delivered: 2, failed: 2 };
+
+/**
+ * Receipts that arrived while the message was still sending (stored pending against the message
+ * found by its delivery key) are applied once the send is recorded with the same provider reference,
+ * under the same monotonic rule as a live receipt. A pending receipt for another provider reference
+ * stays unapplied.
+ */
+async function applyPendingReceipts(
+  tx: TenantTransaction,
+  messageRef: string,
+  providerRef: string,
+): Promise<MessageState> {
+  const { rows } = await tx.query<{ state: 'delivered' | 'failed' | 'bounced'; occurred_at: Date }>(
+    `SELECT state, occurred_at FROM cuspatlas.message_receipts
+     WHERE message_id = $1 AND pending AND provider_ref = $2 ORDER BY occurred_at, id`,
+    [messageRef, providerRef],
+  );
+  let state: MessageState = 'sent';
+  let last: Date | null = null;
+  let reason: string | null = null;
+  for (const r of rows) {
+    const target = r.state === 'delivered' ? 'delivered' : 'failed';
+    if ((last === null || r.occurred_at > last) && (RECEIPT_RANK[target] ?? 0) > (RECEIPT_RANK[state] ?? 0)) {
+      state = target;
+      reason = target === 'failed' ? `receipt_${r.state}` : null;
+    }
+    if (last === null || r.occurred_at > last) last = r.occurred_at;
+  }
+  if (rows.length === 0) return 'sent';
+  const u = await tx.query<{ version: number }>(
+    `UPDATE cuspatlas.outbound_messages SET state = $2, state_reason = coalesce($3, state_reason),
+       last_receipt_at = $4, version = version + 1, updated_at = now() WHERE id = $1 RETURNING version`,
+    [messageRef, state, reason, last],
+  );
+  await audit(tx, messageRef, u.rows[0]?.version as number, ['state', 'receipt']);
+  return state;
+}
+
 /** Records a send outcome under the fence. */
 export async function finalizeSend(
   tx: TenantTransaction,
@@ -314,7 +352,7 @@ export async function finalizeSend(
     case 'duplicate':
       await attemptRow(tx, row.id, m.attempt, result.outcome, { providerRef: result.providerRef });
       await moveTo(tx, m, row.version, 'sent', { providerRef: result.providerRef });
-      return 'sent';
+      return applyPendingReceipts(tx, row.id, result.providerRef);
     case 'unknown':
       await attemptRow(tx, row.id, m.attempt, 'unknown');
       await moveTo(tx, m, row.version, 'unknown', {
@@ -358,7 +396,7 @@ export async function finalizeReconciliation(
   if (lookup.status === 'found') {
     await attemptRow(tx, row.id, m.attempt, 'reconciled_found', { providerRef: lookup.providerRef });
     await moveTo(tx, m, row.version, 'sent', { providerRef: lookup.providerRef });
-    return 'sent';
+    return applyPendingReceipts(tx, row.id, lookup.providerRef);
   }
   const unavailable = lookup.status === 'unavailable';
   await attemptRow(tx, row.id, m.attempt, unavailable ? 'lookup_unavailable' : 'reconciled_not_found');

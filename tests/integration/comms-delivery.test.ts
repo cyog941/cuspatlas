@@ -114,6 +114,14 @@ async function consenting(name: string, local: string): Promise<string> {
     }),
     201,
   );
+  h.ok(
+    await h.call('a1', 'POST', `/v1/patients/${p}/contact-verifications`, {
+      channel: 'email',
+      value: `${local}@example.invalid`,
+      method: 'synthetic_attested',
+    }),
+    201,
+  );
   return p;
 }
 async function book(patientRef: string): Promise<string> {

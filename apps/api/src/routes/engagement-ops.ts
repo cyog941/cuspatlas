@@ -141,6 +141,20 @@ export const ENGAGEMENT_OPS: readonly EngagementOp[] = [
     invoke: (svc, actor, i) => data(svc.listConsents(actor, param(i, 'patientRef'), i.body)),
   },
   {
+    method: 'post',
+    path: '/v1/patients/{patientRef}/contact-verifications',
+    operationId: 'communications.contacts.verify',
+    protected: true,
+    requestBody: E('ContactVerify'),
+    success: { status: '201', schema: E('EngagementCommandResult') },
+    refusals: COMMAND,
+    tool: 'communications_contacts_verify',
+    description:
+      'Record a staff-attested verification of a contact point on the record (only its digest is stored). E7 addresses only verified contact points; an unverified channel is suppressed no_verified_channel. Human staff only.',
+    invoke: (svc, actor, i) =>
+      svc.verifyContact(actor, param(i, 'patientRef'), env('communications.contacts.verify', i)),
+  },
+  {
     method: 'get',
     path: '/v1/patients/{patientRef}/suppression-preview',
     operationId: 'communications.suppression.preview',

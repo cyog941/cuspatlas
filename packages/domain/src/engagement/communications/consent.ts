@@ -8,6 +8,7 @@ import {
   type TenantTransaction,
   validateChannelPolicyDefine,
   validateConsentRecordInput,
+  validateContactVerify,
   validateEmptyQuery,
   validateOptOutInput,
   validatePortalConsentInput,
@@ -21,6 +22,7 @@ import { assertRef, checkEnvelope, conflict, type EngagementBase, failedAt, notF
 import { requirePortalAccess } from '../portal/access';
 import {
   CONSENT_PURPOSE,
+  CONTACT_DIGEST_SQL,
   currentChannelPolicy,
   evaluateSuppression,
   type IntentPurpose,
@@ -118,7 +120,8 @@ export function createConsentOperations(base: EngagementBase) {
       | 'communications.consents.optOut'
       | 'communications.channelPolicies.define'
       | 'communications.templates.define'
-      | 'communications.templates.withdraw',
+      | 'communications.templates.withdraw'
+      | 'communications.contacts.verify',
     envelope: CommandEnvelope<unknown>,
     validate: () => void,
     pre: (tx: TenantTransaction) => Promise<void>,
@@ -188,6 +191,51 @@ export function createConsentOperations(base: EngagementBase) {
             version: 'opt-out',
             via: null,
           }),
+        { patientRef },
+      );
+    },
+
+    /**
+     * Records that a contact point on the record was verified (staff-attested, synthetic; E-S3 open).
+     * Only the digest of the normalized value is stored; a later change of the value on the record no
+     * longer matches, so the new value needs its own verification before E7 addresses it.
+     */
+    verifyContact(ctx: ActorContext, patientRef: string, envelope: CommandEnvelope<unknown>) {
+      const p = envelope.payload as { channel: 'email' | 'phone'; value: string; method: string };
+      return staffCommand(
+        ctx,
+        'communications.contacts.verify',
+        envelope,
+        () => assertValid(validateContactVerify, envelope.payload, ENGAGEMENT_PROPERTIES),
+        (tx) => requirePatient(tx, patientRef),
+        async (tx) => {
+          const { rows } = await tx.query<{ id: string }>(
+            `INSERT INTO cuspatlas.contact_verifications (tenant_id, patient_id, channel, contact_digest, method, verified_by)
+             SELECT cuspatlas.current_tenant_id(), p.id, $2, d.digest, $4, cuspatlas.current_actor_id()
+             FROM cuspatlas.patients p CROSS JOIN LATERAL (SELECT ${CONTACT_DIGEST_SQL('$3::text', '$2')} AS digest) d
+             WHERE p.id = $1 AND EXISTS (SELECT 1 FROM jsonb_array_elements(
+                 CASE WHEN (p.contact ->> 'known')::boolean THEN p.contact -> 'points' ELSE '[]'::jsonb END) AS cp
+               WHERE cp ->> 'channel' = $2 AND ${CONTACT_DIGEST_SQL("cp ->> 'value'", '$2')} = d.digest)
+             RETURNING id`,
+            [patientRef, p.channel, p.value, p.method],
+          );
+          const id = rows[0]?.id;
+          if (!id) throw failedAt('/value', 'contactNotOnRecord');
+          await recordCommand(
+            tx,
+            {
+              operation: 'communications.contacts.verify',
+              resourceType: 'contactVerification',
+              resourceRef: id,
+              resourceVersion: 1,
+            },
+            { changedFields: ['channel', 'verification'] },
+          );
+          return {
+            data: { verificationRef: id, patientRef, channel: p.channel, method: p.method },
+            version: 1,
+          };
+        },
         { patientRef },
       );
     },

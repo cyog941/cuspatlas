@@ -116,6 +116,7 @@ describe('runtime database role', () => {
       'channel_policies',
       'command_idempotency',
       'communication_consents',
+      'contact_verifications',
       'delivery_attempts',
       'delivery_receipts',
       'memberships',

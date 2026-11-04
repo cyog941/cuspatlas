@@ -32,6 +32,9 @@ const REASONS = [
   'template_withdrawn',
   'recall_not_due',
   'grant_expired',
+  'offer_closed',
+  'subject_past',
+  'no_verified_channel',
 ];
 
 beforeAll(async () => {
@@ -211,6 +214,15 @@ describe('E6 consent, opt-out and the decision', () => {
   it('quiet hours are policy data: the preview suppresses inside the window with the deferral, allows outside', async () => {
     const p = await h.person('Synthetic Quiet', [email('e6.quiet')]);
     h.ok(await consent(p, {}), 201);
+    // Send-time decisions (and previews of them) address only a verified contact point.
+    h.ok(
+      await h.call('a1', 'POST', `/v1/patients/${p}/contact-verifications`, {
+        channel: 'email',
+        value: 'e6.quiet@example.invalid',
+        method: 'synthetic_attested',
+      }),
+      201,
+    );
     const preview = async (at: string) =>
       h.ok<{
         data: { outcome: string; reason: string | null; deferredUntil: string | null; recorded: boolean };

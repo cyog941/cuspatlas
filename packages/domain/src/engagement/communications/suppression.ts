@@ -8,9 +8,11 @@ import { addDays, formatLocal, localToInstant, minutesOf } from '../../schedulin
  * SUPPRESSION_REASONS (the plan's single vocabulary, enforced by a database CHECK too).
  *
  * Evaluation order (recommended-pending-approval): channel policy (policy_off), subject state
- * (appointment_missing, appointment_cancelled), template (template_withdrawn), consent (opt_out,
- * no_consent, grant_expired), contact data (missing_contact), and at send time quiet hours
- * (quiet_hours, with the end of the window as `deferredUntil`). Any read failure throws and the
+ * (appointment_missing, appointment_cancelled, subject_past for a reminder whose visit has started,
+ * offer_closed for a waitlist offer that is decided or expired), template (template_withdrawn),
+ * consent (opt_out, no_consent, grant_expired), contact data (missing_contact; at send time also
+ * no_verified_channel when no contact point of the channel carries a recorded verification), and at
+ * send time quiet hours (quiet_hours, with the end of the window as `deferredUntil`). Any read failure throws and the
  * caller fails closed: nothing is ever allowed by default.
  */
 export const SUPPRESSION_POLICY_VERSION = 'suppression.pending-approval.1';
@@ -26,6 +28,10 @@ export const SUPPRESSION_REASONS = [
   'template_withdrawn',
   'recall_not_due',
   'grant_expired',
+  // Review hardening (added to the plan's vocabulary first).
+  'offer_closed',
+  'subject_past',
+  'no_verified_channel',
 ] as const;
 export type SuppressionReason = (typeof SUPPRESSION_REASONS)[number];
 
@@ -45,6 +51,23 @@ export const CONTACT_CHANNEL: Readonly<Record<MessageChannel, 'email' | 'phone'>
   email: 'email',
   sms: 'phone',
 };
+
+/** SQL normalization of a contact value before digesting (email lower-cased, phone digits only). */
+export const CONTACT_DIGEST_SQL = (value: string, channel: string) =>
+  `encode(sha256(convert_to(CASE WHEN ${channel} = 'phone' THEN regexp_replace(${value}, '[^0-9]', '', 'g')
+     ELSE lower(btrim(${value})) END, 'UTF8')), 'hex')`;
+
+/**
+ * The patient's contact points of a channel ($2: 'email' | 'phone') that are not `avoid` and whose
+ * current value carries a verification fact (E-owned, keyed to the value digest). Selects `value`.
+ */
+export const VERIFIED_POINTS_SQL = `SELECT cp ->> 'value' AS value, (cp ->> 'preference') = 'preferred' AS preferred
+  FROM cuspatlas.patients p, jsonb_array_elements(
+    CASE WHEN (p.contact ->> 'known')::boolean THEN p.contact -> 'points' ELSE '[]'::jsonb END) AS cp
+  WHERE p.id = $1 AND p.merged_into IS NULL AND cp ->> 'channel' = $2 AND cp ->> 'preference' <> 'avoid'
+    AND EXISTS (SELECT 1 FROM cuspatlas.contact_verifications v
+      WHERE v.patient_id = p.id AND v.tenant_id = p.tenant_id AND v.channel = $2
+        AND v.contact_digest = ${CONTACT_DIGEST_SQL("cp ->> 'value'", '$2')})`;
 
 export interface ChannelPolicyRow extends Record<string, unknown> {
   id: string;
@@ -110,29 +133,35 @@ async function subjectState(
   tx: TenantTransaction,
   purpose: IntentPurpose,
   subject: SubjectRef,
+  at: Date | null,
 ): Promise<{ patientRef: string | null; reason: SuppressionReason | null }> {
   if (subject.kind === 'appointment') {
-    const { rows } = await tx.query<{ subject_patient_id: string; status: string }>(
-      'SELECT subject_patient_id, status FROM cuspatlas.appointments WHERE id = $1',
-      [subject.id],
+    const { rows } = await tx.query<{ subject_patient_id: string; status: string; past: boolean }>(
+      `SELECT subject_patient_id, status, starts_at <= coalesce($2::timestamptz, now()) AS past
+       FROM cuspatlas.appointments WHERE id = $1`,
+      [subject.id, at],
     );
     const r = rows[0];
     if (!r) return { patientRef: null, reason: 'appointment_missing' };
     if (purpose === 'reminder' && r.status !== 'booked') {
       return { patientRef: r.subject_patient_id, reason: 'appointment_cancelled' };
     }
+    // A reminder whose visit has already started (a worker outage, a late lease) is stale.
+    if (purpose === 'reminder' && r.past) return { patientRef: r.subject_patient_id, reason: 'subject_past' };
     return { patientRef: r.subject_patient_id, reason: null };
   }
   if (subject.kind === 'waitlist_offer') {
-    const { rows } = await tx.query<{ subject_patient_id: string }>(
-      `SELECT e.subject_patient_id FROM cuspatlas.waitlist_offers o
+    const { rows } = await tx.query<{ subject_patient_id: string; closed: boolean }>(
+      `SELECT e.subject_patient_id,
+         (o.outcome IS NOT NULL OR o.expires_at <= coalesce($2::timestamptz, now())) AS closed
+       FROM cuspatlas.waitlist_offers o
        JOIN cuspatlas.waitlist_entries e ON e.id = o.entry_id AND e.tenant_id = o.tenant_id WHERE o.id = $1`,
-      [subject.id],
+      [subject.id, at],
     );
-    return {
-      patientRef: rows[0]?.subject_patient_id ?? null,
-      reason: rows[0] ? null : 'appointment_missing',
-    };
+    const r = rows[0];
+    if (!r) return { patientRef: null, reason: 'appointment_missing' };
+    // An accepted, declined, expired or withdrawn offer is never announced after the fact.
+    return { patientRef: r.subject_patient_id, reason: r.closed ? 'offer_closed' : null };
   }
   const { rows } = await tx.query<{ subject_patient_id: string; state: string }>(
     'SELECT subject_patient_id, state FROM cuspatlas.recall_tasks WHERE id = $1',
@@ -184,7 +213,7 @@ export async function evaluateSuppression(tx: TenantTransaction, input: Decision
   const subject =
     input.subject === null
       ? { patientRef: null, reason: null }
-      : await subjectState(tx, input.purpose, input.subject);
+      : await subjectState(tx, input.purpose, input.subject, input.sendAt ?? null);
   const patientRef = input.patientRef ?? subject.patientRef;
   if (patientRef === null) throw new Error('decision subject has no patient');
   const channel: 'none' | MessageChannel = input.channelOverride ?? policy?.channel ?? 'none';
@@ -242,6 +271,14 @@ export async function evaluateSuppression(tx: TenantTransaction, input: Decision
     [patientRef, CONTACT_CHANNEL[channel]],
   );
   if (!contact.rows[0]?.ok) return out('missing_contact', { consentId: consent.id });
+  if (input.stage === 'send') {
+    // Send time: the contact point must carry a recorded verification of its current value.
+    const verified = await tx.query<{ ok: boolean }>(`SELECT EXISTS (${VERIFIED_POINTS_SQL}) AS ok`, [
+      patientRef,
+      CONTACT_CHANNEL[channel],
+    ]);
+    if (!verified.rows[0]?.ok) return out('no_verified_channel', { consentId: consent.id });
+  }
   if (input.sendAt && input.timeZone && policy.quiet_start && policy.quiet_end) {
     const end = quietWindowEnd(input.sendAt, policy.quiet_start, policy.quiet_end, input.timeZone);
     if (end !== null) return out('quiet_hours', { consentId: consent.id, deferredUntil: end });

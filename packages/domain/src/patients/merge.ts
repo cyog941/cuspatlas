@@ -214,6 +214,11 @@ export const MERGE_EXCLUDED_REFERENCES: readonly { table: string; column: string
     why: 'an enrollment records an S16 due item of that identity; recall is recomputed for the survivor',
   },
   {
+    table: 'contact_verifications',
+    column: 'patient_id',
+    why: 'a verification attests a contact value of that identity; the survivor verifies its own contacts',
+  },
+  {
     table: 'outbound_messages',
     column: 'patient_id',
     why: 'a message is history of what was sent to that identity; it is never re-addressed by a merge',

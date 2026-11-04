@@ -77,6 +77,8 @@ export interface AppDeps {
    * audience). Portal routes are registered only when this and `portalPrincipals` are configured.
    */
   readonly portalIdentity?: IdentityVerifierConfig;
+  /** The MCP resource audience, when an MCP server runs beside this API: the portal must differ. */
+  readonly mcpAudience?: string;
   /** Live portal-enrolment lookups on the runtime-role pool. */
   readonly portalPrincipals?: PortalPrincipalSource;
 }
@@ -137,6 +139,9 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       throw new Error(
         'Refusing to start: the portal audience must be configured and differ from the staff audience',
       );
+    }
+    if (deps.mcpAudience !== undefined && deps.portalIdentity.audience === deps.mcpAudience) {
+      throw new Error('Refusing to start: the portal audience must differ from the MCP audience');
     }
     if (!deps.portalPrincipals) {
       throw new Error('Refusing to start: the portal transport requires a portal-principal source');

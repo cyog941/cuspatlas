@@ -29,6 +29,8 @@ export interface FakeMessagingHooks {
   afterAccept?: (req: MessagingSendRequest) => 'timeout' | 'crash' | undefined;
   reject?: (req: MessagingSendRequest) => { retryable: boolean } | undefined;
   lookupUnavailable?: () => boolean;
+  /** Awaited after acceptance and before the answer: the provider's receipt can race the send record. */
+  whileAccepted?: (req: MessagingSendRequest, providerRef: string) => Promise<void>;
 }
 
 export interface MessagingEffect {
@@ -81,6 +83,7 @@ export class FakeMessaging implements MessagingPort {
       recipient: req.recipient,
       body: req.body,
     });
+    await this.hooks.whileAccepted?.(req, providerRef);
     const after = this.hooks.afterAccept?.(req);
     if (after === 'crash') throw new CrashAfterAccept();
     if (after === 'timeout') return { outcome: 'unknown' };

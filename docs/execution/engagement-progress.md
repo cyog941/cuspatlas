@@ -134,6 +134,23 @@ Seams for the next E batch:
 - E9 parity and release evidence: `ENGAGEMENT_OPS` (20 staff operations, REST + MCP) and `PORTAL_OPS` (5 portal operations, REST only) are the derivation tables; the E negative harness already runs every staff row in three dimensions on both surfaces and every portal row against six credentials; an export manifest for principals, consent facts, decisions, messages, attempts, receipts and enrollments is not built.
 - B4 consumes `communications.suppression.preview` (or `evaluateSuppression` in-process) and cites `SuppressionReason`; S's PT-02 recovery read can replace its consent placeholder with the same preview.
 
+## Review hardening of E1-E7 (independent review of 75fdcee)
+
+Files: `supabase/migrations/20261110030000_review_hardening_e.sql`, `packages/domain/src/engagement/{portal/requests,communications/{suppression,delivery,deliveries,consent},codecs}.ts`, `packages/domain/src/policy/authorize.ts`, `packages/domain/src/patients/merge.ts` (one exclusion), `apps/api/src/{app,server,routes/engagement-ops}.ts`, `apps/mcp/src/{auth,server}.ts`, `engagement.schema.json` (`ContactVerify`, `ReceiptInput.deliveryKey`, three reasons), `tests/integration/engagement-review-hardening.test.ts` (10 tests), `tests/integration/support/fake-messaging.ts` (`whileAccepted` hook).
+
+1. REQUIRED portal abuse-bound race: the S8 portal `authorize` hook now locks the acting principal's enrolment row and the patient row `FOR NO KEY UPDATE` before the E1 check share-locks them, so the count in `bound()` and S8's insert are serialized per principal and per patient (taken before the share lock to avoid a share-to-update upgrade deadlock). Proven with a gated tenant-transaction runner that holds every transaction after its count until all have counted: without the fix 4 of 6 concurrent submissions were created with a cap of 3 and 3 of 3 passed a daily cap with one slot left; with it exactly 3 and exactly 1.
+2. A waitlist offer that is accepted, declined, withdrawn or past `expires_at` (at the send instant) is suppressed `offer_closed`; test: decline before send gives zero effects, an open offer is sent.
+3. A reminder whose visit has started at the send instant is suppressed `subject_past` (worker-outage test).
+4. A receipt for a provider reference not yet recorded is matched by the optional `deliveryKey` of a message with no provider reference (sending or unknown) and stored pending (`message_receipts.pending`, `provider_ref`); when the send (or reconciliation) records that provider reference the pending receipts are applied under the monotonic rule. Duplicates are re-checked under the message lock and a unique violation on the dedupe key inside a savepoint returns the deduplicated answer (six concurrent duplicates: six 200, one applied).
+5. Send-time contact verification: S4 contact points carry no verified flag, so E owns `contact_verifications` (append-only, sha256 digest of the normalized value; never the value) written by `communications.contacts.verify` (human, `communications.write`, value must be on the record, 422 `contactNotOnRecord`). At send time (and in previews of it) E6 requires a verified point of the channel, else `no_verified_channel`; E7 addresses only a verified point. A changed value no longer matches its verification.
+6. The API refuses to boot when the portal audience equals `mcpAudience` (`CUSPATLAS_MCP_AUDIENCE`), and the MCP server when its audience equals `portalAudience` (staff-audience guard already existed).
+
+The vocabulary additions were made in the plan's Shared interfaces first. Existing E7, E6-preview and harness fixtures now verify their synthetic contacts. Negative harness: one staff row (`communications.contacts.verify`).
+
+- Red: `corepack pnpm test -- tests/integration/engagement-review-hardening.test.ts` with the implementation stashed: exit 1, 10 failed (10) (the two concurrency cases failed on the counts above, not on errors).
+- Green: same command exit 0, 10 passed; `corepack pnpm run ci` exit 0 (49 files / 1096 passed / 7 todo; typecheck, lint with one pre-existing warning, contract drift, privacy scan, SBOM, evidence).
+- Test-infrastructure fix in the same commit: `tests/integration/restore-smoke.test.ts` case (e) failed intermittently on this Windows host with EBUSY when embedded-postgres removed its data directory immediately on stop; the cluster is now kept on stop and removed by the scratch cleanup with retries (assertions unchanged).
+
 ## Pending decisions
 
 | Decision | Recommendation implemented (pending approval) | Settles it |

@@ -4,6 +4,7 @@ import {
   type CommandEnvelope,
   ENGAGEMENT_PROPERTIES,
   RefusalError,
+  type TenantTransaction,
   validateDeliveryResolve,
   validateEmptyQuery,
   validateReceiptInput,
@@ -20,6 +21,7 @@ import { OUTBOUND_MESSAGE_RESOURCE } from './delivery';
  * delivery (resend with the same delivery key, or abandon), and provider receipt ingestion by the
  * receipts integration principal (deduplicated on the provider event, monotonic, tenant-bound).
  */
+type ReceiptData = { deduplicated: boolean; applied: boolean; pending?: boolean; state: string };
 const RANK: Readonly<Record<string, number>> = { sent: 1, delivered: 2, failed: 2 };
 
 const EXPLANATION: Readonly<Record<string, string>> = {
@@ -158,8 +160,13 @@ export function createDeliveryOperations(base: EngagementBase) {
              WHERE intent_id = $1 ORDER BY decided_at, id LIMIT 100`,
             [m.intent_id],
           );
-          const receipts = await tx.query<{ state: string; occurred_at: Date; applied: boolean }>(
-            'SELECT state, occurred_at, applied FROM cuspatlas.message_receipts WHERE message_id = $1 ORDER BY received_at, id LIMIT 100',
+          const receipts = await tx.query<{
+            state: string;
+            occurred_at: Date;
+            applied: boolean;
+            pending: boolean;
+          }>(
+            'SELECT state, occurred_at, applied, pending FROM cuspatlas.message_receipts WHERE message_id = $1 ORDER BY received_at, id LIMIT 100',
             [m.id],
           );
           return {
@@ -191,6 +198,7 @@ export function createDeliveryOperations(base: EngagementBase) {
               state: r.state,
               occurredAt: r.occurred_at.toISOString(),
               applied: r.applied,
+              pending: r.pending,
             })),
           };
         });
@@ -257,43 +265,112 @@ export function createDeliveryOperations(base: EngagementBase) {
           providerEventId: string;
           state: 'delivered' | 'failed' | 'bounced';
           occurredAt: string;
+          deliveryKey?: string;
         };
-        return deps.withTenantTransaction(ctx, async (tx) => {
+        const deduplicated = async (tx: TenantTransaction) => {
           const dup = await tx.query<{ state: string }>(
             `SELECT m.state FROM cuspatlas.message_receipts r JOIN cuspatlas.outbound_messages m ON m.id = r.message_id
              WHERE r.dedupe_key = $1`,
             [p.providerEventId],
           );
-          if (dup.rows[0]) {
-            // A replayed provider event changes nothing and creates no second event.
-            return {
-              data: { deduplicated: true, applied: false, state: dup.rows[0].state },
-              version: 1,
-              correlationId: ctx.correlationId,
-              replayed: true,
-            };
-          }
-          const { rows } = await tx.query<{ id: string; state: string; version: number; last: Date | null }>(
-            `SELECT id, state, version, last_receipt_at AS last FROM cuspatlas.outbound_messages
+          // A replayed provider event changes nothing and creates no second event.
+          return dup.rows[0]
+            ? {
+                data: { deduplicated: true, applied: false, state: dup.rows[0].state },
+                version: 1,
+                correlationId: ctx.correlationId,
+                replayed: true,
+              }
+            : null;
+        };
+        return deps.withTenantTransaction(ctx, async (tx) => {
+          const early = await deduplicated(tx);
+          if (early) return early;
+          let { rows } = await tx.query<{
+            id: string;
+            state: string;
+            version: number;
+            last: Date | null;
+            provider_ref: string | null;
+          }>(
+            `SELECT id, state, version, last_receipt_at AS last, provider_ref FROM cuspatlas.outbound_messages
              WHERE provider_ref = $1 FOR UPDATE`,
             [p.providerRef],
           );
+          if (!rows[0] && p.deliveryKey !== undefined) {
+            // An early receipt: the provider answered before the send was recorded. It is matched by
+            // the delivery key of a message that has no provider reference yet and stored pending.
+            ({ rows } = await tx.query(
+              `SELECT id, state, version, last_receipt_at AS last, provider_ref FROM cuspatlas.outbound_messages
+               WHERE delivery_key = $1 AND provider_ref IS NULL AND state IN ('sending', 'unknown') FOR UPDATE`,
+              [p.deliveryKey],
+            ));
+          }
           const m = rows[0];
           if (!m) throw notFound();
-          return execute(ctx, { ...envelope, payload: p }, tx, async () => {
+          // Re-checked under the message lock: a concurrent duplicate committed while this one waited.
+          const late = await deduplicated(tx);
+          if (late) return late;
+          return execute<ReceiptData>(ctx, { ...envelope, payload: p }, tx, async () => {
             const at = new Date(p.occurredAt);
             const target = p.state === 'delivered' ? 'delivered' : 'failed';
+            if (m.provider_ref === null) {
+              try {
+                await tx.savepoint(() =>
+                  tx.query(
+                    `INSERT INTO cuspatlas.message_receipts (tenant_id, message_id, dedupe_key, state, occurred_at, applied,
+                       provider_ref, pending, recorded_by)
+                     VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, false, $5, true, cuspatlas.current_actor_id())`,
+                    [m.id, p.providerEventId, p.state, at, p.providerRef],
+                  ),
+                );
+              } catch (err) {
+                if ((err as { code?: unknown }).code === '23505')
+                  return { data: { deduplicated: true, applied: false, state: m.state }, version: m.version };
+                throw err;
+              }
+              const u = await tx.query<{ version: number }>(
+                `UPDATE cuspatlas.outbound_messages SET version = version + 1, updated_at = now() WHERE id = $1
+                 RETURNING version`,
+                [m.id],
+              );
+              const version = u.rows[0]?.version as number;
+              await recordCommand(
+                tx,
+                {
+                  operation: op,
+                  resourceType: OUTBOUND_MESSAGE_RESOURCE,
+                  resourceRef: m.id,
+                  resourceVersion: version,
+                },
+                { changedFields: ['receiptPending'] },
+              );
+              return {
+                data: { deduplicated: false, applied: false, pending: true, state: m.state },
+                version,
+              };
+            }
             // Monotonic: only a sent or delivered message moves, never backwards in time or rank, and a
             // suppressed, abandoned or unknown message is never resurrected by a receipt.
             const movable = m.state === 'sent' || m.state === 'delivered';
             const newer = m.last === null || at.getTime() > m.last.getTime();
             const higher = (RANK[target] ?? 0) > (RANK[m.state] ?? 0);
             const apply = movable && newer && higher;
-            await tx.query(
-              `INSERT INTO cuspatlas.message_receipts (tenant_id, message_id, dedupe_key, state, occurred_at, applied, recorded_by)
-               VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, cuspatlas.current_actor_id())`,
-              [m.id, p.providerEventId, p.state, at, apply],
-            );
+            try {
+              await tx.savepoint(() =>
+                tx.query(
+                  `INSERT INTO cuspatlas.message_receipts (tenant_id, message_id, dedupe_key, state, occurred_at, applied,
+                     provider_ref, recorded_by)
+                   VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6, cuspatlas.current_actor_id())`,
+                  [m.id, p.providerEventId, p.state, at, apply, p.providerRef],
+                ),
+              );
+            } catch (err) {
+              // A concurrent duplicate of the same provider event: the deduplicated answer, never a 500.
+              if ((err as { code?: unknown }).code === '23505')
+                return { data: { deduplicated: true, applied: false, state: m.state }, version: m.version };
+              throw err;
+            }
             // Every recorded receipt is a new message version (its own audit row), applied or not.
             const u = await tx.query<{ version: number; state: string }>(
               `UPDATE cuspatlas.outbound_messages SET state = CASE WHEN $2::boolean THEN $3 ELSE state END,

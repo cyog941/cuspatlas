@@ -8,6 +8,7 @@ import {
   RefusalError,
   type RequestCommandData,
   type TenantTransaction,
+  validateEngagementEntityRef,
   validatePortalRequestSubmit,
 } from '@cuspatlas/contracts';
 import { checkEnvelope, type EngagementBase, who } from '../common';
@@ -31,6 +32,22 @@ const limited = (reason: string, name: string, value: number) =>
     reasonCode: 'portal_rate_limited',
     detail: { reason, limit: { name, value } },
   });
+
+/**
+ * Serializes the abuse-bound check of concurrent submissions (review hardening): the acting
+ * principal's enrolment row (per-principal daily cap) and the patient row (per-patient open cap) are
+ * locked FOR NO KEY UPDATE before anything share-locks them, so two submissions with different keys
+ * cannot both count below the cap. Taken in the authorize hook (before the portal check share-locks
+ * the principal) to avoid a share-to-update upgrade between concurrent submissions.
+ */
+async function lockForBounds(tx: TenantTransaction, patientRef: string): Promise<void> {
+  await tx.query(
+    'SELECT 1 FROM cuspatlas.portal_principals WHERE principal_id = cuspatlas.current_actor_id() FOR NO KEY UPDATE',
+  );
+  if (validateEngagementEntityRef(patientRef)) {
+    await tx.query('SELECT 1 FROM cuspatlas.patients WHERE id = $1 FOR NO KEY UPDATE', [patientRef]);
+  }
+}
 
 async function bound(tx: TenantTransaction, patientRef: string): Promise<void> {
   const open = await tx.query<{ n: number }>(
@@ -95,6 +112,7 @@ export function createPortalRequestOperations(base: EngagementBase) {
             'portal',
             {
               authorize: async (tx, ref) => {
+                await lockForBounds(tx, ref);
                 await requirePortalAccess(tx, ref, ['scheduling']);
               },
               bound,

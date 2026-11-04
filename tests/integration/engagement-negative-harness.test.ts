@@ -203,6 +203,26 @@ export const COMMANDS: HarnessCommand[] = [
     }),
   },
   {
+    operation: 'communications.contacts.verify',
+    tool: 'communications_contacts_verify',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/patients/${f.parent}/contact-verifications`,
+      body: { channel: 'email', value: 'e.harness.parent@example.invalid', method: 'synthetic_attested' },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      patientRef: f.parent,
+      channel: 'email',
+      value: 'e.harness.parent@example.invalid',
+      method: 'synthetic_attested',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
     operation: 'communications.consents.list',
     tool: 'communications_consents_list',
     crossTenant: 'not_found',
@@ -566,6 +586,14 @@ beforeAll(async () => {
     201,
   );
   h.ok(await h.call('a1', 'POST', `/v1/patients/${parent}/consents`, CONSENT), 201);
+  h.ok(
+    await h.call('a1', 'POST', `/v1/patients/${parent}/contact-verifications`, {
+      channel: 'email',
+      value: 'e.harness.parent@example.invalid',
+      method: 'synthetic_attested',
+    }),
+    201,
+  );
   const toCancel = h.ok<{ data: { appointmentRef: string } }>(
     await h.call('a1', 'POST', '/v1/scheduling/appointments', {
       patientRef: parent,
@@ -705,7 +733,7 @@ async function state(): Promise<string> {
       `SELECT table_name FROM information_schema.tables WHERE table_schema = 'cuspatlas'
        AND table_name IN ('portal_principals', 'principals', 'appointment_requests', 'communication_consents',
          'suppression_decisions', 'channel_policies', 'message_templates', 'outbound_messages', 'delivery_attempts',
-         'message_receipts', 'recall_enrollments', 'audit_events', 'outbox_events', 'command_idempotency')
+         'message_receipts', 'recall_enrollments', 'contact_verifications', 'audit_events', 'outbox_events', 'command_idempotency')
        ORDER BY table_name`,
     )
   ).rows.map((r) => r.table_name as string);

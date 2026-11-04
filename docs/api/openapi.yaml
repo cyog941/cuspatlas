@@ -2769,34 +2769,6 @@ paths:
         '503':
           $ref: '#/components/responses/Refusal'
   /v1/patients/{patientRef}/consents:
-    get:
-      operationId: communications.consents.list
-      description: >-
-        Consent and opt-out facts of a patient with provenance, and the effective state per channel and
-        purpose.
-      parameters:
-        - name: patientRef
-          in: path
-          required: true
-          schema:
-            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/PatientRef'
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementRead'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
     post:
       operationId: communications.consents.record
       description: >-
@@ -2836,6 +2808,34 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+    get:
+      operationId: communications.consents.list
+      description: >-
+        Consent and opt-out facts of a patient with provenance, and the effective state per channel and
+        purpose.
+      parameters:
+        - name: patientRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/PatientRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   /v1/patients/{patientRef}/opt-outs:
     post:
       operationId: communications.consents.optOut
@@ -2855,6 +2855,47 @@ paths:
           application/json:
             schema:
               $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/OptOutInput'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/patients/{patientRef}/contact-verifications:
+    post:
+      operationId: communications.contacts.verify
+      description: >-
+        Record a staff-attested verification of a contact point on the record (only its digest is stored).
+        E7 addresses only verified contact points; an unverified channel is suppressed no_verified_channel.
+        Human staff only.
+      parameters:
+        - name: patientRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/PatientRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/ContactVerify'
       responses:
         '201':
           description: Success.
@@ -2930,25 +2971,6 @@ paths:
         '503':
           $ref: '#/components/responses/Refusal'
   /v1/communications/channel-policies:
-    get:
-      operationId: communications.channelPolicies.list
-      description: >-
-        Current channel policy per intent purpose (none by default), with template and quiet hours.
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementRead'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
     post:
       operationId: communications.channelPolicies.define
       description: >-
@@ -2980,6 +3002,25 @@ paths:
         '409':
           $ref: '#/components/responses/Refusal'
         '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: communications.channelPolicies.list
+      description: >-
+        Current channel policy per intent purpose (none by default), with template and quiet hours.
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
@@ -3085,34 +3126,6 @@ paths:
         '503':
           $ref: '#/components/responses/Refusal'
   /v1/communications/recall-enrollments:
-    get:
-      operationId: communications.recall.enrollments
-      description: >-
-        Recall enrollments of a category with their S16 due item (policy version, due date, qualifying
-        event).
-      parameters:
-        - name: category
-          in: query
-          required: false
-          schema:
-            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/RecallEnrollmentsQuery/properties/category'
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementRead'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
     post:
       operationId: communications.recall.enroll
       description: >-
@@ -3144,6 +3157,34 @@ paths:
         '409':
           $ref: '#/components/responses/Refusal'
         '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: communications.recall.enrollments
+      description: >-
+        Recall enrollments of a category with their S16 due item (policy version, due date, qualifying
+        event).
+      parameters:
+        - name: category
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/RecallEnrollmentsQuery/properties/category'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'

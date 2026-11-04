@@ -12,6 +12,7 @@ const E_OPERATIONS = [
   'portal.principals.revoke',
   'communications.consents.record',
   'communications.consents.optOut',
+  'communications.contacts.verify',
   'portal.consents.record',
   'communications.channelPolicies.define',
   'communications.templates.define',

@@ -109,6 +109,7 @@ export const validateRecallEnrollmentsQuery = def('RecallEnrollmentsQuery');
 // E7 delivery.
 export const validateDeliveryResolve = def('DeliveryResolve');
 export const validateReceiptInput = def('ReceiptInput');
+export const validateContactVerify = def('ContactVerify');
 
 /**
  * E9 minimal engagement export (E scope; M1 owns the full export contract). Every E table of a
@@ -119,6 +120,7 @@ export const validateReceiptInput = def('ReceiptInput');
 export const ENGAGEMENT_EXPORT_FORMAT = 'cuspatlas-engagement-export/1';
 export const ENGAGEMENT_EXPORT_TABLES = [
   'communication_consents',
+  'contact_verifications',
   'message_templates',
   'channel_policies',
   'suppression_decisions',

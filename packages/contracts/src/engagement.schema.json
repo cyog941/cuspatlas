@@ -330,7 +330,10 @@
         "appointment_missing",
         "template_withdrawn",
         "recall_not_due",
-        "grant_expired"
+        "grant_expired",
+        "offer_closed",
+        "subject_past",
+        "no_verified_channel"
       ],
       "description": "The single suppression reason vocabulary (portal and communications plan, Shared interfaces). S14 and B4 cite it; no consumer defines its own."
     },
@@ -547,6 +550,31 @@
         },
         "occurredAt": {
           "$ref": "#/$defs/Instant"
+        },
+        "deliveryKey": {
+          "type": "string",
+          "description": "The idempotency key the message was sent with; matches a receipt that arrives before the send is recorded (stored pending).",
+          "pattern": "^[A-Za-z0-9._:-]{1,160}$"
+        }
+      }
+    },
+    "ContactVerify": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["channel", "value", "method"],
+      "description": "E6 contact verification fact (staff-attested on synthetic data; E-S3 open). The value must be a contact point on the record; only its digest is stored and the value is never echoed.",
+      "properties": {
+        "channel": {
+          "enum": ["email", "phone"]
+        },
+        "value": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 254,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "method": {
+          "enum": ["synthetic_attested"]
         }
       }
     }

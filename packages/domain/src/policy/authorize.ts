@@ -154,6 +154,8 @@ export const ACTION_POLICIES = {
   'communications.consents.record': { scope: 'communications.write', principals: ['human', 'service'] },
   'communications.consents.optOut': { scope: 'communications.write', principals: ['human', 'service'] },
   'communications.consents.list': { scope: 'communications.read', principals: ['human', 'service'] },
+  // Review hardening: a contact point is addressed only after a person attests its verification.
+  'communications.contacts.verify': { scope: 'communications.write', principals: ['human'] },
   'communications.channelPolicies.define': { scope: 'admin.configure', principals: ['human'] },
   'communications.channelPolicies.list': { scope: 'communications.read', principals: ['human', 'service'] },
   'communications.templates.define': { scope: 'admin.configure', principals: ['human'] },

@@ -86,6 +86,8 @@ export interface McpServerDeps {
   readonly identity: IdentityVerifierConfig;
   /** The REST audience; the server refuses to start if it equals the MCP audience. */
   readonly restAudience?: string;
+  /** The portal audience; the server refuses to start if it equals the MCP audience. */
+  readonly portalAudience?: string;
   readonly membership: MembershipSource;
   readonly attempts: SecurityAttemptSink;
   readonly tenantTransactions: WithTenantTransaction;
@@ -206,6 +208,7 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
   assertDistinctAudience({
     identity: deps.identity,
     ...(deps.restAudience === undefined ? {} : { restAudience: deps.restAudience }),
+    ...(deps.portalAudience === undefined ? {} : { portalAudience: deps.portalAudience }),
   });
 
   const write = (line: Record<string, unknown>) =>

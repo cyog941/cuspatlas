@@ -134,3 +134,19 @@ Negative harness: set policy, policies, place, release and list holds, request, 
 - Red (tests before the I8 code was wired): `corepack pnpm test -- imaging-retention` → exit 1, 8 failed (8).
 - Green: `corepack pnpm test -- imaging-retention` → exit 0, 8 passed (one test setup corrected: the shared-bytes case needed a second dedupe scope, since identical unscoped bytes correctly deduplicate into one object); `corepack pnpm test -- imaging tenant-isolation mcp-parity patient-merge contract-drift` → exit 0, 10 files, 290 passed.
 - Full gate: `typecheck`, `lint`, `contract:check` exit 0; `corepack pnpm test` → exit 0, 48 files, 1121 passed + 13 todo.
+
+## Seams for later tasks
+
+- C15 (encounter image links): store only the `imageRef`; resolve it with `imageReference(tx, imageRef, expectedPatientRef)` (in-process, inside the caller's tenant transaction) or `GET /v1/imaging/image-refs/{imageRef}?expectedPatientRef=`; refuse to show or rely on an image when `matchesExpected` is false or `objectState` is not `available`. C defines no matching, `matchStatus` or correction of its own.
+- CL-04 (B attachment packages): bind each attachment to `imageRef` + `digestSha256` + `decisionRef` at package build time and recheck all three (and `matchesExpected` for the claim's patient) before dispatch; bytes come through a read grant (REST only). A derived rendition for a payer is an I4 derived object with its own digest; the original stays the diagnostic original.
+- I5 (DICOM): `application/dicom` is recognized only by its `DICM` marker and stored opaquely; a parser port would read staged bytes in the I2 completion path after the scan gate and record its summary separately (parse never alters bytes). Blocked on I-S2.
+- I6/I7 (device bridge): ingress already accepts `provenance.source = bridgeImport`, a placeholder `deviceRef` and `captureSoftware`, and service principals with `imaging.write`; a bridge job would call begin/upload/complete with its own device credential (not yet modeled). The unknown-scan hold and the ingress failure worklist are the offline/deferred surfaces I7 extends. Blocked on I-S1 and I-S3.
+- M7 (migration archive): `provenance.source = migrationArchive` exists; the deletion runbook names the missing archive-owner review and the object-store backup rule. No export manifest for imaging exists yet (I9).
+
+## Unresolved in this batch
+
+- No real malware scanner, managed object store, device, DICOM library or acquisition software (blocked; the fake scanner and local adapter are synthetic test adapters, the local adapter is refused under `production`).
+- The restore interaction is evidenced by a simulated restore (row reverted through the fixture path), not by an imaging-specific logical backup and restore drill.
+- Orphan content bytes (bytes without a row after a rolled-back completion) are listed by a maintenance function only; automatic removal is not implemented.
+- I9 (parity matrix, export, ordinary imaging day scenario, OpenAPI release evidence) is out of scope; the imaging negative harness covers every imaging operation on REST and MCP.
+- Load sensitivity: under the larger parallel suite, existing timing-heavy tests (`restore-smoke` (e), `worker-recovery` x5 case) occasionally exceeded their bounds once and pass on rerun and alone; not changed.

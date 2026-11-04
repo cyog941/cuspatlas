@@ -87,7 +87,12 @@ It is a tripwire, not a guarantee. It does not replace review, and it does not d
 
 ## SBOM and evidence manifest
 
-`corepack pnpm sbom` writes (gitignored) `artifacts/sbom.cdx.json` (CycloneDX 1.5, components from `pnpm-lock.yaml`, licenses from `pnpm licenses list`, root component carrying the git commit as a property) and `artifacts/evidence-manifest.json`. The manifest is a skeleton: `{ schemaVersion, commit, generatedAt, controls: [] }`. The AS-01..AS-04 controls are populated by the restore and evidence task, not by CI scripts. Components for other platforms' optional binaries have no license entry because `pnpm licenses` only sees the installed tree; they are marked `NOASSERTION`, not guessed.
+`corepack pnpm sbom` writes (gitignored) `artifacts/sbom.cdx.json` (CycloneDX 1.5, components from `pnpm-lock.yaml`, licenses from `pnpm licenses list`, root component carrying the git commit as a property) and `artifacts/evidence-manifest.json`. `sbom` writes the manifest as a skeleton; `corepack pnpm evidence` then populates it with the AS-01..AS-04 controls and signs it, and `corepack pnpm evidence-verify` checks it (see "Backup, restore and evidence" below). Components for other platforms' optional binaries have no license entry because `pnpm licenses` only sees the installed tree; they are marked `NOASSERTION`, not guessed.
+
+## Backup, restore and evidence
+
+- `corepack pnpm backup -- --out <dir>` and `corepack pnpm restore -- --backup <dir> --target <name> --confirm-target <name>`: logical backup and guarded restore into a new disposable synthetic database. Procedure, target guard and limits: [restore runbook](restore.md). Deployment and role model: [ADR 0002](../adr/0002-deployment.md).
+- `corepack pnpm evidence` (`scripts/evidence.mjs`) and `corepack pnpm evidence-verify` (`scripts/evidence-verify.mjs`): signed AS-01..AS-04 evidence manifest from [docs/assurance/controls.json](../assurance/controls.json); review claims are checked against [docs/assurance/reviewers.md](../assurance/reviewers.md). Both run in `corepack pnpm run ci` after `sbom`; they need `artifacts/test-summary.json`, which `run ci` produces.
 
 ## What CI runs and why it is least privilege
 

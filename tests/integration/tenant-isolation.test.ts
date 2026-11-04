@@ -107,6 +107,9 @@ describe('runtime database role', () => {
       'delivery_receipts',
       'memberships',
       'outbox_events',
+      'patient_merge_moves',
+      'patient_merge_reversals',
+      'patient_merges',
       'patient_policy_settings',
       'patient_relationships',
       'patient_status_history',
@@ -138,6 +141,9 @@ describe('runtime database role', () => {
       'sensitive_read_events',
       'patient_policy_settings',
       'patient_relationships',
+      'patient_merges',
+      'patient_merge_moves',
+      'patient_merge_reversals',
     ]) {
       const { rows } = await db.app.query(`SELECT count(*)::int AS n FROM cuspatlas.${t}`);
       expect([t, rows[0].n]).toStrictEqual([t, 0]);

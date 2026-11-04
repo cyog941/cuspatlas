@@ -181,6 +181,65 @@ export interface PatientAccess {
   readonly relationships: readonly Relationship[];
 }
 
+/** S6 duplicate review and merge. */
+export type DuplicateReason =
+  | 'same_identifier'
+  | 'same_legal_name'
+  | 'same_birth_date'
+  | 'birth_date_compatible'
+  | 'birth_date_conflict'
+  | 'same_phone'
+  | 'same_email'
+  | 'same_address';
+export interface DuplicateCandidate {
+  readonly candidateRef: string;
+  readonly score: number;
+  readonly reasons: readonly DuplicateReason[];
+  readonly summary: PatientSummary;
+  readonly confirmationToken: string;
+  readonly confirmationExpiresAt: string;
+}
+export interface DuplicateCandidateList {
+  readonly data: readonly DuplicateCandidate[];
+  readonly minScore: number;
+  readonly policyVersion: string;
+}
+export type MergeReasonCode = 'duplicate_registration' | 'migration_duplicate' | 'other';
+export type UnmergeReasonCode = 'merged_in_error' | 'reconciliation_review' | 'other';
+export interface MergeRequest {
+  readonly survivorRef: string;
+  readonly mergedRef: string;
+  readonly confirmationToken: string;
+  readonly reasonCode: MergeReasonCode;
+}
+export interface UnmergeRequest {
+  readonly reasonCode: UnmergeReasonCode;
+  readonly reconciliationReviewRef?: string;
+}
+export interface MergeMove {
+  readonly recordClass: string;
+  readonly recordRef: string;
+  readonly referenceField: string;
+  readonly priorPatientRef: string;
+  readonly newPatientRef: string;
+}
+export interface MergeResult {
+  readonly mergeRef: string;
+  readonly survivorRef: string;
+  readonly mergedRef: string;
+  readonly state: 'merged' | 'reversed';
+  readonly reasonCode: MergeReasonCode;
+  readonly mergedAt: string;
+  readonly reversedAt: string | null;
+  readonly reversal: {
+    readonly reasonCode: UnmergeReasonCode;
+    readonly elevated: boolean;
+    readonly reconciliationReviewRef: string | null;
+  } | null;
+  readonly moves: readonly MergeMove[];
+  readonly moveCount: number;
+}
+
 export const patientSchema = schema;
 export const PATIENT_SCHEMA_ID = schema.$id;
 export const PATIENT_PROPERTIES: ReadonlySet<string> = collectPropertyNames(schema);
@@ -205,3 +264,8 @@ export const validateRelationshipRevoke = def('RelationshipRevoke');
 export const validateRelationshipListQuery = def('RelationshipListQuery');
 export const validateRelationshipRef = def('RelationshipRef');
 export const validatePatientAccessQuery = def('PatientAccessQuery');
+export const validateDuplicateQuery = def('DuplicateQuery');
+export const validateMergeRequest = def('MergeRequest');
+export const validateUnmergeRequest = def('UnmergeRequest');
+export const validateMergeHistoryQuery = def('MergeHistoryQuery');
+export const validateMergeRef = def('MergeRef');

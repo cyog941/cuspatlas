@@ -140,6 +140,9 @@ export const SECURITY_REASON_CODES = [
   'relationship_expired',
   'relationship_revoked',
   'relationship_scope_missing',
+  // S6: merge confirmation and reversal policy.
+  'merge_confirmation_invalid',
+  'unmerge_review_required',
 ] as const;
 export type SecurityReasonCode = (typeof SECURITY_REASON_CODES)[number];
 

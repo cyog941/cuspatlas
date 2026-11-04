@@ -179,16 +179,22 @@ const PATIENT_QUERIES: Record<string, string> = {
   'patients.read': 'PatientReadQuery',
   'patients.relationships.list': 'RelationshipListQuery',
   'patients.access.resolve': 'PatientAccessQuery',
+  'patients.duplicates.find': 'DuplicateQuery',
+  'patients.merges.list': 'MergeHistoryQuery',
 };
 const PATIENT_TOOL_NAMES = [
   'patients_add_relationship',
   'patients_create',
+  'patients_find_duplicates',
   'patients_get',
+  'patients_list_merge_history',
   'patients_list_relationships',
+  'patients_merge',
   'patients_resolve_access',
   'patients_revoke_relationship',
   'patients_search',
   'patients_set_status',
+  'patients_unmerge',
   'patients_update_demographics',
 ];
 

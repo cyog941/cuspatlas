@@ -4,6 +4,8 @@ import { executeOnce } from '../commands/execute-once';
 import { createCursorCodec } from '../cursor';
 import type { ActionName } from '../policy/authorize';
 import { createIdentityCommands } from './identity';
+import { createMergeCommands } from './merge';
+import { createMergeConfirmationCodec } from './merge-confirmation';
 import { createRelationshipCommands } from './relationships';
 import type { PatientServiceContext, PatientServiceDeps } from './service-context';
 
@@ -16,6 +18,7 @@ export function createPatientService(deps: PatientServiceDeps) {
     deps,
     execute: deps.execute ?? executeOnce,
     cursors: deps.cursors ?? createCursorCodec(),
+    confirmations: deps.mergeConfirmations ?? createMergeConfirmationCodec(),
     guarded<T>(ctx: ActorContext, operation: ActionName, work: () => Promise<T>): Promise<T> {
       return withAttemptRecording(
         deps.recording,
@@ -24,7 +27,7 @@ export function createPatientService(deps: PatientServiceDeps) {
       );
     },
   };
-  return { ...createIdentityCommands(s), ...createRelationshipCommands(s) };
+  return { ...createIdentityCommands(s), ...createRelationshipCommands(s), ...createMergeCommands(s) };
 }
 
 export type PatientService = ReturnType<typeof createPatientService>;

@@ -10,7 +10,8 @@ Authorization basis: user instruction on 2026-11-04 to build workstream S on syn
 |---|---|---|---|
 | S-S1 patient identity decision record | recommended-pending-approval (no reviewer) | ed71feb | ADR 0003 |
 | S4 patient identity core + negative harness | verified on synthetic data (Windows host); decisions pending approval | 7bde1cf | 382 tests |
-| S5 guardian, guarantor and proxy relationships | verified on synthetic data (Windows host); decisions pending approval | the commit containing this row | 409 tests |
+| S5 guardian, guarantor and proxy relationships | verified on synthetic data (Windows host); decisions pending approval | 1a54fe8 | 409 tests |
+| S6 duplicate review, merge and unmerge | verified on synthetic data (Windows host); decisions pending approval | the commit containing this row | 438 tests |
 
 ## Command log
 
@@ -72,3 +73,32 @@ Deviations: the counterparty is a patient-identity record of the same tenant (no
 Decisions taken under pending recommendations: S-D4 (Q10-Q12): guardian until age of majority (default 18, per tenant), proxy time-boxed (default maximum 365 days, per tenant), renewal is a new grant, one unrevoked guarantor.
 
 Unresolved: no write command for `patient_policy_settings` (needs `admin.configure`); jurisdiction review of majority, emancipation and evidence requirements; E1 portal principal mapping.
+
+### S6 (duplicate candidate review, merge and unmerge)
+
+Acceptance cases (tests/integration/patient-merge.test.ts, 13 tests, denials under the runtime role):
+
+1. candidates for a true duplicate (same legal name, birth date and phone) list exactly that patient with reasons `same_birth_date`, `same_legal_name`, `same_phone` and score 85, a summary without contact values and no audit, outbox, merge or patient change; pair P1 (shared phone and address, different names) never qualifies; pair P2 (same name, birth dates 2003-02-03 and 1973-02-03) is below the default threshold 40 and, with the tenant threshold lowered to 5, is listed with score 10 and reasons `same_legal_name`, `birth_date_conflict`;
+2-3. a merge moves every enumerated record (a relationship where the merged patient is counterparty and one where it is subject), each listed with record class, reference field, prior and new owner; the merged record reads as 409 `patient_merged`, is excluded from search and stays reachable through merge history from both refs; the history's moves and count equal the result's; both rows are kept; the relinked guardian authority now names the survivor; audit rows per correlation: 2 patient, 1 merge, 2 relationship;
+4. tampered, forged, other-pair and other-reviewer tokens are 403 `confirmation_invalid`; a missing token is 400; a read-only member is 403; a service principal with `patients.merge` is 403 `principal_kind_denied`; a change after review is 409 `confirmation_stale`; candidate review needs the merge scope; a reviewer with its own token merges;
+5. a cross-tenant merge returns a body identical to a merge naming a random ref; another tenant's patient is 404 for candidates and history and never a candidate;
+6. unmerge inside the window (ordinary merge role) restores the relinked record, appends a reversal, keeps the merge link and refuses a second reversal (`merge_already_reversed`); outside the window (tenant window 0) the ordinary role gets 403 `unmerge_requires_reconciliation_review`, the elevated role without a review reference 422 `reconciliation_review_required`, and with one 200 (`elevated: true`);
+7. the moved relationship's content digest is unchanged and equals the recorded before/after digests; every foreign key to `patients` is registered or excluded; the database refuses a move whose digests differ (SQLSTATE 23514).
+
+Failure cases: (1) revoked INSERT on `patient_merge_moves` gives 500 and leaves relationships, patients, merges, audit and outbox unchanged; the same token then merges; (2) two concurrent merges absorbing the same patient into different survivors give one 201 and one 409, one merge row and one move for the shared relationship; the remaining survivor then absorbs the third record; (3) a relationship between the pair, or two unrevoked guardians that would collapse into a duplicate, give 409 `merge_blocked` with exactly the blocking relationship in `blockingRefs` and nothing written; (4) merging an already-merged patient is 409; candidate review of a merged patient is 409 `patient_merged`; unmerging a merge whose survivor was merged later is 409 `survivor_merged`.
+
+Also: with a post-merge clinical-fact probe (test stand-in; no clinical class exists yet) the ordinary role is refused and the elevated role with a review reference succeeds; an expired token is 403 `confirmation_expired`; merge and unmerge through MCP call the same handlers, a replay under the same key returns the recorded merge without a second merge, and MCP and REST merge history are identical; the marker in names never reaches logs, audit, outbox, attempt, idempotency, sensitive-read, merge or move rows.
+
+Negative harness: 4 rows appended (find, merge, unmerge, history), each cross-tenant, revoked and downgraded on REST and MCP (12 tests). Cross-tenant merge is denied with `merge_confirmation_invalid` before any lookup (new harness mode `confirmation_denied`).
+
+- Red: `corepack pnpm test -- patient-merge` before implementation: exit 1, 13 failed (13).
+- Green: `corepack pnpm test -- patient-merge`: exit 0, 13 passed. One fixture correction during green: pair P2 got a birth date no other fixture shares (with the threshold lowered to 5, an exact shared birth date alone, score 30, legitimately qualified other fixtures). ADR 0003 updated to the same dates.
+- `corepack pnpm typecheck`, `lint`, `contract:check`: exit 0; `corepack pnpm test`: exit 0, 23 files, 438 tests.
+
+Deviations: function names `findDuplicateCandidates`, `mergePatients`, `unmergePatients`, `listMergeHistory` as in the plan; `MergeResult` moves use the record's public reference field name (`subjectRef`, `counterpartyRef`). The confirmation token is issued by candidate review (no separate prepare command). Merge field precedence: survivor wins and nothing is copied (ADR 0003 Q4).
+
+Decisions taken under pending recommendations: S-D3 (Q2, Q3) candidate scoring with reasons, never automatic, contact-only overlap never qualifies, default threshold 40; S-D2 (Q7, Q8) reversible within 30 days and without new clinical/financial facts, otherwise elevated role plus review reference; Q5/Q6 confirmation token and human-only merge.
+
+Limitation (record classes merge does not cover yet): appointment requests and bookings (S8, S10), clinical records (C), financial records (B), images (I) and portal grants (E1) do not exist; each must register in `MERGE_RECORD_CLASSES` (the foreign-key test enforces it). The post-merge fact rule has no real clinical or financial class to count yet.
+
+Unresolved: reviewer sign-off for every ADR 0003 row; a write command for `patient_policy_settings`; unique-index collisions when restoring a record during unmerge after an identical record was created for the restored patient are not prechecked (they fail closed as a 500 and roll back).

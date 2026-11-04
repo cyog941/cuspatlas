@@ -189,6 +189,41 @@ export const ROUTES: readonly RouteContract[] = [
     success: { status: '200', schema: 'patient:PatientAccessRead' },
     refusals: ['400', '401', '403', '404', '503'],
   },
+  // S6 duplicate review, merge and unmerge.
+  {
+    method: 'get',
+    path: '/v1/patients/{patientRef}/duplicate-candidates',
+    operationId: 'patients.duplicates.find',
+    protected: true,
+    success: { status: '200', schema: 'patient:DuplicateCandidateList' },
+    refusals: ['400', '401', '403', '404', '409', '503'],
+  },
+  {
+    method: 'post',
+    path: '/v1/patients/merges',
+    operationId: 'patients.merge',
+    protected: true,
+    requestBody: 'patient:MergeRequest',
+    success: { status: '201', schema: 'patient:MergeCommandResult' },
+    refusals: ['400', '401', '403', '404', '409', '422', '503'],
+  },
+  {
+    method: 'post',
+    path: '/v1/patients/merges/{mergeRef}/unmerge',
+    operationId: 'patients.unmerge',
+    protected: true,
+    requestBody: 'patient:UnmergeRequest',
+    success: { status: '200', schema: 'patient:MergeCommandResult' },
+    refusals: ['400', '401', '403', '404', '409', '422', '503'],
+  },
+  {
+    method: 'get',
+    path: '/v1/patients/{patientRef}/merge-history',
+    operationId: 'patients.merges.list',
+    protected: true,
+    success: { status: '200', schema: 'patient:MergeHistory' },
+    refusals: ['400', '401', '403', '404', '503'],
+  },
 ];
 
 export function routeFor(operationId: string): RouteContract & { fastifyPath: string } {

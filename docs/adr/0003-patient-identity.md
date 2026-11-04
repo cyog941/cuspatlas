@@ -15,7 +15,7 @@ The two synthetic pairs are test fixtures (tests/integration/patient-identity.te
 | Pair | Records | What it exercises | Expected behaviour under this ADR |
 |---|---|---|---|
 | P1 shared household phone | "Synthetic Household One" and "Synthetic Household Two", different given names and birth dates, the same synthetic phone number and address | contact data shared by a household | two separate patients after creation and after search; no merge is proposed; not a duplicate candidate because shared phone/address never qualify alone |
-| P2 same name, different birth date | two "Synthetic Patient Twin" records, identical legal name, birth dates 2001-02-03 and 1971-02-03 (both day precision) | parent/child or namesakes | listed as a candidate only if its score reaches the configured threshold; by default the birth-date conflict keeps it below the threshold, and the reasons (`same_legal_name`, `birth_date_conflict`) are shown when it is listed |
+| P2 same name, different birth date | two "Synthetic Patient Twin" records, identical legal name, birth dates 2003-02-03 and 1973-02-03 (both day precision) | parent/child or namesakes | listed as a candidate only if its score reaches the configured threshold; by default the birth-date conflict keeps it below the threshold, and the reasons (`same_legal_name`, `birth_date_conflict`) are shown when it is listed |
 
 | # | Question | Recommended answer (pending approval) | Plan decision |
 |---|---|---|---|

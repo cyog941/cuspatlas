@@ -121,6 +121,7 @@ const KNOWN_PROPERTIES: ReadonlySet<string> = new Set([
   'proposalRef',
   'patientRef',
   'relationshipRef',
+  'mergeRef',
 ]);
 
 const ajv = createAjv();

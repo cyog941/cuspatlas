@@ -114,4 +114,43 @@ export function registerPatientRoutes(
         ...(request.query as object),
       }),
   );
+
+  // S6 duplicate review, merge and unmerge.
+  app.get<PatientParams>(
+    routeFor('patients.duplicates.find').fastifyPath,
+    on('patients.duplicates.find'),
+    async (request) =>
+      svc.findDuplicateCandidates(requireActor(request), request.params.patientRef, {
+        ...(request.query as object),
+      }),
+  );
+
+  app.post(routeFor('patients.merge').fastifyPath, on('patients.merge'), async (request, reply) => {
+    const result = await svc.mergePatients(requireActor(request), {
+      operation: 'patients.merge',
+      idempotencyKey: idempotencyKey(request),
+      payload: request.body,
+    });
+    return reply.code(201).send(result);
+  });
+
+  app.post<{ Params: { mergeRef: string } }>(
+    routeFor('patients.unmerge').fastifyPath,
+    on('patients.unmerge'),
+    async (request) =>
+      svc.unmergePatients(requireActor(request), request.params.mergeRef, {
+        operation: 'patients.unmerge',
+        idempotencyKey: idempotencyKey(request),
+        payload: request.body,
+      }),
+  );
+
+  app.get<PatientParams>(
+    routeFor('patients.merges.list').fastifyPath,
+    on('patients.merges.list'),
+    async (request) =>
+      svc.listMergeHistory(requireActor(request), request.params.patientRef, {
+        ...(request.query as object),
+      }),
+  );
 }

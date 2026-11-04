@@ -40,6 +40,15 @@ export const ACTION_POLICIES = {
   'patients.relationships.revoke': { scope: 'patients.write', principals: ['human', 'service'] },
   'patients.relationships.list': { scope: 'patients.read', principals: ['human', 'service'] },
   'patients.access.resolve': { scope: 'patients.read', principals: ['human', 'service'] },
+  // S6 duplicate review and merge (ADR 0003 Q6, pending approval): human principals only. Candidate
+  // review issues merge confirmation tokens, so it needs the merge scope too.
+  'patients.duplicates.find': { scope: 'patients.merge', principals: ['human'] },
+  'patients.merge': { scope: 'patients.merge', principals: ['human'] },
+  'patients.unmerge': { scope: 'patients.merge', principals: ['human'] },
+  // Elevated reversal (outside the window or after new clinical/financial facts): checked as an
+  // additional capability of the unmerge caller, never as a separate operation.
+  'patients.unmerge.reconcile': { scope: 'patients.mergeReconcile', principals: ['human'] },
+  'patients.merges.list': { scope: 'patients.read', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

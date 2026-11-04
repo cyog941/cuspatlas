@@ -57,7 +57,7 @@ export interface HarnessCommand {
   readonly operation: string;
   readonly tool: string;
   /** What another tenant's member gets: hidden (404) for targeted commands, an empty page for searches. */
-  readonly crossTenant: 'not_found' | 'empty_page' | 'own_tenant_only';
+  readonly crossTenant: 'not_found' | 'empty_page' | 'own_tenant_only' | 'confirmation_denied';
   /** Who stands for "downgraded": a member lacking this command's scope. */
   readonly downgradedTo: 'readOnly' | 'noPatientScopes';
   rest(f: HarnessFixture): RestCall;
@@ -66,6 +66,8 @@ export interface HarnessCommand {
 
 const P = (f: HarnessFixture) => f.alphaPatient;
 const SOON = new Date(Date.now() + 7 * 86_400_000).toISOString();
+/** Well-formed but never issued: every merge attempt in the harness must be refused before using it. */
+const FAKE_TOKEN = 'v1.9999999999.1.1.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 
 /** S4 rows. S5, S6 and the scheduling tasks append their commands here. */
 export const COMMANDS: HarnessCommand[] = [
@@ -218,6 +220,72 @@ export const COMMANDS: HarnessCommand[] = [
     }),
     mcpArgs: (f) => ({ patientRef: P(f), counterpartyRef: f.alphaCounterparty }),
   },
+  // S6 duplicate review and merge commands.
+  {
+    operation: 'patients.duplicates.find',
+    tool: 'patients_find_duplicates',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/patients/${P(f)}/duplicate-candidates`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ patientRef: P(f) }),
+  },
+  {
+    operation: 'patients.merge',
+    tool: 'patients_merge',
+    crossTenant: 'confirmation_denied',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: '/v1/patients/merges',
+      body: {
+        survivorRef: P(f),
+        mergedRef: f.alphaCounterparty,
+        confirmationToken: FAKE_TOKEN,
+        reasonCode: 'other',
+      },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      survivorRef: P(f),
+      mergedRef: f.alphaCounterparty,
+      confirmationToken: FAKE_TOKEN,
+      reasonCode: 'other',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'patients.unmerge',
+    tool: 'patients_unmerge',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/patients/merges/${f.alphaMerge}/unmerge`,
+      body: { reasonCode: 'merged_in_error' },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ mergeRef: f.alphaMerge, reasonCode: 'merged_in_error', idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'patients.merges.list',
+    tool: 'patients_list_merge_history',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/patients/${f.alphaMergedPatient}/merge-history`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ patientRef: f.alphaMergedPatient }),
+  },
 ];
 
 beforeAll(async () => {
@@ -289,7 +357,33 @@ beforeAll(async () => {
     scopes: ['financial'],
   });
   expect(rel.statusCode).toBe(201);
-  fixture = { alphaPatient, alphaCounterparty, alphaRelationship: rel.json().data.relationshipRef };
+  // S6: a merged pair, so unmerge and merge history have a real alpha target.
+  const dupA = (await owner('/v1/patients', patientBody('Synthetic Harness Duplicate'))).json().data
+    .patientRef;
+  const dupB = (await owner('/v1/patients', patientBody('Synthetic Harness Duplicate'))).json().data
+    .patientRef;
+  const review = await app.inject({
+    method: 'GET',
+    url: `/v1/patients/${dupA}/duplicate-candidates`,
+    headers: { authorization: `Bearer ${rest.owner}` },
+  });
+  const token = review
+    .json()
+    .data.find((c: { candidateRef: string }) => c.candidateRef === dupB).confirmationToken;
+  const merged = await owner('/v1/patients/merges', {
+    survivorRef: dupA,
+    mergedRef: dupB,
+    confirmationToken: token,
+    reasonCode: 'duplicate_registration',
+  });
+  expect(merged.statusCode).toBe(201);
+  fixture = {
+    alphaPatient,
+    alphaCounterparty,
+    alphaRelationship: rel.json().data.relationshipRef,
+    alphaMerge: merged.json().data.mergeRef,
+    alphaMergedPatient: dupB,
+  };
 });
 
 afterAll(async () => {
@@ -384,6 +478,8 @@ async function state(): Promise<string> {
     await q(`SELECT version FROM cuspatlas.patients WHERE id = '${fixture.alphaPatient}'`),
     await q('SELECT count(*)::int AS n FROM cuspatlas.patients'),
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.patient_relationships'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.patient_merges'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.patient_merge_reversals'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.audit_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.outbox_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.command_idempotency'),
@@ -401,6 +497,10 @@ function expected(
   if (d === 'downgraded') return { status: 403, code: 'forbidden', reason: 'scope_missing' };
   if (cmd.crossTenant === 'not_found')
     return { status: 404, code: 'not_found', reason: 'resource_hidden_or_missing' };
+  // A merge names two patients; another tenant cannot hold a confirmation for them, so it is denied
+  // before any lookup and learns nothing about either record.
+  if (cmd.crossTenant === 'confirmation_denied')
+    return { status: 403, code: 'forbidden', reason: 'merge_confirmation_invalid' };
   return { status: cmd.rest(fixture).status, code: null, reason: null };
 }
 

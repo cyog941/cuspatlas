@@ -159,4 +159,57 @@ export const PATIENT_TOOLS: readonly ToolDefinition[] = [
     run: (deps, actor, args) =>
       deps.patients.resolvePatientAccess(actor, String(args.patientRef), without(args, 'patientRef')),
   },
+  // S6 duplicate review and merge (human principals with patients.merge only).
+  {
+    name: 'patients_find_duplicates',
+    operationId: 'patients.duplicates.find',
+    description:
+      'List scored duplicate candidates for staff review, each with its reasons and a confirmation token. Never merges anything.',
+    inputSchema: fromBody('DuplicateQuery', { patientRef: 'PatientRef' }),
+    readOnly: true,
+    onInvalid: { action: 'patients.duplicates.find' },
+    run: (deps, actor, args) =>
+      deps.patients.findDuplicateCandidates(actor, String(args.patientRef), without(args, 'patientRef')),
+  },
+  {
+    name: 'patients_merge',
+    operationId: 'patients.merge',
+    description:
+      'Merge a reviewed duplicate into the survivor using the confirmation token from candidate review. Requires an idempotencyKey.',
+    inputSchema: fromBody('MergeRequest', { idempotencyKey: 'IdempotencyKey' }),
+    readOnly: false,
+    onInvalid: { action: 'patients.merge' },
+    run: (deps, actor, args) =>
+      deps.patients.mergePatients(actor, {
+        operation: 'patients.merge',
+        idempotencyKey: key(args),
+        payload: without(args, 'idempotencyKey'),
+      }),
+  },
+  {
+    name: 'patients_unmerge',
+    operationId: 'patients.unmerge',
+    description:
+      'Reverse a merge (restores every moved record). Outside the window or after new clinical/financial facts it needs the elevated role and a reconciliation review reference.',
+    inputSchema: fromBody('UnmergeRequest', { mergeRef: 'MergeRef', idempotencyKey: 'IdempotencyKey' }),
+    readOnly: false,
+    onInvalid: { action: 'patients.unmerge' },
+    run: (deps, actor, args) =>
+      deps.patients.unmergePatients(actor, String(args.mergeRef), {
+        operation: 'patients.unmerge',
+        idempotencyKey: key(args),
+        payload: without(args, 'idempotencyKey', 'mergeRef'),
+      }),
+  },
+  {
+    name: 'patients_list_merge_history',
+    operationId: 'patients.merges.list',
+    description:
+      'Merge history of a patient (as survivor or merged), with every moved record and any reversal.',
+    inputSchema: fromBody('MergeHistoryQuery', { patientRef: 'PatientRef' }),
+    readOnly: true,
+    onInvalid: { action: 'patients.merges.list' },
+    run: (deps, actor, args) =>
+      deps.patients.listMergeHistory(actor, String(args.patientRef), without(args, 'patientRef')),
+  },
 ];

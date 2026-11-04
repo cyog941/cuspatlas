@@ -57,6 +57,11 @@ const TOOL_NAMES = [
   'patients_list_relationships',
   'patients_resolve_access',
   'patients_revoke_relationship',
+  // S6 merge tools.
+  'patients_find_duplicates',
+  'patients_list_merge_history',
+  'patients_merge',
+  'patients_unmerge',
 ].sort();
 
 let db: TestDatabase;

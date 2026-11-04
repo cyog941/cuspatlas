@@ -972,6 +972,292 @@
           "$ref": "#/$defs/PatientAccess"
         }
       }
+    },
+    "MergeRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "ConfirmationToken": {
+      "type": "string",
+      "description": "Server-issued for one exact pair, reviewer, both patient versions and a short expiry. Opaque.",
+      "pattern": "^v1\\.[0-9]{10}\\.[0-9]{1,10}\\.[0-9]{1,10}\\.[A-Za-z0-9_-]{43}$"
+    },
+    "ReconciliationReviewRef": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$"
+    },
+    "MergeReasonCode": {
+      "enum": ["duplicate_registration", "migration_duplicate", "other"]
+    },
+    "UnmergeReasonCode": {
+      "enum": ["merged_in_error", "reconciliation_review", "other"]
+    },
+    "DuplicateReason": {
+      "enum": [
+        "same_identifier",
+        "same_legal_name",
+        "same_birth_date",
+        "birth_date_compatible",
+        "birth_date_conflict",
+        "same_phone",
+        "same_email",
+        "same_address"
+      ]
+    },
+    "DuplicateQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "DuplicateCandidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidateRef",
+        "score",
+        "reasons",
+        "summary",
+        "confirmationToken",
+        "confirmationExpiresAt"
+      ],
+      "properties": {
+        "candidateRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "score": {
+          "type": "integer",
+          "minimum": -100,
+          "maximum": 300
+        },
+        "reasons": {
+          "type": "array",
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/DuplicateReason"
+          }
+        },
+        "summary": {
+          "$ref": "#/$defs/PatientSummary"
+        },
+        "confirmationToken": {
+          "$ref": "#/$defs/ConfirmationToken"
+        },
+        "confirmationExpiresAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "DuplicateCandidateList": {
+      "type": "object",
+      "description": "Scored candidates for staff review. Never an automatic merge; nothing is written but the access log.",
+      "additionalProperties": false,
+      "required": ["data", "minScore", "policyVersion"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/$defs/DuplicateCandidate"
+          }
+        },
+        "minScore": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 300
+        },
+        "policyVersion": {
+          "type": "string",
+          "pattern": "^[a-z0-9.-]{1,64}$"
+        }
+      }
+    },
+    "MergeRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["survivorRef", "mergedRef", "confirmationToken", "reasonCode"],
+      "properties": {
+        "survivorRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "mergedRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "confirmationToken": {
+          "$ref": "#/$defs/ConfirmationToken"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/MergeReasonCode"
+        }
+      }
+    },
+    "UnmergeRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasonCode"],
+      "properties": {
+        "reasonCode": {
+          "$ref": "#/$defs/UnmergeReasonCode"
+        },
+        "reconciliationReviewRef": {
+          "$ref": "#/$defs/ReconciliationReviewRef"
+        }
+      }
+    },
+    "MergeHistoryQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "MergeMove": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["recordClass", "recordRef", "referenceField", "priorPatientRef", "newPatientRef"],
+      "properties": {
+        "recordClass": {
+          "type": "string",
+          "pattern": "^[a-z][A-Za-z]{0,63}$"
+        },
+        "recordRef": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "referenceField": {
+          "type": "string",
+          "pattern": "^[a-z][A-Za-z]{0,63}$"
+        },
+        "priorPatientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "newPatientRef": {
+          "$ref": "#/$defs/PatientRef"
+        }
+      }
+    },
+    "MergeReversal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasonCode", "elevated", "reconciliationReviewRef"],
+      "properties": {
+        "reasonCode": {
+          "$ref": "#/$defs/UnmergeReasonCode"
+        },
+        "elevated": {
+          "type": "boolean"
+        },
+        "reconciliationReviewRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReconciliationReviewRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "MergeResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mergeRef",
+        "survivorRef",
+        "mergedRef",
+        "state",
+        "reasonCode",
+        "mergedAt",
+        "reversedAt",
+        "reversal",
+        "moves",
+        "moveCount"
+      ],
+      "properties": {
+        "mergeRef": {
+          "$ref": "#/$defs/MergeRef"
+        },
+        "survivorRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "mergedRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "state": {
+          "enum": ["merged", "reversed"]
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/MergeReasonCode"
+        },
+        "mergedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "reversedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reversal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MergeReversal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "moves": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "$ref": "#/$defs/MergeMove"
+          }
+        },
+        "moveCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 500
+        }
+      }
+    },
+    "MergeCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/MergeResult"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "MergeHistory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/MergeResult"
+          }
+        }
+      }
     }
   }
 }

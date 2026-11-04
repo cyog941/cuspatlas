@@ -10,6 +10,8 @@ The first customers to validate with are independent practices and small groups.
 
 ## What would make this valuable
 
+User-directed pillars (2026-11-04): intuitive use, minimal repeated entry, easy migration and maximum safe automation across the practice. The [practice time and automation contract](../../PRACTICE-TIME-AND-AUTOMATION.md) is normative product scope: CL-01–12 cover the full care-to-claim-to-payment journey; PT-01–06 cover cross-practice time savings; MG-01–05 define migration/exit; UX-01–03 define usability acceptance. Routine deterministic work may execute under explicit revocable standing policy, with exception-first human review. AI remains read/draft until evaluated; required clinical signatures and material judgments are preserved. UI design stays deferred.
+
 Compete on dependable daily operations and switching cost, not a large feature checklist or an AI label. The proposed differentiators are: portable records with reconciled exports; predictable ownership costs; a usable end-to-end workflow; integrations without a special API license; and automation that can show exactly what it did and why it was allowed. Treat these as hypotheses to validate with practices, not established market findings.
 
 Before declaring product-market fit, measure time to complete a routine visit, booking/reconciliation errors, migration exceptions, hours spent on billing follow-up, staff adoption, support burden, and total cost per location. Establish baselines with consenting pilot practices before setting improvement claims.

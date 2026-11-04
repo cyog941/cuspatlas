@@ -23,6 +23,8 @@ export const PROPOSAL_TOOLS: readonly ToolDefinition[] = [
       DEFS,
     ),
     readOnly: false,
+    // The domain validates the whole body (and the key) after authorization, before any domain read.
+    onInvalid: 'domain',
     run: (deps, actor, args) =>
       deps.proposals.prepareProposal(actor, {
         operation: 'syntheticTasks.proposals.prepare',
@@ -36,6 +38,7 @@ export const PROPOSAL_TOOLS: readonly ToolDefinition[] = [
     description: 'Read a proposal visible to the caller. Hidden and missing proposals are indistinguishable.',
     inputSchema: inputSchema({ proposalRef: 'ProposalRef' }, ['proposalRef'], DEFS),
     readOnly: true,
+    onInvalid: { action: 'syntheticTasks.proposals.read', recordAll: true },
     async run(deps, actor, args) {
       return { data: await deps.proposals.getProposal(actor, String(args.proposalRef)) };
     },
@@ -55,6 +58,8 @@ export const PROPOSAL_TOOLS: readonly ToolDefinition[] = [
       DEFS,
     ),
     readOnly: false,
+    // As REST: visibility and approver authorization (which read the proposal) precede body validation.
+    onInvalid: 'domain',
     run: (deps, actor, args) =>
       deps.proposals.approveProposal(actor, String(args.proposalRef), without(args, 'proposalRef')),
   },
@@ -69,6 +74,8 @@ export const PROPOSAL_TOOLS: readonly ToolDefinition[] = [
       DEFS,
     ),
     readOnly: false,
+    // As REST: visibility and executor authorization precede body validation.
+    onInvalid: 'domain',
     run: (deps, actor, args) =>
       deps.proposals.commitProposal(actor, String(args.proposalRef), without(args, 'proposalRef')),
   },

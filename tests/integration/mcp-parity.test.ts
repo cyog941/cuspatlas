@@ -1,4 +1,5 @@
-import { randomUUID } from 'node:crypto';
+import { generateKeyPairSync, randomUUID } from 'node:crypto';
+import { request as httpRequest } from 'node:http';
 import { buildApp } from '@cuspatlas/api';
 import { REFUSAL_HTTP_STATUS, type RefusalCode } from '@cuspatlas/contracts';
 import {
@@ -6,7 +7,7 @@ import {
   createSecurityAttemptSink,
   createTenantTransactionRunner,
 } from '@cuspatlas/db';
-import { buildMcpServer, type McpServerHandle } from '@cuspatlas/mcp';
+import { buildMcpServer, loadConfiguredMcpIdentity, type McpServerHandle } from '@cuspatlas/mcp';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { FastifyInstance } from 'fastify';
@@ -1005,5 +1006,154 @@ describe('privacy: the marker never appears in errors, logs or attempt rows', ()
       ]);
       expect(TOOL_NAMES).toContain(l.tool);
     }
+  });
+});
+
+describe('E4/E5 hardening: transport and validation', () => {
+  /** A dedicated server whose tenant transactions are counted: no count means no domain statement. */
+  async function countingServer(extra: Partial<Parameters<typeof buildMcpServer>[0]> = {}) {
+    const base = createTenantTransactionRunner(db.app);
+    const counter = { calls: 0 };
+    const server = buildMcpServer({
+      env: 'synthetic-test',
+      identity: { ...issuer.verifierConfig, audience: MCP_AUDIENCE },
+      restAudience: TEST_AUDIENCE,
+      membership: createMembershipSource(db.app),
+      attempts: createSecurityAttemptSink(db.sink),
+      tenantTransactions: (ctx, work) => {
+        counter.calls += 1;
+        return base(ctx, work);
+      },
+      ...extra,
+    });
+    const { url } = await server.listen({ host: '127.0.0.1', port: 0 });
+    return { server, url, counter };
+  }
+
+  async function call(url: string, token: string | undefined, name: string, args: Record<string, unknown>) {
+    const transport = new StreamableHTTPClientTransport(new URL(url), {
+      requestInit: { headers: token ? { authorization: `Bearer ${token}` } : {} },
+    });
+    const client = new Client({ name: 'synthetic-test-client', version: '0.0.0' });
+    await client.connect(transport);
+    try {
+      return await client.callTool({ name, arguments: args });
+    } finally {
+      await client.close().catch(() => undefined);
+    }
+  }
+
+  it('an extra property on a read tool is refused before any handler or domain statement runs', async () => {
+    const { server, url, counter } = await countingServer();
+    try {
+      for (const [name, args] of [
+        ['synthetic_tasks_get', { taskRef: TASK_A, extra: MARKER }],
+        ['synthetic_tasks_list', { limit: '5', extra: 1 }],
+        ['synthetic_tasks_get_proposal', { proposalRef: randomUUID(), extra: 1 }],
+      ] as const) {
+        counter.calls = 0;
+        const result = await call(url, tokens.a1?.mcp, name, args);
+        const body = result.structuredContent as { code: string; correlationId: string };
+        expect([name, result.isError, body.code]).toStrictEqual([name, true, 'invalid_request']);
+        expect([name, counter.calls]).toStrictEqual([name, 0]);
+        // No authorization denial was recorded for the authorized caller; proposal tools record
+        // every refusal, so they hold exactly the invalid_request row.
+        const rows = await attempts(body.correlationId);
+        expect(rows.map((r) => r.reason_code)).toStrictEqual(
+          name === 'synthetic_tasks_get_proposal' ? ['request_invalid'] : [],
+        );
+        expect(JSON.stringify(result)).not.toContain(MARKER);
+      }
+      // Authorization still precedes schema: a caller without write gets the denial, not the schema error.
+      counter.calls = 0;
+      const denied = await call(url, tokens.a4?.mcp, 'synthetic_tasks_relabel', {
+        taskRef: TASK_A,
+        label: '',
+        expectedVersion: 1,
+        idempotencyKey: key(),
+        extra: 1,
+      });
+      const deniedBody = denied.structuredContent as { code: string; correlationId: string };
+      expect(deniedBody.code).toBe('forbidden');
+      expect((await attempts(deniedBody.correlationId)).map((r) => r.reason_code)).toStrictEqual([
+        'scope_missing',
+      ]);
+      expect(counter.calls).toBe(0);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('refuses Host headers outside the allowlist with 421 (DNS rebinding)', async () => {
+    const { server, url } = await countingServer({
+      resourceMetadataUrl: 'https://mcp.synthetic.invalid/.well-known/oauth-protected-resource',
+    });
+    const port = new URL(url).port;
+    const post = (host: string) =>
+      new Promise<number>((resolve, reject) => {
+        const req = httpRequest(
+          {
+            host: '127.0.0.1',
+            port,
+            path: '/mcp',
+            method: 'POST',
+            headers: {
+              host,
+              'content-type': 'application/json',
+              accept: 'application/json, text/event-stream',
+            },
+          },
+          (res) => {
+            res.resume();
+            resolve(res.statusCode ?? 0);
+          },
+        );
+        req.on('error', reject);
+        req.end(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }));
+      });
+    try {
+      expect(await post('evil.example')).toBe(421);
+      expect(await post(`evil.example:${port}`)).toBe(421);
+      expect(await post('127.0.0.1.evil.example')).toBe(421);
+      // Allowed hosts pass the host check (and then need a token: 401).
+      expect(await post(`127.0.0.1:${port}`)).toBe(401);
+      expect(await post(`localhost:${port}`)).toBe(401);
+      expect(await post('mcp.synthetic.invalid')).toBe(401);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('requires resourceMetadataUrl outside synthetic-test and refuses a default derived from 0.0.0.0', async () => {
+    const { publicKey } = generateKeyPairSync('ed25519');
+    const identity = await loadConfiguredMcpIdentity({
+      CUSPATLAS_JWT_ISSUER: 'urn:cuspatlas:issuer:synthetic-config',
+      CUSPATLAS_MCP_AUDIENCE: 'urn:cuspatlas:mcp:synthetic-config',
+      CUSPATLAS_JWT_AUDIENCE: 'urn:cuspatlas:api:synthetic-config',
+      CUSPATLAS_JWT_PUBLIC_KEY_PEM: publicKey.export({ type: 'spki', format: 'pem' }).toString(),
+    });
+    const base = {
+      identity,
+      membership: createMembershipSource(db.app),
+      attempts: createSecurityAttemptSink(db.sink),
+      tenantTransactions: createTenantTransactionRunner(db.app),
+    };
+    expect(() => buildMcpServer({ env: 'development', ...base })).toThrow(/resourceMetadataUrl/);
+    const configured = buildMcpServer({
+      env: 'development',
+      ...base,
+      resourceMetadataUrl: 'https://mcp.synthetic.invalid/.well-known/oauth-protected-resource',
+    });
+    await configured.close();
+    const unspecified = buildMcpServer({
+      env: 'synthetic-test',
+      identity: { ...issuer.verifierConfig, audience: MCP_AUDIENCE },
+      restAudience: TEST_AUDIENCE,
+      membership: base.membership,
+      attempts: base.attempts,
+      tenantTransactions: base.tenantTransactions,
+    });
+    await expect(unspecified.listen({ host: '0.0.0.0', port: 0 })).rejects.toThrow(/resourceMetadataUrl/);
+    await unspecified.close();
   });
 });

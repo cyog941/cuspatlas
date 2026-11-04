@@ -20,6 +20,7 @@ import { backoffSeconds } from './backoff';
 import {
   finalizeLease,
   type LeasedEvent,
+  leaseHasAtLeast,
   leaseReady,
   type ReceiptOutcome,
   recordReceipt,
@@ -68,6 +69,13 @@ export interface WorkerDeps {
   readonly backoffSeconds?: (attempt: number) => number;
   /** Lease duration (default 30 s). */
   readonly leaseSeconds?: number;
+  /**
+   * Upper bound on one adapter call (default 10 s); must be shorter than the lease. A send starts
+   * only while at least this much lease remains, an unknown outcome waits at least this long before
+   * reconciliation, and an expired lease is re-leased only this long after it expired, so a
+   * successor never looks up a delivery key while this worker's request can still be in flight.
+   */
+  readonly deliverTimeoutSeconds?: number;
   /** Events leased per batch (default 10). */
   readonly batchSize?: number;
   /**
@@ -83,8 +91,29 @@ export interface ProposalExecutor {
 }
 
 const DEFAULT_LEASE_SECONDS = 30;
+const DEFAULT_DELIVER_TIMEOUT_SECONDS = 10;
 
-async function safeDeliver(adapter: DeliveryAdapter, event: LeasedEvent): Promise<DeliveryReceipt> {
+/**
+ * Calls the adapter, bounded by `timeoutMs`. A timeout is an unknown outcome (the request may still
+ * land), never "not sent": the event goes to reconciliation, it is not retried blind.
+ */
+async function safeDeliver(
+  adapter: DeliveryAdapter,
+  event: LeasedEvent,
+  timeoutMs: number,
+): Promise<DeliveryReceipt> {
+  let timer: NodeJS.Timeout | undefined;
+  const timedOut = new Promise<DeliveryReceipt>((resolve) => {
+    timer = setTimeout(() => resolve({ outcome: 'unknown' }), timeoutMs);
+  });
+  try {
+    return await Promise.race([deliverOnce(adapter, event), timedOut]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function deliverOnce(adapter: DeliveryAdapter, event: LeasedEvent): Promise<DeliveryReceipt> {
   try {
     const r = await adapter.deliver({
       deliveryKey: event.id,
@@ -125,6 +154,10 @@ async function safeLookup(adapter: DeliveryAdapter, deliveryKey: string): Promis
  */
 export function createWorker(deps: WorkerDeps) {
   const leaseSeconds = deps.leaseSeconds ?? DEFAULT_LEASE_SECONDS;
+  const deliverTimeout = deps.deliverTimeoutSeconds ?? DEFAULT_DELIVER_TIMEOUT_SECONDS;
+  if (!(deliverTimeout > 0 && deliverTimeout < leaseSeconds)) {
+    throw new Error('deliverTimeoutSeconds must be positive and shorter than leaseSeconds');
+  }
   const batchSize = deps.batchSize ?? 10;
   const delay = deps.backoffSeconds ?? ((attempt: number) => backoffSeconds(attempt));
   const log = deps.log ?? (() => undefined);
@@ -315,8 +348,15 @@ export function createWorker(deps: WorkerDeps) {
     const denial = await reauthorize(event);
     if (denial) return deny(event, denial);
 
-    // 3. Deliver with the stable delivery key.
-    const receipt = await safeDeliver(adapter, event);
+    // 3. Send only while the lease outlives the bounded deliver call (re-read under the fence), so
+    //    no successor can lease, look up and resend while this request may still be in flight.
+    const remaining = await deps.withTenantTransaction(workerCtx(event.tenantId), (tx) =>
+      leaseHasAtLeast(tx, event, deliverTimeout),
+    );
+    if (!remaining) return 'lease-lost';
+
+    // 4. Deliver with the stable delivery key, bounded by the deliver timeout.
+    const receipt = await safeDeliver(adapter, event, deliverTimeout * 1000);
     switch (receipt.outcome) {
       case 'delivered':
       case 'duplicate': {
@@ -328,9 +368,10 @@ export function createWorker(deps: WorkerDeps) {
         return ok ? 'delivered' : 'lease-lost';
       }
       case 'unknown': {
+        // Quiet period: the request may still land; look it up only after it can no longer be in flight.
         const ok = await finalize(event, {
           state: 'reconciliation',
-          delaySeconds: delay(event.attempt),
+          delaySeconds: Math.max(delay(event.attempt), deliverTimeout),
           outcome: 'unknown',
         });
         return ok ? 'reconciliation' : 'lease-lost';
@@ -379,7 +420,9 @@ export function createWorker(deps: WorkerDeps) {
         }
         throw err;
       }
-      return deps.withTenantTransaction(ctx, (tx) => leaseReady(tx, { limit: batchSize, leaseSeconds }));
+      return deps.withTenantTransaction(ctx, (tx) =>
+        leaseReady(tx, { limit: batchSize, leaseSeconds, quietSeconds: deliverTimeout }),
+      );
     },
 
     /** Dispatches one leased event. Throws only on infrastructure failure (treated as a crash). */

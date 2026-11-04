@@ -8,11 +8,13 @@ import {
   syntheticTaskSchema,
 } from '@cuspatlas/contracts';
 import {
+  type ActionName,
   type AttemptRecordingDeps,
   type Authorize,
   type ProposalService,
   type SyntheticTaskService,
   withAttemptRecording,
+  withRefusalRecording,
 } from '@cuspatlas/domain';
 
 type Defs = Record<string, unknown>;
@@ -89,6 +91,15 @@ export interface ToolDefinition {
   readonly description: string;
   readonly inputSchema: ToolInputSchema;
   readonly readOnly: boolean;
+  /**
+   * What happens when the arguments fail the tool schema. The handler never runs with invalid
+   * arguments unless this is `domain`, which is allowed only where the domain service validates every
+   * argument itself, after authorization and before it reads or writes domain data (the same order
+   * and the same refusal REST produces). Otherwise the caller is authorized for `action` (so a
+   * caller without access still gets the identical denial and attempt row) and refused with
+   * `invalid_request`; no domain statement runs.
+   */
+  readonly onInvalid: 'domain' | { readonly action: ActionName; readonly recordAll?: boolean };
   /** Runs the shared domain handler with a server-built actor; throws RefusalError on refusal. */
   run(
     deps: ToolDeps,
@@ -117,30 +128,29 @@ export const without = (args: Args, ...keys: string[]): Args =>
   Object.fromEntries(Object.entries(args).filter(([k]) => !keys.includes(k)));
 
 /**
- * A schema-invalid mutating call never reaches the command. To keep the frozen ordering
- * (authorization, then schema) it is authorized first, so a caller without access gets the same
- * denial and security-attempt row REST produces; only an authorized caller sees the schema error.
+ * A schema-invalid call never reaches its handler. To keep the frozen ordering (authorization, then
+ * schema) it is authorized first, so a caller without access gets the same denial and
+ * security-attempt row REST produces; only an authorized caller sees the schema error. Proposal
+ * tools record every refusal (as their domain does), the others only denials.
  */
-function refuseInvalid(
+export function refuseInvalid(
   deps: ToolDeps,
   actor: ActorContext,
-  action: 'syntheticTasks.create' | 'syntheticTasks.relabel',
-  resourceId: unknown,
+  tool: ToolDefinition,
   violations: Violations,
 ): Promise<never> {
-  return withAttemptRecording(
+  if (tool.onInvalid === 'domain') throw new Error('tool validates in the domain');
+  const { action, recordAll } = tool.onInvalid;
+  return (recordAll ? withRefusalRecording : withAttemptRecording)(
     deps.recording,
     {
       correlationId: actor.correlationId,
       tenantId: actor.tenantId,
       actorId: actor.actorId,
-      operation: action,
+      operation: tool.operationId,
     },
     async (): Promise<never> => {
-      await deps.authorize(actor, action, {
-        tenantId: actor.tenantId,
-        id: typeof resourceId === 'string' ? resourceId : 'invalid',
-      });
+      await deps.authorize(actor, action, { tenantId: actor.tenantId, id: 'invalid' });
       throw new RefusalError({ code: 'invalid_request', detail: { violations } });
     },
   );
@@ -159,8 +169,8 @@ export const SYNTHETIC_TASK_TOOLS: readonly ToolDefinition[] = [
       ['label', 'idempotencyKey'],
     ),
     readOnly: false,
-    async run(deps, actor, args, valid, violations) {
-      if (!valid) return refuseInvalid(deps, actor, 'syntheticTasks.create', 'new', violations);
+    onInvalid: { action: 'syntheticTasks.create' },
+    async run(deps, actor, args) {
       return deps.service.createSyntheticTask(actor, {
         operation: 'syntheticTasks.create',
         idempotencyKey: args.idempotencyKey as string,
@@ -174,8 +184,7 @@ export const SYNTHETIC_TASK_TOOLS: readonly ToolDefinition[] = [
     description: 'List synthetic tasks visible to the caller, one bounded page at a time.',
     inputSchema: inputSchema({ limit: listProperties.limit as object, cursor: 'Cursor' }, []),
     readOnly: true,
-    // Read-only: the domain authorizes first and then applies the same schema, so invalid input is
-    // forwarded to it unchanged and yields the identical refusal REST produces.
+    onInvalid: { action: 'syntheticTasks.read' },
     run: (deps, actor, args) => deps.service.listSyntheticTasks(actor, { ...args }),
   },
   {
@@ -184,6 +193,7 @@ export const SYNTHETIC_TASK_TOOLS: readonly ToolDefinition[] = [
     description: 'Read one synthetic task by taskRef. Hidden and missing tasks are indistinguishable.',
     inputSchema: inputSchema({ taskRef: 'TaskRef' }, ['taskRef']),
     readOnly: true,
+    onInvalid: { action: 'syntheticTasks.read' },
     async run(deps, actor, args) {
       return { data: await deps.service.getSyntheticTask(actor, args.taskRef as string) };
     },
@@ -197,8 +207,8 @@ export const SYNTHETIC_TASK_TOOLS: readonly ToolDefinition[] = [
       ['taskRef', 'label', 'expectedVersion', 'idempotencyKey'],
     ),
     readOnly: false,
-    async run(deps, actor, args, valid, violations) {
-      if (!valid) return refuseInvalid(deps, actor, 'syntheticTasks.relabel', args.taskRef, violations);
+    onInvalid: { action: 'syntheticTasks.relabel' },
+    async run(deps, actor, args) {
       return deps.service.relabelSyntheticTask(actor, args.taskRef as string, {
         operation: 'syntheticTasks.relabel',
         idempotencyKey: args.idempotencyKey as string,

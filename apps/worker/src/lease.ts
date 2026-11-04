@@ -67,15 +67,22 @@ interface LeaseRow extends Record<string, unknown> {
  */
 export async function leaseReady(
   tx: TenantTransaction,
-  opts: { readonly limit: number; readonly leaseSeconds: number },
+  opts: {
+    readonly limit: number;
+    readonly leaseSeconds: number;
+    /** An expired lease is taken over only this many seconds after it expired (default 0). */
+    readonly quietSeconds?: number;
+  },
 ): Promise<LeasedEvent[]> {
   const limit = Math.min(Math.max(Math.trunc(opts.limit), 1), 100);
   if (!(opts.leaseSeconds > 0 && opts.leaseSeconds <= 3600)) throw new Error('leaseSeconds out of range');
+  const quiet = opts.quietSeconds ?? 0;
+  if (!(quiet >= 0 && quiet <= 3600)) throw new Error('quietSeconds out of range');
   const { rows } = await tx.query<LeaseRow>(
     `WITH ready AS (
        SELECT id, state AS prior_state FROM cuspatlas.outbox_events
        WHERE (state IN ('pending', 'retry', 'reconciliation') AND next_attempt_at <= now())
-          OR (state = 'leased' AND leased_until <= now())
+          OR (state = 'leased' AND leased_until + make_interval(secs => $3) <= now())
        ORDER BY next_attempt_at, id
        LIMIT $1
        FOR UPDATE SKIP LOCKED
@@ -86,7 +93,7 @@ export async function leaseReady(
      FROM ready WHERE o.id = ready.id
      RETURNING o.id, o.tenant_id, o.actor_id, o.operation, o.aggregate_type, o.aggregate_id,
        o.aggregate_version, o.correlation_id, o.payload, o.attempt, o.max_attempts, ready.prior_state`,
-    [limit, opts.leaseSeconds],
+    [limit, opts.leaseSeconds, quiet],
   );
   return rows.map((r) => ({
     id: r.id,
@@ -102,6 +109,23 @@ export async function leaseReady(
     maxAttempts: r.max_attempts,
     priorState: r.prior_state,
   }));
+}
+
+/**
+ * True while this worker still holds the lease (same attempt, still `leased`) with at least
+ * `seconds` left on the database clock. Checked immediately before every send.
+ */
+export async function leaseHasAtLeast(
+  tx: TenantTransaction,
+  lease: Pick<LeasedEvent, 'id' | 'attempt'>,
+  seconds: number,
+): Promise<boolean> {
+  const { rows } = await tx.query<{ ok: boolean }>(
+    `SELECT leased_until - now() >= make_interval(secs => $3) AS ok FROM cuspatlas.outbox_events
+     WHERE id = $1 AND attempt = $2 AND state = 'leased'`,
+    [lease.id, lease.attempt, seconds],
+  );
+  return rows[0]?.ok === true;
 }
 
 /** Server-chosen outcome codes stored in `last_outcome` (`^[a-z_]{1,64}$`). */

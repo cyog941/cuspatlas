@@ -24,6 +24,8 @@ import { MARKER } from './support/marker';
 const USER_A5 = '20000000-0000-4000-8000-0000000000a5'; // human, alpha, read/write; revoked in one case
 const SVC_WORKER = '30000000-0000-4000-8000-0000000000c1'; // service, alpha only, outbox.deliver
 const RACE_ITERATIONS = 5;
+const QUIET_MS = 150; // > the 0.1 s deliver timeout used as quiet period by workerWith()
+const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 let db: TestDatabase;
 let pool: pg.Pool;
@@ -39,6 +41,8 @@ function workerWith(overrides: Partial<WorkerDeps> = {}) {
     memberships: createMembershipSource(pool),
     attempts: sink(),
     backoffSeconds: () => 0,
+    // Short deliver timeout (and therefore quiet period) so recovery cases run in test time.
+    deliverTimeoutSeconds: 0.1,
     ...overrides,
   });
 }
@@ -79,10 +83,6 @@ async function until(cond: () => Promise<boolean> | boolean, ms = 5_000): Promis
     await new Promise((r) => setTimeout(r, 20));
   }
 }
-
-const leaseExpired = async (id: string) =>
-  (await db.admin.query('SELECT leased_until <= now() AS e FROM cuspatlas.outbox_events WHERE id = $1', [id]))
-    .rows[0].e === true;
 
 function workerCtx(tenantId: string): ActorContext {
   return {
@@ -211,15 +211,16 @@ describe('crash and lease recovery', () => {
       const provider = new FakeProvider({ idempotent: false });
       const id = await enqueue(T_ALPHA, USER_A1);
       const doomed = workerWith({
-        withTenantTransaction: crashingRunner(createTenantTransactionRunner(pool), 2),
+        // Transactions: 1 lease, 2 lease-remaining check, 3 finalize (dies).
+        withTenantTransaction: crashingRunner(createTenantTransactionRunner(pool), 3),
       });
       await expect(doomed.runOnce(T_ALPHA, provider)).rejects.toThrow('simulated worker crash');
       expect(provider.effectsFor(id)).toBe(1);
       expect(await event(id)).toMatchObject({ state: 'leased', attempt: 1 });
       expect(await receipts(id)).toStrictEqual([]);
-      // The crashed process's lease runs out (fixture path shortens it).
+      // The crashed process's lease runs out, quiet period included (fixture path shortens it).
       await db.admin.query(
-        `UPDATE cuspatlas.outbox_events SET leased_until = now() - interval '1 second' WHERE id = $1`,
+        `UPDATE cuspatlas.outbox_events SET leased_until = now() - interval '1 hour' WHERE id = $1`,
         [id],
       );
       expect(await workerWith().runOnce(T_ALPHA, provider)).toStrictEqual([
@@ -233,7 +234,7 @@ describe('crash and lease recovery', () => {
     }
   });
 
-  it(`lease expires mid-flight after acceptance; the successor reconciles and the late ack is fenced off (x${RACE_ITERATIONS})`, async () => {
+  it(`accepted, but the response never returns: the deliver timeout ends the attempt inside its lease; the successor reconciles after the quiet period (x${RACE_ITERATIONS})`, async () => {
     for (let i = 0; i < RACE_ITERATIONS; i += 1) {
       const response = gate();
       const provider = new FakeProvider(
@@ -241,17 +242,18 @@ describe('crash and lease recovery', () => {
         { afterAccept: async (req) => (req.attempt === 1 ? response.wait.then(() => undefined) : undefined) },
       );
       const id = await enqueue(T_ALPHA, USER_A1);
-      const slow = workerWith({ leaseSeconds: 0.3 }).runOnce(T_ALPHA, provider);
-      await until(() => provider.effectsFor(id) === 1);
-      await until(() => leaseExpired(id));
+      const slow = workerWith({ leaseSeconds: 0.3, deliverTimeoutSeconds: 0.2 }).runOnce(T_ALPHA, provider);
+      expect(await slow).toStrictEqual([{ eventId: id, result: 'reconciliation' }]);
+      expect(provider.effectsFor(id)).toBe(1);
+      // Still inside the quiet period: nobody may look the key up or resend yet.
+      expect(await workerWith().runOnce(T_ALPHA, provider)).toStrictEqual([]);
+      await pause(250);
       expect(await workerWith().runOnce(T_ALPHA, provider)).toStrictEqual([
         { eventId: id, result: 'delivered' },
       ]);
       response.open();
-      expect(await slow).toStrictEqual([{ eventId: id, result: 'lease-lost' }]);
       expect([provider.callsFor(id), provider.effectsFor(id)]).toStrictEqual([1, 1]);
       expect(await event(id)).toMatchObject({ state: 'delivered', attempt: 2, last_outcome: 'reconciled' });
-      // The late receipt from attempt 1 is the same provider receipt: stored once.
       expect(await receipts(id)).toHaveLength(1);
     }
   });
@@ -280,17 +282,23 @@ describe('crash and lease recovery', () => {
         { beforeAccept: async (req) => (req.attempt === 1 ? held.wait : undefined) },
       );
       const id = await enqueue(T_ALPHA, USER_A1);
-      const first = workerWith({ leaseSeconds: 0.3 }).runOnce(T_ALPHA, provider);
-      await until(() => provider.callsFor(id) === 1);
-      await until(() => leaseExpired(id));
+      // Residual window, documented: attempt 1 stays in flight beyond its deliver timeout AND the
+      // quiet period. The worker then has no way to know it is still coming; only the provider's
+      // deduplication by delivery key (required of every adapter) keeps this to one action.
+      const first = await workerWith({ leaseSeconds: 0.3, deliverTimeoutSeconds: 0.2 }).runOnce(
+        T_ALPHA,
+        provider,
+      );
+      expect(first).toStrictEqual([{ eventId: id, result: 'reconciliation' }]);
+      await pause(250);
       // Attempt 2 reconciles (not_found: attempt 1 has not been accepted), then sends.
       expect(await workerWith().runOnce(T_ALPHA, provider)).toStrictEqual([
         { eventId: id, result: 'delivered' },
       ]);
       const settled = await event(id);
       held.open();
-      // Attempt 1 now reaches the provider, gets `duplicate`, and its acknowledgement is fenced off.
-      expect(await first).toStrictEqual([{ eventId: id, result: 'lease-lost' }]);
+      // Attempt 1 now reaches the provider and gets `duplicate`; the worker already stopped listening.
+      await until(() => provider.callsFor(id) === 2);
       expect(provider.callsFor(id)).toBe(2);
       expect(provider.effectsFor(id)).toBe(1);
       expect(await event(id)).toStrictEqual(settled);
@@ -328,6 +336,7 @@ describe('unknown outcomes', () => {
     expect(await receipts(id)).toStrictEqual([]);
     // Provider cannot answer: stay in reconciliation, still no resend.
     lookupDown = true;
+    await pause(QUIET_MS);
     expect(await worker.runOnce(T_ALPHA, provider)).toStrictEqual([
       { eventId: id, result: 'reconciliation' },
     ]);
@@ -354,6 +363,7 @@ describe('unknown outcomes', () => {
     expect(await worker.runOnce(T_ALPHA, provider)).toStrictEqual([
       { eventId: id, result: 'reconciliation' },
     ]);
+    await pause(QUIET_MS);
     expect(await worker.runOnce(T_ALPHA, provider)).toStrictEqual([{ eventId: id, result: 'delivered' }]);
     expect([provider.callsFor(id), provider.effectsFor(id)]).toStrictEqual([1, 1]);
   });
@@ -564,5 +574,109 @@ describe('privacy', () => {
       [id],
     );
     expect(JSON.stringify(state.rows)).not.toContain(MARKER);
+  });
+});
+
+describe('pre-acceptance lease window (E4/E5 hardening)', () => {
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  it(`a slow provider that lands after the lease expired, within deliver timeout + quiet period: one effect (x${RACE_ITERATIONS})`, async () => {
+    // Lease 1.2 s, deliver timeout 0.8 s. Attempt 1 reaches the NON-idempotent provider only after
+    // 1.4 s: later than the lease, earlier than deliver timeout + quiet period (1.6 s). A successor
+    // that polls the whole time must not send while attempt 1 is still in flight.
+    for (let i = 0; i < RACE_ITERATIONS; i += 1) {
+      const provider = new FakeProvider(
+        { idempotent: false },
+        {
+          beforeAccept: async (req) => {
+            if (req.attempt === 1) await sleep(1400);
+          },
+        },
+      );
+      const id = await enqueue(T_ALPHA, USER_A1);
+      const opts = { leaseSeconds: 1.2, deliverTimeoutSeconds: 0.8 };
+      const a = workerWith(opts).runOnce(T_ALPHA, provider);
+      await until(() => provider.callsFor(id) === 1);
+      const successor = workerWith(opts);
+      const seen: DispatchResult[] = [];
+      await until(async () => {
+        for (const r of await successor.runOnce(T_ALPHA, provider)) if (r.eventId === id) seen.push(r.result);
+        return (await event(id)).state === 'delivered';
+      }, 8_000);
+      await a;
+      await sleep(300); // let any straggler land
+      expect([provider.callsFor(id), provider.effectsFor(id)]).toStrictEqual([1, 1]);
+      expect(seen).toStrictEqual(['delivered']);
+      expect(await event(id)).toMatchObject({ state: 'delivered', last_outcome: 'reconciled' });
+    }
+  });
+
+  it('a deliver call is bounded by the deliver timeout and ends in reconciliation after a quiet period', async () => {
+    const held = gate();
+    const provider = new FakeProvider(
+      { idempotent: false },
+      { afterAccept: () => held.wait.then(() => undefined) },
+    );
+    const id = await enqueue(T_ALPHA, USER_A1);
+    const started = Date.now();
+    expect(
+      await workerWith({ leaseSeconds: 2, deliverTimeoutSeconds: 0.5 }).runOnce(T_ALPHA, provider),
+    ).toStrictEqual([{ eventId: id, result: 'reconciliation' }]);
+    expect(Date.now() - started).toBeLessThan(1_900);
+    const { rows } = await db.admin.query(
+      `SELECT state, last_outcome, next_attempt_at - now() >= interval '400 milliseconds' AS quiet
+       FROM cuspatlas.outbox_events WHERE id = $1`,
+      [id],
+    );
+    expect(rows[0]).toStrictEqual({ state: 'reconciliation', last_outcome: 'unknown', quiet: true });
+    held.open();
+  });
+
+  it('runOnce never sends an event whose remaining lease is shorter than the deliver timeout', async () => {
+    const provider = new FakeProvider(
+      { idempotent: false },
+      {
+        beforeAccept: async (req) => {
+          if (req.attempt === 1) await sleep(600);
+        },
+      },
+    );
+    const first = await enqueue(T_ALPHA, USER_A1);
+    const second = await enqueue(T_ALPHA, USER_A1);
+    const results = await workerWith({ leaseSeconds: 1, deliverTimeoutSeconds: 0.7 }).runOnce(
+      T_ALPHA,
+      provider,
+    );
+    // The first delivery takes 0.6 s of the 1 s lease; the next one has 0.4 s left and is not sent.
+    expect(results.map((r) => r.result)).toStrictEqual(['delivered', 'lease-lost']);
+    expect(new Set(results.map((r) => r.eventId))).toStrictEqual(new Set([first, second]));
+    const skipped = results[1]?.eventId as string;
+    expect(provider.callsFor(skipped)).toBe(0);
+    await until(async () => {
+      await workerWith({ leaseSeconds: 1, deliverTimeoutSeconds: 0.7 }).runOnce(T_ALPHA, provider);
+      return (await event(skipped)).state === 'delivered';
+    }, 6_000);
+    expect([provider.callsFor(skipped), provider.effectsFor(skipped)]).toStrictEqual([1, 1]);
+  });
+
+  it('refuses a deliver timeout that is not shorter than the lease', () => {
+    expect(() => workerWith({ leaseSeconds: 1, deliverTimeoutSeconds: 1 })).toThrow(/deliverTimeoutSeconds/);
+  });
+
+  it('the attempt counter (lease fence) is monotonic for the runtime role', async () => {
+    const id = await enqueue(T_ALPHA, USER_A1);
+    const tx = createTenantTransactionRunner(pool);
+    await workerWith().leaseBatch(T_ALPHA);
+    await expect(
+      tx(workerCtx(T_ALPHA), (t) =>
+        t.query('UPDATE cuspatlas.outbox_events SET attempt = attempt - 1 WHERE id = $1', [id]),
+      ),
+    ).rejects.toMatchObject({ code: '42501' });
+    await expect(
+      tx(workerCtx(T_ALPHA), (t) =>
+        t.query('UPDATE cuspatlas.outbox_events SET attempt = 0 WHERE id = $1', [id]),
+      ),
+    ).rejects.toMatchObject({ code: '42501' });
+    expect((await event(id)).attempt).toBe(1);
   });
 });

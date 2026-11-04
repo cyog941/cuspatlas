@@ -43,6 +43,7 @@ import { assertDistinctAudience, assertIdentityAllowed, createMcpAuthenticator }
 import { PROPOSAL_TOOLS } from './tools/proposals';
 import {
   compileInput,
+  refuseInvalid,
   SYNTHETIC_TASK_TOOLS,
   type ToolDefinition,
   type ToolDeps,
@@ -52,6 +53,20 @@ import {
 export const MCP_PATH = '/mcp';
 export const METADATA_PATH = '/.well-known/oauth-protected-resource';
 const BODY_LIMIT = 16 * 1024;
+const LOOPBACK_HOSTS = ['127.0.0.1', 'localhost', '[::1]'];
+const UNSPECIFIED_HOSTS: ReadonlySet<string> = new Set(['0.0.0.0', '::', '']);
+
+/** Hostname of a Host header (port stripped, IPv6 kept in brackets), or null when unusable. */
+function hostAllowed(host: string | undefined, allowed: ReadonlySet<string>): boolean {
+  if (typeof host !== 'string' || host.length === 0 || host.length > 255) return false;
+  try {
+    const url = new URL(`http://${host}`);
+    if (url.username || url.password || url.pathname !== '/' || url.search || url.hash) return false;
+    return allowed.has(url.hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
 
 export interface McpServerDeps {
   readonly env: RuntimeEnvironment;
@@ -69,8 +84,17 @@ export interface McpServerDeps {
   readonly logger?: { readonly stream?: { write(line: string): void } };
   /** Browser origins allowed to call the endpoint. Default none: native MCP clients send no Origin. */
   readonly allowedOrigins?: readonly string[];
-  /** Absolute URL of the protected-resource metadata, advertised in the 401 challenge. */
+  /**
+   * Absolute URL of the protected-resource metadata, advertised in the 401 challenge. Required
+   * outside synthetic-test; in synthetic-test it defaults to the listen address, which must then be
+   * a concrete host (never 0.0.0.0 or ::).
+   */
   readonly resourceMetadataUrl?: string;
+  /**
+   * Host header values (hostnames, any port) the endpoint answers. Always includes the loopback
+   * names and the host of `resourceMetadataUrl`; anything else is refused with 421 (DNS rebinding).
+   */
+  readonly allowedHosts?: readonly string[];
 }
 
 export interface McpServerHandle {
@@ -84,6 +108,22 @@ interface Registered {
 }
 
 export const TOOLS: readonly ToolDefinition[] = [...SYNTHETIC_TASK_TOOLS, ...PROPOSAL_TOOLS];
+
+/** Path parameters of the REST twin. A malformed one is a 404 there, decided by the domain. */
+const REF_PARAMS = ['taskRef', 'proposalRef'] as const;
+const PLACEHOLDER_REF = '00000000-0000-4000-8000-000000000000';
+
+/**
+ * True when the arguments would be valid but for a string path reference that is malformed. Such
+ * calls go to the domain, which refuses them with the same 404 as REST before any domain statement
+ * (it validates the reference right after authorization).
+ */
+function onlyRefMalformed(registered: Registered, args: Record<string, unknown>): boolean {
+  const present = REF_PARAMS.filter((p) => typeof args[p] === 'string');
+  if (present.length === 0) return false;
+  const patched = { ...args, ...Object.fromEntries(present.map((p) => [p, PLACEHOLDER_REF])) };
+  return registered.validate(patched) === true;
+}
 
 const REGISTRY: ReadonlyMap<string, Registered> = new Map(
   TOOLS.map((tool) => [tool.name, { tool, validate: compileInput(tool.inputSchema) }]),
@@ -155,8 +195,13 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
   });
   const toolDeps: ToolDeps = { service, proposals, authorize, recording };
   const allowedOrigins = new Set(deps.allowedOrigins ?? []);
+  if (deps.env !== 'synthetic-test' && !deps.resourceMetadataUrl) {
+    throw new Error('Refusing to start: resourceMetadataUrl must be configured outside synthetic-test');
+  }
   /** Advertised in the 401 challenge; defaults to the address the server actually listens on. */
   let metadataUrl = deps.resourceMetadataUrl;
+  const allowedHosts = new Set([...LOOPBACK_HOSTS, ...(deps.allowedHosts ?? [])].map((h) => h.toLowerCase()));
+  if (metadataUrl) allowedHosts.add(new URL(metadataUrl).hostname.toLowerCase());
 
   function refusalResult(refusal: DomainRefusal) {
     return {
@@ -179,6 +224,11 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     const violations = valid ? [] : violationsOf(registered.validate.errors);
     let code = 'ok';
     try {
+      // Arguments are validated before any handler runs (the handler sees only valid input, except
+      // for tools whose domain service performs the identical validation itself).
+      if (!valid && registered.tool.onInvalid !== 'domain' && !onlyRefMalformed(registered, args)) {
+        await refuseInvalid(toolDeps, actor, registered.tool, violations);
+      }
       const result = await registered.tool.run(toolDeps, actor, args, valid, violations);
       if (!valid) {
         // Defense in depth: an input rejected by the tool schema can never succeed.
@@ -232,6 +282,9 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
       const { body } = mapErrorToRefusal(err, correlationId);
       sendJson(res, status, body, { ...common, ...extra });
     };
+    if (!hostAllowed(req.headers.host, allowedHosts)) {
+      return refuse(421, new RefusalError({ code: 'invalid_request' }));
+    }
     const path = new URL(req.url ?? '/', 'http://localhost').pathname;
 
     if (req.method === 'GET' && path === METADATA_PATH) {
@@ -305,7 +358,17 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
         http.listen(opts.port, opts.host, () => {
           http.off('error', reject);
           const { port } = http.address() as AddressInfo;
-          metadataUrl ??= `http://${opts.host}:${port}${METADATA_PATH}`;
+          if (metadataUrl === undefined) {
+            if (UNSPECIFIED_HOSTS.has(opts.host)) {
+              http.close();
+              reject(
+                new Error('resourceMetadataUrl must be configured when listening on an unspecified address'),
+              );
+              return;
+            }
+            metadataUrl = `http://${opts.host.includes(':') ? `[${opts.host}]` : opts.host}:${port}${METADATA_PATH}`;
+            allowedHosts.add(new URL(metadataUrl).hostname.toLowerCase());
+          }
           resolve({ url: `http://${opts.host}:${port}${MCP_PATH}` });
         });
       }),

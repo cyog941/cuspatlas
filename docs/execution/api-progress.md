@@ -397,3 +397,71 @@ Workstream A batch 2 (A8-A13) on synthetic data only. Framing, recorded before a
 - Not done: worker-driven resumable build, per-module patient-scoped reads (the module exports read
   the tenant and are filtered), filtered per-patient blob bundles, A-D8 approval, external receiver
   review (A-S4).
+
+### A batch 4 hardening
+
+Independent review findings on A14 and A15 (synthetic only; nothing leaves the process; A-D7 and
+A-D8 still recommended-pending-approval). Test-first per item: each new test failed on the prior
+code (exit 1) and passes after the change.
+
+Webhooks (A14):
+- SSRF / DNS pinning: the send-time guard returns the checked addresses; `WebhookSendRequest`
+  carries `connectAddress` (the checked IP), `port`, `hostHeader`, `serverName` and a mandatory
+  `redirect: 'error'`. The dispatcher never sends without a pinned address (an unresolved name
+  pauses as `endpoint_unresolved`). A 3xx is the terminal response class `redirect_refused`
+  (dead-lettered, never retried; migration `20261204500000`). Tests: rebinding after the check
+  (the send uses the exact guard-time IP), 302 to the metadata address refused and never followed.
+- IPv6: literals are parsed to bytes; mapped, NAT64 `64:ff9b::/96`, compatible `::/96` and 6to4
+  `2002::/16` addresses are judged by the IPv4 rules; `::`, `::1`, `fe80::/10`, `fec0::/10`,
+  `fc00::/7`, `ff00::/8`, Teredo, documentation, discard and local-use NAT64 are blocked.
+- Ports declare `egress: 'in_process_fake' | 'network'`; a network port without a resolver is
+  refused at composition (`resolveWebhookPort`, `createWebhookOperations`; API, MCP and worker).
+- One delivery per lease; the effective lease is at least the send timeout plus 5 s (timeout capped
+  at 30 s); batch cap per run (default 100). The subscription is rechecked and the attempt counted
+  under the lease fence immediately before the send: a revoke after the lease sends nothing, and a
+  crash after the last counted attempt dead-letters (`lease_expired`). Paused and
+  `adapter_not_configured` deliveries back off through `next_attempt_at`; unsupported event
+  versions are filtered in SQL so they no longer occupy the fan-out window.
+- NITs: AES-GCM sealing format 2 with the subscription id as AAD and an 8-byte key id (format 1
+  rows still open); allowlist entries may pin a port (`host:port`, `[v6]:port`; default 443 only);
+  rotation overlap configurable up to seven days.
+- Residual: the recheck-to-send window remains (a revoke committed after the claim but before the
+  request leaves is delivered once); no real network transport exists yet, and any real one must
+  implement the pinned-connect / SNI / no-redirect contract.
+
+Exports (A15):
+- Requester-bound: read, grant and download are the requester's; anyone else gets the hidden 404
+  unless they hold the new human-only `exports.admin` (registered in SHARED-CONTRACTS; action
+  `exports.administer`), and each such access is recorded as an `exportAdminAccess` sensitive read.
+  `exports.list` shows the caller's own requests (all for an export administrator, recorded);
+  `exports.list` and `exports.read` are human only (the `exports.read` registry row is now human-only).
+- Grant and download re-run the module export authorization of the scope for the caller
+  (`scheduling.export`, `imaging.export`, `clinical.export`, `communications.export`,
+  `billing.export`; one for a domain scope; M1 re-authorizes practice exports itself). Engagement's
+  additional read-scope checks are re-run only by the build, not at delivery (open).
+- New command `exports.grants.revoke` (`POST /v1/exports/grants/revoke`, MCP `exports_grants_revoke`):
+  the holder or an export administrator; migration `20261204510000` adds `revoked_at`/`revoked_by`,
+  column-level UPDATE grants, an RLS update policy and a final-revocation trigger.
+- Sensitive reads: decision - patient-scoped flag to the module exporters (`ExportReadAudit`): each
+  module records one `patientExport` read naming `[exportRef, patientRef]` instead of a tenant-wide
+  module read (engagement: one row instead of one per table); the export's own create and download
+  reads name the subject too. Still five module rows per patient export (one per module read).
+- Patient filter: `PATIENT_EXPORT_LINKAGE` is an explicit per-table map (patient column, parent
+  join, or referenced-by), derived from the export tables' foreign keys and hand-reviewed (subject
+  side; merge survivor; reassignment target; statement guarantor only); unlisted tables never
+  contribute rows and the validator refuses a patient package with rows in an unlisted table
+  (`unlinked_table`); the build validates with `subjectRef`. Test: a shared thread of another
+  patient reached through a relationship is excluded.
+- Job state: a replay returns the current request; a request still building past the deadline
+  (default 900 s) is failed as `build_interrupted` on the next create, list or read (recorded); a
+  build over the package cap (default 256 MiB) fails as `export_too_large`; download refuses a
+  package over the inline cap (default 64 MiB) with `conflict` / `package_exceeds_inline_limit`
+  (no new 413 refusal code: that is a shared contract change).
+- Decision / open: the build is not moved to a worker job. The module exports authorize the
+  requesting human, so a worker build would need delegated requester authority (A-D8 owner
+  decision); recovery is the deadline sweep instead. Streamed or chunked download is open; the
+  build-size cap has no dedicated test (the inline cap does).
+- Verification (Windows worktree): typecheck, lint, contract:check, catalog:check and the automation
+  tests green before each commit; one full `pnpm run ci`: 3312 of 3313 tests passed; the one failure
+  was `imaging-restore-drill` (`tuple concurrently updated` while replaying migrations into a fresh
+  restore target under parallel load), which passes alone. GitHub Linux CI is the clean gate.

@@ -44,6 +44,7 @@ beforeAll(async () => {
     tenantTransactions: createTenantTransactionRunner(db.app),
     matchKeyPepper: new Uint8Array(randomBytes(32)),
     idempotencyDigestKey: new Uint8Array(randomBytes(32)),
+    cursorKey: new Uint8Array(randomBytes(32)),
   });
   const key = await importPKCS8(privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(), 'EdDSA');
   const now = Math.floor(Date.now() / 1000);

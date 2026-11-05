@@ -72,6 +72,8 @@ Placeholders only. Never commit real values; `.env*` is gitignored.
 | `CUSPATLAS_MCP_AUDIENCE` | MCP (`apps/mcp/src/auth.ts`) | MCP resource identifier; required and must differ from `CUSPATLAS_JWT_AUDIENCE` |
 | `CUSPATLAS_MIGRATION_DATABASE_URL` | migrator | see above |
 | `CUSPATLAS_IDEMPOTENCY_DIGEST_KEY` | API, worker | base64, at least 32 bytes (`<base64-32-bytes>`): the keyed payload digest of idempotency records. Required outside `synthetic-test`; the test-only key is refused there. |
+| `CUSPATLAS_CURSOR_KEY` | API | base64, at least 32 bytes: the HMAC key of every list cursor, shared by all instances so cursors survive restarts. Required outside `synthetic-test`; the test-only key is refused there. |
+| `CUSPATLAS_CURSOR_KEY_PREVIOUS` | API | base64, optional: the previous cursor key during a rotation; accepted for decoding only, never for minting. |
 | `CUSPATLAS_MATCH_KEY_PEPPER` | API, worker | base64 (`<base64-32-bytes>`): S4 match-key pepper (patient matching, E7 send-time contact verification). Required outside `synthetic-test`; the test-only pepper is refused there. |
 | `CUSPATLAS_IMAGING_TOKEN_SECRET` | API, worker | base64, at least 32 bytes (`<base64-32-bytes>`): I1 read-grant secret. Optional; without it outside `synthetic-test` imaging read grants are a typed 503. The test-only secret is refused outside `synthetic-test`. |
 | `CUSPATLAS_BRIDGE_SIGNING_KEY_PEM` | API, worker | Ed25519 PKCS8 private key PEM (`<ed25519-pkcs8-pem>`): I6 job-signing key. Optional; `synthetic-test` uses an ephemeral key, elsewhere bridge claims are a typed 503 without it. |

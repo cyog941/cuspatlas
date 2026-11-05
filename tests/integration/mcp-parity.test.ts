@@ -1538,6 +1538,8 @@ describe('E4/E5 hardening: transport and validation', () => {
       matchKeyPepper: new Uint8Array(randomBytes(32)),
       // Integration hardening: the idempotency digest key is a configured secret there as well.
       idempotencyDigestKey: new Uint8Array(randomBytes(32)),
+      // Closeout A1: the list-cursor key is a configured secret outside synthetic-test too.
+      cursorKey: new Uint8Array(randomBytes(32)),
     };
     expect(() => buildMcpServer({ env: 'development', ...base })).toThrow(/resourceMetadataUrl/);
     const { idempotencyDigestKey: _digestKey, ...withoutDigestKey } = base;

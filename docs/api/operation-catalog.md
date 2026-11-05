@@ -9,7 +9,7 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-370 operations.
+384 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
@@ -19,6 +19,7 @@ transport tables and are declarations, not independent proof.
 | B | 64 | 64 | 64 | 0 | 0 | 0 |
 | E | 60 | 48 | 48 | 11 | 0 | 1 |
 | I | 54 | 47 | 44 | 0 | 6 | 0 |
+| M | 14 | 14 | 14 | 0 | 0 | 0 |
 
 | Operation | Owner | Kind | Authorization | Scope | Principals | Transports | REST | MCP tool | Idempotency | Sensitivity | Status |
 |---|---|---|---|---|---|---|---|---|---|---|---|
@@ -234,6 +235,20 @@ transport tables and are declarations, not independent proof.
 | `messaging.threads.open` | E | command | authorize | `messaging.write` | human | rest, mcp | POST `/v1/patients/{patientRef}/message-threads` | `messaging_threads_open` | required | phi | active |
 | `messaging.threads.read` | E | query | authorize | `messaging.read` | human | rest, mcp | GET `/v1/messaging/threads/{threadRef}` | `messaging_threads_get` | none | phi | active |
 | `messaging.threads.worklist` | E | query | authorize | `messaging.read` | human, service | rest, mcp | GET `/v1/messaging/threads/worklist` | `messaging_threads_worklist` | none | phi | active |
+| `migration.cutover.advance` | M | command | authorize | `migration.signoff` | human | rest, mcp | POST `/v1/migration/cutover/advance` | `migration_cutover_advance` | required | phi | active |
+| `migration.identity.merge` | M | command | authorize | `migration.write` | human | rest, mcp | POST `/v1/migration/identity/merges` | `migration_identity_merge` | required | phi | active |
+| `migration.imports.apply` | M | command | authorize | `migration.write` | human, service | rest, mcp | POST `/v1/migration/imports/apply` | `migration_imports_apply` | required | phi | active |
+| `migration.imports.plan` | M | query | authorize | `migration.read` | human, service | rest, mcp | GET `/v1/migration/imports/plan` | `migration_imports_plan` | none | phi | active |
+| `migration.openingItems.list` | M | query | authorize | `migration.read` | human, service | rest, mcp | GET `/v1/migration/opening-items` | `migration_opening_items_list` | none | phi | active |
+| `migration.packages.intake` | M | command | authorize | `migration.write` | human | rest, mcp | POST `/v1/migration/packages` | `migration_packages_intake` | required | phi | active |
+| `migration.packages.read` | M | query | authorize | `migration.read` | human, service | rest, mcp | GET `/v1/migration/packages/state` | `migration_packages_read` | none | phi | active |
+| `migration.provenance.read` | M | query | authorize | `migration.read` | human, service | rest, mcp | GET `/v1/migration/provenance` | `migration_provenance_read` | none | phi | active |
+| `migration.reports.build` | M | command | authorize | `migration.write` | human, service | rest, mcp | POST `/v1/migration/reports` | `migration_reports_build` | required | phi | active |
+| `migration.reports.read` | M | query | authorize | `migration.read` | human, service | rest, mcp | GET `/v1/migration/reports/latest` | `migration_reports_read` | none | phi | active |
+| `migration.reviewItems.list` | M | query | authorize | `migration.read` | human, service | rest, mcp | GET `/v1/migration/review-items` | `migration_review_items_list` | none | phi | active |
+| `migration.reviewItems.resolve` | M | command | authorize | `migration.write` | human | rest, mcp | POST `/v1/migration/review-items/resolve` | `migration_review_items_resolve` | required | phi | active |
+| `migration.signoffs.record` | M | command | authorize | `migration.signoff` | human | rest, mcp | POST `/v1/migration/signoffs` | `migration_signoffs_record` | required | phi | active |
+| `migration.sourceProfiles.register` | M | command | authorize | `migration.write` | human | rest, mcp | POST `/v1/migration/source-profiles` | `migration_source_profiles_register` | required | phi | active |
 | `outbox.deliver` | F | command | authorize | `outbox.deliver` | service | worker | - | - | none | operational | active |
 | `patients.access.resolve` | S | query | authorize | `patients.read` | human, service | rest, mcp | GET `/v1/patients/{patientRef}/access` | `patients_resolve_access` | none | phi | active |
 | `patients.create` | S | command | authorize | `patients.write` | human, service | rest, mcp | POST `/v1/patients` | `patients_create` | required | phi | active |

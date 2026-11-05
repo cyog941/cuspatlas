@@ -11517,6 +11517,477 @@ paths:
         '503':
           $ref: '#/components/responses/Refusal'
   # END generated: BILLING_OPS
+  # BEGIN generated: MIGRATION_OPS (scripts/openapi-migration.ts)
+  /v1/migration/source-profiles:
+    post:
+      operationId: migration.sourceProfiles.register
+      description: >-
+        M2: register a new version of a source profile (synthetic source system, adapter format, practice).
+        A correction is a new version; intake must name the latest version (409 stale_profile).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/migration.schema.json#/$defs/SourceProfileRegister'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/SourceProfileResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/migration/packages:
+    post:
+      operationId: migration.packages.intake
+      description: >-
+        M2: stage an authorised synthetic source package. The manifest counts and digests must match the
+        tables; every row is staged (unknown entities unmapped, unusable identifiers flagged per row) and
+        ambiguous fields, terminology and money are queued for staff review. The same package twice returns
+        the same staged package. Writes no patient, clinical or billing row.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/migration.schema.json#/$defs/PackageIntake'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/PackageIntakeResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/migration/packages/state:
+    get:
+      operationId: migration.packages.read
+      description: >-
+        M2: staging state of one package: per-entity staged and flagged counts, open review items, cutover
+        state.
+      parameters:
+        - name: packageRef
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/migration.schema.json#/$defs/PackageRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/PackageState'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/migration/review-items:
+    get:
+      operationId: migration.reviewItems.list
+      description: >-
+        M2: the staff review queue of one package (unknown fields and entities, legacy terminology,
+        ambiguous money, unusable identifiers, identity candidates, future appointments) with the adapter
+        proposal and the decisions each item allows.
+      parameters:
+        - name: packageRef
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/migration.schema.json#/$defs/PackageRef'
+        - name: state
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/migration.schema.json#/$defs/ReviewItemListQuery'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/ReviewItemList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/migration/review-items/resolve:
+    post:
+      operationId: migration.reviewItems.resolve
+      description: >-
+        M2/M4: record a staff decision on one review item (exclude, archive only, accept the proposal, or an
+        identity decision). Resolved once; any decision invalidates an earlier reconciliation sign-off.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/migration.schema.json#/$defs/ReviewItemResolve'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/ReviewItemResolveResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/migration/imports/plan:
+    get:
+      operationId: migration.imports.plan
+      description: >-
+        M3: dry run. The full import plan of one package (per-entity staged, planned, applied, excluded and
+        blocked counts, exceptions with the required action) and its digest. Writes nothing.
+      parameters:
+        - name: packageRef
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/migration.schema.json#/$defs/PackageRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/ImportPlan'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/migration/imports/apply:
+    post:
+      operationId: migration.imports.apply
+      description: >-
+        M3: apply one bounded batch of exactly the planned operations (409 plan_digest_changed when the plan
+        moved). Idempotent per source record and resumable after a crash; patients through S4 createPatient
+        only, legacy appointments and procedures as archive references only. Call again until remaining is
+        0.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/migration.schema.json#/$defs/ImportApply'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/ImportApplyResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/migration/identity/merges:
+    post:
+      operationId: migration.identity.merge
+      description: >-
+        M4: merge two patients that a staff-decided identity group (mergeAfterImport) became, delegated
+        verbatim to S6 mergePatients with the S6 confirmation token (S6 checks patients.merge and the human
+        principal). No merge happens automatically and M defines no confirmation of its own.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/migration.schema.json#/$defs/IdentityMerge'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/IdentityMergeResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/migration/provenance:
+    get:
+      operationId: migration.provenance.read
+      description: >-
+        M4: source provenance of one patient and every identity merged into it: source system, source id,
+        entity, applied action and time precision. Merges never overwrite provenance.
+      parameters:
+        - name: patientRef
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/migration.schema.json#/$defs/PatientRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/ProvenanceList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/migration/opening-items:
+    get:
+      operationId: migration.openingItems.list
+      description: >-
+        M5: opening balances, unapplied credits (per source payment, with age basis) and open-claim
+        references of one package, with per-guarantor source vs imported totals and the explicit difference
+        (integer minor units). Opening figures need financial sign-off.
+      parameters:
+        - name: packageRef
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/migration.schema.json#/$defs/PackageRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/OpeningReconciliation'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/migration/reports:
+    post:
+      operationId: migration.reports.build
+      description: >-
+        M6: build the reconciliation report of one package (counts, per-guarantor balances, unapplied
+        credit, exceptions, not-imported list) with its digest. An unchanged run returns the same version; a
+        changed run adds a superseding version and never deletes the prior one.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/migration.schema.json#/$defs/ReportBuild'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/ReportSummaryResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/migration/reports/latest:
+    get:
+      operationId: migration.reports.read
+      description: >-
+        M6: the latest report version, whether it is stale against the current run, the cutover state and
+        every sign-off with its validity.
+      parameters:
+        - name: packageRef
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/migration.schema.json#/$defs/PackageRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/ReconciliationReportRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/migration/signoffs:
+    post:
+      operationId: migration.signoffs.record
+      description: >-
+        M6: a human reviewer with the sign-off scope approves or rejects one specific report version and
+        digest in one role (financialReviewer or operationsReviewer). Refused for a stale version, with
+        blocking exceptions (approval), or when the same person already signed it.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/migration.schema.json#/$defs/SignOffRecord'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/SignOffResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/migration/cutover/advance:
+    post:
+      operationId: migration.cutover.advance
+      description: >-
+        M6: mark the package ready for cutover. Requires the current report version approved in both roles
+        by two distinct humans and no blocking exception; any later import change resets the state to
+        reconciling and makes the sign-offs stale. Not a cutover itself.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/migration.schema.json#/$defs/CutoverAdvance'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/CutoverResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  # END generated: MIGRATION_OPS
 components:
   securitySchemes:
     bearer:

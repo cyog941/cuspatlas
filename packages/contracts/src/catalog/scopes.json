@@ -569,6 +569,67 @@
       "sensitivity": "phi"
     },
     {
+      "name": "migration.read",
+      "noun": "migration",
+      "verb": "read",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "M"
+      ],
+      "operations": [
+        "migration.imports.plan",
+        "migration.openingItems.list",
+        "migration.packages.read",
+        "migration.provenance.read",
+        "migration.reports.read",
+        "migration.reviewItems.list"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "migration.signoff",
+      "noun": "migration",
+      "verb": "signoff",
+      "principalClasses": [
+        "human"
+      ],
+      "humanOnly": true,
+      "owners": [
+        "M"
+      ],
+      "operations": [
+        "migration.cutover.advance",
+        "migration.signoffs.record"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "migration.write",
+      "noun": "migration",
+      "verb": "write",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "M"
+      ],
+      "operations": [
+        "migration.identity.merge",
+        "migration.imports.apply",
+        "migration.packages.intake",
+        "migration.reports.build",
+        "migration.reviewItems.resolve",
+        "migration.sourceProfiles.register"
+      ],
+      "sensitivity": "phi"
+    },
+    {
       "name": "openClaims.read",
       "noun": "openClaims",
       "verb": "read",

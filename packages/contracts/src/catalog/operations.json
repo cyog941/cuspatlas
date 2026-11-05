@@ -7112,6 +7112,486 @@
     "status": "active"
   },
   {
+    "operation": "migration.cutover.advance",
+    "owner": "M",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "migration.cutover.advance",
+    "scope": "migration.signoff",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/migration/cutover/advance",
+      "requestSchema": "migration:CutoverAdvance",
+      "successStatus": "200",
+      "successSchema": "migration:CutoverResult"
+    },
+    "mcpTool": "migration_cutover_advance",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "migration.identity.merge",
+    "owner": "M",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "migration.identity.merge",
+    "scope": "migration.write",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/migration/identity/merges",
+      "requestSchema": "migration:IdentityMerge",
+      "successStatus": "201",
+      "successSchema": "migration:IdentityMergeResult"
+    },
+    "mcpTool": "migration_identity_merge",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "migration.imports.apply",
+    "owner": "M",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "migration.imports.apply",
+    "scope": "migration.write",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/migration/imports/apply",
+      "requestSchema": "migration:ImportApply",
+      "successStatus": "200",
+      "successSchema": "migration:ImportApplyResult"
+    },
+    "mcpTool": "migration_imports_apply",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "migration.imports.plan",
+    "owner": "M",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "migration.imports.plan",
+    "scope": "migration.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/migration/imports/plan",
+      "successStatus": "200",
+      "successSchema": "migration:ImportPlan"
+    },
+    "mcpTool": "migration_imports_plan",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "migration.openingItems.list",
+    "owner": "M",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "migration.openingItems.list",
+    "scope": "migration.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/migration/opening-items",
+      "successStatus": "200",
+      "successSchema": "migration:OpeningReconciliation"
+    },
+    "mcpTool": "migration_opening_items_list",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "migration.packages.intake",
+    "owner": "M",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "migration.packages.intake",
+    "scope": "migration.write",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/migration/packages",
+      "requestSchema": "migration:PackageIntake",
+      "successStatus": "201",
+      "successSchema": "migration:PackageIntakeResult"
+    },
+    "mcpTool": "migration_packages_intake",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "migration.packages.read",
+    "owner": "M",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "migration.packages.read",
+    "scope": "migration.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/migration/packages/state",
+      "successStatus": "200",
+      "successSchema": "migration:PackageState"
+    },
+    "mcpTool": "migration_packages_read",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "migration.provenance.read",
+    "owner": "M",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "migration.provenance.read",
+    "scope": "migration.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/migration/provenance",
+      "successStatus": "200",
+      "successSchema": "migration:ProvenanceList"
+    },
+    "mcpTool": "migration_provenance_read",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "migration.reports.build",
+    "owner": "M",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "migration.reports.build",
+    "scope": "migration.write",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/migration/reports",
+      "requestSchema": "migration:ReportBuild",
+      "successStatus": "200",
+      "successSchema": "migration:ReportSummaryResult"
+    },
+    "mcpTool": "migration_reports_build",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "migration.reports.read",
+    "owner": "M",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "migration.reports.read",
+    "scope": "migration.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/migration/reports/latest",
+      "successStatus": "200",
+      "successSchema": "migration:ReconciliationReportRead"
+    },
+    "mcpTool": "migration_reports_read",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "migration.reviewItems.list",
+    "owner": "M",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "migration.reviewItems.list",
+    "scope": "migration.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/migration/review-items",
+      "successStatus": "200",
+      "successSchema": "migration:ReviewItemList"
+    },
+    "mcpTool": "migration_review_items_list",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "migration.reviewItems.resolve",
+    "owner": "M",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "migration.reviewItems.resolve",
+    "scope": "migration.write",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/migration/review-items/resolve",
+      "requestSchema": "migration:ReviewItemResolve",
+      "successStatus": "200",
+      "successSchema": "migration:ReviewItemResolveResult"
+    },
+    "mcpTool": "migration_review_items_resolve",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "migration.signoffs.record",
+    "owner": "M",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "migration.signoffs.record",
+    "scope": "migration.signoff",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/migration/signoffs",
+      "requestSchema": "migration:SignOffRecord",
+      "successStatus": "201",
+      "successSchema": "migration:SignOffResult"
+    },
+    "mcpTool": "migration_signoffs_record",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "migration.sourceProfiles.register",
+    "owner": "M",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "migration.sourceProfiles.register",
+    "scope": "migration.write",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/migration/source-profiles",
+      "requestSchema": "migration:SourceProfileRegister",
+      "successStatus": "201",
+      "successSchema": "migration:SourceProfileResult"
+    },
+    "mcpTool": "migration_source_profiles_register",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
     "operation": "outbox.deliver",
     "owner": "F",
     "kind": "command",

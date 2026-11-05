@@ -380,6 +380,21 @@ const TOOL_NAMES = [
   'imaging_bridge_jobs_reconcile',
   'imaging_bridge_worklist',
   'imaging_export',
+  // Workstream M migration (M2-M6).
+  'migration_source_profiles_register',
+  'migration_packages_intake',
+  'migration_packages_read',
+  'migration_review_items_list',
+  'migration_review_items_resolve',
+  'migration_imports_plan',
+  'migration_imports_apply',
+  'migration_identity_merge',
+  'migration_provenance_read',
+  'migration_opening_items_list',
+  'migration_reports_build',
+  'migration_reports_read',
+  'migration_signoffs_record',
+  'migration_cutover_advance',
 ].sort();
 
 let db: TestDatabase;

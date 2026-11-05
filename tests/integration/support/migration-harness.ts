@@ -1,0 +1,234 @@
+import { randomUUID } from 'node:crypto';
+import { MARKER } from './marker';
+import { intakeBody, legacyPackage, legacyTables, PRACTICE, SOURCE_SYSTEM } from './migration-fixtures';
+
+/**
+ * Workstream M rows of the shared negative harness (tests/integration/negative-harness.test.ts):
+ * every M command attempted cross-tenant, revoked, downgraded and through MCP. Structurally typed like
+ * the harness's HarnessCommand so the harness file only appends them.
+ */
+type F = { readonly [name: string]: string };
+type Rest = { method: 'GET' | 'POST'; url: string; body?: unknown; keyed: boolean; status: number };
+interface Row {
+  readonly operation: string;
+  readonly tool: string;
+  readonly crossTenant: 'not_found' | 'own_tenant_only';
+  readonly downgradedTo: 'readOnly' | 'noPatientScopes';
+  rest(f: F): Rest;
+  mcpArgs(f: F): Record<string, unknown>;
+}
+
+const pkg = () => legacyPackage(legacyTables({ nameSuffix: MARKER, unknownField: true }));
+const get = (url: string): Rest => ({ method: 'GET', url, keyed: false, status: 200 });
+const post = (url: string, body: unknown, status = 200): Rest => ({
+  method: 'POST',
+  url,
+  body,
+  keyed: true,
+  status,
+});
+const keyed = (body: Record<string, unknown>) => ({ ...body, idempotencyKey: randomUUID() });
+const pq = (f: F) => `packageRef=${f.alphaMigrationPackage}`;
+
+const profileBody = {
+  sourceSystem: 'syn-harness-pms',
+  format: 'cuspatlas-synthetic-legacy/1',
+  practiceRef: PRACTICE,
+};
+const resolveBody = (f: F) => ({
+  packageRef: f.alphaMigrationPackage,
+  itemRef: f.alphaMigrationItem,
+  decision: 'exclude',
+  reasonCode: 'reviewed',
+});
+
+const applyBody = (f: F) => ({
+  packageRef: f.alphaMigrationPackage,
+  expectedPlanDigest: '0'.repeat(64),
+  batchSize: 1,
+});
+
+const mergeBody = (f: F) => ({
+  packageRef: f.alphaMigrationPackage,
+  itemRef: f.alphaMigrationItem,
+  survivorRef: f.alphaPatient,
+  mergedRef: f.alphaPatient,
+  confirmationToken: 'v1.9999999999.1.1.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+  reasonCode: 'duplicate_registration',
+});
+
+const signBody = (f: F) => ({
+  packageRef: f.alphaMigrationPackage,
+  reportRef: f.alphaMigrationReport,
+  reportDigest: f.alphaMigrationReportDigest,
+  role: 'financialReviewer',
+  decision: 'rejected',
+});
+
+export const MIGRATION_HARNESS_ROWS: Row[] = [
+  {
+    operation: 'migration.sourceProfiles.register',
+    tool: 'migration_source_profiles_register',
+    crossTenant: 'own_tenant_only',
+    downgradedTo: 'readOnly',
+    rest: () => post('/v1/migration/source-profiles', profileBody, 201),
+    mcpArgs: () => keyed(profileBody),
+  },
+  {
+    operation: 'migration.packages.intake',
+    tool: 'migration_packages_intake',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => post('/v1/migration/packages', intakeBody(f.alphaMigrationProfile as string, pkg()), 201),
+    mcpArgs: (f) => keyed(intakeBody(f.alphaMigrationProfile as string, pkg())),
+  },
+  {
+    operation: 'migration.packages.read',
+    tool: 'migration_packages_read',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => get(`/v1/migration/packages/state?${pq(f)}`),
+    mcpArgs: (f) => ({ packageRef: f.alphaMigrationPackage }),
+  },
+  {
+    operation: 'migration.reviewItems.list',
+    tool: 'migration_review_items_list',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => get(`/v1/migration/review-items?${pq(f)}`),
+    mcpArgs: (f) => ({ packageRef: f.alphaMigrationPackage }),
+  },
+  {
+    operation: 'migration.reviewItems.resolve',
+    tool: 'migration_review_items_resolve',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => post('/v1/migration/review-items/resolve', resolveBody(f)),
+    mcpArgs: (f) => keyed(resolveBody(f)),
+  },
+  {
+    operation: 'migration.imports.plan',
+    tool: 'migration_imports_plan',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => get(`/v1/migration/imports/plan?${pq(f)}`),
+    mcpArgs: (f) => ({ packageRef: f.alphaMigrationPackage }),
+  },
+  {
+    operation: 'migration.imports.apply',
+    tool: 'migration_imports_apply',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => post('/v1/migration/imports/apply', applyBody(f)),
+    mcpArgs: (f) => keyed(applyBody(f)),
+  },
+  {
+    operation: 'migration.identity.merge',
+    tool: 'migration_identity_merge',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => post('/v1/migration/identity/merges', mergeBody(f), 201),
+    mcpArgs: (f) => keyed(mergeBody(f)),
+  },
+  {
+    operation: 'migration.provenance.read',
+    tool: 'migration_provenance_read',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => get(`/v1/migration/provenance?patientRef=${f.alphaPatient}`),
+    mcpArgs: (f) => ({ patientRef: f.alphaPatient }),
+  },
+  {
+    operation: 'migration.openingItems.list',
+    tool: 'migration_opening_items_list',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => get(`/v1/migration/opening-items?${pq(f)}`),
+    mcpArgs: (f) => ({ packageRef: f.alphaMigrationPackage }),
+  },
+  {
+    operation: 'migration.reports.build',
+    tool: 'migration_reports_build',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => post('/v1/migration/reports', { packageRef: f.alphaMigrationPackage }),
+    mcpArgs: (f) => keyed({ packageRef: f.alphaMigrationPackage }),
+  },
+  {
+    operation: 'migration.reports.read',
+    tool: 'migration_reports_read',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => get(`/v1/migration/reports/latest?${pq(f)}`),
+    mcpArgs: (f) => ({ packageRef: f.alphaMigrationPackage }),
+  },
+  {
+    operation: 'migration.signoffs.record',
+    tool: 'migration_signoffs_record',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => post('/v1/migration/signoffs', signBody(f), 201),
+    mcpArgs: (f) => keyed(signBody(f)),
+  },
+  {
+    operation: 'migration.cutover.advance',
+    tool: 'migration_cutover_advance',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) =>
+      post('/v1/migration/cutover/advance', {
+        packageRef: f.alphaMigrationPackage,
+        reportRef: f.alphaMigrationReport,
+      }),
+    mcpArgs: (f) => keyed({ packageRef: f.alphaMigrationPackage, reportRef: f.alphaMigrationReport }),
+  },
+];
+
+type Owner = (
+  url: string,
+  body: unknown,
+) => Promise<{ statusCode: number; json(): { data: Record<string, string> } }>;
+type Get = (
+  url: string,
+) => Promise<{ statusCode: number; json(): { data: { itemRef: string; category: string }[] } }>;
+
+/** Alpha fixtures for the M rows, created through the M commands as the owner. */
+export async function seedMigrationHarness(owner: Owner, ownerGet: Get): Promise<Record<string, string>> {
+  const profile = await owner('/v1/migration/source-profiles', {
+    sourceSystem: SOURCE_SYSTEM,
+    format: 'cuspatlas-synthetic-legacy/1',
+    practiceRef: PRACTICE,
+  });
+  if (profile.statusCode !== 201) throw new Error('harness migration profile');
+  const alphaMigrationProfile = profile.json().data.profileRef as string;
+  const intake = await owner(
+    '/v1/migration/packages',
+    intakeBody(alphaMigrationProfile, legacyPackage(legacyTables({ unknownField: true, exportSeq: 0 }))),
+  );
+  if (intake.statusCode !== 201) throw new Error('harness migration package');
+  const alphaMigrationPackage = intake.json().data.packageRef as string;
+  const items = await ownerGet(`/v1/migration/review-items?packageRef=${alphaMigrationPackage}`);
+  const field = items.json().data.find((i) => i.category === 'unknown_field');
+  if (!field) throw new Error('harness migration review item');
+  const report = await owner('/v1/migration/reports', { packageRef: alphaMigrationPackage });
+  if (report.statusCode !== 200) throw new Error('harness migration report');
+  return {
+    alphaMigrationProfile,
+    alphaMigrationPackage,
+    alphaMigrationItem: field.itemRef,
+    alphaMigrationReport: report.json().data.reportRef as string,
+    alphaMigrationReportDigest: report.json().data.reportDigest as string,
+  };
+}
+
+/** Migration tables in the harness state digest (a refusal must leave every one unchanged). */
+export const MIGRATION_STATE_SQL: readonly string[] = [
+  'SELECT count(*)::int AS n FROM cuspatlas.migration_source_profiles',
+  'SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.migration_packages',
+  'SELECT count(*)::int AS n FROM cuspatlas.migration_staged_records',
+  'SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.migration_review_items',
+  'SELECT count(*)::int AS n FROM cuspatlas.migration_applied_records',
+  'SELECT count(*)::int AS n FROM cuspatlas.migration_opening_items',
+  'SELECT count(*)::int AS n FROM cuspatlas.migration_reports',
+  'SELECT count(*)::int AS n FROM cuspatlas.migration_signoffs',
+];

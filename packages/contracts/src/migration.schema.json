@@ -1,0 +1,1018 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cuspatlas.invalid/schemas/migration/v1",
+  "title": "Migration contract v1 (M2-M6; synthetic source packages only, real exports blocked on M-S1)",
+  "$defs": {
+    "IdempotencyKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$"
+    },
+    "Version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "Uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "PackageRef": {
+      "$ref": "#/$defs/Uuid",
+      "description": "Opaque reference of one staged source package (tenant from context, never from input)."
+    },
+    "ProfileRef": {
+      "$ref": "#/$defs/Uuid",
+      "description": "Opaque reference of one source profile version."
+    },
+    "ItemRef": {
+      "$ref": "#/$defs/Uuid",
+      "description": "Opaque reference of one staff review item."
+    },
+    "PatientRef": {
+      "$ref": "#/$defs/Uuid",
+      "description": "Opaque patient reference owned by workstream S."
+    },
+    "ReasonCode": {
+      "type": "string",
+      "pattern": "^[a-z_]{1,64}$",
+      "description": "Server-checked reason enumeration value; never free text."
+    },
+    "Digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "Count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2147483647
+    },
+    "MinorUnits": {
+      "type": "integer",
+      "description": "Signed integer minor units (SHARED-CONTRACTS Money). Never a float.",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "CurrencyCode": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$"
+    },
+    "Money": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "SHARED-CONTRACTS Money: explicit currency and integer minor units. Never a float.",
+      "required": ["currency", "minor"],
+      "properties": {
+        "currency": {
+          "$ref": "#/$defs/CurrencyCode"
+        },
+        "minor": {
+          "$ref": "#/$defs/MinorUnits"
+        }
+      }
+    },
+    "SourceSystem": {
+      "type": "string",
+      "pattern": "^syn-[a-z0-9-]{1,60}$",
+      "description": "Source system label. Only synthetic (`syn-`) systems are accepted until M-S1 closes."
+    },
+    "SourceFormat": {
+      "enum": ["cuspatlas-synthetic-legacy/1"],
+      "description": "Versioned source adapter format. Only the fabricated synthetic legacy format is registered."
+    },
+    "PracticeRef": {
+      "type": "string",
+      "pattern": "^syn-practice-[a-z0-9-]{1,40}$"
+    },
+    "EntityName": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,40}$"
+    },
+    "SourceProfileRegister": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceSystem", "format", "practiceRef"],
+      "properties": {
+        "sourceSystem": {
+          "$ref": "#/$defs/SourceSystem"
+        },
+        "format": {
+          "$ref": "#/$defs/SourceFormat"
+        },
+        "practiceRef": {
+          "$ref": "#/$defs/PracticeRef"
+        }
+      }
+    },
+    "SourceProfileResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["profileRef", "profileVersion"],
+          "properties": {
+            "profileRef": {
+              "$ref": "#/$defs/ProfileRef"
+            },
+            "profileVersion": {
+              "$ref": "#/$defs/Version"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ManifestEntity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "declaredCount", "artifactDigest"],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/EntityName"
+        },
+        "declaredCount": {
+          "$ref": "#/$defs/Count"
+        },
+        "artifactDigest": {
+          "$ref": "#/$defs/Digest"
+        }
+      }
+    },
+    "SourcePackage": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A synthetic source package: CSV tables (header row first) and a manifest of declared counts and SHA-256 digests of each table text.",
+      "required": ["format", "sourceSystem", "practiceRef", "producedAt", "manifest", "tables"],
+      "properties": {
+        "format": {
+          "$ref": "#/$defs/SourceFormat"
+        },
+        "sourceSystem": {
+          "$ref": "#/$defs/SourceSystem"
+        },
+        "practiceRef": {
+          "$ref": "#/$defs/PracticeRef"
+        },
+        "producedAt": {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 40
+        },
+        "manifest": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["entities"],
+          "properties": {
+            "entities": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 16,
+              "items": {
+                "$ref": "#/$defs/ManifestEntity"
+              }
+            }
+          }
+        },
+        "tables": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 16,
+          "propertyNames": {
+            "$ref": "#/$defs/EntityName"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "maxLength": 400000
+          }
+        }
+      }
+    },
+    "Authorisation": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The practice's evidenced export authorisation (synthetic reference until M-S1 closes).",
+      "required": ["reference", "practiceRef"],
+      "properties": {
+        "reference": {
+          "type": "string",
+          "pattern": "^syn-auth-[a-z0-9-]{1,60}$"
+        },
+        "practiceRef": {
+          "$ref": "#/$defs/PracticeRef"
+        }
+      }
+    },
+    "PackageIntake": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profileRef", "authorisation", "package"],
+      "properties": {
+        "profileRef": {
+          "$ref": "#/$defs/ProfileRef"
+        },
+        "authorisation": {
+          "$ref": "#/$defs/Authorisation"
+        },
+        "package": {
+          "$ref": "#/$defs/SourcePackage"
+        }
+      }
+    },
+    "PackageIntakeResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["packageRef", "state", "alreadyStaged", "stagedCount", "reviewCount"],
+          "properties": {
+            "packageRef": {
+              "$ref": "#/$defs/PackageRef"
+            },
+            "state": {
+              "enum": ["staged"]
+            },
+            "alreadyStaged": {
+              "type": "boolean"
+            },
+            "stagedCount": {
+              "$ref": "#/$defs/Count"
+            },
+            "reviewCount": {
+              "$ref": "#/$defs/Count"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "PackageQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["packageRef"],
+      "properties": {
+        "packageRef": {
+          "$ref": "#/$defs/PackageRef"
+        }
+      }
+    },
+    "PackageState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "required": [
+            "packageRef",
+            "profileRef",
+            "sourceSystem",
+            "format",
+            "packageDigest",
+            "cutoverState",
+            "changeSeq",
+            "entities",
+            "openReviewItems"
+          ],
+          "properties": {
+            "packageRef": {
+              "$ref": "#/$defs/PackageRef"
+            },
+            "profileRef": {
+              "$ref": "#/$defs/ProfileRef"
+            },
+            "sourceSystem": {
+              "$ref": "#/$defs/SourceSystem"
+            },
+            "format": {
+              "$ref": "#/$defs/SourceFormat"
+            },
+            "packageDigest": {
+              "$ref": "#/$defs/Digest"
+            },
+            "cutoverState": {
+              "enum": ["reconciling", "readyForCutover"]
+            },
+            "changeSeq": {
+              "$ref": "#/$defs/Version"
+            },
+            "entities": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["entity", "mapped", "staged", "withIssue"],
+                "properties": {
+                  "entity": {
+                    "$ref": "#/$defs/EntityName"
+                  },
+                  "mapped": {
+                    "type": "boolean"
+                  },
+                  "staged": {
+                    "$ref": "#/$defs/Count"
+                  },
+                  "withIssue": {
+                    "$ref": "#/$defs/Count"
+                  }
+                }
+              }
+            },
+            "openReviewItems": {
+              "$ref": "#/$defs/Count"
+            }
+          }
+        }
+      }
+    },
+    "ReviewCategory": {
+      "enum": [
+        "unknown_field",
+        "unmapped_entity",
+        "terminology",
+        "monetary_semantics",
+        "missing_source_id",
+        "duplicate_source_id",
+        "identity",
+        "future_appointment"
+      ]
+    },
+    "ReviewDecision": {
+      "enum": ["exclude", "archiveOnly", "acceptProposal", "distinct", "sameAsExisting", "mergeAfterImport"]
+    },
+    "ReviewItemListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["packageRef"],
+      "properties": {
+        "packageRef": {
+          "$ref": "#/$defs/PackageRef"
+        },
+        "state": {
+          "enum": ["open", "resolved"]
+        }
+      }
+    },
+    "ReviewItem": {
+      "type": "object",
+      "required": [
+        "itemRef",
+        "category",
+        "entity",
+        "field",
+        "subjectKey",
+        "stagedRefs",
+        "proposal",
+        "state",
+        "decision",
+        "allowedDecisions"
+      ],
+      "properties": {
+        "itemRef": {
+          "$ref": "#/$defs/ItemRef"
+        },
+        "category": {
+          "$ref": "#/$defs/ReviewCategory"
+        },
+        "entity": {
+          "$ref": "#/$defs/EntityName"
+        },
+        "field": {
+          "type": ["string", "null"]
+        },
+        "subjectKey": {
+          "type": "string"
+        },
+        "stagedRefs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Uuid"
+          }
+        },
+        "proposal": {
+          "type": "object",
+          "description": "Adapter proposal with confidence and provenance; never applied without a decision."
+        },
+        "state": {
+          "enum": ["open", "resolved"]
+        },
+        "decision": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReviewDecision"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "allowedDecisions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ReviewDecision"
+          }
+        }
+      }
+    },
+    "ReviewItemList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ReviewItem"
+          }
+        }
+      }
+    },
+    "ReviewItemResolve": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["packageRef", "itemRef", "decision", "reasonCode"],
+      "properties": {
+        "packageRef": {
+          "$ref": "#/$defs/PackageRef"
+        },
+        "itemRef": {
+          "$ref": "#/$defs/ItemRef"
+        },
+        "decision": {
+          "$ref": "#/$defs/ReviewDecision"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        }
+      }
+    },
+    "ReviewItemResolveResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["itemRef", "decision"],
+          "properties": {
+            "itemRef": {
+              "$ref": "#/$defs/ItemRef"
+            },
+            "decision": {
+              "$ref": "#/$defs/ReviewDecision"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ImportApply": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["packageRef", "expectedPlanDigest"],
+      "properties": {
+        "packageRef": {
+          "$ref": "#/$defs/PackageRef"
+        },
+        "expectedPlanDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "batchSize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        }
+      }
+    },
+    "ImportPlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "required": ["packageRef", "planDigest", "counts", "exceptions"],
+          "properties": {
+            "packageRef": {
+              "$ref": "#/$defs/PackageRef"
+            },
+            "planDigest": {
+              "$ref": "#/$defs/Digest"
+            },
+            "counts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["entity", "staged", "planned", "applied", "excluded", "blocked"],
+                "properties": {
+                  "entity": {
+                    "$ref": "#/$defs/EntityName"
+                  },
+                  "staged": {
+                    "$ref": "#/$defs/Count"
+                  },
+                  "planned": {
+                    "$ref": "#/$defs/Count"
+                  },
+                  "applied": {
+                    "$ref": "#/$defs/Count"
+                  },
+                  "excluded": {
+                    "$ref": "#/$defs/Count"
+                  },
+                  "blocked": {
+                    "$ref": "#/$defs/Count"
+                  }
+                }
+              }
+            },
+            "exceptions": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "type": "object",
+                "required": ["code", "entity", "stagedRef", "requiredAction"],
+                "properties": {
+                  "code": {
+                    "$ref": "#/$defs/ReasonCode"
+                  },
+                  "entity": {
+                    "$ref": "#/$defs/EntityName"
+                  },
+                  "stagedRef": {
+                    "$ref": "#/$defs/Uuid"
+                  },
+                  "requiredAction": {
+                    "$ref": "#/$defs/ReasonCode"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "ImportApplyResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "packageRef",
+            "planDigest",
+            "appliedThisBatch",
+            "alreadyApplied",
+            "remaining",
+            "blocked",
+            "excluded",
+            "state"
+          ],
+          "properties": {
+            "packageRef": {
+              "$ref": "#/$defs/PackageRef"
+            },
+            "planDigest": {
+              "$ref": "#/$defs/Digest"
+            },
+            "appliedThisBatch": {
+              "$ref": "#/$defs/Count"
+            },
+            "alreadyApplied": {
+              "$ref": "#/$defs/Count"
+            },
+            "remaining": {
+              "$ref": "#/$defs/Count"
+            },
+            "blocked": {
+              "$ref": "#/$defs/Count"
+            },
+            "excluded": {
+              "$ref": "#/$defs/Count"
+            },
+            "state": {
+              "enum": ["partial", "complete"]
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "IdentityMerge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["packageRef", "itemRef", "survivorRef", "mergedRef", "confirmationToken", "reasonCode"],
+      "properties": {
+        "packageRef": {
+          "$ref": "#/$defs/PackageRef"
+        },
+        "itemRef": {
+          "$ref": "#/$defs/ItemRef"
+        },
+        "survivorRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "mergedRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "confirmationToken": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "description": "S6 merge confirmation token (issued by S6 duplicate review); M issues none of its own."
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "IdentityMergeResult": {
+      "type": "object",
+      "description": "The S6 mergePatients result, returned verbatim.",
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object"
+        }
+      }
+    },
+    "ProvenanceQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["patientRef"],
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        }
+      }
+    },
+    "ProvenanceList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "packageRef",
+              "patientRef",
+              "sourceSystem",
+              "sourceId",
+              "entity",
+              "action",
+              "timePrecision",
+              "appliedAt"
+            ],
+            "properties": {
+              "packageRef": {
+                "$ref": "#/$defs/PackageRef"
+              },
+              "patientRef": {
+                "$ref": "#/$defs/PatientRef"
+              },
+              "sourceSystem": {
+                "$ref": "#/$defs/SourceSystem"
+              },
+              "sourceId": {
+                "type": ["string", "null"]
+              },
+              "entity": {
+                "$ref": "#/$defs/EntityName"
+              },
+              "action": {
+                "type": "string"
+              },
+              "timePrecision": {
+                "type": "string"
+              },
+              "appliedAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        }
+      }
+    },
+    "OpeningReconciliation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "required": ["currency", "items", "byGuarantor", "totals"],
+          "properties": {
+            "currency": {
+              "$ref": "#/$defs/CurrencyCode"
+            },
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["openingRef", "kind", "patientRef", "amount", "asOfPrecision", "sourceRef"],
+                "properties": {
+                  "openingRef": {
+                    "$ref": "#/$defs/Uuid"
+                  },
+                  "kind": {
+                    "enum": ["balance", "unappliedCredit", "openClaim"]
+                  },
+                  "patientRef": {
+                    "$ref": "#/$defs/PatientRef"
+                  },
+                  "guarantorSourceId": {
+                    "type": ["string", "null"]
+                  },
+                  "amount": {
+                    "$ref": "#/$defs/Money"
+                  },
+                  "asOf": {
+                    "type": ["string", "null"]
+                  },
+                  "asOfPrecision": {
+                    "enum": ["day", "approximate"]
+                  },
+                  "ageBasis": {
+                    "type": ["string", "null"]
+                  },
+                  "claimState": {
+                    "type": ["string", "null"]
+                  },
+                  "sourceRef": {
+                    "type": "string"
+                  },
+                  "entryRef": {
+                    "type": ["string", "null"]
+                  }
+                }
+              }
+            },
+            "byGuarantor": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "guarantorSourceId": {
+                    "type": "string"
+                  },
+                  "sourceBalance": {
+                    "$ref": "#/$defs/Money"
+                  },
+                  "importedBalance": {
+                    "$ref": "#/$defs/Money"
+                  },
+                  "balanceDifference": {
+                    "$ref": "#/$defs/Money"
+                  },
+                  "sourceCredit": {
+                    "$ref": "#/$defs/Money"
+                  },
+                  "importedCredit": {
+                    "$ref": "#/$defs/Money"
+                  },
+                  "creditDifference": {
+                    "$ref": "#/$defs/Money"
+                  }
+                }
+              }
+            },
+            "totals": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    },
+    "ReportBuild": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["packageRef"],
+      "properties": {
+        "packageRef": {
+          "$ref": "#/$defs/PackageRef"
+        }
+      }
+    },
+    "ReportSummaryResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["reportRef", "reportVersion", "reportDigest", "blockingExceptions"],
+          "properties": {
+            "reportRef": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "reportVersion": {
+              "$ref": "#/$defs/Version"
+            },
+            "reportDigest": {
+              "$ref": "#/$defs/Digest"
+            },
+            "blockingExceptions": {
+              "$ref": "#/$defs/Count"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ReconciliationReportRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "required": [
+            "reportRef",
+            "reportVersion",
+            "reportDigest",
+            "stale",
+            "cutoverState",
+            "report",
+            "signOffs"
+          ],
+          "properties": {
+            "reportRef": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "reportVersion": {
+              "$ref": "#/$defs/Version"
+            },
+            "reportDigest": {
+              "$ref": "#/$defs/Digest"
+            },
+            "stale": {
+              "type": "boolean"
+            },
+            "cutoverState": {
+              "enum": ["reconciling", "readyForCutover"]
+            },
+            "report": {
+              "type": "object",
+              "description": "Per-entity declared/staged/applied/excluded/blocked counts, per-guarantor Money comparison, unapplied credit, exceptions by category, blocking exceptions with required action, not-imported count."
+            },
+            "signOffs": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "SignOffRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["packageRef", "reportRef", "reportDigest", "role", "decision"],
+      "properties": {
+        "packageRef": {
+          "$ref": "#/$defs/PackageRef"
+        },
+        "reportRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "reportDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "role": {
+          "enum": ["financialReviewer", "operationsReviewer"]
+        },
+        "decision": {
+          "enum": ["approved", "rejected"]
+        }
+      }
+    },
+    "SignOffResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["signOffRef", "role", "decision"],
+          "properties": {
+            "signOffRef": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "role": {
+              "type": "string"
+            },
+            "decision": {
+              "type": "string"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "CutoverAdvance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["packageRef", "reportRef"],
+      "properties": {
+        "packageRef": {
+          "$ref": "#/$defs/PackageRef"
+        },
+        "reportRef": {
+          "$ref": "#/$defs/Uuid"
+        }
+      }
+    },
+    "CutoverResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["packageRef", "cutoverState"],
+          "properties": {
+            "packageRef": {
+              "$ref": "#/$defs/PackageRef"
+            },
+            "cutoverState": {
+              "enum": ["readyForCutover"]
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

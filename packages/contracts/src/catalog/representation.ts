@@ -12,6 +12,9 @@ export const NON_ENTITY_ID_FIELDS: Readonly<Record<string, string>> = {
   correlationId: 'request correlation identifier, not a record reference',
   providerEventId: "an external provider's own event identifier, stored verbatim for receipt dedupe",
   jobSigningKeyId: 'a public signing-key identifier for bridge job verification',
+  sourceId: "a migration source system's own record identifier, kept verbatim as provenance (M3-M6)",
+  guarantorSourceId:
+    "a migration source system's own guarantor identifier, kept verbatim for opening-balance reconciliation (M5-M6)",
 };
 
 const MONEY_SCALAR = /(amount|Minor$|cents|Cents|price|Price|balance|Balance)/;

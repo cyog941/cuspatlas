@@ -9518,6 +9518,622 @@
       "mcpTool": "messaging_threads_worklist"
     },
     {
+      "operation": "migration.cutover.advance",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.signoff",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/migration/cutover/advance"
+      },
+      "mcpTool": "migration_cutover_advance",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "packageRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "reportRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "closed": true,
+        "required": [
+          "packageRef",
+          "reportRef"
+        ]
+      }
+    },
+    {
+      "operation": "migration.identity.merge",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.write",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/migration/identity/merges"
+      },
+      "mcpTool": "migration_identity_merge",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "confirmationToken": {
+            "type": [
+              "string"
+            ],
+            "maxLength": 512,
+            "minLength": 1
+          },
+          "itemRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "mergedRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "packageRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "reasonCode": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z_]{1,64}$"
+          },
+          "survivorRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "closed": true,
+        "required": [
+          "confirmationToken",
+          "itemRef",
+          "mergedRef",
+          "packageRef",
+          "reasonCode",
+          "survivorRef"
+        ]
+      }
+    },
+    {
+      "operation": "migration.imports.apply",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.write",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/migration/imports/apply"
+      },
+      "mcpTool": "migration_imports_apply",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "batchSize": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 200,
+            "minimum": 1
+          },
+          "expectedPlanDigest": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "packageRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "closed": true,
+        "required": [
+          "expectedPlanDigest",
+          "packageRef"
+        ]
+      }
+    },
+    {
+      "operation": "migration.imports.plan",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/migration/imports/plan"
+      },
+      "mcpTool": "migration_imports_plan"
+    },
+    {
+      "operation": "migration.openingItems.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/migration/opening-items"
+      },
+      "mcpTool": "migration_opening_items_list"
+    },
+    {
+      "operation": "migration.packages.intake",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.write",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/migration/packages"
+      },
+      "mcpTool": "migration_packages_intake",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "authorisation": {
+            "type": [
+              "object"
+            ],
+            "properties": {
+              "practiceRef": {
+                "type": [
+                  "string"
+                ],
+                "pattern": "^syn-practice-[a-z0-9-]{1,40}$"
+              },
+              "reference": {
+                "type": [
+                  "string"
+                ],
+                "pattern": "^syn-auth-[a-z0-9-]{1,60}$"
+              }
+            },
+            "closed": true,
+            "required": [
+              "practiceRef",
+              "reference"
+            ]
+          },
+          "package": {
+            "type": [
+              "object"
+            ],
+            "properties": {
+              "format": {
+                "enum": [
+                  "\"cuspatlas-synthetic-legacy/1\""
+                ]
+              },
+              "manifest": {
+                "type": [
+                  "object"
+                ],
+                "properties": {
+                  "entities": {
+                    "type": [
+                      "array"
+                    ],
+                    "maxItems": 16,
+                    "items": {
+                      "type": [
+                        "object"
+                      ],
+                      "properties": {
+                        "artifactDigest": {
+                          "type": [
+                            "string"
+                          ],
+                          "pattern": "^[0-9a-f]{64}$"
+                        },
+                        "declaredCount": {
+                          "type": [
+                            "integer"
+                          ],
+                          "maximum": 2147483647,
+                          "minimum": 0
+                        },
+                        "name": {
+                          "type": [
+                            "string"
+                          ],
+                          "pattern": "^[a-z][a-z0-9_]{0,40}$"
+                        }
+                      },
+                      "closed": true,
+                      "required": [
+                        "artifactDigest",
+                        "declaredCount",
+                        "name"
+                      ]
+                    }
+                  }
+                },
+                "closed": true,
+                "required": [
+                  "entities"
+                ]
+              },
+              "practiceRef": {
+                "type": [
+                  "string"
+                ],
+                "pattern": "^syn-practice-[a-z0-9-]{1,40}$"
+              },
+              "producedAt": {
+                "type": [
+                  "string"
+                ],
+                "maxLength": 40
+              },
+              "sourceSystem": {
+                "type": [
+                  "string"
+                ],
+                "pattern": "^syn-[a-z0-9-]{1,60}$"
+              },
+              "tables": {
+                "type": [
+                  "object"
+                ]
+              }
+            },
+            "closed": true,
+            "required": [
+              "format",
+              "manifest",
+              "practiceRef",
+              "producedAt",
+              "sourceSystem",
+              "tables"
+            ]
+          },
+          "profileRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "closed": true,
+        "required": [
+          "authorisation",
+          "package",
+          "profileRef"
+        ]
+      }
+    },
+    {
+      "operation": "migration.packages.read",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/migration/packages/state"
+      },
+      "mcpTool": "migration_packages_read"
+    },
+    {
+      "operation": "migration.provenance.read",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/migration/provenance"
+      },
+      "mcpTool": "migration_provenance_read"
+    },
+    {
+      "operation": "migration.reports.build",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.write",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/migration/reports"
+      },
+      "mcpTool": "migration_reports_build",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "packageRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "closed": true,
+        "required": [
+          "packageRef"
+        ]
+      }
+    },
+    {
+      "operation": "migration.reports.read",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/migration/reports/latest"
+      },
+      "mcpTool": "migration_reports_read"
+    },
+    {
+      "operation": "migration.reviewItems.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/migration/review-items"
+      },
+      "mcpTool": "migration_review_items_list"
+    },
+    {
+      "operation": "migration.reviewItems.resolve",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.write",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/migration/review-items/resolve"
+      },
+      "mcpTool": "migration_review_items_resolve",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "decision": {
+            "enum": [
+              "\"acceptProposal\"",
+              "\"archiveOnly\"",
+              "\"distinct\"",
+              "\"exclude\"",
+              "\"mergeAfterImport\"",
+              "\"sameAsExisting\""
+            ]
+          },
+          "itemRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "packageRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "patientRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "reasonCode": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z_]{1,64}$"
+          }
+        },
+        "closed": true,
+        "required": [
+          "decision",
+          "itemRef",
+          "packageRef",
+          "reasonCode"
+        ]
+      }
+    },
+    {
+      "operation": "migration.signoffs.record",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.signoff",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/migration/signoffs"
+      },
+      "mcpTool": "migration_signoffs_record",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "decision": {
+            "enum": [
+              "\"approved\"",
+              "\"rejected\""
+            ]
+          },
+          "packageRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "reportDigest": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "reportRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "role": {
+            "enum": [
+              "\"financialReviewer\"",
+              "\"operationsReviewer\""
+            ]
+          }
+        },
+        "closed": true,
+        "required": [
+          "decision",
+          "packageRef",
+          "reportDigest",
+          "reportRef",
+          "role"
+        ]
+      }
+    },
+    {
+      "operation": "migration.sourceProfiles.register",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.write",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/migration/source-profiles"
+      },
+      "mcpTool": "migration_source_profiles_register",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "format": {
+            "enum": [
+              "\"cuspatlas-synthetic-legacy/1\""
+            ]
+          },
+          "practiceRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^syn-practice-[a-z0-9-]{1,40}$"
+          },
+          "sourceSystem": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^syn-[a-z0-9-]{1,60}$"
+          }
+        },
+        "closed": true,
+        "required": [
+          "format",
+          "practiceRef",
+          "sourceSystem"
+        ]
+      }
+    },
+    {
       "operation": "outbox.deliver",
       "transports": [
         "worker"

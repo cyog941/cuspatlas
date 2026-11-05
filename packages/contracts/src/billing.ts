@@ -29,7 +29,11 @@ export type LedgerAccount =
   | 'settled_cash'
   | 'adjustment_expense'
   | 'insurer_clearing'
-  | 'insurer_cash';
+  | 'insurer_cash'
+  // M5 opening facts (entry kind openingBalance only; keyed on the migration opening item).
+  | 'opening_receivable'
+  | 'opening_credit'
+  | 'opening_equity';
 
 export interface ChargePost {
   readonly patientRef: string;

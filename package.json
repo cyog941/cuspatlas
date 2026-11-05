@@ -18,6 +18,7 @@
     "restore": "tsx packages/db/src/restore-cli.ts",
     "contract:check": "tsx apps/api/src/contract-drift-cli.ts && tsx scripts/catalog/main.ts check",
     "openapi:billing": "tsx scripts/openapi-billing.ts",
+    "openapi:migration": "tsx scripts/openapi-migration.ts",
     "start": "tsx apps/api/src/main.ts",
     "start:worker": "tsx apps/worker/src/main.ts",
     "sbom": "node scripts/sbom.mjs",

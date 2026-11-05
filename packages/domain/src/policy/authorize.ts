@@ -508,6 +508,25 @@ export const ACTION_POLICIES = {
   // I9 imaging export: a tenant-wide human administrator only (sensitive-read logged), like S17.
   'imaging.export': { scope: 'admin.configure', principals: ['human'] },
   'imaging.export.blobs': { scope: 'admin.configure', principals: ['human'] },
+  // Workstream M migration (synthetic source packages only; M-S1 blocks real exports). Intake, review
+  // and identity decisions are human business decisions; reads and planned application also admit a
+  // service principal holding the scope (the import worker); sign-off and cutover are human-only.
+  'migration.sourceProfiles.register': { scope: 'migration.write', principals: ['human'] },
+  'migration.packages.intake': { scope: 'migration.write', principals: ['human'] },
+  'migration.packages.read': { scope: 'migration.read', principals: ['human', 'service'] },
+  'migration.reviewItems.list': { scope: 'migration.read', principals: ['human', 'service'] },
+  'migration.reviewItems.resolve': { scope: 'migration.write', principals: ['human'] },
+  'migration.imports.plan': { scope: 'migration.read', principals: ['human', 'service'] },
+  'migration.imports.apply': { scope: 'migration.write', principals: ['human', 'service'] },
+  // M4: the merge itself is S6's command (patients.merge, human) reached only by delegation.
+  'migration.identity.merge': { scope: 'migration.write', principals: ['human'] },
+  'migration.provenance.read': { scope: 'migration.read', principals: ['human', 'service'] },
+  'migration.openingItems.list': { scope: 'migration.read', principals: ['human', 'service'] },
+  // M6: building a report version is migration work; signing and the cutover gate are human-only.
+  'migration.reports.build': { scope: 'migration.write', principals: ['human', 'service'] },
+  'migration.reports.read': { scope: 'migration.read', principals: ['human', 'service'] },
+  'migration.signoffs.record': { scope: 'migration.signoff', principals: ['human'] },
+  'migration.cutover.advance': { scope: 'migration.signoff', principals: ['human'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

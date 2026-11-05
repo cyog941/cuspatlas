@@ -12,6 +12,7 @@ export const SCHEMA_FILES: Record<string, string> = {
   clinical: 'clinical.schema.json',
   engagement: 'engagement.schema.json',
   imaging: 'imaging.schema.json',
+  migration: 'migration.schema.json',
 };
 
 export type Json = { readonly [k: string]: unknown };

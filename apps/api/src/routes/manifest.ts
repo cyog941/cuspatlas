@@ -5,6 +5,7 @@ import { CLINICAL_ROUTES } from './clinical-manifest';
 import { CLINICAL_RECORD_ROUTES } from './clinical-record-manifest';
 import { ENGAGEMENT_OP_ROUTES } from './engagement-ops';
 import { IMAGING_OP_ROUTES } from './imaging-ops';
+import { MIGRATION_OP_ROUTES } from './migration-ops';
 import { PORTAL_ROUTES } from './portal-ops';
 import { SCHEDULING_OP_ROUTES } from './scheduling-ops';
 
@@ -45,6 +46,7 @@ export const BILLING_SCHEMA_FILE = 'billing.schema.json';
 export const CLINICAL_SCHEMA_FILE = 'clinical.schema.json';
 export const ENGAGEMENT_SCHEMA_FILE = 'engagement.schema.json';
 export const IMAGING_SCHEMA_FILE = 'imaging.schema.json';
+export const MIGRATION_SCHEMA_FILE = 'migration.schema.json';
 
 export const ROUTES: readonly RouteContract[] = [
   {
@@ -355,6 +357,8 @@ export const ROUTES: readonly RouteContract[] = [
   ...ENGAGEMENT_OP_ROUTES,
   ...PORTAL_ROUTES,
   ...IMAGING_OP_ROUTES,
+  // Workstream M: migration intake, import, reconciliation and sign-off (REST + MCP).
+  ...MIGRATION_OP_ROUTES(),
 ];
 
 export function routeFor(operationId: string): RouteContract & { fastifyPath: string } {

@@ -31,6 +31,7 @@ import {
   createImagingAttachmentSource,
   createImagingImageRefResolver,
   createImagingService,
+  createMigrationService,
   createPatientService,
   createProposalService,
   createSchedulingResourceService,
@@ -71,6 +72,7 @@ import { registerBillingOpRoutes } from './routes/billing-ops-routes';
 import { registerClinicalRoutes } from './routes/clinical';
 import { registerClinicalRecordRoutes } from './routes/clinical-record';
 import { registerImagingRoutes } from './routes/imaging-routes';
+import { registerMigrationOpRoutes } from './routes/migration-ops';
 import { registerPatientRoutes } from './routes/patients';
 import { registerEngagementOpRoutes, registerPortalRoutes } from './routes/portal-routes';
 import { registerProposalRoutes } from './routes/proposals';
@@ -370,6 +372,16 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         execute,
       });
       registerEngagementOpRoutes(app, { authenticator, engagement });
+      // Workstream M: patients only through S4/S6 commands; ledger postings through the B1 primitive.
+      const migration = createMigrationService({
+        authorize,
+        withTenantTransaction: deps.tenantTransactions,
+        recording,
+        execute,
+        patients,
+        matchKeyPepper: resolveMatchKeyPepper(deps.env, deps.matchKeyPepper),
+      });
+      registerMigrationOpRoutes(app, { authenticator, migration });
       if (deps.portalIdentity && deps.portalPrincipals) {
         const portalAuthenticator = createPortalAuthenticator(
           deps.portalIdentity,

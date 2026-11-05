@@ -31,6 +31,8 @@ export interface LineInput {
   readonly coverageId?: string | null;
   /** B7: the remittance an insurer clearing or insurer cash line belongs to. */
   readonly remittanceId?: string | null;
+  /** M5: the migration opening item an opening account line belongs to. */
+  readonly openingItemId?: string | null;
 }
 
 export interface EntryInput {
@@ -51,7 +53,10 @@ export interface EntryInput {
 const SIGN: Readonly<
   Record<
     LedgerAccount,
-    { keys: readonly ('charge' | 'payer' | 'payment' | 'patient' | 'remittance')[]; nonNegative: boolean }
+    {
+      keys: readonly ('charge' | 'payer' | 'payment' | 'patient' | 'remittance' | 'opening' | 'none')[];
+      nonNegative: boolean;
+    }
   >
 > = {
   patient_receivable: { keys: ['charge'], nonNegative: true },
@@ -63,6 +68,10 @@ const SIGN: Readonly<
   adjustment_expense: { keys: ['charge'], nonNegative: true },
   insurer_clearing: { keys: ['remittance'], nonNegative: true },
   insurer_cash: { keys: ['remittance'], nonNegative: true },
+  opening_receivable: { keys: ['opening'], nonNegative: true },
+  opening_credit: { keys: ['opening'], nonNegative: false },
+  // Balancing side of an opening fact; its sign is fixed by the paired opening line.
+  opening_equity: { keys: ['opening', 'none'], nonNegative: false },
 };
 
 /** A posting would break an account's sign rule; the command maps it to its own reason. */
@@ -109,20 +118,24 @@ const dimensionOf = (l: LineInput) => ({
   payment: SIGN[l.account].keys.includes('payment') ? (l.paymentId ?? null) : null,
   patient: SIGN[l.account].keys.includes('patient') ? l.patientId : null,
   remittance: SIGN[l.account].keys.includes('remittance') ? (l.remittanceId ?? null) : null,
+  opening: SIGN[l.account].keys.includes('opening') ? (l.openingItemId ?? null) : null,
 });
 
 /** Current balance of one dimension (exact integer text from PostgreSQL, parsed without floats). */
 export async function dimensionBalance(
   tx: TenantTransaction,
   currency: string,
-  d: Omit<ReturnType<typeof dimensionOf>, 'remittance'> & { remittance?: string | null },
+  d: Omit<ReturnType<typeof dimensionOf>, 'remittance' | 'opening'> & {
+    remittance?: string | null;
+    opening?: string | null;
+  },
 ): Promise<Money> {
   const { rows } = await tx.query<{ s: string }>(
     `SELECT coalesce(sum(amount_minor), 0)::text AS s FROM cuspatlas.billing_journal_lines
      WHERE account = $1 AND ($2::uuid IS NULL OR charge_id = $2::uuid) AND ($3::text IS NULL OR coalesce(coverage_id::text, payer_ref) = $3::text)
        AND ($4::uuid IS NULL OR payment_id = $4::uuid) AND ($5::uuid IS NULL OR patient_id = $5::uuid)
-       AND ($6::uuid IS NULL OR remittance_id = $6::uuid)`,
-    [d.account, d.charge, d.payer, d.payment, d.patient, d.remittance ?? null],
+       AND ($6::uuid IS NULL OR remittance_id = $6::uuid) AND ($7::uuid IS NULL OR opening_item_id = $7::uuid)`,
+    [d.account, d.charge, d.payer, d.payment, d.patient, d.remittance ?? null, d.opening ?? null],
   );
   return moneyFromMinorText(currency, rows[0]?.s ?? '0');
 }
@@ -140,6 +153,7 @@ async function assertSigns(tx: TenantTransaction, input: EntryInput): Promise<vo
   const broken: LedgerAccount[] = [];
   for (const { d, delta } of seen.values()) {
     const after = BigInt((await dimensionBalance(tx, input.currency, d)).minor) + delta;
+    if (SIGN[d.account].keys.includes('none')) continue;
     if (SIGN[d.account].nonNegative ? after < 0n : after > 0n) broken.push(d.account);
   }
   if (broken.length > 0) throw new SignViolation(broken);
@@ -176,12 +190,12 @@ export async function postEntry(tx: TenantTransaction, input: EntryInput): Promi
   if (!id) throw new Error('entry insert returned no row');
   await tx.query(
     `INSERT INTO cuspatlas.billing_journal_lines (tenant_id, entry_id, line_no, account, amount_minor, currency,
-       patient_id, charge_id, payment_id, payer_ref, coverage_id, remittance_id)
+       patient_id, charge_id, payment_id, payer_ref, coverage_id, remittance_id, opening_item_id)
      SELECT cuspatlas.current_tenant_id(), $1, l.n, l.account, l.amount, $2, l.patient, l.charge, l.payment, l.payer,
-       l.coverage, l.remittance
+       l.coverage, l.remittance, l.opening
      FROM unnest($3::smallint[], $4::text[], $5::bigint[], $6::uuid[], $7::uuid[], $8::uuid[], $9::text[], $10::uuid[],
-       $11::uuid[])
-       AS l (n, account, amount, patient, charge, payment, payer, coverage, remittance)`,
+       $11::uuid[], $12::uuid[])
+       AS l (n, account, amount, patient, charge, payment, payer, coverage, remittance, opening)`,
     [
       id,
       input.currency,
@@ -194,6 +208,7 @@ export async function postEntry(tx: TenantTransaction, input: EntryInput): Promi
       input.lines.map((l) => l.payerRef ?? null),
       input.lines.map((l) => l.coverageId ?? null),
       input.lines.map((l) => l.remittanceId ?? null),
+      input.lines.map((l) => l.openingItemId ?? null),
     ],
   );
   return id;

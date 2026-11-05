@@ -105,6 +105,7 @@ describe('runtime database role', () => {
       'appointment_attendance_transitions',
       'appointment_lifecycle_events',
       'appointment_overrides',
+      'appointment_patient_reassignments',
       'appointment_request_transitions',
       'appointment_requests',
       'appointment_series',

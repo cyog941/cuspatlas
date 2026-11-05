@@ -363,6 +363,8 @@ export const ACTION_POLICIES = {
   'scheduling.floor.clearProviderRequest': { scope: 'scheduling.write', principals: ['human'] },
   'scheduling.presence.set': { scope: 'scheduling.write', principals: ['human'] },
   'scheduling.presence.list': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  // S22 (OR-11) reassigning an appointment's patient: a person's correction, never automated.
+  'scheduling.appointments.reassignPatient': { scope: 'scheduling.write', principals: ['human'] },
   // S17 minimal scheduling export: a tenant-wide human administrator only (sensitive-read logged).
   'scheduling.export': { scope: 'admin.configure', principals: ['human'] },
   // E1 portal principals (staff side). Enrollment, verification and revocation manage portal access

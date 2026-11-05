@@ -331,6 +331,8 @@ const TOOL_NAMES = [
   'scheduling_floor_clear_provider_request',
   'scheduling_presence_set',
   'scheduling_presence_list',
+  // S22 patient reassignment.
+  'scheduling_appointments_reassign_patient',
   // Workstream E staff operations, one tool per ENGAGEMENT_OPS row (portal routes are never tools).
   ...ENGAGEMENT_OP_TOOLS.map((t) => t.name),
   // I imaging tools (derived from IMAGING_OPS; parity in imaging-negative-harness). No byte tool.

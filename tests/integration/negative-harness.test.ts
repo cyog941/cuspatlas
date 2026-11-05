@@ -2543,6 +2543,27 @@ export const COMMANDS: HarnessCommand[] = [
   ...stagingRows(),
   // S21 (OR-06) floor view, provider requests and presence.
   ...floorRows(),
+  // S22 (OR-11) reassigning an appointment's patient.
+  {
+    operation: 'scheduling.appointments.reassignPatient',
+    tool: 'scheduling_appointments_reassign_patient',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/scheduling/appointments/${f.alphaAppointment}/reassign-patient`,
+      body: { expectedVersion: 1, patientRef: f.alphaCounterparty, reasonCode: 'wrong_patient_booked' },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({
+      appointmentRef: f.alphaAppointment,
+      expectedVersion: 1,
+      patientRef: f.alphaCounterparty,
+      reasonCode: 'wrong_patient_booked',
+      idempotencyKey: randomUUID(),
+    }),
+  },
   // S17 minimal export: another tenant exports only its own records (which legitimately include the
   // marker its own harness create wrote; that alpha records never appear in a beta export is asserted
   // in scheduling-export.test.ts).
@@ -4053,6 +4074,7 @@ async function state(): Promise<string> {
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.scheduling_staging_entries'),
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.scheduling_provider_requests'),
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.scheduling_staff_presence'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.appointment_patient_reassignments'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.audit_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.outbox_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.command_idempotency'),

@@ -5770,6 +5770,61 @@
           }
         }
       }
+    },
+    "AppointmentPatientReassign": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "patientRef", "reasonCode"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/ResourceRefId"
+        },
+        "reasonCode": {
+          "type": "string",
+          "pattern": "^[a-z_]{1,64}$"
+        }
+      },
+      "description": "S22 (OR-11): allowed only while no clinical, billing or attendance fact references the appointment; otherwise a typed conflict (clinical_facts_attached, charges_attached, attendance_recorded) with the visible blocking refs and the remediation operation."
+    },
+    "AppointmentPatientReassignResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["appointmentRef", "patientRef", "previousPatientRef", "reassignmentRef"],
+          "properties": {
+            "appointmentRef": {
+              "$ref": "#/$defs/ResourceRefId"
+            },
+            "patientRef": {
+              "$ref": "#/$defs/ResourceRefId"
+            },
+            "previousPatientRef": {
+              "$ref": "#/$defs/ResourceRefId"
+            },
+            "reassignmentRef": {
+              "$ref": "#/$defs/ResourceRefId"
+            }
+          }
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
     }
   }
 }

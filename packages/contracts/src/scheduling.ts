@@ -1088,3 +1088,11 @@ export const validateProviderRequestClear = def('ProviderRequestClear');
 export const validateProviderRequestListQuery = def('ProviderRequestListQuery');
 export const validatePresenceSet = def('PresenceSet');
 export const validatePresenceListQuery = def('PresenceListQuery');
+
+/** S22 (OR-11): reassign an appointment's patient while no other fact references it. */
+export interface AppointmentPatientReassign {
+  readonly expectedVersion: number;
+  readonly patientRef: string;
+  readonly reasonCode: string;
+}
+export const validateAppointmentPatientReassign = def('AppointmentPatientReassign');

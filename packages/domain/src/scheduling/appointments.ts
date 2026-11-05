@@ -5,6 +5,7 @@ import { createBookingOperations, loadAppointment } from './booking';
 import { createExportOperations } from './export';
 import { createFloorOperations } from './floor';
 import { createNotificationOperations } from './notification-intent';
+import { createReassignOperations } from './reassign';
 import { createRecallOperations } from './recall';
 import { createRecurrenceOperations, recordSeriesException } from './recurrence';
 import { createRequestOperations, type LinkHook, linkRequestToBookingIn } from './requests';
@@ -80,6 +81,7 @@ export function createAppointmentService(deps: SchedulingDeps) {
     ...exports,
     ...staging,
     ...createFloorOperations(base),
+    ...createReassignOperations(base),
     reopenRequest: (ctx: ActorContext, requestRef: string, envelope: CommandEnvelope<unknown>) =>
       requests.reopenRequest(ctx, requestRef, envelope, bookingStillActive),
     rescheduleAppointment: (ctx: ActorContext, appointmentRef: string, envelope: CommandEnvelope<unknown>) =>

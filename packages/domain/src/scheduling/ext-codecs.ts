@@ -92,6 +92,8 @@ export const EXTENDED_SCHEDULING_OPERATIONS: readonly string[] = [
   'scheduling.floor.acknowledgeProviderRequest',
   'scheduling.floor.clearProviderRequest',
   'scheduling.presence.set',
+  // S22 patient reassignment.
+  'scheduling.appointments.reassignPatient',
 ];
 
 export const EXTENDED_SCHEDULING_CODECS: Readonly<Record<string, ReplayCodec<unknown>>> = Object.fromEntries(

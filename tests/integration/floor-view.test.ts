@@ -55,7 +55,11 @@ beforeAll(async () => {
   );
   const define = async (kind: string, displayLabel: string) => {
     const ref = h.ok<{ data: { resourceRef: string } }>(
-      await h.call('a1', 'POST', '/v1/scheduling/resources', { kind, locationRef: 'loc-north', displayLabel }),
+      await h.call('a1', 'POST', '/v1/scheduling/resources', {
+        kind,
+        locationRef: 'loc-north',
+        displayLabel,
+      }),
       201,
     ).data.resourceRef;
     h.ok(
@@ -74,12 +78,16 @@ beforeAll(async () => {
   };
   patient = await createPatient(h, 'Synthetic Floor');
   // Today's booking a little after now; arrival is recorded early (no arrival tolerance in S11).
-  const start = Math.ceil((now + 10 * 60_000) / 300_000) * 300_000;
+  // Daily hours never span local midnight, so a booking that would cross it moves past midnight.
+  const nyDate = (ms: number) =>
+    new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date(ms));
+  let start = Math.ceil((now + 5 * 60_000) / 300_000) * 300_000;
+  if (nyDate(start) !== nyDate(start + 15 * 60_000)) start += 30 * 60_000;
   const r = await h.call('a1', 'POST', '/v1/scheduling/appointments', {
     patientRef: patient,
     locationRef: loc.locationRef,
     startsAt: iso(start),
-    endsAt: iso(start + 60 * 60_000),
+    endsAt: iso(start + 15 * 60_000),
     timeZone: 'America/New_York',
     provider: { kind: 'provider', resourceRef: loc.provider },
     operatory: { kind: 'operatory', resourceRef: loc.operatory },

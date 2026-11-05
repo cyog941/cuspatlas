@@ -649,6 +649,25 @@ export const SCHEDULING_OPS: readonly SchedulingOp[] = [
     description: 'Unexpired staff presence of a location.',
     invoke: (svc, actor, i) => data(svc.listPresence(actor, i.body)),
   },
+  // S22 (OR-11) reassigning an appointment's patient.
+  {
+    method: 'post',
+    path: `${APPT}/reassign-patient`,
+    operationId: 'scheduling.appointments.reassignPatient',
+    protected: true,
+    requestBody: S('AppointmentPatientReassign'),
+    success: { status: '200', schema: S('AppointmentPatientReassignResult') },
+    refusals: COMMAND,
+    tool: 'scheduling_appointments_reassign_patient',
+    description:
+      'Reassign the patient of a booked appointment while no clinical, billing or attendance fact references it; otherwise a typed conflict naming the blocking references and the remediation operation. Never moves clinical or billing facts. Audited.',
+    invoke: (svc, actor, i) =>
+      svc.reassignAppointmentPatient(
+        actor,
+        param(i, 'appointmentRef'),
+        env('scheduling.appointments.reassignPatient', i),
+      ),
+  },
   // S17 minimal export (M1 owns the full export contract).
   {
     method: 'get',

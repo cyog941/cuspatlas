@@ -344,3 +344,21 @@ Workstream A batch 2 (A8-A13) on synthetic data only. Framing, recorded before a
   failed); and the S14 structural check listed `agent_consents` as a communication-consent table.
   Fixed by dropping the back-reference key (the checked functions write both rows together) and by
   excluding `agent_*` tables from the patient-consent check with the reason stated.
+
+## Hardening H3 (A batch 2 review fixes, 2026-11-05)
+
+Red then green per item (synthetic data only; integration tests under `tests/integration/`).
+
+- 1 (MUST) Draft read authorization: `readAiDraft`/`listAiDrafts`/`acceptAiDraft`/`rejectAiDraft` read every source through its owner as the caller first; an unreadable source is one 404 (list: absent) and nothing is written; staleness only from versions an authorized reader sees. Test: `ai-boundary` "a caller with ai.read who cannot read every source gets 404..." (front desk with ai.read/ai.review; no stale transition, no decided_by). List scans at most 500 newest drafts before visibility filtering (open: cursor over a filtered scan).
+- 2 (MUST) Budgets: `chargeBudget` meter (MCP `runWithBudgetMeter`) charges `ai.drafts.create` for source records and PHI weight before generation; free text weighs 1 field per 500 chars; a bare-object result is 1 record; spent period record/PHI budgets refuse every call at admission. Tests: `agent-ai-budgets.test.ts` (phiFieldsPerCall=3 on create and read, recordsPerPeriod on create, read logged as 1 record).
+- 3 (SHOULD, partial) Migration `20261203000000_agent_sponsor_ceiling.sql`: `agent_authority` returns scope_set ∩ sponsor's live scopes; `agent_create` refuses scopes outside `cuspatlas.agent_scope_ceiling()` (allowlist function, asserted equal to `AGENT_SCOPE_CEILING`). Open: sponsor change still takes effect without the new sponsor's acceptance (pending-acceptance state not built; needs a new operation or a pending offer record).
+- 4 Worker reauthorize refuses queued agent work without a live consent naming its operation (dead_letter `authorization_denied`, security attempt `consent_missing`).
+- 5 Commit rechecks the approver's live authority for the proposed operation and the proposer/sponsor (of record and current) exclusion; `billing.plans.authorize` binds the live plan version. Open: no new test for the billing bind (covered by existing proposal suites only).
+- 6 `credentialRef` no longer stored in the idempotency result of agent create/rotate.
+- 7 Shared `prepareModelInput`: opaque `S1..` source index (no record refs), contact, S4 name/birth-date and DOB-like redaction (pattern-based, not de-identification; docs/ai/evaluation.md).
+- 8 Flagged acceptance needs `editedText` different from the generated text; model output is screened for injection.
+- 9 Acceptance rechecks tenant/use-case switch and the eval gate; `createAiDraft` claims idempotency (executeOnce reservation) before calling the model.
+- 10 Eval harness uses `prepareModelInput`/`draftFlags`; case-set version `<label>.<sha256-12>` (`caseSetVersionOf`).
+- 11 Human-only MCP calls by an agent are refused `principal_kind_denied` before consent; harness asserts the recorded reason is never `consent_missing`.
+- 12 A command whose result exceeds budget, or whose settlement fails, answers success with `_meta.budgetWarning`. Open: the settlement-failure branch has no injected-failure test.
+- Integrator gaps: optional `vocabularies` on A2 read/list schemas + `VOCABULARY_BEARING`; use-case gate `none` → `ungated` with vocabulary `ai_use_case_gate` (no stored value, no data migration); data-wrapper consistency recorded as accepted deviation in docs/api/deprecation.md.

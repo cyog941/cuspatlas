@@ -1,59 +1,52 @@
 -- H3 (A8 hardening). Synthetic development only.
--- 1. DB-side agent scope ceiling: the scopes an agent may ever hold (AGENT_SCOPE_CEILING: every
+-- 1. DB-side agent scope ceiling (a function, not a table: no tenant data, nothing to restore): the scopes an agent may ever hold (AGENT_SCOPE_CEILING: every
 --    service-admitting scope minus the A-D2 non-delegable set). An allowlist, so a new human-only scope
 --    is refused until a migration adds it here (tests/integration/api-agent-identity.test.ts asserts the
---    table equals the generated ceiling). agent_create refuses anything outside it, whatever the caller
+--    function equals the generated ceiling). agent_create refuses anything outside it, whatever the caller
 --    sends.
 -- 2. Sponsor downgrade propagates: agent_authority returns the agent's scope set INTERSECTED with the
 --    sponsor's live scopes, so a scope the sponsor loses leaves the agent at its next call.
-CREATE TABLE cuspatlas.agent_scope_ceiling (
-  scope text PRIMARY KEY CHECK (scope ~ '^[a-zA-Z]+(\.[a-zA-Z]+)+$')
-);
-INSERT INTO cuspatlas.agent_scope_ceiling (scope) VALUES
-  ('actions.prepare'),
-  ('actions.read'),
-  ('admin.configure'),
-  ('agents.read'),
-  ('ai.draft'),
-  ('ai.read'),
-  ('billing.write'),
-  ('clinical.read'),
-  ('communications.deliver'),
-  ('communications.read'),
-  ('communications.receipts'),
-  ('communications.write'),
-  ('coverage.read'),
-  ('coverage.write'),
-  ('imaging.read'),
-  ('imaging.write'),
-  ('ledger.read'),
-  ('messaging.read'),
-  ('migration.read'),
-  ('migration.write'),
-  ('openClaims.read'),
-  ('outbox.deliver'),
-  ('patients.read'),
-  ('patients.write'),
-  ('paymentDistribution.read'),
-  ('portal.manage'),
-  ('receivables.read'),
-  ('scheduling.read'),
-  ('scheduling.write'),
-  ('syntheticTasks.read'),
-  ('syntheticTasks.write'),
-  ('telephony.events'),
-  ('undistributedFunds.read')
-;
-CREATE FUNCTION cuspatlas.agent_scope_ceiling_guard() RETURNS trigger
-  LANGUAGE plpgsql
+CREATE FUNCTION cuspatlas.agent_scope_ceiling() RETURNS text[]
+  LANGUAGE sql IMMUTABLE SET search_path = pg_catalog
   AS $$
-  BEGIN
-    RAISE EXCEPTION 'the agent scope ceiling changes only by migration' USING ERRCODE = '42501';
-  END
+    SELECT ARRAY[
+      'actions.prepare',
+      'actions.read',
+      'admin.configure',
+      'agents.read',
+      'ai.draft',
+      'ai.read',
+      'billing.write',
+      'clinical.read',
+      'communications.deliver',
+      'communications.read',
+      'communications.receipts',
+      'communications.write',
+      'coverage.read',
+      'coverage.write',
+      'imaging.read',
+      'imaging.write',
+      'ledger.read',
+      'messaging.read',
+      'migration.read',
+      'migration.write',
+      'openClaims.read',
+      'outbox.deliver',
+      'patients.read',
+      'patients.write',
+      'paymentDistribution.read',
+      'portal.manage',
+      'receivables.read',
+      'scheduling.read',
+      'scheduling.write',
+      'syntheticTasks.read',
+      'syntheticTasks.write',
+      'telephony.events',
+      'undistributedFunds.read'
+    ]::text[]
   $$;
-CREATE TRIGGER agent_scope_ceiling_guard BEFORE UPDATE OR DELETE ON cuspatlas.agent_scope_ceiling
-  FOR EACH ROW EXECUTE FUNCTION cuspatlas.agent_scope_ceiling_guard();
-GRANT SELECT ON cuspatlas.agent_scope_ceiling TO cuspatlas_app;
+REVOKE ALL ON FUNCTION cuspatlas.agent_scope_ceiling() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION cuspatlas.agent_scope_ceiling() TO cuspatlas_app;
 
 CREATE OR REPLACE FUNCTION cuspatlas.agent_authority(p_principal uuid, p_tenant uuid)
   RETURNS TABLE (agent_ref uuid, state text, live boolean, scope_set text[], sponsor_ref uuid,
@@ -86,7 +79,7 @@ CREATE OR REPLACE FUNCTION cuspatlas.agent_create(p_purpose text, p_scopes text[
     v_locations text[];
   BEGIN
     IF EXISTS (SELECT 1 FROM unnest(p_scopes) AS x
-               WHERE NOT EXISTS (SELECT 1 FROM cuspatlas.agent_scope_ceiling c WHERE c.scope = x)) THEN
+               WHERE NOT (x = ANY (cuspatlas.agent_scope_ceiling()))) THEN
       RAISE EXCEPTION 'human_only_scope' USING ERRCODE = 'P0422';
     END IF;
     IF NOT (p_scopes <@ v_manager) THEN

@@ -32,8 +32,10 @@ import { chargeBudget, textWeight } from './governance';
 
 /**
  * A11 draft-only AI pipeline. A draft is built only from records the caller may already read (each
- * source is read through its owning service AS the caller), minimized (references and identifiers
- * dropped), wrapped as quoted data, sent to the configured model adapter (synthetic only) and stored
+ * source is read through its owning service AS the caller), minimized (keys ending in Ref/Id dropped;
+ * contacts, the named patients' names and birth date, and DOB-like phrases redacted; record refs
+ * replaced by an opaque S1/S2 index: pattern-based minimization, NOT de-identification), wrapped as
+ * quoted data, sent to the configured model adapter (synthetic only) and stored
  * as a draft with model, prompt version, source versions and review flags (suspected injection,
  * unsupported references). It never becomes a fact by itself: a human holding ai.review accepts it
  * through the owning command (a clinical note draft labelled source ai_draft, or a staff message),

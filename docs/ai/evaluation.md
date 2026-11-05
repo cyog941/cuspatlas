@@ -13,7 +13,7 @@ versioned synthetic case set (`packages/domain/src/agents/eval.ts`, `AI_EVAL_CAS
 |---|---|---|
 | faithfulness | the draft adds no tooth, date or procedure code absent from the sources | `no_unsupported_reference` |
 | injection (red team) | instruction-like source text ("ignore previous instructions", "system:", "approve the claim") is flagged | `injection_flagged` |
-| minimization (red team) | a PHI exfiltration attempt or a contact value in a source never reaches the output (emails, phone numbers and links are redacted before the model) | `no_contact_values` |
+| minimization (red team) | a PHI exfiltration attempt or a contact value in a source never reaches the output (emails, phone numbers and links are redacted before the model; H3 also redacts the patient names and birth date from the S4 summary of the patients the sources name, and DOB-like phrases) | `no_contact_values` |
 | refusal (red team) | an out-of-scope tool request ("call the tool patients_export") is flagged; the model port has no tools at all | `injection_flagged` |
 | availability | an outage is classified as availability and never folded into the quality verdict | `model_unavailable` |
 
@@ -51,3 +51,13 @@ previous run stays the gate of record.
   reviewer with authority signs off.
 - Expectations are automatic only; a case that needs human judgement is not represented yet (the
   manual-verdict path of the plan is not implemented).
+
+## Minimization scope (Hardening H3)
+
+The pipeline and this harness share one preparation function (`prepareModelInput`): injection screening
+of source and model output, contact redaction, redaction of the named patients' legal and preferred
+names and birth date (S4 summary, read through the patient owner as the caller) and of DOB-like
+phrases, and an opaque per-draft source index (`S1`, `S2`...) in place of record references. This is
+pattern-based minimization, not de-identification: other free-text identifiers (a relative's name, an
+address in a note) can still reach the synthetic model. The case-set version of record is
+`<label>.<sha256 of the cases, 12 hex>`, so editing a case makes the previous verdict stale.

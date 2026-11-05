@@ -438,7 +438,7 @@ describe('H3 agent credential and sponsor hardening', () => {
 
   it('the database refuses a non-delegable or human-only scope for an agent whatever the caller sends', async () => {
     const ceiling = await s.db.admin.query<{ scope: string }>(
-      'SELECT scope FROM cuspatlas.agent_scope_ceiling',
+      'SELECT unnest(cuspatlas.agent_scope_ceiling()) AS scope',
     );
     expect(new Set(ceiling.rows.map((r) => r.scope))).toStrictEqual(new Set(AGENT_SCOPE_CEILING));
     const run = createTenantTransactionRunner(s.db.app);

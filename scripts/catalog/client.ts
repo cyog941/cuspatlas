@@ -1,4 +1,7 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import type { CatalogOperation } from '../../packages/contracts/src/catalog/catalog';
+import { ROOT } from './build-catalog';
 import { defsOf, type Json, loadSchemaFiles, parseSchemaRef, reachableDefs, SCHEMA_FILES } from './schemas';
 
 /**
@@ -88,6 +91,88 @@ function refType(ref: string | undefined, media: string | undefined): string {
   return r ? typeName(r.prefix, r.def) : 'unknown';
 }
 
+interface QueryParam {
+  readonly name: string;
+  readonly required: boolean;
+}
+
+/**
+ * A-S6: the documented query parameters of each operation (docs/api/openapi.yaml), so the client's
+ * query type is closed exactly where the contract is: unknown keys are a type error.
+ */
+export function openApiQueryParams(root = ROOT): Map<string, QueryParam[]> {
+  const lines = readFileSync(resolve(root, 'docs/api/openapi.yaml'), 'utf8').split(/\r?\n/);
+  const components = new Map<string, QueryParam & { in: string }>();
+  const start = lines.indexOf('  parameters:', lines.indexOf('components:'));
+  if (start >= 0) {
+    let current: string | null = null;
+    let entry: { name?: string; in?: string; required?: boolean } = {};
+    const flush = () => {
+      if (current && entry.name && entry.in)
+        components.set(current, { name: entry.name, in: entry.in, required: entry.required === true });
+    };
+    for (const line of lines.slice(start + 1)) {
+      if (/^ {0,3}\S/.test(line)) break;
+      const head = /^ {4}([A-Za-z0-9_]+):$/.exec(line);
+      if (head) {
+        flush();
+        current = head[1] as string;
+        entry = {};
+        continue;
+      }
+      const kv = /^ {6}(name|in|required): (.+)$/.exec(line);
+      if (kv) {
+        if (kv[1] === 'required') entry.required = kv[2] === 'true';
+        else entry[kv[1] as 'name' | 'in'] = kv[2] as string;
+      }
+    }
+    flush();
+  }
+  const out = new Map<string, QueryParam[]>();
+  let op: string | null = null;
+  let pending: { name?: string; in?: string; required?: boolean } | null = null;
+  const push = () => {
+    if (op && pending?.name && pending.in === 'query')
+      out.set(op, [...(out.get(op) ?? []), { name: pending.name, required: pending.required === true }]);
+    pending = null;
+  };
+  for (const line of lines) {
+    if (/^ {4}(get|post|put|patch|delete):$/.test(line) || /^ {2}\S/.test(line)) {
+      push();
+      op = null;
+      continue;
+    }
+    const id = /^ {6}operationId: (\S+)$/.exec(line);
+    if (id) op = id[1] as string;
+    const ref = /^ {8}- \$ref: '#\/components\/parameters\/([A-Za-z0-9_]+)'$/.exec(line);
+    if (ref) {
+      push();
+      const c = components.get(ref[1] as string);
+      if (c) pending = { ...c };
+      push();
+      continue;
+    }
+    const name = /^ {8}- name: (\S+)$/.exec(line);
+    if (name) {
+      push();
+      pending = { name: name[1] as string };
+      continue;
+    }
+    const kv = /^ {10}(in|required): (\S+)$/.exec(line);
+    if (kv && pending) {
+      if (kv[1] === 'required') pending.required = kv[2] === 'true';
+      else pending.in = kv[2] as string;
+    }
+  }
+  push();
+  return out;
+}
+
+const queryType = (params: readonly QueryParam[]): string =>
+  params.length === 0
+    ? 'Record<string, never>'
+    : `{ ${params.map((p) => `readonly ${p.name}${p.required ? '' : '?'}: string;`).join(' ')} }`;
+
 export function renderClient(catalog: readonly CatalogOperation[]): string {
   const files = loadSchemaFiles();
   const rest = catalog.filter((o) => o.rest !== undefined);
@@ -111,6 +196,7 @@ export function renderClient(catalog: readonly CatalogOperation[]): string {
       types.push(`export type ${typeName(prefix, def)} = ${toTs(defsOf(doc)[def], prefix)};`);
     }
   }
+  const queries = openApiQueryParams();
   const entries = rest.map((o) => {
     const r = o.rest as NonNullable<CatalogOperation['rest']>;
     const params = [...r.path.matchAll(/\{(\w+)\}/g)].map((m) => m[1] as string);
@@ -121,6 +207,7 @@ export function renderClient(catalog: readonly CatalogOperation[]): string {
     method: ${JSON.stringify(r.method.toUpperCase())};
     path: ${JSON.stringify(r.path)};
     params: { ${params.map((p) => `readonly ${p}: string;`).join(' ')} };
+    query: ${queryType(queries.get(o.operation) ?? [])};
     body: ${r.requestSchema || m.request ? body : r.method === 'post' ? 'Record<string, never> | undefined' : 'undefined'};
     result: ${refType(r.successSchema, m.success)};
     successStatus: ${r.successStatus};

@@ -38,7 +38,8 @@ export type CallResult<K extends OperationId> =
 export type CallInput<K extends OperationId> = {
   readonly params?: Operations[K]['params'];
   readonly body?: Operations[K]['body'];
-  readonly query?: Readonly<Record<string, string>>;
+  /** Closed: only the operation's documented query parameters (A-S6). */
+  readonly query?: Operations[K]['query'];
   /** Overrides the generated key for a deliberate retry of the same command. */
   readonly idempotencyKey?: string;
 };
@@ -58,7 +59,9 @@ export function createClient(opts: ClientOptions): CuspAtlasClient {
         if (v === undefined) throw new Error(`missing path parameter ${k} for ${operation}`);
         return encodeURIComponent(v);
       });
-      const qs = input.query ? `?${new URLSearchParams(input.query).toString()}` : '';
+      const qs = input.query
+        ? `?${new URLSearchParams(input.query as Record<string, string>).toString()}`
+        : '';
       const token = typeof opts.token === 'function' ? await opts.token() : opts.token;
       const headers: Record<string, string> = { authorization: `Bearer ${token}` };
       let body: RequestInit['body'] | undefined;

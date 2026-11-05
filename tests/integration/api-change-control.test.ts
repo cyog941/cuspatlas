@@ -119,7 +119,7 @@ describe('A5 change classification', () => {
   it('the gate refuses a breaking change without a deprecation entry or before its sunset', () => {
     const changes = classifyChange(before, { version: 1, operations: [] });
     expect(gateViolations(changes, [], '2026-11-04')).toStrictEqual([
-      'x.op $: operation removed or renamed (no deprecation entry with a sunset date)',
+      'x.op $: operation removed or renamed (no deprecation entry with a sunset date at the merge base)',
     ]);
     const entry: DeprecationEntry = {
       operation: 'x.op',

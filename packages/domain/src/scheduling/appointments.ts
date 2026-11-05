@@ -80,7 +80,7 @@ export function createAppointmentService(deps: SchedulingDeps) {
     ...recall,
     ...exports,
     ...staging,
-    ...createFloorOperations(base),
+    ...createFloorOperations(base, deps.floorCaps),
     ...createReassignOperations(base),
     reopenRequest: (ctx: ActorContext, requestRef: string, envelope: CommandEnvelope<unknown>) =>
       requests.reopenRequest(ctx, requestRef, envelope, bookingStillActive),

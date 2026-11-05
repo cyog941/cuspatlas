@@ -7,6 +7,7 @@ import {
 import {
   createAuthorize,
   createBillingService,
+  createFakeAttachmentSource,
   createFakeClearinghouse,
   SYNTHETIC_TEST_IDEMPOTENCY_DIGEST_KEY,
   SYNTHETIC_TEST_IMAGING_TOKEN_SECRET,
@@ -196,6 +197,7 @@ describe('worker composition against the test database', () => {
       withTenantTransaction: createTenantTransactionRunner(s.db.app),
       recording: { sink: createSecurityAttemptSink(s.db.sink), alert: () => {} },
       claims: clearinghouse,
+      attachments: createFakeAttachmentSource(),
     });
     const a1 = ctxFor(T_ALPHA, USER_A1, 'human', [...BILLING_ALL, 'patients.read', 'patients.write']);
     const engine = ctxFor(T_ALPHA, SVC_A1, 'service', BILLING_ALL);
@@ -407,6 +409,12 @@ describe('worker composition against the test database', () => {
       );
       expect(job.rows[0]).toMatchObject({ state: 'queued', claim_nonce: null });
       expect(first.imagingReconciled + second.imagingReconciled).toBeGreaterThanOrEqual(1);
+      // A-D4: the worker sweeps as its own service-only command, never the human admin reconcile.
+      const sweeps = await s.db.admin.query<{ operation: string }>(
+        `SELECT DISTINCT operation FROM cuspatlas.audit_events
+          WHERE operation IN ('imaging.storage.sweep', 'imaging.storage.reconcile')`,
+      );
+      expect(sweeps.rows.map((r) => r.operation)).toStrictEqual(['imaging.storage.sweep']);
       expect(first.maintenance).toMatchObject({ idempotencyPurged: expect.any(Number) });
 
       // Exactly once: later ticks only settle events the earlier ones created (never one already

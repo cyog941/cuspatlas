@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { seedLocation } from './support/appointment-fixtures';
 import { openTestDatabase, type TestDatabase } from './support/db';
 import { type EngagementHarness, email, openEngagementHarness } from './support/engagement-fixtures';
-import { USER_A1 } from './support/fixtures';
+import { USER_A1, USER_A4 } from './support/fixtures';
 import { MARKER } from './support/marker';
 
 /**
@@ -79,12 +79,25 @@ const portalPost = async (who: string, p: string, threadRef: string, body: strin
 const list = async (who: 'a1' | 'a3', query = '') =>
   h.ok<{ data: List }>(await h.call(who, 'GET', `/v1/messaging/threads${query}`)).data;
 const find = (l: List, ref: string) => l.items.find((i) => i.threadRef === ref);
-const backdate = (ref: string, days: number) =>
-  db.admin.query(
-    `UPDATE cuspatlas.message_threads SET last_message_at = last_message_at - make_interval(days => $2),
-       version = version + 1 WHERE id = $1`,
-    [ref, days],
-  );
+// Shifts the whole thread (its messages too) into the past, as if it had been written days ago.
+const backdate = async (ref: string, days: number) => {
+  const c = await db.admin.connect();
+  try {
+    await c.query('SET session_replication_role = replica');
+    await c.query(
+      `UPDATE cuspatlas.thread_messages SET created_at = created_at - make_interval(days => $2) WHERE thread_id = $1`,
+      [ref, days],
+    );
+    await c.query(
+      `UPDATE cuspatlas.message_threads SET last_message_at = last_message_at - make_interval(days => $2),
+         version = version + 1 WHERE id = $1`,
+      [ref, days],
+    );
+  } finally {
+    await c.query('RESET session_replication_role');
+    c.release();
+  }
+};
 const escalations = async (ref: string) =>
   Number(
     (
@@ -104,9 +117,13 @@ describe('E10 needs-reply queue (OR-08)', () => {
     const item = find(before, t);
     expect(before.items.filter((i) => i.threadRef === t)).toHaveLength(1);
     expect(item).toMatchObject({ needsReply: true, awaiting: 'practice', overdue: false, escalatedAt: null });
-    expect(item?.replyDueAt).toBe(
-      addBusinessDays(new Date(item?.lastMessageAt as string), 1, 'America/New_York').toISOString(),
-    );
+    // R7: due is measured from the episode's first portal message (written with the thread activity).
+    expect(
+      Math.abs(
+        Date.parse(item?.replyDueAt as string) -
+          addBusinessDays(new Date(item?.lastMessageAt as string), 1, 'America/New_York').getTime(),
+      ),
+    ).toBeLessThan(1000);
     expect(before.policies.front_desk?.replyDueBusinessDays).toBe(1);
     // The same predicate feeds the existing work item (one mechanism): the same item, the same due time.
     const work = h
@@ -176,9 +193,13 @@ describe('E10 needs-reply queue (OR-08)', () => {
     const l = await list('a1', '?filter=needs_reply');
     const item = find(l, t);
     expect(l.policies.billing?.replyDueBusinessDays).toBe(3);
-    expect(item?.replyDueAt).toBe(
-      addBusinessDays(new Date(item?.lastMessageAt as string), 3, 'America/New_York').toISOString(),
-    );
+    // R7: due is measured from the episode's first portal message (written with the thread activity).
+    expect(
+      Math.abs(
+        Date.parse(item?.replyDueAt as string) -
+          addBusinessDays(new Date(item?.lastMessageAt as string), 3, 'America/New_York').getTime(),
+      ),
+    ).toBeLessThan(1000);
     const bad = await h.call('a1', 'POST', '/v1/messaging/reply-policies', {
       queue: 'billing',
       replyDueBusinessDays: 0,
@@ -306,5 +327,59 @@ describe('E10 needs-reply queue (OR-08)', () => {
     );
     expect(Number(leaks.rows[0].n)).toBe(0);
     expect(h.logLines.join('\n')).not.toContain(MARKER);
+  });
+});
+
+describe('E10 hardening (R7): one escalation per episode, written only by staff who may reply', () => {
+  it('a follow-up portal message neither de-escalates nor restarts the due time', async () => {
+    const t = await portalOpen(adultP, adult, south.locationRef, 'Episode start');
+    await backdate(t, 6);
+    const first = find(await list('a1', '?filter=needs_reply'), t);
+    expect(first).toMatchObject({ overdue: true });
+    expect(first?.escalatedAt).not.toBeNull();
+    await portalPost(adultP, adult, t, 'Any news?');
+    const after = find(await list('a1', '?filter=needs_reply'), t);
+    // Due is measured from the first unanswered message, so the follow-up keeps it overdue.
+    expect(after).toMatchObject({ overdue: true, replyDueAt: first?.replyDueAt });
+    expect(after?.escalatedAt).toBe(first?.escalatedAt);
+    expect(await escalations(t)).toBe(1);
+  });
+
+  it('a read-only reader sees the overdue item without writing an escalation fact', async () => {
+    await db.admin.query(
+      `UPDATE cuspatlas.memberships SET scopes = scopes || ARRAY['messaging.read'] WHERE principal_id = $1`,
+      [USER_A4],
+    );
+    const t = await portalOpen(adultP, adult, south.locationRef, 'Read-only view');
+    await backdate(t, 6);
+    const seen = h.ok<{ data: List }>(
+      await h.call('a4', 'GET', '/v1/messaging/threads?filter=needs_reply'),
+    ).data;
+    expect(find(seen, t)).toMatchObject({ overdue: true, escalatedAt: null });
+    const work = h
+      .ok<{ data: { items: { workItemRef: string; owner: { queue: string } }[] } }>(
+        await h.call('a4', 'GET', '/v1/messaging/threads/worklist'),
+      )
+      .data.items.find((i) => i.workItemRef === t);
+    // Derived for the reader: the item is shown in the escalation queue, but no fact is recorded.
+    expect(work?.owner.queue).toBe('practice_manager');
+    expect(await escalations(t)).toBe(0);
+    await list('a1', '?filter=needs_reply');
+    expect(await escalations(t)).toBe(1);
+  });
+
+  it('the scan follows each queue policy instead of a fixed 23-hour window', async () => {
+    const policy = await h.call('a1', 'POST', '/v1/messaging/reply-policies', {
+      queue: 'billing',
+      replyDueBusinessDays: 10,
+    });
+    expect([200, 201]).toContain(policy.statusCode);
+    const t = await portalOpen(adultP, adult, south.locationRef, 'Billing question', 'billing');
+    await backdate(t, 6);
+    expect(find(await list('a1', '?filter=needs_reply'), t)).toMatchObject({
+      overdue: false,
+      escalatedAt: null,
+    });
+    expect(await escalations(t)).toBe(0);
   });
 });

@@ -175,6 +175,24 @@ export async function assertBillingReferences(client: pg.PoolClient, tenantId: s
   }
 }
 
+/**
+ * R-NIT (hardening H1): a charge from a C14 procedure names that procedure only by `procedure_ref`
+ * (no foreign key, so the FK sweep above cannot see it). Every such charge must name a rendered
+ * procedure of the same tenant that the import (or the database) carries.
+ */
+export async function assertBillingProcedureRefs(client: pg.PoolClient, tenantId: string): Promise<void> {
+  const orphan = await client.query(
+    `SELECT c.id FROM cuspatlas.billing_charges c
+     WHERE c.tenant_id = $1 AND c.source = 'clinical_procedure'
+       AND NOT EXISTS (SELECT 1 FROM cuspatlas.clinical_rendered_procedures p
+                       WHERE p.tenant_id = c.tenant_id AND p.id::text = c.procedure_ref)
+     LIMIT 1`,
+    [tenantId],
+  );
+  if (orphan.rows.length > 0)
+    throw new Error('Import names a C procedure that does not exist (billing_charges.procedure_ref)');
+}
+
 /** The database's own journal check for every imported entry (raises on any broken invariant). */
 export async function assertBillingLedger(client: pg.PoolClient, tenantId: string): Promise<number> {
   const { rows } = await client.query<{ id: string }>(

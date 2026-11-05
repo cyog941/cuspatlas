@@ -1263,6 +1263,292 @@
           "$ref": "#/$defs/ListCount"
         }
       }
+    },
+    "DeliveryReadData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "messageRef",
+        "intentRef",
+        "threadMessageRef",
+        "purpose",
+        "channel",
+        "deliveryKey",
+        "state",
+        "stateReason",
+        "suppressionReason",
+        "providerRef",
+        "version",
+        "createdAt",
+        "attempts",
+        "decisions",
+        "receipts"
+      ],
+      "properties": {
+        "messageRef": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "intentRef": {
+          "type": ["string", "null"],
+          "format": "uuid"
+        },
+        "threadMessageRef": {
+          "type": ["string", "null"],
+          "format": "uuid"
+        },
+        "purpose": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "channel": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "deliveryKey": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "state": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "stateReason": {
+          "type": ["string", "null"],
+          "maxLength": 200
+        },
+        "suppressionReason": {
+          "type": ["string", "null"],
+          "maxLength": 200
+        },
+        "providerRef": {
+          "type": ["string", "null"],
+          "maxLength": 200
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "attempts": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["attempt", "outcome", "occurredAt"],
+            "properties": {
+              "attempt": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "outcome": {
+                "type": "string",
+                "maxLength": 64
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        },
+        "decisions": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["decisionRef", "stage", "outcome", "reason", "deferredUntil", "decidedAt"],
+            "properties": {
+              "decisionRef": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "stage": {
+                "type": "string",
+                "maxLength": 64
+              },
+              "outcome": {
+                "type": "string",
+                "maxLength": 64
+              },
+              "reason": {
+                "type": ["string", "null"],
+                "maxLength": 200
+              },
+              "deferredUntil": {
+                "type": ["string", "null"],
+                "format": "date-time"
+              },
+              "decidedAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        },
+        "receipts": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["state", "occurredAt", "applied", "pending"],
+            "properties": {
+              "state": {
+                "type": "string",
+                "maxLength": 64
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "applied": {
+                "type": "boolean"
+              },
+              "pending": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      }
+    },
+    "DeliveryRead": {
+      "description": "A-S3: delivery state, attempts, decisions and receipts; never a message body.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/DeliveryReadData"
+        }
+      }
+    },
+    "CallReadData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "callRef",
+        "direction",
+        "callerLast4",
+        "dialedNumber",
+        "occurredAt",
+        "outcome",
+        "handling",
+        "recording",
+        "link",
+        "candidates",
+        "candidateState"
+      ],
+      "properties": {
+        "callRef": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "direction": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "callerLast4": {
+          "type": "string",
+          "pattern": "^[0-9]{0,4}$"
+        },
+        "dialedNumber": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "occurredAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "outcome": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "handling": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["state", "rule", "sourceVersion"],
+          "properties": {
+            "state": {
+              "enum": ["open", "closed"]
+            },
+            "rule": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["action"],
+              "properties": {
+                "action": {
+                  "enum": ["ring_queue", "voicemail", "external_reference"]
+                },
+                "queue": {
+                  "enum": ["front_desk", "billing"]
+                }
+              }
+            },
+            "sourceVersion": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "recording": {
+          "type": "null"
+        },
+        "link": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["patientRef", "reasonCode", "linkedAt"],
+              "properties": {
+                "patientRef": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "reasonCode": {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                "linkedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          ]
+        },
+        "candidates": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "candidateState": {
+          "enum": ["none", "single", "ambiguous"]
+        }
+      }
+    },
+    "CallRead": {
+      "description": "A-S3: call metadata, handling and link; never a recording, transcript or body.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/CallReadData"
+        }
+      }
     }
   }
 }

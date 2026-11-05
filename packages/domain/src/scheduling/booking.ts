@@ -46,6 +46,7 @@ import {
   notFound,
   type ResourceRow,
 } from './resources';
+import { resolveStagedAppointment } from './staging-resolve';
 import { assertHoldNotOffered, expireOfferOfHold } from './waitlist-offers';
 import { addDays, formatLocal, isKnownTimeZone, isoWeekday, localToInstant, minutesOf } from './zoned-time';
 
@@ -972,6 +973,7 @@ export function createBookingOperations(base: AppointmentBase) {
                VALUES (cuspatlas.current_tenant_id(), $1, 'rescheduled_out', $2, $3, $4, cuspatlas.current_actor_id())`,
                 [old.id, p.reasonCode, id, version],
               );
+              await resolveStagedAppointment(tx, op, old.id, 'moved');
               await recordCommand(
                 tx,
                 {
@@ -1045,6 +1047,7 @@ export function createBookingOperations(base: AppointmentBase) {
                VALUES (cuspatlas.current_tenant_id(), $1, 'cancelled', $2, $3, cuspatlas.current_actor_id())`,
                 [appt.id, p.reasonCode, version],
               );
+              await resolveStagedAppointment(tx, op, appt.id, 'removed');
               // S14: the cancellation intent (channel none) supersedes the booking's reminder; the
               // outbox events of both rows are the seam E7 consumes. Nothing is sent from here.
               await recordNotificationIntent(tx, op, {

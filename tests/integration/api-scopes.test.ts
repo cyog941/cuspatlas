@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { ACTION_POLICIES } from '@cuspatlas/domain';
 import { describe, expect, it } from 'vitest';
@@ -10,7 +10,7 @@ import {
 import { buildCatalog, ROOT, stableJson } from '../../scripts/catalog/build-catalog';
 import { renderScopesMd } from '../../scripts/catalog/docs';
 import { loadProcedureInputs, procedureGaps } from '../../scripts/catalog/procedure';
-import { buildScopeRegistry, registeredScopes } from '../../scripts/catalog/scopes';
+import { buildScopeRegistry, humanOnlyScopes, registeredScopes } from '../../scripts/catalog/scopes';
 
 /** A3: the published scope registry and the new-operation procedure as a CI checklist. */
 const catalog = buildCatalog();
@@ -90,6 +90,76 @@ describe('A3 scope registry', () => {
     for (const s of registry.scopes) {
       if (s.principalClasses.includes('portal')) expect.fail(`${s.name} admits a portal principal`);
     }
+  });
+});
+
+describe('A-M2/A-S8 registry table is the only source', () => {
+  it('registeredScopes and humanOnlyScopes read only the registry table rows, never prose', () => {
+    const dir = resolve(ROOT, 'node_modules/.cache/h1-scope-fixture/docs');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      resolve(dir, 'SHARED-CONTRACTS.md'),
+      [
+        '## Roles and scopes',
+        'Prose mentions `prose.only` (human only) and `noun.verb`.',
+        '### Scope registry table',
+        '| Scope | Human only |',
+        '| --- | --- |',
+        '| `alpha.read` | no |',
+        '| `alpha.sign` | yes |',
+        '### Relationship scopes',
+      ].join('\n'),
+    );
+    const root = resolve(dir, '..');
+    expect([...registeredScopes(root)].sort()).toStrictEqual(['alpha.read', 'alpha.sign']);
+    expect([...humanOnlyScopes(root)]).toStrictEqual(['alpha.sign']);
+  });
+
+  it('the published humanOnly flag is the SHARED-CONTRACTS flag, and no human-only scope admits a non-human', () => {
+    const declared = humanOnlyScopes();
+    for (const sc of registry.scopes) expect(sc.humanOnly, sc.name).toBe(declared.has(sc.name));
+    const offenders = catalog.filter(
+      (o) => o.scope !== null && declared.has(o.scope) && o.principals.some((p) => p !== 'human'),
+    );
+    expect(offenders.map((o) => `${o.operation}:${o.principals.join('+')}`)).toStrictEqual([]);
+  });
+});
+
+describe('A-S3 grey-zone agent operations (A-D4 recommended-pending-approval)', () => {
+  it('operations that change access, consent, money responsibility or configuration are human only', () => {
+    const humanOnly = [
+      'portal.principals.enroll',
+      'portal.principals.revoke',
+      'communications.consents.record',
+      'communications.consents.optOut',
+      'patients.relationships.add',
+      'patients.relationships.revoke',
+      'billing.plans.authorize',
+      'billing.plans.autopay',
+      'billing.responsibility.transfer',
+      'scheduling.locations.changeTimeZone',
+      'scheduling.resources.define',
+      'imaging.storage.reconcile',
+      'imaging.objects.content',
+      'imaging.objects.grantRead',
+    ];
+    const byOp = new Map(catalog.map((o) => [o.operation, o]));
+    for (const op of humanOnly) expect(byOp.get(op)?.principals, op).toStrictEqual(['human']);
+    // The worker keeps its integrity sweep through a separate, worker-only service command.
+    const sweep = byOp.get('imaging.storage.sweep');
+    expect(sweep?.principals).toStrictEqual(['service']);
+    expect(sweep?.transports).toStrictEqual(['worker']);
+  });
+
+  it('A-S8 inferred fields: admin sensitivity, bulk export class and the revoke-grant scope', () => {
+    const byOp = new Map(catalog.map((o) => [o.operation, o]));
+    for (const o of catalog.filter(
+      (x) => x.scope === 'admin.configure' && !/\.export(\.|$)/.test(x.operation),
+    )) {
+      expect(o.sensitivity, o.operation).toBe('operational');
+    }
+    expect(byOp.get('imaging.export.blobs')?.sensitivity).toBe('phiBulk');
+    expect(byOp.get('imaging.objects.revokeGrant')?.scope).toBe('imaging.write');
   });
 });
 

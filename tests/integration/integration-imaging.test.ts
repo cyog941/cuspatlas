@@ -12,6 +12,7 @@ import {
   createBillingService,
   createFakeClearinghouse,
   createImagingAttachmentRefResolver,
+  createImagingAttachmentSource,
   createImagingImageRefResolver,
   verifyImportedNoteDigests,
 } from '@cuspatlas/domain';
@@ -153,6 +154,7 @@ async function seedBillingChain(s: ImagingStack, patientRef: string): Promise<vo
     withTenantTransaction: createTenantTransactionRunner(s.db.app),
     recording: { sink: createSecurityAttemptSink(s.db.sink), alert: () => {} },
     claims: fake,
+    attachments: createImagingAttachmentSource(),
   });
   const a1 = ctxFor(T_ALPHA, USER_A1, 'human', [...BILLING_ALL, 'patients.read', 'patients.write']);
   const env = (operation: string, payload: unknown) => ({ operation, idempotencyKey: randomUUID(), payload });
@@ -314,6 +316,23 @@ describe('S17 + I9 + C18 + E9 + B10 combined round trip', () => {
         verifyNoteDigests: verifyImportedNoteDigests,
       }),
     ).rejects.toThrow(/journal invariant/);
+    // R-NIT: a B charge naming a C procedure the import does not carry is refused (whole import rolled back).
+    const charges = (b.tables.billing_charges ?? []) as { source: string; procedure_ref: string }[];
+    expect(charges.some((c) => c.source === 'clinical_procedure')).toBe(true);
+    const orphaned = {
+      ...b,
+      tables: {
+        ...b.tables,
+        billing_charges: charges.map((c) =>
+          c.source === 'clinical_procedure' ? { ...c, procedure_ref: randomUUID() } : c,
+        ),
+      },
+    };
+    await expect(
+      importExports(dst.db.admin, T_ALPHA, [...docs.slice(0, 4), orphaned] as never, {
+        verifyNoteDigests: verifyImportedNoteDigests,
+      }),
+    ).rejects.toThrow(/C procedure/);
     const leftover = await dst.db.admin.query(
       `SELECT (SELECT count(*) FROM cuspatlas.patients WHERE id = $1)::int AS p,
               (SELECT count(*) FROM cuspatlas.billing_journal_entries)::int AS j`,

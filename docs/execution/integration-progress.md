@@ -170,3 +170,47 @@ Five-way export decision: M tables (`migration_source_profiles`, `migration_pack
 `corepack pnpm run ci` exit 0: 145 files, 3070 tests (catalog 384 operations). The first run (1 file, 2 tests failed in `review-hardening-s2` "same-key retry after the start has passed") started booking a five-minute window at about 23:58 America/New_York; the window crossed midnight and the all-day availability ends at the day boundary (`outside_availability`), so it was a midnight edge, not a merge effect; the rerun passed.
 
 Open (round 2): `review-hardening-s2` `soon()` windows can cross local midnight (test-only fix: keep the window inside one local day); M export format / opening-item chain for the five-way round trip (section 9.5); E10 tables not in E9 export (section 9.4); no insurer portion from B5/B9 in C12 estimates. Nothing here is approved, deployed, compliant or clinically validated.
+
+## 10 Hardening H1
+
+### 10.1 Group A (part 1): A-M1, A-M2, A-S3, A-S8
+
+Red then green: `api-change-control-gate` (4 failed, then green), `api-scopes` registry-table and A-S3/A-S8 cases (2 failed each, then green), `comms-telephony` closed CallRead (failed: validator missing, then green). Details and decision A-D4 in `docs/execution/api-progress.md` "Hardening H1". The change-control gate is dormant against today's `origin/main` because the baseline has not landed there yet.
+
+### 10.2 Group A (part 2): A-S4, A-S5, A-S6, A-S7
+
+- A-S4: `tests/integration/support/route-sites.ts` finds every Fastify registration site under `apps/api/src` (typed instances, plugin scopes, aliases, computed verbs, `route(...)`); `api-catalog` pins the reviewed sites and proves the scanner on a bypass fixture.
+- A-S5: portal and bridge routes asserted registered in the catalog stack; action aliases may not be weaker than the operation (a command behind a read alias needs a capability check); allow path exercised for human, service and portal. The paired-device allow path stays in `imaging-bridge.test.ts` (open: not in the catalog stack).
+- A-S6: representation lint matches `...Ids`, `practiceId`/`organizationId`, union `type` arrays, money by shape (integer beside `currency`) and by name (fee/charge/copay/payment/total; counts excluded, `charges` count reviewed), `...Timestamp` names, and open request maps (`additionalProperties` true/schema, `patternProperties`) unless bounded (`propertyNames` + `maxProperties` + typed values). The generated client types `query` per operation from the documented OpenAPI query parameters (closed; `Record<string, never>` when none).
+- A-S7: `summarizeInput`/`inputBreaks` track format, minItems, uniqueItems, multipleOf, exclusive bounds, map values, `not`, `if/then/else`, per-alternative anyOf, and merge allOf by tightest constraint; the baseline (version 2) carries idempotency and refusals; a required idempotency key, a new refusal or a newly admitted non-human principal is breaking.
+- Red: A-S6 lint case and A-S7 cases failed first (3 failed), then green; the client query test first failed at parse time (honest note: not a clean assertion red).
+
+### 10.3 Group R: R1-R3 (S22 reassignment)
+
+- R1: reassignment refuses (409, typed reason with refs and remediation) while an active visit context item (`visit_context_active`), a series occurrence/exception (`series_linked`) or a waitlist entry/offer/cancellation recovery (`waitlist_linked`) references the appointment; the reminder intent is superseded in the same transaction by a reminder for the new patient (E6 decides again; delivery key keyed by the reassignment). Linked appointment requests keep their own history (request facts are separate identity facts; not moved).
+- R2: reverse race (reassignment committed, then an encounter for the old patient) refused 40001; a runtime-role `UPDATE appointments SET subject_patient_id` without a reassignment row refused 42501 at commit (the relink guard is a deferred constraint trigger).
+- R3: migration `20261128000000_reassignment_hardening.sql` adds `appointment_reassignment_blocker`; the reassignment insert guard and the relink-guard S22 branch both call it, so a blocker written after the reassignment record in the same transaction still refuses the move (proved red by removing the branch check, then green). An inactive or merged target is refused at the record.
+
+### 10.4 Group R: R4 (S20 staging)
+
+An S10 cancel or reschedule of a staged appointment resolves its staging entry in the same transaction (`removed`/`appointment_cancelled` or `moved`, audited), so capacity is free at once (`packages/domain/src/scheduling/staging-resolve.ts`). Red (entry stayed `staged`) then green; a concurrent-add race into the last slot gives exactly one 201 and one `staging_capacity_reached` (passed before and after: the list-row lock already serialized it; kept as a regression test).
+
+### 10.5 Group R: R5 and floor nits (S21)
+
+Floor and provider-request reads use configurable caps (`SchedulingDeps.floorCaps`, default 100 each), read `cap + 1` rows and report `truncated` with `count: { atLeast }` when capped (`cappedCount`). A visit with attendance activity in the last day stays on the floor even when its booked window left the ±1 day range. The anonymized projection drops `requestRef` (FloorVisit `providerRequest.requestRef` is now optional), which also removes the redundant ternary. Red (3 failed) then green.
+
+### 10.6 Group R: R7 (E10 escalation)
+
+The episode is keyed on the first portal message after the last staff message; due is measured from it; a follow-up neither de-escalates nor restarts the due time. Only a human who may post staff replies (`messaging.messages.post`) records the escalation fact during a read; read-only readers and service principals get the same list with the overdue item routed to the escalation queue (derived) and `escalatedAt: null` until a staff read records it. The scan uses each queue's policy as its cutoff (no 23-hour constant) and walks batches with a keyset cursor, so no queue starves another. No worker stage was added (open: a worker escalation sweep would remove the dependence on a staff read). Red (2 failed) then green; the two exact-due assertions now allow under one second between the thread activity time and the episode message time.
+
+### 10.7 Group R: R8 (claims attachment source)
+
+`BillingDeps.attachments` is required and `createClaimOperations` has no fake default; the worker now passes `createImagingAttachmentSource()` (I3), as the API and MCP already did; synthetic-test fixtures pass `createFakeAttachmentSource()` explicitly. Red: typecheck failed on the unused `@ts-expect-error` in `review-hardening-h1.test.ts`, then green.
+
+### 10.8 Group R: remaining nits
+
+- Floor: redundant ternary removed with the anonymized `requestRef` drop (10.5).
+- Estimate pricing: `20261128010000_estimate_coverage_check_by_name.sql` verifies by name (and by column, not LIKE) that exactly one coverage_status CHECK exists per table and it is `<table>_coverage_status`; the applied `20261125040000` is unchanged.
+- Five-way import (when a C document is in the same import; a B-only import keeps its own checks): `assertBillingProcedureRefs` refuses a `clinical_procedure` charge whose `procedure_ref` names no C14 rendered procedure of the tenant (red: the orphan import resolved; then rolled back with the whole import).
+- C12: `mergeCoverageStatus`/`coverageNowOf` keep a B5 `unknown` unknown even with an entered assumption (red then green).
+- `review-hardening-s2` `soon()` keeps the window inside one America/New_York day (shrinks near midnight; under one minute left it starts after midnight). Test-only.

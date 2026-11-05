@@ -9,7 +9,7 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-384 operations.
+385 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
@@ -18,7 +18,7 @@ transport tables and are declarations, not independent proof.
 | C | 88 | 87 | 87 | 0 | 0 | 0 |
 | B | 64 | 64 | 64 | 0 | 0 | 0 |
 | E | 60 | 48 | 48 | 11 | 0 | 1 |
-| I | 54 | 47 | 44 | 0 | 6 | 0 |
+| I | 55 | 47 | 44 | 0 | 6 | 1 |
 | M | 14 | 14 | 14 | 0 | 0 | 0 |
 
 | Operation | Owner | Kind | Authorization | Scope | Principals | Transports | REST | MCP tool | Idempotency | Sensitivity | Status |
@@ -42,8 +42,8 @@ transport tables and are declarations, not independent proof.
 | `billing.payments.refund` | B | command | authorize | `billing.correct` | human | rest, mcp | POST `/v1/billing/payments/{paymentRef}/refunds` | `billing_payments_refund` | required | phi | active |
 | `billing.payments.settle` | B | command | authorize | `billing.write` | human, service | rest, mcp | POST `/v1/billing/payments/{paymentRef}/settle` | `billing_payments_settle` | required | phi | active |
 | `billing.plans.amend` | B | command | authorize | `billing.write` | human, service | rest, mcp | POST `/v1/billing/payment-plans/{planRef}/amendments` | `billing_plans_amend` | required | phi | active |
-| `billing.plans.authorize` | B | command | authorize | `billing.write` | human, service | rest, mcp | POST `/v1/billing/payment-plans/{planRef}/authorizations` | `billing_plans_authorize` | required | phi | active |
-| `billing.plans.autopay` | B | command | authorize | `billing.write` | human, service | rest, mcp | POST `/v1/billing/payment-plans/{planRef}/autopay` | `billing_plans_autopay` | required | phi | active |
+| `billing.plans.authorize` | B | command | authorize | `billing.write` | human | rest, mcp | POST `/v1/billing/payment-plans/{planRef}/authorizations` | `billing_plans_authorize` | required | phi | active |
+| `billing.plans.autopay` | B | command | authorize | `billing.write` | human | rest, mcp | POST `/v1/billing/payment-plans/{planRef}/autopay` | `billing_plans_autopay` | required | phi | active |
 | `billing.plans.close` | B | command | authorize | `billing.correct` | human | rest, mcp | POST `/v1/billing/payment-plans/{planRef}/close` | `billing_plans_close` | required | phi | active |
 | `billing.plans.collect` | B | command | authorize | `billing.write` | human, service | rest, mcp | POST `/v1/billing/payment-plans/{planRef}/collections` | `billing_plans_collect` | required | phi | active |
 | `billing.plans.create` | B | command | authorize | `billing.write` | human, service | rest, mcp | POST `/v1/billing/payment-plans` | `billing_plans_create` | required | phi | active |
@@ -51,16 +51,16 @@ transport tables and are declarations, not independent proof.
 | `billing.plans.worklist` | B | query | authorize | `receivables.read` | human, service | rest, mcp | GET `/v1/billing/payment-plan-worklist` | `billing_plans_worklist` | none | phi | active |
 | `billing.procedures.consume` | B | command | authorize | `billing.write` | service | rest, mcp | POST `/v1/billing/procedure-events/{procedureRef}/consume` | `billing_procedures_consume` | required | phi | active |
 | `billing.reports.receivables` | B | query | authorize | `receivables.read` | human, service | rest, mcp | GET `/v1/billing/reports/receivables` | `billing_reports_receivables` | none | phi | active |
-| `billing.responsibility.transfer` | B | command | authorize | `billing.write` | human, service | rest, mcp | POST `/v1/billing/charges/{chargeRef}/responsibility` | `billing_responsibility_transfer` | required | phi | active |
+| `billing.responsibility.transfer` | B | command | authorize | `billing.write` | human | rest, mcp | POST `/v1/billing/charges/{chargeRef}/responsibility` | `billing_responsibility_transfer` | required | phi | active |
 | `billing.statements.generate` | B | command | authorize | `billing.write` | human, service | rest, mcp | POST `/v1/billing/statements` | `billing_statements_generate` | required | phi | active |
 | `billing.statements.read` | B | query | authorize | `receivables.read` | human, service | rest, mcp | GET `/v1/billing/statements/{statementRef}` | `billing_statements_get` | none | phi | active |
 | `billing.worklist.list` | B | query | authorize | `undistributedFunds.read` | human, service | rest, mcp | GET `/v1/billing/worklist` | `billing_worklist_list` | none | phi | active |
 | `clinical.authors.context` | C | query | authorize | `clinical.read` | human, service | rest, mcp | GET `/v1/clinical/author-context` | `clinical_author_context` | none | phi | active |
-| `clinical.authors.define` | C | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/clinical/authors` | `clinical_authors_define` | required | phi | active |
+| `clinical.authors.define` | C | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/clinical/authors` | `clinical_authors_define` | required | operational | active |
 | `clinical.chart.correctEntry` | C | command | authorize | `clinical.write` | human | rest, mcp | POST `/v1/clinical/chart/entries/{chartEntryRef}/corrections` | `clinical_chart_correct_entry` | required | phi | active |
 | `clinical.chart.read` | C | query | authorize | `clinical.read` | human, service | rest, mcp | GET `/v1/clinical/patients/{patientRef}/chart` | `clinical_chart_read` | none | phi | active |
 | `clinical.chart.recordEntry` | C | command | authorize | `clinical.write` | human | rest, mcp | POST `/v1/clinical/chart/entries` | `clinical_chart_record_entry` | required | phi | active |
-| `clinical.consentTemplates.register` | C | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/clinical/consent-templates` | `clinical_consent_templates_register` | required | phi | active |
+| `clinical.consentTemplates.register` | C | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/clinical/consent-templates` | `clinical_consent_templates_register` | required | operational | active |
 | `clinical.consents.capture` | C | command | authorize | `clinical.write` | human | rest, mcp | POST `/v1/clinical/consents` | `clinical_consents_capture` | required | phi | active |
 | `clinical.consents.list` | C | query | authorize | `clinical.read` | human, service | rest, mcp | GET `/v1/clinical/patients/{patientRef}/consents` | `clinical_consents_list` | none | phi | active |
 | `clinical.consents.read` | C | query | authorize | `clinical.read` | human, service | rest, mcp | GET `/v1/clinical/consents/{consentRef}` | `clinical_consents_get` | none | phi | active |
@@ -97,11 +97,11 @@ transport tables and are declarations, not independent proof.
 | `clinical.labCases.setState` | C | command | authorize | `clinical.write` | human | rest, mcp | POST `/v1/clinical/lab-cases/{labCaseRef}/state` | `clinical_lab_cases_set_state` | required | phi | active |
 | `clinical.labCases.worklist` | C | query | authorize | `clinical.read` | human, service | rest, mcp | GET `/v1/clinical/lab-cases/worklist` | `clinical_lab_cases_worklist` | none | phi | active |
 | `clinical.noteTemplates.applicable` | C | query | authorize | `clinical.read` | human, service | rest, mcp | GET `/v1/clinical/encounters/{encounterRef}/note-templates` | `clinical_note_templates_applicable` | none | phi | active |
-| `clinical.noteTemplates.define` | C | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/clinical/note-templates` | `clinical_note_templates_define` | required | phi | active |
+| `clinical.noteTemplates.define` | C | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/clinical/note-templates` | `clinical_note_templates_define` | required | operational | active |
 | `clinical.noteTemplates.read` | C | query | authorize | `clinical.read` | human, service | rest, mcp | GET `/v1/clinical/note-templates/{templateRef}` | `clinical_note_templates_get` | none | phi | active |
 | `clinical.noteTemplates.readVersion` | C | query | authorize | `clinical.read` | human, service | rest, mcp | GET `/v1/clinical/note-template-versions/{templateVersionRef}` | `clinical_note_templates_get_version` | none | phi | active |
-| `clinical.noteTemplates.retire` | C | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/clinical/note-templates/{templateRef}/retire` | `clinical_note_templates_retire` | required | phi | active |
-| `clinical.noteTemplates.revise` | C | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/clinical/note-templates/{templateRef}/versions` | `clinical_note_templates_revise` | required | phi | active |
+| `clinical.noteTemplates.retire` | C | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/clinical/note-templates/{templateRef}/retire` | `clinical_note_templates_retire` | required | operational | active |
+| `clinical.noteTemplates.revise` | C | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/clinical/note-templates/{templateRef}/versions` | `clinical_note_templates_revise` | required | operational | active |
 | `clinical.notes.addendum` | C | command | authorize | `clinical.write` | human | rest, mcp | POST `/v1/clinical/notes/{noteRef}/addenda` | `clinical_notes_add_addendum` | required | phi | active |
 | `clinical.notes.amend` | C | command | authorize | `clinical.sign` | human | rest, mcp | POST `/v1/clinical/notes/{noteRef}/amendments` | `clinical_notes_amend` | required | phi | active |
 | `clinical.notes.amendOthers` | C | capability | capability | `clinical.oversight` | human | - | - | - | none | phi | active |
@@ -143,11 +143,11 @@ transport tables and are declarations, not independent proof.
 | `clinical.treatmentPlans.setDetailState` | C | command | authorize | `clinical.write` | human | rest, mcp | POST `/v1/clinical/treatment-plans/details/{planDetailRef}/state` | `clinical_treatment_plans_set_detail_state` | required | phi | active |
 | `clinical.treatmentPlans.setItemState` | C | command | authorize | `clinical.write` | human | rest, mcp | POST `/v1/clinical/treatment-plans/items/{planItemRef}/state` | `clinical_treatment_plans_set_item_state` | required | phi | active |
 | `clinical.treatmentPlans.supersede` | C | command | authorize | `clinical.write` | human | rest, mcp | POST `/v1/clinical/treatment-plans/versions/{planVersionRef}/supersede` | `clinical_treatment_plans_supersede` | required | phi | active |
-| `communications.channelPolicies.define` | E | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/communications/channel-policies` | `communications_channel_policies_define` | required | phi | active |
+| `communications.channelPolicies.define` | E | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/communications/channel-policies` | `communications_channel_policies_define` | required | operational | active |
 | `communications.channelPolicies.list` | E | query | authorize | `communications.read` | human, service | rest, mcp | GET `/v1/communications/channel-policies` | `communications_channel_policies_list` | none | phi | active |
 | `communications.consents.list` | E | query | authorize | `communications.read` | human, service | rest, mcp | GET `/v1/patients/{patientRef}/consents` | `communications_consents_list` | none | phi | active |
-| `communications.consents.optOut` | E | command | authorize | `communications.write` | human, service | rest, mcp | POST `/v1/patients/{patientRef}/opt-outs` | `communications_consents_opt_out` | required | phi | active |
-| `communications.consents.record` | E | command | authorize | `communications.write` | human, service | rest, mcp | POST `/v1/patients/{patientRef}/consents` | `communications_consents_record` | required | phi | active |
+| `communications.consents.optOut` | E | command | authorize | `communications.write` | human | rest, mcp | POST `/v1/patients/{patientRef}/opt-outs` | `communications_consents_opt_out` | required | phi | active |
+| `communications.consents.record` | E | command | authorize | `communications.write` | human | rest, mcp | POST `/v1/patients/{patientRef}/consents` | `communications_consents_record` | required | phi | active |
 | `communications.contacts.verify` | E | command | authorize | `communications.write` | human | rest, mcp | POST `/v1/patients/{patientRef}/contact-verifications` | `communications_contacts_verify` | required | phi | active |
 | `communications.decisions.read` | E | query | authorize | `communications.read` | human, service | rest, mcp | GET `/v1/communications/decisions/{decisionRef}` | `communications_decisions_get` | none | phi | active |
 | `communications.deliver` | E | command | authorize | `communications.deliver` | service | worker | - | - | none | phi | active |
@@ -159,8 +159,8 @@ transport tables and are declarations, not independent proof.
 | `communications.recall.enrollments` | E | query | authorize | `communications.read` | human, service | rest, mcp | GET `/v1/communications/recall-enrollments` | `communications_recall_enrollments` | none | phi | active |
 | `communications.receipts.record` | E | command | authorize | `communications.receipts` | service | rest, mcp | POST `/v1/communications/receipts` | `communications_receipts_record` | required | phi | active |
 | `communications.suppression.preview` | E | query | authorize | `communications.read` | human, service | rest, mcp | GET `/v1/patients/{patientRef}/suppression-preview` | `communications_suppression_preview` | none | phi | active |
-| `communications.templates.define` | E | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/communications/templates` | `communications_templates_define` | required | phi | active |
-| `communications.templates.withdraw` | E | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/communications/templates/{templateRef}/withdraw` | `communications_templates_withdraw` | required | phi | active |
+| `communications.templates.define` | E | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/communications/templates` | `communications_templates_define` | required | operational | active |
+| `communications.templates.withdraw` | E | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/communications/templates/{templateRef}/withdraw` | `communications_templates_withdraw` | required | operational | active |
 | `health.read` | F | query | public | - | human, service, portal, device | rest | GET `/healthz` | - | none | none | active |
 | `imaging.acquisitions.request` | I | command | authorize | `imaging.write` | human, service | rest, mcp | POST `/v1/imaging/acquisitions` | `imaging_acquisitions_request` | required | phi | active |
 | `imaging.acquisitions.resolve` | I | command | authorize | `imaging.write` | human | rest, mcp | POST `/v1/imaging/acquisitions/{deferralRef}/resolve` | `imaging_acquisitions_resolve` | required | phi | active |
@@ -187,14 +187,14 @@ transport tables and are declarations, not independent proof.
 | `imaging.deletions.execute` | I | command | authorize | `imaging.delete` | human | rest, mcp | POST `/v1/imaging/deletion-requests/{deletionRef}/execute` | `imaging_deletions_execute` | required | phi | active |
 | `imaging.deletions.request` | I | command | authorize | `imaging.delete` | human | rest, mcp | POST `/v1/imaging/objects/{objectRef}/deletion-requests` | `imaging_deletions_request` | required | phi | active |
 | `imaging.derived.create` | I | command | authorize | `imaging.write` | human, service | rest, mcp | POST `/v1/imaging/objects/{objectRef}/derived` | `imaging_derived_create` | required | phi | active |
-| `imaging.devices.issuePairingCode` | I | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/imaging/devices/{deviceRef}/pairing-codes` | `imaging_devices_issue_pairing_code` | none | phi | active |
+| `imaging.devices.issuePairingCode` | I | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/imaging/devices/{deviceRef}/pairing-codes` | `imaging_devices_issue_pairing_code` | none | operational | active |
 | `imaging.devices.list` | I | query | authorize | `imaging.read` | human, service | rest, mcp | GET `/v1/imaging/devices` | `imaging_devices_list` | none | phi | active |
 | `imaging.devices.read` | I | query | authorize | `imaging.read` | human, service | rest, mcp | GET `/v1/imaging/devices/{deviceRef}` | `imaging_devices_get` | none | phi | active |
-| `imaging.devices.register` | I | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/imaging/devices` | `imaging_devices_register` | required | phi | active |
-| `imaging.devices.revoke` | I | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/imaging/devices/{deviceRef}/revoke` | `imaging_devices_revoke` | required | phi | active |
-| `imaging.devices.setCapabilities` | I | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/imaging/devices/{deviceRef}/capabilities` | `imaging_devices_set_capabilities` | required | phi | active |
+| `imaging.devices.register` | I | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/imaging/devices` | `imaging_devices_register` | required | operational | active |
+| `imaging.devices.revoke` | I | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/imaging/devices/{deviceRef}/revoke` | `imaging_devices_revoke` | required | operational | active |
+| `imaging.devices.setCapabilities` | I | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/imaging/devices/{deviceRef}/capabilities` | `imaging_devices_set_capabilities` | required | operational | active |
 | `imaging.export` | I | query | authorize | `admin.configure` | human | rest, mcp | GET `/v1/imaging/export` | `imaging_export` | none | phiBulk | active |
-| `imaging.export.blobs` | I | query | authorize | `admin.configure` | human | rest | GET `/v1/imaging/export/blobs` | - | none | phi | active |
+| `imaging.export.blobs` | I | query | authorize | `admin.configure` | human | rest | GET `/v1/imaging/export/blobs` | - | none | phiBulk | active |
 | `imaging.grants.revokeAny` | I | capability | capability | `imaging.write` | human, service | - | - | - | none | phi | active |
 | `imaging.imageRefs.resolve` | I | query | authorize | `imaging.read` | human, service | rest, mcp | GET `/v1/imaging/image-refs/{imageRef}` | `imaging_image_refs_resolve` | none | phi | active |
 | `imaging.ingress.begin` | I | command | authorize | `imaging.write` | human, service | rest, mcp | POST `/v1/imaging/ingress` | `imaging_ingress_begin` | required | phi | active |
@@ -208,17 +208,18 @@ transport tables and are declarations, not independent proof.
 | `imaging.mounts.create` | I | command | authorize | `imaging.write` | human, service | rest, mcp | POST `/v1/imaging/mounts` | `imaging_mounts_create` | required | phi | active |
 | `imaging.mounts.read` | I | query | authorize | `imaging.read` | human, service | rest, mcp | GET `/v1/imaging/mounts/{mountRef}` | `imaging_mounts_get` | none | phi | active |
 | `imaging.mounts.revise` | I | command | authorize | `imaging.write` | human, service | rest, mcp | POST `/v1/imaging/mounts/{mountRef}/revise` | `imaging_mounts_revise` | required | phi | active |
-| `imaging.objects.content` | I | query | authorize | `imaging.read` | human, service | rest | GET `/v1/imaging/objects/{objectRef}/content` | - | none | phi | active |
-| `imaging.objects.grantRead` | I | command | authorize | `imaging.read` | human, service | rest, mcp | POST `/v1/imaging/objects/{objectRef}/read-grants` | `imaging_objects_grant_read` | none | phi | active |
+| `imaging.objects.content` | I | query | authorize | `imaging.read` | human | rest | GET `/v1/imaging/objects/{objectRef}/content` | - | none | phi | active |
+| `imaging.objects.grantRead` | I | command | authorize | `imaging.read` | human | rest, mcp | POST `/v1/imaging/objects/{objectRef}/read-grants` | `imaging_objects_grant_read` | none | phi | active |
 | `imaging.objects.list` | I | query | authorize | `imaging.read` | human, service | rest, mcp | GET `/v1/imaging/objects` | `imaging_objects_list` | none | phi | active |
 | `imaging.objects.read` | I | query | authorize | `imaging.read` | human, service | rest, mcp | GET `/v1/imaging/objects/{objectRef}` | `imaging_objects_get` | none | phi | active |
-| `imaging.objects.revokeGrant` | I | command | authorize | `imaging.read` | human, service | rest, mcp | POST `/v1/imaging/read-grants/{grantRef}/revoke` | `imaging_objects_revoke_grant` | required | phi | active |
+| `imaging.objects.revokeGrant` | I | command | authorize | `imaging.write` | human, service | rest, mcp | POST `/v1/imaging/read-grants/{grantRef}/revoke` | `imaging_objects_revoke_grant` | required | phi | active |
 | `imaging.retention.policies` | I | query | authorize | `imaging.read` | human, service | rest, mcp | GET `/v1/imaging/retention/policies` | `imaging_retention_policies` | none | phi | active |
-| `imaging.retention.setPolicy` | I | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/imaging/retention/policies` | `imaging_retention_set_policy` | required | phi | active |
-| `imaging.storage.reconcile` | I | command | authorize | `admin.configure` | human, service | rest, mcp | POST `/v1/imaging/storage/reconcile` | `imaging_storage_reconcile` | required | phi | active |
+| `imaging.retention.setPolicy` | I | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/imaging/retention/policies` | `imaging_retention_set_policy` | required | operational | active |
+| `imaging.storage.reconcile` | I | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/imaging/storage/reconcile` | `imaging_storage_reconcile` | required | operational | active |
+| `imaging.storage.sweep` | I | command | authorize | `admin.configure` | service | worker | - | - | none | operational | active |
 | `intake.forms.list` | E | query | authorize | `patients.read` | human, service | rest, mcp | GET `/v1/intake/forms` | `intake_forms_list` | none | phi | active |
-| `intake.forms.publish` | E | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/intake/forms` | `intake_forms_publish` | required | phi | active |
-| `intake.forms.retire` | E | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/intake/forms/{formRef}/retire` | `intake_forms_retire` | required | phi | active |
+| `intake.forms.publish` | E | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/intake/forms` | `intake_forms_publish` | required | operational | active |
+| `intake.forms.retire` | E | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/intake/forms/{formRef}/retire` | `intake_forms_retire` | required | operational | active |
 | `intake.reviews.read` | E | query | authorize | `patients.read` | human, service | rest, mcp | GET `/v1/intake/reviews/{reviewRef}` | `intake_reviews_get` | none | phi | active |
 | `intake.reviews.resolve` | E | command | authorize | `patients.write` | human | rest, mcp | POST `/v1/intake/reviews/{reviewRef}/resolve` | `intake_reviews_resolve` | required | phi | active |
 | `intake.reviews.worklist` | E | query | authorize | `patients.read` | human, service | rest, mcp | GET `/v1/intake/reviews/worklist` | `intake_reviews_worklist` | none | phi | active |
@@ -226,11 +227,11 @@ transport tables and are declarations, not independent proof.
 | `intake.submissions.read` | E | query | authorize | `patients.read` | human, service | rest, mcp | GET `/v1/intake/submissions/{submissionRef}` | `intake_submissions_get` | none | phi | active |
 | `intake.submissions.submit` | E | command | authorize | `patients.write` | human | rest, mcp | POST `/v1/patients/{patientRef}/intake-submissions` | `intake_submissions_submit` | required | phi | active |
 | `messaging.messages.post` | E | command | authorize | `messaging.write` | human | rest, mcp | POST `/v1/messaging/threads/{threadRef}/messages` | `messaging_messages_post` | required | phi | active |
-| `messaging.replyPolicy.set` | E | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/messaging/reply-policies` | `messaging_reply_policy_set` | required | phi | active |
+| `messaging.replyPolicy.set` | E | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/messaging/reply-policies` | `messaging_reply_policy_set` | required | operational | active |
 | `messaging.retention.evaluate` | E | query | authorize | `messaging.read` | human, service | rest, mcp | GET `/v1/messaging/threads/{threadRef}/retention` | `messaging_retention_evaluate` | none | phi | active |
 | `messaging.threads.assign` | E | command | authorize | `messaging.write` | human | rest, mcp | POST `/v1/messaging/threads/{threadRef}/assign` | `messaging_threads_assign` | required | phi | active |
 | `messaging.threads.close` | E | command | authorize | `messaging.write` | human | rest, mcp | POST `/v1/messaging/threads/{threadRef}/close` | `messaging_threads_close` | required | phi | active |
-| `messaging.threads.hold` | E | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/messaging/threads/{threadRef}/legal-hold` | `messaging_threads_legal_hold` | required | phi | active |
+| `messaging.threads.hold` | E | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/messaging/threads/{threadRef}/legal-hold` | `messaging_threads_legal_hold` | required | operational | active |
 | `messaging.threads.list` | E | query | authorize | `messaging.read` | human, service | rest, mcp | GET `/v1/messaging/threads` | `messaging_threads_list` | none | phi | active |
 | `messaging.threads.open` | E | command | authorize | `messaging.write` | human | rest, mcp | POST `/v1/patients/{patientRef}/message-threads` | `messaging_threads_open` | required | phi | active |
 | `messaging.threads.read` | E | query | authorize | `messaging.read` | human | rest, mcp | GET `/v1/messaging/threads/{threadRef}` | `messaging_threads_get` | none | phi | active |
@@ -256,9 +257,9 @@ transport tables and are declarations, not independent proof.
 | `patients.merge` | S | command | authorize | `patients.merge` | human | rest, mcp | POST `/v1/patients/merges` | `patients_merge` | required | phi | active |
 | `patients.merges.list` | S | query | authorize | `patients.read` | human, service | rest, mcp | GET `/v1/patients/{patientRef}/merge-history` | `patients_list_merge_history` | none | phi | active |
 | `patients.read` | S | query | authorize | `patients.read` | human, service | rest, mcp | GET `/v1/patients/{patientRef}` | `patients_get` | none | phi | active |
-| `patients.relationships.add` | S | command | authorize | `patients.write` | human, service | rest, mcp | POST `/v1/patients/{patientRef}/relationships` | `patients_add_relationship` | required | phi | active |
+| `patients.relationships.add` | S | command | authorize | `patients.write` | human | rest, mcp | POST `/v1/patients/{patientRef}/relationships` | `patients_add_relationship` | required | phi | active |
 | `patients.relationships.list` | S | query | authorize | `patients.read` | human, service | rest, mcp | GET `/v1/patients/{patientRef}/relationships` | `patients_list_relationships` | none | phi | active |
-| `patients.relationships.revoke` | S | command | authorize | `patients.write` | human, service | rest, mcp | POST `/v1/patients/{patientRef}/relationships/{relationshipRef}/revoke` | `patients_revoke_relationship` | required | phi | active |
+| `patients.relationships.revoke` | S | command | authorize | `patients.write` | human | rest, mcp | POST `/v1/patients/{patientRef}/relationships/{relationshipRef}/revoke` | `patients_revoke_relationship` | required | phi | active |
 | `patients.search` | S | query | authorize | `patients.read` | human, service | rest, mcp | POST `/v1/patients/search` | `patients_search` | none | phi | active |
 | `patients.setStatus` | S | command | authorize | `patients.write` | human, service | rest, mcp | POST `/v1/patients/{patientRef}/status` | `patients_set_status` | required | phi | active |
 | `patients.unmerge` | S | command | authorize | `patients.merge` | human | rest, mcp | POST `/v1/patients/merges/{mergeRef}/unmerge` | `patients_unmerge` | required | phi | active |
@@ -269,9 +270,9 @@ transport tables and are declarations, not independent proof.
 | `portal.forms.submit` | E | command | portal | - | portal | portal | POST `/portal/v1/patients/{patientRef}/intake-submissions` | - | required | phi | active |
 | `portal.grants.list` | E | query | authorize | `patients.read` | human, service | rest, mcp | GET `/v1/patients/{patientRef}/portal-grants` | `portal_grants_list` | none | phi | active |
 | `portal.offers.respond` | E | command | portal | - | portal | portal | POST `/portal/v1/patients/{patientRef}/waitlist-offers/{offerRef}/respond` | - | required | phi | active |
-| `portal.principals.enroll` | E | command | authorize | `portal.manage` | human, service | rest, mcp | POST `/v1/portal/principals` | `portal_principals_enroll` | required | phi | active |
+| `portal.principals.enroll` | E | command | authorize | `portal.manage` | human | rest, mcp | POST `/v1/portal/principals` | `portal_principals_enroll` | required | phi | active |
 | `portal.principals.read` | E | query | authorize | `patients.read` | human, service | rest, mcp | GET `/v1/portal/principals/{principalRef}` | `portal_principals_get` | none | phi | active |
-| `portal.principals.revoke` | E | command | authorize | `portal.manage` | human, service | rest, mcp | POST `/v1/portal/principals/{principalRef}/revoke` | `portal_principals_revoke` | required | phi | active |
+| `portal.principals.revoke` | E | command | authorize | `portal.manage` | human | rest, mcp | POST `/v1/portal/principals/{principalRef}/revoke` | `portal_principals_revoke` | required | phi | active |
 | `portal.principals.verify` | E | command | authorize | `portal.manage` | human | rest, mcp | POST `/v1/portal/principals/{principalRef}/verify` | `portal_principals_verify` | required | phi | active |
 | `portal.requests.submit` | E | command | portal | - | portal | portal | POST `/portal/v1/patients/{patientRef}/appointment-requests` | - | required | phi | active |
 | `portal.session.read` | E | query | portal | - | portal | portal | GET `/portal/v1/session` | - | none | phi | active |
@@ -332,15 +333,15 @@ transport tables and are declarations, not independent proof.
 | `scheduling.holds.create` | S | command | authorize | `scheduling.write` | human, service | rest, mcp | POST `/v1/scheduling/holds` | `scheduling_holds_create` | required | phi | active |
 | `scheduling.holds.reconcile` | S | command | authorize | `scheduling.write` | human, service | rest, mcp | POST `/v1/scheduling/holds/reconcile` | `scheduling_holds_reconcile` | required | phi | active |
 | `scheduling.holds.release` | S | command | authorize | `scheduling.write` | human, service | rest, mcp | POST `/v1/scheduling/holds/{holdRef}/release` | `scheduling_holds_release` | required | phi | active |
-| `scheduling.locations.changeTimeZone` | S | command | authorize | `admin.configure` | human, service | rest, mcp | POST `/v1/scheduling/locations/{locationRef}/time-zone` | `scheduling_locations_change_time_zone` | required | phi | active |
-| `scheduling.locations.define` | S | command | authorize | `admin.configure` | human, service | rest, mcp | POST `/v1/scheduling/locations` | `scheduling_locations_define` | required | phi | active |
+| `scheduling.locations.changeTimeZone` | S | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/scheduling/locations/{locationRef}/time-zone` | `scheduling_locations_change_time_zone` | required | operational | active |
+| `scheduling.locations.define` | S | command | authorize | `admin.configure` | human, service | rest, mcp | POST `/v1/scheduling/locations` | `scheduling_locations_define` | required | operational | active |
 | `scheduling.locations.list` | S | query | authorize | `scheduling.read` | human, service | rest, mcp | GET `/v1/scheduling/locations` | `scheduling_locations_list` | none | phi | active |
 | `scheduling.notifications.read` | S | query | authorize | `scheduling.read` | human, service | rest, mcp | GET `/v1/scheduling/notifications/{intentRef}` | `scheduling_notifications_get` | none | phi | active |
 | `scheduling.notifications.worklist` | S | query | authorize | `scheduling.read` | human, service | rest, mcp | GET `/v1/scheduling/notifications/worklist` | `scheduling_notifications_worklist` | none | phi | active |
 | `scheduling.presence.list` | S | query | authorize | `scheduling.read` | human, service | rest, mcp | GET `/v1/scheduling/presence` | `scheduling_presence_list` | none | phi | active |
 | `scheduling.presence.set` | S | command | authorize | `scheduling.write` | human | rest, mcp | POST `/v1/scheduling/presence` | `scheduling_presence_set` | required | phi | active |
 | `scheduling.recall.createTask` | S | command | authorize | `scheduling.write` | human, service | rest, mcp | POST `/v1/scheduling/recall/tasks` | `scheduling_recall_create_task` | required | phi | active |
-| `scheduling.recall.definePolicy` | S | command | authorize | `admin.configure` | human, service | rest, mcp | POST `/v1/scheduling/recall/policies` | `scheduling_recall_define_policy` | required | phi | active |
+| `scheduling.recall.definePolicy` | S | command | authorize | `admin.configure` | human, service | rest, mcp | POST `/v1/scheduling/recall/policies` | `scheduling_recall_define_policy` | required | operational | active |
 | `scheduling.recall.due` | S | query | authorize | `scheduling.read` | human, service | rest, mcp | GET `/v1/scheduling/recall/due` | `scheduling_recall_due` | none | phi | active |
 | `scheduling.recall.policies` | S | query | authorize | `scheduling.read` | human, service | rest, mcp | GET `/v1/scheduling/recall/policies` | `scheduling_recall_policies` | none | phi | active |
 | `scheduling.recall.resolveTask` | S | command | authorize | `scheduling.write` | human, service | rest, mcp | POST `/v1/scheduling/recall/tasks/{recallTaskRef}/resolve` | `scheduling_recall_resolve_task` | required | phi | active |
@@ -355,25 +356,25 @@ transport tables and are declarations, not independent proof.
 | `scheduling.requests.review` | S | command | authorize | `scheduling.write` | human, service | rest, mcp | POST `/v1/scheduling/appointment-requests/{requestRef}/review` | `scheduling_requests_review` | required | phi | active |
 | `scheduling.requests.unbookedReport` | S | query | authorize | `scheduling.read` | human, service | rest, mcp | GET `/v1/scheduling/reports/unbooked-requests` | `scheduling_requests_unbooked_report` | none | phi | active |
 | `scheduling.requests.updatePreferences` | S | command | authorize | `scheduling.write` | human, service | rest, mcp | POST `/v1/scheduling/appointment-requests/{requestRef}/preferences` | `scheduling_requests_update_preferences` | required | phi | active |
-| `scheduling.resources.dataQuality` | S | query | authorize | `admin.configure` | human, service | rest, mcp | GET `/v1/scheduling/data-quality/state-labelled-resources` | `scheduling_resources_data_quality` | none | phi | active |
-| `scheduling.resources.deactivate` | S | command | authorize | `admin.configure` | human, service | rest, mcp | POST `/v1/scheduling/resources/{resourceRef}/deactivate` | `scheduling_resources_deactivate` | required | phi | active |
-| `scheduling.resources.define` | S | command | authorize | `admin.configure` | human, service | rest, mcp | POST `/v1/scheduling/resources` | `scheduling_resources_define` | required | phi | active |
+| `scheduling.resources.dataQuality` | S | query | authorize | `admin.configure` | human, service | rest, mcp | GET `/v1/scheduling/data-quality/state-labelled-resources` | `scheduling_resources_data_quality` | none | operational | active |
+| `scheduling.resources.deactivate` | S | command | authorize | `admin.configure` | human, service | rest, mcp | POST `/v1/scheduling/resources/{resourceRef}/deactivate` | `scheduling_resources_deactivate` | required | operational | active |
+| `scheduling.resources.define` | S | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/scheduling/resources` | `scheduling_resources_define` | required | operational | active |
 | `scheduling.resources.list` | S | query | authorize | `scheduling.read` | human, service | rest, mcp | GET `/v1/scheduling/resources` | `scheduling_resources_list` | none | phi | active |
 | `scheduling.resources.read` | S | query | authorize | `scheduling.read` | human, service | rest, mcp | GET `/v1/scheduling/resources/{resourceRef}` | `scheduling_resources_get` | none | phi | active |
-| `scheduling.resources.setAvailability` | S | command | authorize | `admin.configure` | human, service | rest, mcp | POST `/v1/scheduling/resources/{resourceRef}/availability` | `scheduling_resources_set_availability` | required | phi | active |
+| `scheduling.resources.setAvailability` | S | command | authorize | `admin.configure` | human, service | rest, mcp | POST `/v1/scheduling/resources/{resourceRef}/availability` | `scheduling_resources_set_availability` | required | operational | active |
 | `scheduling.series.create` | S | command | authorize | `scheduling.write` | human, service | rest, mcp | POST `/v1/scheduling/series` | `scheduling_series_create` | required | phi | active |
 | `scheduling.series.end` | S | command | authorize | `scheduling.write` | human, service | rest, mcp | POST `/v1/scheduling/series/{seriesRef}/end` | `scheduling_series_end` | required | phi | active |
 | `scheduling.series.extend` | S | command | authorize | `scheduling.write` | human, service | rest, mcp | POST `/v1/scheduling/series/{seriesRef}/extend` | `scheduling_series_extend` | required | phi | active |
 | `scheduling.series.plan` | S | query | authorize | `scheduling.read` | human, service | rest, mcp | POST `/v1/scheduling/series/plan` | `scheduling_series_plan` | none | phi | active |
 | `scheduling.series.read` | S | query | authorize | `scheduling.read` | human, service | rest, mcp | GET `/v1/scheduling/series/{seriesRef}` | `scheduling_series_get` | none | phi | active |
 | `scheduling.staging.add` | S | command | authorize | `scheduling.write` | human, service | rest, mcp | POST `/v1/scheduling/staging/entries` | `scheduling_staging_add` | required | phi | active |
-| `scheduling.staging.configure` | S | command | authorize | `admin.configure` | human, service | rest, mcp | POST `/v1/scheduling/staging/settings` | `scheduling_staging_configure` | required | phi | active |
+| `scheduling.staging.configure` | S | command | authorize | `admin.configure` | human, service | rest, mcp | POST `/v1/scheduling/staging/settings` | `scheduling_staging_configure` | required | operational | active |
 | `scheduling.staging.list` | S | query | authorize | `scheduling.read` | human, service | rest, mcp | GET `/v1/scheduling/staging` | `scheduling_staging_list` | none | phi | active |
 | `scheduling.staging.move` | S | command | authorize | `scheduling.write` | human, service | rest, mcp | POST `/v1/scheduling/staging/entries/{entryRef}/move` | `scheduling_staging_move` | required | phi | active |
 | `scheduling.staging.remove` | S | command | authorize | `scheduling.write` | human, service | rest, mcp | POST `/v1/scheduling/staging/entries/{entryRef}/remove` | `scheduling_staging_remove` | required | phi | active |
-| `scheduling.standingPolicies.grant` | S | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/scheduling/standing-policies` | `scheduling_standing_policies_grant` | required | phi | active |
+| `scheduling.standingPolicies.grant` | S | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/scheduling/standing-policies` | `scheduling_standing_policies_grant` | required | operational | active |
 | `scheduling.standingPolicies.list` | S | query | authorize | `scheduling.read` | human, service | rest, mcp | GET `/v1/scheduling/standing-policies` | `scheduling_standing_policies_list` | none | phi | active |
-| `scheduling.standingPolicies.revoke` | S | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/scheduling/standing-policies/{policyRef}/revoke` | `scheduling_standing_policies_revoke` | required | phi | active |
+| `scheduling.standingPolicies.revoke` | S | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/scheduling/standing-policies/{policyRef}/revoke` | `scheduling_standing_policies_revoke` | required | operational | active |
 | `scheduling.timeBlocks.create` | S | command | authorize | `scheduling.write` | human, service | rest, mcp | POST `/v1/scheduling/time-blocks` | `scheduling_time_blocks_create` | required | phi | active |
 | `scheduling.visitContext.assignForm` | S | command | authorize | `scheduling.write` | human, service | rest, mcp | POST `/v1/scheduling/appointments/{appointmentRef}/visit-context/forms` | `scheduling_visit_context_assign_form` | required | phi | active |
 | `scheduling.visitContext.items` | S | query | authorize | `scheduling.read` | human, service | rest, mcp | GET `/v1/scheduling/appointments/{appointmentRef}/visit-context/items` | `scheduling_visit_context_items` | none | phi | active |
@@ -404,6 +405,6 @@ transport tables and are declarations, not independent proof.
 | `telephony.calls.list` | E | query | authorize | `communications.read` | human, service | rest, mcp | GET `/v1/telephony/calls` | `telephony_calls_list` | none | phi | active |
 | `telephony.calls.read` | E | query | authorize | `communications.read` | human, service | rest, mcp | GET `/v1/telephony/calls/{callRef}` | `telephony_calls_get` | none | phi | active |
 | `telephony.calls.record` | E | command | authorize | `telephony.events` | service | rest, mcp | POST `/v1/telephony/calls` | `telephony_calls_record` | required | phi | active |
-| `telephony.config.define` | E | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/telephony/config` | `telephony_config_define` | required | phi | active |
+| `telephony.config.define` | E | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/telephony/config` | `telephony_config_define` | required | operational | active |
 | `telephony.config.read` | E | query | authorize | `communications.read` | human, service | rest, mcp | GET `/v1/telephony/config` | `telephony_config_get` | none | phi | active |
 | `telephony.handling.resolve` | E | query | authorize | `communications.read` | human, service | rest, mcp | GET `/v1/telephony/handling` | `telephony_handling_resolve` | none | phi | active |

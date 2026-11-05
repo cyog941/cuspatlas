@@ -5611,7 +5611,7 @@
             {
               "type": "object",
               "additionalProperties": false,
-              "required": ["requestRef", "state"],
+              "required": ["state"],
               "properties": {
                 "requestRef": {
                   "$ref": "#/$defs/ResourceRefId"
@@ -5794,7 +5794,7 @@
           "pattern": "^[a-z_]{1,64}$"
         }
       },
-      "description": "S22 (OR-11): allowed only while no clinical, billing or attendance fact references the appointment; otherwise a typed conflict (clinical_facts_attached, charges_attached, attendance_recorded) with the visible blocking refs and the remediation operation."
+      "description": "S22 (OR-11): allowed only while no clinical, billing or attendance fact references the appointment; otherwise a typed conflict (clinical_facts_attached, charges_attached, attendance_recorded; and, hardening H1 R1, visit_context_active, series_linked, waitlist_linked) with the visible blocking refs and the remediation operation."
     },
     "AppointmentPatientReassignResult": {
       "type": "object",

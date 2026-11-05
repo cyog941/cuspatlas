@@ -1053,7 +1053,8 @@ export interface FloorVisit {
   readonly elapsedMinutes: number | null;
   readonly nextActions: readonly string[];
   readonly patient: { readonly patientRef: string } | 'restricted' | 'anonymized';
-  readonly providerRequest: { readonly requestRef: string; readonly state: 'open' | 'acknowledged' } | null;
+  /** `requestRef` is omitted in the anonymized projection (hardening H1). */
+  readonly providerRequest: { readonly requestRef?: string; readonly state: 'open' | 'acknowledged' } | null;
 }
 export interface FloorView {
   readonly locationRef: string;

@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { cappedCount, FLOOR_DEFAULT_CAPS } from '../../packages/domain/src/scheduling/floor';
 import {
   type AppointmentHarness,
   count,
@@ -264,5 +265,44 @@ describe('S21 floor view, provider request and presence', () => {
       expectedVersion: 3,
     });
     expect(ack.statusCode).toBe(404);
+  });
+});
+
+describe('S21 hardening (R5, R-NIT)', () => {
+  it('R5: the envelope reports truncation and an atLeast count when the cap is reached', () => {
+    expect(cappedCount(3, 5)).toStrictEqual({ truncated: false, count: { exact: 3 } });
+    expect(cappedCount(6, 5)).toStrictEqual({ truncated: true, count: { atLeast: 6 } });
+    expect(FLOOR_DEFAULT_CAPS).toStrictEqual({ operatories: 100, providerRequests: 100 });
+  });
+
+  it('R5: a long-running visit stays on the floor after its booked window left the one-day range', async () => {
+    const c = await db.admin.connect();
+    try {
+      await c.query('SET session_replication_role = replica');
+      await c.query(
+        `UPDATE cuspatlas.scheduling_occupancy SET during = tstzrange(now() - interval '3 days', now() - interval '71 hours')
+         WHERE source_id = $1`,
+        [appointment],
+      );
+    } finally {
+      await c.query('RESET session_replication_role');
+      c.release();
+    }
+    const res = await floor();
+    const op = (res.json().data.operatories as Op[]).find((o) => o.operatoryRef === loc.operatory);
+    expect(op?.currentVisit).toMatchObject({ attendanceState: 'in_care' });
+  });
+
+  it('R-NIT: the anonymized projection drops the provider request reference', async () => {
+    const req = await h.call('a1', 'POST', `/v1/scheduling/appointments/${appointment}/provider-requests`, {
+      reasonCode: 'exam_ready',
+    });
+    expect(req.statusCode, req.body).toBe(201);
+    const requestRef = (req.json().data as { requestRef: string }).requestRef;
+    const anon = await floor('anonymized');
+    expect(anon.body).not.toContain(requestRef);
+    const op = (anon.json().data.operatories as Op[]).find((o) => o.operatoryRef === loc.operatory);
+    expect(op?.currentVisit).toMatchObject({ providerRequest: { state: 'open' } });
+    expect((await floor()).body).toContain(requestRef);
   });
 });

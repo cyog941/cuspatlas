@@ -93,6 +93,17 @@ const toPresence = (r: PresenceRow): PresenceRecord => ({
   expiresAt: r.expires_at.toISOString(),
 });
 
+/** R5: default read caps (configurable through `SchedulingDeps.floorCaps`). */
+export const FLOOR_DEFAULT_CAPS = { operatories: 100, providerRequests: 100 } as const;
+
+/** R5: rows are read with `cap + 1`; more than `cap` means truncated, counted as at least that many. */
+export function cappedCount(
+  n: number,
+  cap: number,
+): { truncated: boolean; count: { exact: number } | { atLeast: number } } {
+  return n > cap ? { truncated: true, count: { atLeast: n } } : { truncated: false, count: { exact: n } };
+}
+
 const envelopeOf = (
   locationRef: string,
   filters: Record<string, unknown>,
@@ -104,10 +115,9 @@ const envelopeOf = (
   appliedFilters: { locationRef, ...filters },
   scope: { kind: 'location_set' as const, locationRefs: [locationRef] },
   limit,
-  truncated: false,
   nextCursor: null,
   ordering: { ...ordering, direction: 'asc' as const },
-  count: { exact: n },
+  ...cappedCount(n, limit),
 });
 
 /**
@@ -115,8 +125,13 @@ const envelopeOf = (
  * provider request facts (internal staff notification only: an audited outbox fact, never a
  * patient-facing intent) and expiring self-set staff presence.
  */
-export function createFloorOperations(base: AppointmentBase) {
+export function createFloorOperations(
+  base: AppointmentBase,
+  caps: { readonly operatories?: number; readonly providerRequests?: number } = {},
+) {
   const { deps, execute } = base;
+  const opCap = caps.operatories ?? FLOOR_DEFAULT_CAPS.operatories;
+  const requestCap = caps.providerRequests ?? FLOOR_DEFAULT_CAPS.providerRequests;
 
   async function loadRequest(tx: TenantTransaction, decision: AuthorizationDecision, ref: string) {
     if (!validateSchedulingEntityRef(ref)) throw notFound();
@@ -195,13 +210,15 @@ export function createFloorOperations(base: AppointmentBase) {
         const canReadPatients = projection === 'standard' && (await base.can(ctx, 'patients.read'));
         return deps.withTenantTransaction(ctx, async (tx) => {
           const location = await loadLocation(tx, query.locationRef);
-          const ops = (
+          const opRows = (
             await tx.query<{ id: string; display_label: string | null }>(
               `SELECT id, display_label FROM cuspatlas.scheduling_resources
-               WHERE location_id = $1 AND kind = 'operatory' AND status = 'active' ORDER BY display_order, id LIMIT 100`,
-              [location.id],
+               WHERE location_id = $1 AND kind = 'operatory' AND status = 'active' ORDER BY display_order, id LIMIT $2`,
+              [location.id, opCap + 1],
             )
           ).rows;
+          const ops = opRows.slice(0, opCap);
+          // R5: a visit with attendance activity in the last day stays on the floor, however long it runs.
           const booked = (
             await tx.query<{ resource_id: string; id: string; subject_patient_id: string; starts_at: Date }>(
               `SELECT o.resource_id, a.id, a.subject_patient_id, a.starts_at
@@ -209,7 +226,10 @@ export function createFloorOperations(base: AppointmentBase) {
                JOIN cuspatlas.appointments a ON a.id = o.source_id AND a.tenant_id = o.tenant_id
                WHERE o.source_kind = 'appointment' AND o.released_at IS NULL AND o.location_id = $1
                  AND a.status = 'booked' AND o.resource_id = ANY ($2::uuid[])
-                 AND o.during && tstzrange(now() - interval '1 day', now() + interval '1 day')
+                 AND (o.during && tstzrange(now() - interval '1 day', now() + interval '1 day')
+                   OR EXISTS (SELECT 1 FROM cuspatlas.appointment_attendance_transitions t
+                              WHERE t.tenant_id = a.tenant_id AND t.appointment_id = a.id
+                                AND t.occurred_at > now() - interval '1 day'))
                ORDER BY a.starts_at, a.id`,
               [location.id, ops.map((o) => o.id)],
             )
@@ -256,7 +276,7 @@ export function createFloorOperations(base: AppointmentBase) {
                 req === undefined
                   ? null
                   : projection === 'anonymized'
-                    ? { requestRef: req.id, state: req.state }
+                    ? { state: req.state }
                     : { requestRef: req.id, state: req.state },
             };
             return { operatoryRef: o.id, label: o.display_label, currentVisit };
@@ -269,8 +289,8 @@ export function createFloorOperations(base: AppointmentBase) {
               location.location_ref,
               { projection },
               { key: 'displayOrder', tieBreak: 'operatoryRef' },
-              operatories.length,
-              100,
+              opRows.length,
+              opCap,
             ),
           };
         });
@@ -286,17 +306,17 @@ export function createFloorOperations(base: AppointmentBase) {
         return deps.withTenantTransaction(ctx, async (tx) => {
           const location = await loadLocation(tx, query.locationRef);
           const { rows } = await tx.query<RequestRow>(
-            `${REQUEST_SELECT} WHERE r.location_id = $1 AND r.state <> 'cleared' ORDER BY r.created_at, r.id LIMIT 100`,
-            [location.id],
+            `${REQUEST_SELECT} WHERE r.location_id = $1 AND r.state <> 'cleared' ORDER BY r.created_at, r.id LIMIT $2`,
+            [location.id, requestCap + 1],
           );
           return {
-            items: rows.map(toRequest),
+            items: rows.slice(0, requestCap).map(toRequest),
             envelope: envelopeOf(
               location.location_ref,
               { state: ['open', 'acknowledged'] },
               { key: 'requestedAt', tieBreak: 'requestRef' },
               rows.length,
-              100,
+              requestCap,
             ),
           };
         });

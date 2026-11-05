@@ -372,8 +372,12 @@ export function createObjectOperations(
      * registered digest and quarantines missing or altered ones. Bounded per run; `more` says whether
      * another run is needed.
      */
-    reconcileStorage(ctx: ActorContext, envelope: CommandEnvelope<unknown>) {
-      const op = 'imaging.storage.reconcile';
+    reconcileStorage(
+      ctx: ActorContext,
+      envelope: CommandEnvelope<unknown>,
+      // A-D4: the worker runs the same sweep as its own service-only command; routes pass two arguments.
+      op: 'imaging.storage.reconcile' | 'imaging.storage.sweep' = 'imaging.storage.reconcile',
+    ) {
       return base.recorded(ctx, op, async () => {
         await base.authorize(ctx, op);
         checkEnvelope(envelope, op);

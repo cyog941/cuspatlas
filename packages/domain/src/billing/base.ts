@@ -38,8 +38,11 @@ export interface BillingDeps {
   readonly providerLeaseMarginMs?: number;
   /** Claims partner port (B6/B7, B-S2 open). Absent: submit, poll, appeal review and remittance ingest are a 503. */
   readonly claims?: import('../rcm/clearinghouse').ClaimsPartnerPort;
-  /** CL-04 object source (workstream I owns the bytes). Defaults to the in-process fake. */
-  readonly attachments?: import('../rcm/attachments').AttachmentSourcePort;
+  /**
+   * CL-04 object source (workstream I owns the bytes). Required (R8): production wiring passes the I3
+   * source; only synthetic-test fixtures pass `createFakeAttachmentSource()`.
+   */
+  readonly attachments: import('../rcm/attachments').AttachmentSourcePort;
 }
 
 export interface BillingBase {

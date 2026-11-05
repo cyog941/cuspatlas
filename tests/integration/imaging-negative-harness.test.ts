@@ -943,3 +943,18 @@ describe('imaging negative harness: every imaging command, every dimension, REST
     expect(s.logLines.join('\n')).not.toContain(MARKER);
   });
 });
+
+describe('A-D4 imaging service-principal boundary (recommended-pending-approval)', () => {
+  it('a service principal holding imaging scopes is refused read grants, byte reads and the admin reconcile', async () => {
+    const grant = await s.command('service', `/v1/imaging/objects/${f.object}/read-grants`, {});
+    expect(grant.status).toBe(403);
+    const bytes = await s.inject('service', 'GET', `/v1/imaging/objects/${f.object}/content`, undefined, {
+      'x-object-read-token': f.token as string,
+    });
+    expect(bytes.status).toBe(403);
+    const reconcile = await s.command('service', '/v1/imaging/storage/reconcile', {});
+    expect(reconcile.status).toBe(403);
+    // imaging.storage.sweep is the worker's own service-only command: it has no route or tool.
+    expect((await s.mcpToolNames('owner')).some((t) => t.includes('sweep'))).toBe(false);
+  });
+});

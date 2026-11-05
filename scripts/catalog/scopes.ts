@@ -9,22 +9,33 @@ import {
 import { ROOT } from './build-catalog';
 
 /**
- * The human registry is the "Roles and scopes" section of docs/SHARED-CONTRACTS.md: a scope is
- * registered when it appears there in backticks as `noun.verb`. The machine-readable registry
- * (packages/contracts/src/catalog/scopes.json) is generated from the catalog and must agree with it.
+ * The human registry is the "Scope registry table" in the "Roles and scopes" section of
+ * docs/SHARED-CONTRACTS.md (A-S8): only its rows register a scope, and its `Human only` column is the
+ * authoritative human-only flag (A-M2). Prose mentions never register anything. The machine-readable
+ * registry (packages/contracts/src/catalog/scopes.json) is generated from the catalog plus that flag.
  */
-export function registeredScopes(root = ROOT): Set<string> {
+function registryRows(root: string): Map<string, boolean> {
   const doc = readFileSync(resolve(root, 'docs/SHARED-CONTRACTS.md'), 'utf8');
-  const start = doc.indexOf('## Roles and scopes');
+  const start = doc.indexOf('### Scope registry table');
   const end = doc.indexOf('### Relationship scopes', start);
-  if (start < 0 || end < 0) throw new Error('scope registry section not found in SHARED-CONTRACTS.md');
-  const out = new Set<string>();
-  for (const m of doc.slice(start, end).matchAll(/`([^`\s]+)`/g)) {
+  if (start < 0 || end < 0) throw new Error('scope registry table not found in SHARED-CONTRACTS.md');
+  const out = new Map<string, boolean>();
+  for (const m of doc.slice(start, end).matchAll(/^\| `([^`\s]+)` \| (yes|no) \|$/gm)) {
     const name = m[1] as string;
-    // `noun.verb` itself is the naming rule, not a scope.
-    if (scopeNameDefect(name) === null && name !== 'noun.verb') out.add(name);
+    if (scopeNameDefect(name) !== null) throw new Error(`registry row ${name}: ${scopeNameDefect(name)}`);
+    if (out.has(name)) throw new Error(`registry row ${name} is duplicated`);
+    out.set(name, m[2] === 'yes');
   }
   return out;
+}
+
+export function registeredScopes(root = ROOT): Set<string> {
+  return new Set(registryRows(root).keys());
+}
+
+/** Scopes SHARED-CONTRACTS marks human only: never granted to a service, portal or device principal. */
+export function humanOnlyScopes(root = ROOT): Set<string> {
+  return new Set([...registryRows(root)].filter(([, h]) => h).map(([n]) => n));
 }
 
 export interface ScopeDefinition {
@@ -33,7 +44,7 @@ export interface ScopeDefinition {
   readonly verb: string;
   /** Principal kinds the policy table admits for at least one operation using the scope. */
   readonly principalClasses: readonly CatalogPrincipal[];
-  /** True when every operation using the scope is human-only: never grant it to a service/agent. */
+  /** SHARED-CONTRACTS registry flag (A-M2): never grant it to a service, portal or device principal. */
   readonly humanOnly: boolean;
   readonly owners: readonly string[];
   readonly operations: readonly string[];
@@ -50,7 +61,10 @@ export interface ScopeRegistry {
   readonly relationshipScopes: readonly string[];
 }
 
-export function buildScopeRegistry(catalog: readonly CatalogOperation[]): ScopeRegistry {
+export function buildScopeRegistry(
+  catalog: readonly CatalogOperation[],
+  humanOnly: ReadonlySet<string> = humanOnlyScopes(),
+): ScopeRegistry {
   const by = new Map<string, CatalogOperation[]>();
   for (const o of catalog) {
     if (o.scope === null) continue;
@@ -69,7 +83,7 @@ export function buildScopeRegistry(catalog: readonly CatalogOperation[]): ScopeR
         noun,
         verb,
         principalClasses,
-        humanOnly: principalClasses.length === 1 && principalClasses[0] === 'human',
+        humanOnly: humanOnly.has(name),
         owners: [...new Set(ops.map((o) => o.owner))].sort(),
         operations: ops.map((o) => o.operation),
         sensitivity: ops.reduce<CatalogOperation['sensitivity']>(

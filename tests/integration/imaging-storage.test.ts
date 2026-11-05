@@ -273,8 +273,9 @@ describe('I1 metadata, grants and verified content reads', () => {
     const g = await grant('owner', objA);
     const { token, grantRef } = g.json.data as { token: string; grantRef: string };
     // A read-only member cannot see (or revoke) the owner's grant.
+    // A-S8: revoking a grant needs imaging.write; a read-only caller is refused before any lookup.
     const other = await s.command('imagingReadOnly', `/v1/imaging/read-grants/${grantRef}/revoke`, {});
-    expect(other.status).toBe(404);
+    expect(other.status).toBe(403);
     const rv = await s.command('owner', `/v1/imaging/read-grants/${grantRef}/revoke`, {});
     expect(rv.status).toBe(200);
     expect(rv.json.data).toStrictEqual({ grantRef, objectRef: objA, state: 'revoked' });

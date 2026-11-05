@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { validateCallRead } from '@cuspatlas/contracts';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { openTestDatabase, type TestDatabase } from './support/db';
 import {
@@ -161,6 +162,10 @@ describe('E8 call references', () => {
       };
     }>(await h.call('a1', 'GET', `/v1/telephony/calls/${callRef}`)).data;
     expect(call.callerLast4).toBe('0142');
+    // A-S3: the read matches the closed CallRead shape: no recording, transcript or body field.
+    const raw = (await h.call('a1', 'GET', `/v1/telephony/calls/${callRef}`)).json();
+    expect(validateCallRead(raw), JSON.stringify(validateCallRead.errors)).toBe(true);
+    expect(JSON.stringify(raw)).not.toMatch(/transcript|"body"/);
     expect(call.recording).toBeNull();
     // A shared household number: two candidates, ambiguous, and no automatic link.
     expect(call.link).toBeNull();

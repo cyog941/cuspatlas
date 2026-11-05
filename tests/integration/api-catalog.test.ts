@@ -1,18 +1,31 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { REGISTERED_ROUTES } from '@cuspatlas/api';
+import { ACTION_POLICIES } from '@cuspatlas/domain';
 import { TOOLS } from '@cuspatlas/mcp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { type CatalogOperation, validateCatalog } from '../../packages/contracts/src/catalog/catalog';
 import {
+  ACTION_ALIASES,
   buildCatalog,
   CAPABILITY_OF,
   ROOT,
   stableJson,
   workerActions,
 } from '../../scripts/catalog/build-catalog';
-import { registeredScopes } from '../../scripts/catalog/scopes';
-import { type CatalogStack, startCatalogStack } from './support/catalog-stack';
+import {
+  buildScopeRegistry,
+  registeredScopes,
+  registeredScopes as registryScopes,
+} from '../../scripts/catalog/scopes';
+import {
+  type CatalogStack,
+  enrollPortalPrincipal,
+  PORTAL_AUDIENCE,
+  startCatalogStack,
+} from './support/catalog-stack';
+import { T_ALPHA } from './support/fixtures';
+import { routeRegistrationSites } from './support/route-sites';
 
 /**
  * A4: one operation catalog over every transport. The committed catalog is generated from the code
@@ -23,9 +36,44 @@ const committedPath = resolve(ROOT, 'packages/contracts/src/catalog/operations.j
 const catalog = buildCatalog();
 const fastify = (p: string) => p.replace(/\{(\w+)\}/g, ':$1');
 
+/** A-S4 reviewed registration sites (manifest loops over operation tables, plus /healthz). */
+const REVIEWED_ROUTE_SITES: Record<string, number> = {
+  'apps/api/src/app.ts: app.get': 1,
+  'apps/api/src/routes/appointments.ts: app.get': 5,
+  'apps/api/src/routes/appointments.ts: app.post': 3,
+  'apps/api/src/routes/billing-ops-routes.ts: app.get': 1,
+  'apps/api/src/routes/billing-ops-routes.ts: app.post': 1,
+  'apps/api/src/routes/billing.ts: app.post': 1,
+  'apps/api/src/routes/billing.ts: app.get': 1,
+  'apps/api/src/routes/clinical-record.ts: app.get': 1,
+  'apps/api/src/routes/clinical-record.ts: app.post': 1,
+  'apps/api/src/routes/clinical.ts: app.get': 1,
+  'apps/api/src/routes/clinical.ts: app.post': 1,
+  'apps/api/src/routes/imaging-routes.ts: scope.post': 2,
+  'apps/api/src/routes/imaging-routes.ts: scope.get': 2,
+  'apps/api/src/routes/migration-ops.ts: app.get': 1,
+  'apps/api/src/routes/migration-ops.ts: app.post': 1,
+  'apps/api/src/routes/patients.ts: app.post': 8,
+  'apps/api/src/routes/patients.ts: app.get': 5,
+  'apps/api/src/routes/portal-routes.ts: app.get': 1,
+  'apps/api/src/routes/portal-routes.ts: app.post': 1,
+  'apps/api/src/routes/proposals.ts: app.post': 3,
+  'apps/api/src/routes/proposals.ts: app.get': 1,
+  'apps/api/src/routes/scheduling-ops-routes.ts: app.get': 1,
+  'apps/api/src/routes/scheduling-ops-routes.ts: app.post': 1,
+  'apps/api/src/routes/scheduling.ts: app.post': 7,
+  'apps/api/src/routes/scheduling.ts: app.get': 4,
+  'apps/api/src/routes/session.ts: app.get': 1,
+  'apps/api/src/routes/synthetic-tasks.ts: app.post': 2,
+  'apps/api/src/routes/synthetic-tasks.ts: app.get': 2,
+};
+
 let s: CatalogStack;
 beforeAll(async () => {
-  s = await startCatalogStack('api_catalog', []);
+  s = await startCatalogStack(
+    'api_catalog',
+    buildScopeRegistry(catalog).scopes.map((x) => x.name),
+  );
 });
 afterAll(async () => {
   await s?.close();
@@ -97,6 +145,81 @@ describe('A4 operation catalog', () => {
       if (/\bapp\.(put|patch|delete|route|all)\(/.test(src)) offenders.push(`${f}: non-manifest verb`);
     }
     expect(offenders).toStrictEqual([]);
+  });
+
+  it('A-S4: every route registration site, including plugin scopes, aliases and computed verbs, is reviewed', () => {
+    // Reviewed manifest loops: each registers only rows of its operation table (ROUTES, PORTAL_OPS,
+    // IMAGING_OPS, ...); the runtime onRoute list above must still equal the catalog exactly.
+    expect(routeRegistrationSites()).toStrictEqual(REVIEWED_ROUTE_SITES);
+    // The scanner itself catches the bypass shapes a plain `app.get('/x')` regex misses.
+    const dir = resolve(ROOT, 'node_modules/.cache/h1-route-fixture/apps/api/src');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      resolve(dir, 'bypass.ts'),
+      [
+        'export function sneaky(app: FastifyInstance, m: string) {',
+        '  const r = app;',
+        "  r.get('/v1/x', h);",
+        '  app.register(async (child) => { child.post(path, h); });',
+        "  app[m]('/v1/y', h);",
+        "  app.route({ method: 'GET', url: '/v1/z', handler: h });",
+        '}',
+      ].join('\n'),
+    );
+    expect(routeRegistrationSites(resolve(dir, '../../..'))).toStrictEqual({
+      'apps/api/src/bypass.ts: app.[m]': 1,
+      'apps/api/src/bypass.ts: app.route': 1,
+      'apps/api/src/bypass.ts: child.post': 1,
+      'apps/api/src/bypass.ts: r.get': 1,
+    });
+  });
+
+  it('A-S5: portal and bridge routes are enabled in the catalog stack', () => {
+    const urls = (REGISTERED_ROUTES.get(s.app) ?? []).map((r) => r.url);
+    for (const o of catalog.filter((x) => ['portal', 'device', 'pairing'].includes(x.authorization))) {
+      expect(urls, o.operation).toContain(fastify(o.rest?.path ?? ''));
+    }
+  });
+
+  it('A-S5: no action alias is weaker than the operation it stands for', () => {
+    const weaker: string[] = [];
+    for (const [op, action] of Object.entries(ACTION_ALIASES)) {
+      const own = (
+        ACTION_POLICIES as Record<string, { scope: string | null; principals: readonly string[] }>
+      )[op];
+      const via = (
+        ACTION_POLICIES as Record<string, { scope: string | null; principals: readonly string[] }>
+      )[action];
+      if (!via) weaker.push(`${op}: alias ${action} has no policy row`);
+      else if (own && (own.scope !== via.scope || via.principals.some((p) => !own.principals.includes(p))))
+        weaker.push(`${op}: alias ${action} differs from its own row`);
+      // A command authorized through a read alias must carry an additional capability check.
+      else if (!/\.(list|read|search|get)$/.test(op) && !Object.values(CAPABILITY_OF).includes(op))
+        weaker.push(`${op}: command aliased to ${action} without a capability check`);
+    }
+    expect(weaker).toStrictEqual([]);
+    expect(registryScopes().size).toBeGreaterThan(40);
+  });
+
+  it('A-S5: the allow path reaches authorize for one operation per principal kind', async () => {
+    const path = (op: string) => catalog.find((o) => o.operation === op)?.rest?.path as string;
+    for (const who of ['humanAll', 'serviceAll'] as const) {
+      const loads = s.membershipLoads.length;
+      const res = await s.rest(await s.token(who), 'GET', path('scheduling.locations.list'), undefined);
+      expect([who, res.statusCode]).toStrictEqual([who, 200]);
+      // Authentication and authorize each load the live membership.
+      expect(s.membershipLoads.length - loads, who).toBeGreaterThanOrEqual(2);
+    }
+    const { principalRef } = await enrollPortalPrincipal(s);
+    const portal = await s.rest(
+      await s.token(principalRef, PORTAL_AUDIENCE, T_ALPHA),
+      'GET',
+      path('portal.session.read'),
+      undefined,
+    );
+    expect(portal.statusCode).toBe(200);
+    // Device: the paired-bridge allow path (signed device credential) is exercised in
+    // imaging-bridge.test.ts; the catalog stack proves the bridge routes are registered (above).
   });
 
   it('every staff route reaches authorize with its catalog action under the runtime role', async () => {

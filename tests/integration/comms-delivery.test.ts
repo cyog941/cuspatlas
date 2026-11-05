@@ -1,3 +1,4 @@
+import { validateDeliveryRead } from '@cuspatlas/contracts';
 import {
   createMembershipSource,
   createSecurityAttemptSink,
@@ -160,8 +161,10 @@ async function messageFor(appointmentRef: string, purpose = 'reminder'): Promise
     [appointmentRef, purpose],
   );
   expect(rows).toHaveLength(1);
-  return h.ok<{ data: Message }>(await h.call('a1', 'GET', `/v1/communications/deliveries/${rows[0].id}`))
-    .data;
+  const res = await h.call('a1', 'GET', `/v1/communications/deliveries/${rows[0].id}`);
+  // A-S3: the read matches the closed DeliveryRead shape (no message body can ride along).
+  expect(validateDeliveryRead(res.json()), JSON.stringify(validateDeliveryRead.errors)).toBe(true);
+  return h.ok<{ data: Message }>(res).data;
 }
 const receipt = (body: Record<string, unknown>, who = SVC_R1, tid = T_ALPHA, key?: string) =>
   h.issuer

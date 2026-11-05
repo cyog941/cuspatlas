@@ -76,6 +76,8 @@ export function workerActions(root = ROOT): string[] {
   for (const f of readdirSync(dir).filter((x) => x.endsWith('.ts') && !x.endsWith('.test.ts'))) {
     const src = readFileSync(resolve(dir, f), 'utf8');
     for (const m of src.matchAll(/authorize\(ctx, '([a-zA-Z.]+)'/g)) found.add(m[1] as string);
+    // A-D4: worker commands named by their envelope operation literal.
+    for (const m of src.matchAll(/operation: '([a-zA-Z.]+)'/g)) found.add(m[1] as string);
     if (/authorize\(ctx, OPERATION\b/.test(src)) {
       const c = /const OPERATION = '([a-zA-Z.]+)'/.exec(src);
       if (c) found.add(c[1] as string);
@@ -92,7 +94,10 @@ const ownerOf = (op: string): OwnerWorkstream => {
 
 function sensitivityOf(op: string, scope: string | null, auth: string): Sensitivity {
   if (auth === 'public') return 'none';
-  if (op.endsWith('.export')) return 'phiBulk';
+  // A-S8: any bulk export (including `imaging.export.blobs`) is phiBulk; other practice
+  // configuration (`admin.configure`) is operational.
+  if (/\.export(\.|$)/.test(op)) return 'phiBulk';
+  if (scope === 'admin.configure') return 'operational';
   if (op === 'session.read' || (scope !== null && OPERATIONAL_SCOPES.has(scope))) return 'operational';
   return 'phi';
 }

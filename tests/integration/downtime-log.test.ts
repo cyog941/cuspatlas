@@ -432,3 +432,52 @@ describe('A2 applied-command link at the database clock (clock audit)', () => {
     }
   });
 });
+
+describe('A2 window instants a moment ahead of the database clock (clock audit review)', () => {
+  // The future check runs inside the idempotency wrapper, so its refusal is stored and replayed under
+  // the same key: a client clock a few milliseconds ahead of the database stayed refused on retry. A
+  // startedAt or endedAt within the documented skew tolerance is clamped to the database clock instead.
+  const dbNowPlus = async (ms: number) =>
+    ((
+      await s.db.admin.query<{ at: Date }>('SELECT clock_timestamp() AS at')
+    ).rows[0]?.at.getTime() as number) + ms;
+  it('accepts (clamps) a startedAt and endedAt 1 s ahead, and a retry under the same key replays it', async () => {
+    // Close any open window (an earlier test leaves one open).
+    for (const w of data<{ windowRef: string; version: number }[]>(await windows('owner', '?state=open'))) {
+      const closed = await end('owner', { windowRef: w.windowRef, expectedVersion: w.version });
+      expect(closed.status).toBe(200);
+    }
+    const key = randomUUID();
+    const body = {
+      scope: 'tenant',
+      reasonCode: 'network_outage',
+      startedAt: new Date(await dbNowPlus(1_000)).toISOString(),
+    };
+    const first = await start('owner', body, key);
+    expect([first.status, reason(first)]).toStrictEqual([201, undefined]);
+    const started = data<{ windowRef: string; startedAt: string }>(first);
+    expect(Date.parse(started.startedAt)).toBeLessThanOrEqual(Date.parse(body.startedAt));
+    const retry = await start('owner', body, key);
+    expect([retry.status, data<{ windowRef: string }>(retry).windowRef]).toStrictEqual([
+      201,
+      started.windowRef,
+    ]);
+    const endBody = {
+      windowRef: started.windowRef,
+      expectedVersion: 1,
+      endedAt: new Date(await dbNowPlus(1_000)).toISOString(),
+    };
+    const endKey = randomUUID();
+    const ended = await s.command('owner', '/v1/operations/downtime/windows/end', endBody, endKey);
+    expect([ended.status, reason(ended)]).toStrictEqual([200, undefined]);
+    const again = await s.command('owner', '/v1/operations/downtime/windows/end', endBody, endKey);
+    expect([again.status, data<{ state: string }>(again).state]).toStrictEqual([200, 'ended']);
+    // Beyond the tolerance the instant is still refused.
+    const far = await start('owner', {
+      scope: 'tenant',
+      reasonCode: 'network_outage',
+      startedAt: new Date(await dbNowPlus(60_000)).toISOString(),
+    });
+    expect([far.status, reason(far)]).toStrictEqual([422, 'started_in_future']);
+  });
+});

@@ -36,6 +36,11 @@ import {
 export const DOWNTIME_LOG_GRACE_DAYS = 14;
 export const DOWNTIME_LIST_LIMIT = 500;
 export const DOWNTIME_PAYLOAD_MAX_BYTES = 8192;
+/**
+ * Client clock skew tolerated for a window startedAt or endedAt ahead of the database clock (clock audit
+ * review). Within it the instant is clamped to the database now(); beyond it the command is refused.
+ */
+export const DOWNTIME_FUTURE_SKEW_MS = 2_000;
 
 /** The owning operations an entry of each kind may be applied through (operation id prefixes). */
 export const DOWNTIME_APPLY_PREFIXES: Readonly<Record<string, readonly string[] | null>> = {
@@ -119,8 +124,13 @@ export function createDowntimeOperations(base: MigrationBase) {
         return deps.withTenantTransaction(ctx, (tx) =>
           execute(ctx, envelope, tx, async () => {
             // Window and entry instants are checked against the database clock that stamps the
-            // defaults (started_at, ended_at, logged_at = now()) (clock audit).
-            if (p.startedAt !== undefined && Date.parse(p.startedAt) > (await databaseNow(tx)).getTime())
+            // defaults (started_at, ended_at, logged_at = now()) (clock audit). This refusal is stored
+            // and replayed under the idempotency key, so a client clock slightly ahead is tolerated
+            // (DOWNTIME_FUTURE_SKEW_MS) and the instant clamped to now() below, never refused for good.
+            if (
+              p.startedAt !== undefined &&
+              Date.parse(p.startedAt) > (await databaseNow(tx)).getTime() + DOWNTIME_FUTURE_SKEW_MS
+            )
               throw failed('started_in_future');
             const sorted = [...locations].sort();
             const { rows: open } = await tx.query<{ id: string }>(
@@ -139,7 +149,7 @@ export function createDowntimeOperations(base: MigrationBase) {
               const { rows } = await tx.query<{ id: string; started_at: Date }>(
                 `INSERT INTO cuspatlas.ops_downtime_windows (tenant_id, scope_kind, location_refs, reason_code,
                    started_at, started_by)
-                 VALUES (cuspatlas.current_tenant_id(), $1, $2::text[], $3, coalesce($4::timestamptz, now()),
+                 VALUES (cuspatlas.current_tenant_id(), $1, $2::text[], $3, least(coalesce($4::timestamptz, now()), now()),
                    cuspatlas.current_actor_id())
                  RETURNING id, started_at`,
                 [p.scope, sorted, p.reasonCode, p.startedAt ?? null],
@@ -190,10 +200,15 @@ export function createDowntimeOperations(base: MigrationBase) {
             if (w.state !== 'open') throw conflict('window_not_open');
             if (w.version !== p.expectedVersion) throw stale(w.version);
             const endedAt = p.endedAt === undefined ? null : new Date(p.endedAt);
-            if (endedAt && (endedAt < w.started_at || endedAt.getTime() > (await databaseNow(tx)).getTime()))
+            // The same skew tolerance and clamp as startedAt (DOWNTIME_FUTURE_SKEW_MS).
+            if (
+              endedAt &&
+              (endedAt < w.started_at ||
+                endedAt.getTime() > (await databaseNow(tx)).getTime() + DOWNTIME_FUTURE_SKEW_MS)
+            )
               throw failed('ended_outside_window');
             const { rows } = await tx.query<{ ended_at: Date }>(
-              `UPDATE cuspatlas.ops_downtime_windows SET state = 'ended', ended_at = coalesce($2::timestamptz, now()),
+              `UPDATE cuspatlas.ops_downtime_windows SET state = 'ended', ended_at = least(coalesce($2::timestamptz, now()), now()),
                  ended_by = cuspatlas.current_actor_id(), version = version + 1, updated_at = now()
                WHERE id = $1 RETURNING ended_at`,
               [w.id, endedAt],

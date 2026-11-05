@@ -10,13 +10,17 @@ import type { TenantTransaction } from '@cuspatlas/contracts';
  * `new Date()` uses outside its audited allowlist.
  *
  * Which clock:
- * - `transactionNow` is `now()`, the transaction start. Use it where the comparison mirrors a SQL
- *   `now()` predicate in the same code path: leases, backoffs, expiries and budget periods that a
- *   claim or sweep checks with `now()`, and freshness stamps of a transaction's reads.
+ * - `transactionNow` is `now()`, the transaction start. Use it only in a short transaction, where the
+ *   comparison mirrors a SQL `now()` predicate in the same code path (budget periods a meter resets
+ *   with `now()`) and for freshness stamps of a transaction's reads. A future instant written late in
+ *   a long transaction (after a lock wait, store I/O or a batch) must not start from it: it can be
+ *   past at commit (clock audit review).
  * - `databaseNow` is `clock_timestamp()`, wall time at the statement, truncated to the millisecond
  *   precision API instants carry. Use it for "current" reads of facts other transactions may have
- *   committed after this one began, for an `asOf` a read reports, and for checking that a
- *   client-supplied instant is not in the future. A SQL comparison of a stored column against an
+ *   committed after this one began, for an `asOf` a read reports, for checking that a
+ *   client-supplied instant is not in the future, and for wall-clock checks and future instants
+ *   (leases, backoffs) written after a lock wait or a slow phase. Audit and security-attempt rows are
+ *   stamped with `clock_timestamp()` in SQL. A SQL comparison of a stored column against an
  *   API (millisecond) instant truncates the column with `date_trunc('milliseconds', ...)` too.
  */
 export async function transactionNow(tx: Pick<TenantTransaction, 'query'>): Promise<Date> {

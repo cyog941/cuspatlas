@@ -2,6 +2,59 @@
   "version": 1,
   "scopes": [
     {
+      "name": "actions.approve",
+      "noun": "actions",
+      "verb": "approve",
+      "principalClasses": [
+        "human"
+      ],
+      "humanOnly": true,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "actions.proposals.approve",
+        "actions.proposals.commit"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "actions.prepare",
+      "noun": "actions",
+      "verb": "prepare",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "actions.proposals.abandon",
+        "actions.proposals.prepare"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "actions.read",
+      "noun": "actions",
+      "verb": "read",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "actions.proposals.list",
+        "actions.proposals.read"
+      ],
+      "sensitivity": "phi"
+    },
+    {
       "name": "admin.configure",
       "noun": "admin",
       "verb": "configure",

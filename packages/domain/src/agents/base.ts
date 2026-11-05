@@ -3,6 +3,7 @@ import {
   AGENTS_PROPERTIES,
   assertValid,
   type CommandEnvelope,
+  type MembershipSource,
   RefusalError,
   validateAgentsIdempotencyKey,
   validateAgentsRef,
@@ -20,6 +21,8 @@ export interface AgentBaseDeps {
   readonly recording: AttemptRecordingDeps;
   readonly execute?: CommandExecutor;
   readonly cursors?: CursorCodec;
+  /** Live membership lookups of other principals (A10 proposer and approver rechecks). */
+  readonly memberships?: MembershipSource;
 }
 
 /**

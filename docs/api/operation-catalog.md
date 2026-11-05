@@ -9,7 +9,7 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-412 operations.
+418 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
@@ -23,6 +23,12 @@ transport tables and are declarations, not independent proof.
 
 | Operation | Owner | Kind | Authorization | Scope | Principals | Transports | REST | MCP tool | Idempotency | Sensitivity | Status |
 |---|---|---|---|---|---|---|---|---|---|---|---|
+| `actions.proposals.abandon` | A | command | authorize | `actions.prepare` | human, service | rest, mcp | POST `/v1/actions/proposals/abandon` | `actions_proposals_abandon` | required | phi | active |
+| `actions.proposals.approve` | A | command | authorize | `actions.approve` | human | rest, mcp | POST `/v1/actions/proposals/approve` | `actions_proposals_approve` | required | phi | active |
+| `actions.proposals.commit` | A | command | authorize | `actions.approve` | human | rest, mcp | POST `/v1/actions/proposals/commit` | `actions_proposals_commit` | required | phi | active |
+| `actions.proposals.list` | A | query | authorize | `actions.read` | human, service | rest, mcp | GET `/v1/actions/proposals` | `actions_proposals_list` | none | phi | active |
+| `actions.proposals.prepare` | A | command | authorize | `actions.prepare` | human, service | rest, mcp | POST `/v1/actions/proposals` | `actions_proposals_prepare` | required | phi | active |
+| `actions.proposals.read` | A | query | authorize | `actions.read` | human, service | rest, mcp | GET `/v1/actions/proposals/state` | `actions_proposals_get` | none | phi | active |
 | `agents.audit.list` | A | query | authorize | `agents.read` | human | rest, mcp | GET `/v1/agents/audit` | `agents_audit_list` | none | phi | active |
 | `agents.budgets.read` | A | query | authorize | `agents.read` | human, service | rest, mcp | GET `/v1/agents/budgets` | `agents_budgets_get` | none | phi | active |
 | `agents.consents.list` | A | query | authorize | `agents.read` | human | rest, mcp | GET `/v1/agents/consents` | `agents_consents_list` | none | phi | active |

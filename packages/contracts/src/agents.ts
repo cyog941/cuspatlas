@@ -36,6 +36,13 @@ export const validateAgentConsentRevoke = def('ConsentRevoke');
 export const validateAgentConsentListQuery = def('ConsentListQuery');
 export const validateAgentBudgetQuery = def('BudgetQuery');
 
+export const validateActionPrepare = def('ActionPrepare');
+export const validateActionApprove = def('ActionApprove');
+export const validateActionCommit = def('ActionCommit');
+export const validateActionAbandon = def('ActionAbandon');
+export const validateActionQuery = def('ActionQuery');
+export const validateActionListQuery = def('ActionListQuery');
+
 export type AgentState = 'active' | 'suspended' | 'revoked';
 
 /** The generated operation catalog by operation id (A9 consent checks, budget sensitivity). */

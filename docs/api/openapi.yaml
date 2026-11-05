@@ -12927,6 +12927,215 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/actions/proposals:
+    post:
+      operationId: actions.proposals.prepare
+      description: >-
+        A10: prepare a proposal for an operation whose catalog approval mode is proposal (portal enrolment,
+        consent record, relationship add, payment-plan authorization). Binds the payload digest, resource
+        versions, policy version, the proposer and its sponsor, and a one-hour expiry. The proposer must
+        hold the operation authority itself. Nothing is executed.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/agents.schema.json#/$defs/ActionPrepare'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/agents.schema.json#/$defs/ActionProposalResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: actions.proposals.list
+      description: >-
+        A10: proposals, newest first (OR-01 list envelope). An agent sees only its own.
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/agents.schema.json#/$defs/ActionListQuery'
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/agents.schema.json#/$defs/Cursor'
+        - name: state
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/agents.schema.json#/$defs/ActionListQuery'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/agents.schema.json#/$defs/ActionProposalList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/actions/proposals/approve:
+    post:
+      operationId: actions.proposals.approve
+      description: >-
+        A10: approve a prepared proposal over the digest the approver reviewed. Human only (actions.approve)
+        and authorized for the proposed operation; never the proposer, never an agent proposer sponsor
+        (self_approval_denied).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/agents.schema.json#/$defs/ActionApprove'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/agents.schema.json#/$defs/ActionProposalResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/actions/proposals/commit:
+    post:
+      operationId: actions.proposals.commit
+      description: >-
+        A10: commit an approved proposal. Rechecks proposer and approver memberships, digest, expiry, policy
+        version and resource versions, then runs the owning command as the committing human, once per
+        proposal; a repeat replays. Human only.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/agents.schema.json#/$defs/ActionCommit'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/agents.schema.json#/$defs/ActionProposalResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/actions/proposals/abandon:
+    post:
+      operationId: actions.proposals.abandon
+      description: >-
+        A10: abandon a prepared or approved proposal (the proposer, or a person). It stays readable for
+        audit and cannot be revived.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/agents.schema.json#/$defs/ActionAbandon'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/agents.schema.json#/$defs/ActionProposalResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/actions/proposals/state:
+    get:
+      operationId: actions.proposals.read
+      description: >-
+        A10: one proposal. An agent sees only its own.
+      parameters:
+        - name: proposalRef
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/agents.schema.json#/$defs/Uuid'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/agents.schema.json#/$defs/ActionProposalRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   # END generated: AGENT_OPS
 components:
   securitySchemes:

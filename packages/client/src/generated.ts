@@ -97,6 +97,75 @@ export type ProposalTaskRef = string;
 
 export type ProposalVersion = number;
 
+export type AgentsActionAbandon = {
+  readonly "proposalRef": AgentsUuid;
+  readonly "expectedVersion": AgentsVersion;
+  readonly "reason": AgentsReasonCode;
+};
+
+export type AgentsActionApprove = {
+  readonly "proposalRef": AgentsUuid;
+  readonly "payloadDigest": AgentsDigest;
+  readonly "expectedVersion": AgentsVersion;
+};
+
+export type AgentsActionCommit = {
+  readonly "proposalRef": AgentsUuid;
+  readonly "payloadDigest": AgentsDigest;
+};
+
+export type AgentsActionPrepare = {
+  readonly "operation": AgentsElevatedOperation;
+  readonly "payload": { readonly [k: string]: unknown };
+};
+
+export type AgentsActionProposal = {
+  readonly "proposalRef": AgentsUuid;
+  readonly "operation": AgentsElevatedOperation;
+  readonly "state": "prepared" | "approved" | "committed" | "rejected" | "expired" | "abandoned";
+  readonly "payloadDigest": AgentsDigest;
+  readonly "policyVersion": string;
+  readonly "expiresAt": AgentsInstant;
+  readonly "proposerRef": AgentsPrincipalRef;
+  readonly "proposerKind": "human" | "service";
+  readonly "sponsorRef": (AgentsPrincipalRef) | (null);
+  readonly "approverRef": (AgentsPrincipalRef) | (null);
+  readonly "resourceVersions": readonly ({
+    readonly "kind": string;
+    readonly "ref": AgentsUuid;
+    readonly "version": AgentsVersion;
+  })[];
+  readonly "result": ({
+    readonly "kind": string;
+    readonly "ref": AgentsUuid;
+  }) | (null);
+  readonly "dispositionReason": (AgentsReasonCode) | (null);
+  readonly "version": AgentsVersion;
+};
+
+export type AgentsActionProposalList = {
+  readonly "asOf": string;
+  readonly "appliedFilters": { readonly [k: string]: unknown };
+  readonly "scope": AgentsListScope;
+  readonly "limit": number;
+  readonly "truncated": boolean;
+  readonly "nextCursor": string | null;
+  readonly "ordering": AgentsListOrdering;
+  readonly "count": AgentsListCount;
+  readonly "items": readonly (AgentsActionProposal)[];
+};
+
+export type AgentsActionProposalRead = {
+  readonly "data": AgentsActionProposal;
+};
+
+export type AgentsActionProposalResult = {
+  readonly "data": AgentsActionProposal;
+  readonly "version": AgentsVersion;
+  readonly "correlationId": AgentsUuid;
+  readonly "replayed": boolean;
+};
+
 export type AgentsAgent = {
   readonly "agentRef": AgentsAgentRef;
   readonly "purpose": AgentsPurpose;
@@ -266,6 +335,10 @@ export type AgentsConsentRevoke = {
 export type AgentsCredentialRef = string;
 
 export type AgentsDeployment = string;
+
+export type AgentsDigest = string;
+
+export type AgentsElevatedOperation = "portal.principals.enroll" | "communications.consents.record" | "patients.relationships.add" | "billing.plans.authorize";
 
 export type AgentsInstant = string;
 
@@ -7236,6 +7309,60 @@ export type SyntheticVersion = number;
 
 /** Every REST operation of the catalog with its path parameters, body and success result types. */
 export interface Operations {
+  "actions.proposals.abandon": {
+    method: "POST";
+    path: "/v1/actions/proposals/abandon";
+    params: {  };
+    body: AgentsActionAbandon;
+    result: AgentsActionProposalResult;
+    successStatus: 200;
+    idempotent: true;
+  };
+  "actions.proposals.approve": {
+    method: "POST";
+    path: "/v1/actions/proposals/approve";
+    params: {  };
+    body: AgentsActionApprove;
+    result: AgentsActionProposalResult;
+    successStatus: 200;
+    idempotent: true;
+  };
+  "actions.proposals.commit": {
+    method: "POST";
+    path: "/v1/actions/proposals/commit";
+    params: {  };
+    body: AgentsActionCommit;
+    result: AgentsActionProposalResult;
+    successStatus: 200;
+    idempotent: true;
+  };
+  "actions.proposals.list": {
+    method: "GET";
+    path: "/v1/actions/proposals";
+    params: {  };
+    body: undefined;
+    result: AgentsActionProposalList;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "actions.proposals.prepare": {
+    method: "POST";
+    path: "/v1/actions/proposals";
+    params: {  };
+    body: AgentsActionPrepare;
+    result: AgentsActionProposalResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "actions.proposals.read": {
+    method: "GET";
+    path: "/v1/actions/proposals/state";
+    params: {  };
+    body: undefined;
+    result: AgentsActionProposalRead;
+    successStatus: 200;
+    idempotent: false;
+  };
   "agents.audit.list": {
     method: "GET";
     path: "/v1/agents/audit";
@@ -10896,6 +11023,12 @@ export interface OperationMeta {
 }
 
 export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
+  "actions.proposals.abandon": { method: "POST", path: "/v1/actions/proposals/abandon", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "actions.proposals.approve": { method: "POST", path: "/v1/actions/proposals/approve", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "actions.proposals.commit": { method: "POST", path: "/v1/actions/proposals/commit", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "actions.proposals.list": { method: "GET", path: "/v1/actions/proposals", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "actions.proposals.prepare": { method: "POST", path: "/v1/actions/proposals", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "actions.proposals.read": { method: "GET", path: "/v1/actions/proposals/state", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "agents.audit.list": { method: "GET", path: "/v1/agents/audit", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "agents.budgets.read": { method: "GET", path: "/v1/agents/budgets", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "agents.consents.list": { method: "GET", path: "/v1/agents/consents", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },

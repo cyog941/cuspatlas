@@ -571,6 +571,15 @@ export const ACTION_POLICIES = {
   'agents.consents.revoke': { scope: 'agents.manage', principals: ['human'] },
   'agents.consents.list': { scope: 'agents.read', principals: ['human'] },
   'agents.budgets.read': { scope: 'agents.read', principals: ['human', 'service'] },
+  // A10 generalized prepare/commit (A-D4 pending): anyone holding the proposed operation's own
+  // authority (an agent included) may prepare; approval and commit are a human's act under the
+  // non-delegable actions.approve; an agent reads only its own proposals.
+  'actions.proposals.prepare': { scope: 'actions.prepare', principals: ['human', 'service'] },
+  'actions.proposals.approve': { scope: 'actions.approve', principals: ['human'] },
+  'actions.proposals.commit': { scope: 'actions.approve', principals: ['human'] },
+  'actions.proposals.abandon': { scope: 'actions.prepare', principals: ['human', 'service'] },
+  'actions.proposals.read': { scope: 'actions.read', principals: ['human', 'service'] },
+  'actions.proposals.list': { scope: 'actions.read', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**
@@ -579,6 +588,18 @@ export const ACTION_POLICIES = {
  * (`policy_changed`). Bump it whenever a rule that an approver relied on changes.
  */
 export const PROPOSAL_POLICY_VERSION = 'synthetic-proposals.1';
+
+/**
+ * A10 / A-D4 (pending approval): operations an agent may only PREPARE (catalog `approval: proposal`).
+ * A human or a non-agent service keeps the direct path; an agent calling one directly is refused
+ * (`proposal_required`) and must go through actions.proposals.* with a distinct human approver.
+ */
+export const PROPOSAL_REQUIRED_FOR_AGENTS: ReadonlySet<string> = new Set([
+  'portal.principals.enroll',
+  'communications.consents.record',
+  'patients.relationships.add',
+  'billing.plans.authorize',
+]);
 
 /**
  * Pure check of a live membership record against an action's policy (used to recheck other
@@ -645,6 +666,7 @@ export function createAuthorize(memberships: MembershipSource): Authorize {
     if (!m?.active) deny('membership_inactive');
     if (m.principal !== ctx.principal || !policy.principals.includes(m.principal))
       deny('principal_kind_denied');
+    if (m.agent && PROPOSAL_REQUIRED_FOR_AGENTS.has(action)) deny('proposal_required');
     if (policy.scope !== null && !(m.scopes.includes(policy.scope) && ctx.scopes.includes(policy.scope))) {
       deny('scope_missing');
     }

@@ -432,6 +432,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         withTenantTransaction: deps.tenantTransactions,
         recording,
         execute,
+        memberships: deps.membership,
+        owners: { patients, engagement, billing },
       });
       registerAgentOpRoutes(app, { authenticator, agents });
     }

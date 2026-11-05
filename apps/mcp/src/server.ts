@@ -472,6 +472,8 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     withTenantTransaction: deps.tenantTransactions,
     recording,
     execute,
+    memberships: deps.membership,
+    owners: { patients, engagement, billing },
   });
   const toolDeps: ToolDeps = {
     agents,

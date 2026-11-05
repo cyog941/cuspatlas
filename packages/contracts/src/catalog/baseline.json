@@ -2,6 +2,219 @@
   "version": 1,
   "operations": [
     {
+      "operation": "actions.proposals.abandon",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "actions.prepare",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/actions/proposals/abandon"
+      },
+      "mcpTool": "actions_proposals_abandon",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "expectedVersion": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 2147483647,
+            "minimum": 1
+          },
+          "proposalRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "reason": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z_]{1,64}$"
+          }
+        },
+        "closed": true,
+        "required": [
+          "expectedVersion",
+          "proposalRef",
+          "reason"
+        ]
+      }
+    },
+    {
+      "operation": "actions.proposals.approve",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "actions.approve",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/actions/proposals/approve"
+      },
+      "mcpTool": "actions_proposals_approve",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "expectedVersion": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 2147483647,
+            "minimum": 1
+          },
+          "payloadDigest": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "proposalRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "closed": true,
+        "required": [
+          "expectedVersion",
+          "payloadDigest",
+          "proposalRef"
+        ]
+      }
+    },
+    {
+      "operation": "actions.proposals.commit",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "actions.approve",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/actions/proposals/commit"
+      },
+      "mcpTool": "actions_proposals_commit",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "payloadDigest": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "proposalRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "closed": true,
+        "required": [
+          "payloadDigest",
+          "proposalRef"
+        ]
+      }
+    },
+    {
+      "operation": "actions.proposals.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "actions.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/actions/proposals"
+      },
+      "mcpTool": "actions_proposals_list"
+    },
+    {
+      "operation": "actions.proposals.prepare",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "actions.prepare",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/actions/proposals"
+      },
+      "mcpTool": "actions_proposals_prepare",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "operation": {
+            "enum": [
+              "\"billing.plans.authorize\"",
+              "\"communications.consents.record\"",
+              "\"patients.relationships.add\"",
+              "\"portal.principals.enroll\""
+            ]
+          },
+          "payload": {
+            "type": [
+              "object"
+            ]
+          }
+        },
+        "closed": true,
+        "required": [
+          "operation",
+          "payload"
+        ]
+      }
+    },
+    {
+      "operation": "actions.proposals.read",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "actions.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/actions/proposals/state"
+      },
+      "mcpTool": "actions_proposals_get"
+    },
+    {
       "operation": "agents.audit.list",
       "transports": [
         "rest",

@@ -13,7 +13,7 @@ import type {
   Transport,
 } from '../../packages/contracts/src/catalog/catalog';
 import deprecations from '../../packages/contracts/src/catalog/deprecations.json' with { type: 'json' };
-import { ACTION_POLICIES } from '../../packages/domain/src/policy/authorize';
+import { ACTION_POLICIES, PROPOSAL_REQUIRED_FOR_AGENTS } from '../../packages/domain/src/policy/authorize';
 
 export const ROOT = resolve(import.meta.dirname, '../..');
 
@@ -175,6 +175,8 @@ export function buildCatalog(root = ROOT): CatalogOperation[] {
       idempotency: kind === 'command' && !img?.unkeyed ? 'required' : 'none',
       sensitivity: sensitivityOf(op, scope, authorization),
       status: status(op),
+      // A10 / A-D4: an agent may only prepare these; a distinct human approves and commits.
+      ...(PROPOSAL_REQUIRED_FOR_AGENTS.has(op) ? { approval: 'proposal' as const } : {}),
     });
   }
 

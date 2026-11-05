@@ -211,3 +211,36 @@ Workstream A batch 2 (A8-A13) on synthetic data only. Framing, recorded before a
   its own usage).
 - Not done (A-S1): truncation with a resume cursor and wall-clock budgets with unknown-outcome
   recording are not implemented; the current rule refuses an oversized query result instead.
+
+### A10: generalized prepare/commit and non-self approval
+
+- Red: `tests/integration/action-proposals.test.ts` failed at setup (exit 1, 10 skipped: no
+  `actions.*` scope or operation existed); green 11/11 after.
+- The catalog now carries `approval: proposal` on the A-D4 grey-zone operations
+  (`portal.principals.enroll`, `communications.consents.record`, `patients.relationships.add`,
+  `billing.plans.authorize`); the domain registry (`ELEVATED_OPERATIONS`) and `authorize`'s
+  `PROPOSAL_REQUIRED_FOR_AGENTS` are asserted equal to it. This replaces "human-only" with "an agent
+  may prepare, a human approves" for those four, consistent with the AI default. A human or a non-agent
+  service keeps the direct path (no principal removed from the A5 baseline); an agent calling one
+  directly is refused (`proposal_required`).
+- Proposal (`operation_proposals`, migration `20261201020000`): operation, payload and canonical
+  digest, bound resource versions (patient version, or the plan's expected version which the owning
+  command checks), policy version `actions.1`, proposer and kind, an agent proposer's sponsor of record,
+  one-hour expiry (A-D4 open). Terminal states are guarded by a trigger and never revived.
+- Approval: a human holding `actions.approve` (non-delegable) and authorized for the proposed
+  operation; never the proposer and never the agent proposer's sponsor of record or current sponsor
+  (`self_approval_denied`; also a table check). A human cannot approve a proposal the same human
+  prepared (A-D4 recommended rule; the F7a synthetic exception is not carried over).
+- Commit (human, `actions.approve`): rechecks the proposer's and approver's live memberships
+  (a revoked agent proposer gives `approval_invalid`), digest (`payload_mismatch` closes it), expiry
+  (`proposal_expired`), policy version and resource versions (`stale_version` closes it), claims the
+  proposal for the committer, then runs the owning command as that human with `proposal:<id>` as its
+  idempotency key: one effect for repeated or concurrent commits; a committed proposal replays. An
+  owning-command refusal closes the proposal with `owner_<code>`; an unknown failure leaves it
+  claimed and committable by the same human, reconciled by the owner's idempotency key.
+- Operations (6): `actions.proposals.prepare|approve|commit|abandon|read|list` (list in the OR-01
+  envelope; an agent sees only its own). Scopes `actions.prepare`, `actions.approve` (human only),
+  `actions.read`.
+- Not done: deprecation of a proposed operation between prepare and commit is refused by the policy
+  version only (no operation is deprecated at this head); the F7a synthetic proposal service is left
+  as it is (it is its own frozen synthetic contract).

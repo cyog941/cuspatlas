@@ -1,5 +1,213 @@
 [
   {
+    "operation": "actions.proposals.abandon",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "actions.proposals.abandon",
+    "scope": "actions.prepare",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/actions/proposals/abandon",
+      "requestSchema": "agents:ActionAbandon",
+      "successStatus": "200",
+      "successSchema": "agents:ActionProposalResult"
+    },
+    "mcpTool": "actions_proposals_abandon",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "actions.proposals.approve",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "actions.proposals.approve",
+    "scope": "actions.approve",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/actions/proposals/approve",
+      "requestSchema": "agents:ActionApprove",
+      "successStatus": "200",
+      "successSchema": "agents:ActionProposalResult"
+    },
+    "mcpTool": "actions_proposals_approve",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "actions.proposals.commit",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "actions.proposals.commit",
+    "scope": "actions.approve",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/actions/proposals/commit",
+      "requestSchema": "agents:ActionCommit",
+      "successStatus": "200",
+      "successSchema": "agents:ActionProposalResult"
+    },
+    "mcpTool": "actions_proposals_commit",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "actions.proposals.list",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "actions.proposals.list",
+    "scope": "actions.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/actions/proposals",
+      "successStatus": "200",
+      "successSchema": "agents:ActionProposalList"
+    },
+    "mcpTool": "actions_proposals_list",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "actions.proposals.prepare",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "actions.proposals.prepare",
+    "scope": "actions.prepare",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/actions/proposals",
+      "requestSchema": "agents:ActionPrepare",
+      "successStatus": "201",
+      "successSchema": "agents:ActionProposalResult"
+    },
+    "mcpTool": "actions_proposals_prepare",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "actions.proposals.read",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "actions.proposals.read",
+    "scope": "actions.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/actions/proposals/state",
+      "successStatus": "200",
+      "successSchema": "agents:ActionProposalRead"
+    },
+    "mcpTool": "actions_proposals_get",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
     "operation": "agents.audit.list",
     "owner": "A",
     "kind": "query",
@@ -1124,7 +1332,8 @@
     ],
     "idempotency": "required",
     "sensitivity": "phi",
-    "status": "active"
+    "status": "active",
+    "approval": "proposal"
   },
   {
     "operation": "billing.plans.autopay",
@@ -4673,7 +4882,8 @@
     ],
     "idempotency": "required",
     "sensitivity": "phi",
-    "status": "active"
+    "status": "active",
+    "approval": "proposal"
   },
   {
     "operation": "communications.contacts.verify",
@@ -8660,7 +8870,8 @@
     ],
     "idempotency": "required",
     "sensitivity": "phi",
-    "status": "active"
+    "status": "active",
+    "approval": "proposal"
   },
   {
     "operation": "patients.relationships.list",
@@ -9082,7 +9293,8 @@
     ],
     "idempotency": "required",
     "sensitivity": "phi",
-    "status": "active"
+    "status": "active",
+    "approval": "proposal"
   },
   {
     "operation": "portal.principals.read",

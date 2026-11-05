@@ -25,6 +25,12 @@ const CASES: Record<string, { tool: string; admits: Admits }> = {
   'agents.consents.revoke': { tool: 'agents_consents_revoke', admits: 'human' },
   'agents.consents.list': { tool: 'agents_consents_list', admits: 'human' },
   'agents.budgets.read': { tool: 'agents_budgets_get', admits: 'humanAndService' },
+  'actions.proposals.prepare': { tool: 'actions_proposals_prepare', admits: 'humanAndService' },
+  'actions.proposals.approve': { tool: 'actions_proposals_approve', admits: 'human' },
+  'actions.proposals.commit': { tool: 'actions_proposals_commit', admits: 'human' },
+  'actions.proposals.abandon': { tool: 'actions_proposals_abandon', admits: 'humanAndService' },
+  'actions.proposals.read': { tool: 'actions_proposals_get', admits: 'humanAndService' },
+  'actions.proposals.list': { tool: 'actions_proposals_list', admits: 'humanAndService' },
 };
 
 let s: AgentStack;

@@ -50,6 +50,11 @@ export interface CatalogOperation {
   readonly idempotency: 'none' | 'required';
   readonly sensitivity: Sensitivity;
   readonly status: 'active' | 'deprecated';
+  /**
+   * A10 / A-D4: `proposal` = an agent may only prepare this operation through actions.proposals.*;
+   * a human distinct from the proposer and its sponsor approves and commits. Absent = direct.
+   */
+  readonly approval?: 'proposal';
 }
 
 export interface DeprecationEntry {

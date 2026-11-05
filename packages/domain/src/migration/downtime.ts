@@ -11,6 +11,7 @@ import {
   validateDowntimeStart,
   validateDowntimeWindowListQuery,
 } from '@cuspatlas/contracts';
+import { databaseNow } from '../clock';
 import { recordCommand } from '../events/record-command';
 import type { ActionName, AuthorizationDecision } from '../policy/authorize';
 import {
@@ -115,10 +116,12 @@ export function createDowntimeOperations(base: MigrationBase) {
         const locations = p.locationRefs ?? [];
         if ((p.scope === 'tenant') !== (locations.length === 0)) throw failed('scope_locations_mismatch');
         assertScopeAllowed(decision, p.scope, locations);
-        if (p.startedAt !== undefined && Date.parse(p.startedAt) > Date.now())
-          throw failed('started_in_future');
         return deps.withTenantTransaction(ctx, (tx) =>
           execute(ctx, envelope, tx, async () => {
+            // Window and entry instants are checked against the database clock that stamps the
+            // defaults (started_at, ended_at, logged_at = now()) (clock audit).
+            if (p.startedAt !== undefined && Date.parse(p.startedAt) > (await databaseNow(tx)).getTime())
+              throw failed('started_in_future');
             const sorted = [...locations].sort();
             const { rows: open } = await tx.query<{ id: string }>(
               `SELECT id FROM cuspatlas.ops_downtime_windows
@@ -187,7 +190,7 @@ export function createDowntimeOperations(base: MigrationBase) {
             if (w.state !== 'open') throw conflict('window_not_open');
             if (w.version !== p.expectedVersion) throw stale(w.version);
             const endedAt = p.endedAt === undefined ? null : new Date(p.endedAt);
-            if (endedAt && (endedAt < w.started_at || endedAt.getTime() > Date.now()))
+            if (endedAt && (endedAt < w.started_at || endedAt.getTime() > (await databaseNow(tx)).getTime()))
               throw failed('ended_outside_window');
             const { rows } = await tx.query<{ ended_at: Date }>(
               `UPDATE cuspatlas.ops_downtime_windows SET state = 'ended', ended_at = coalesce($2::timestamptz, now()),
@@ -246,7 +249,7 @@ export function createDowntimeOperations(base: MigrationBase) {
           execute(ctx, envelope, tx, async () => {
             const w = await loadWindow(tx, p.windowRef);
             assertScopeAllowed(decision, w.scope_kind, w.location_refs);
-            const now = Date.now();
+            const now = (await databaseNow(tx)).getTime();
             if (w.ended_at && w.ended_at.getTime() < now - DOWNTIME_LOG_GRACE_DAYS * 86_400_000)
               throw conflict('window_closed_for_logging');
             const captured = Date.parse(p.capturedAt);

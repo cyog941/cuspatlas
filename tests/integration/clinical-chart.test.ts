@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { validateChartEntryCommandResult, validateChartRead } from '@cuspatlas/contracts';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   type AppointmentHarness,
   createPatient,
@@ -11,6 +11,7 @@ import {
   T_ALPHA,
 } from './support/appointment-fixtures';
 import { seedClinicalScopes, seedDispositions } from './support/clinical-fixtures';
+import { dbNow } from './support/db-clock';
 import { openTestDatabase, type TestDatabase } from './support/db';
 import { MARKER } from './support/marker';
 
@@ -347,6 +348,31 @@ describe('C6 acceptance cases', () => {
       ]);
     }
   });
+});
+
+describe('C6 as-of at the database clock (clock audit)', () => {
+  // The future check of asOf used the application clock: with the host clock behind the database, an
+  // instant the database had already stamped (an entry's recordedAt, the database "now") was refused
+  // as in the future. The reported asOf of a current read came from the same clock.
+  for (const skewMs of [-5_000, 5_000]) {
+    it(`a chart as of the database's current instant is readable (app clock ${skewMs > 0 ? 'ahead' : 'behind'} 5 s)`, async () => {
+      const p = await createPatient(h, 'Synthetic Chart Skew');
+      const entry = (
+        await record({ patientRef: p, tooth: tooth('8'), kind: 'condition', findingRef: 'SYN-COND-SKEW' })
+      ).data.entry;
+      vi.useFakeTimers({ toFake: ['Date'], now: Date.now() + skewMs });
+      try {
+        const asOf = await dbNow(db.admin);
+        const then = await chart(p, `?asOf=${encodeURIComponent(asOf)}`);
+        expect(then.entries.map((x) => x.entryRef)).toStrictEqual([entry.entryRef]);
+        const current = await chart(p);
+        expect(Date.parse(current.asOf)).toBeGreaterThanOrEqual(Date.parse(entry.recordedAt));
+        expect(Date.parse(current.asOf)).toBeGreaterThanOrEqual(Date.parse(asOf));
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  }
 });
 
 describe('C6 failure and recovery cases', () => {

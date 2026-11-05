@@ -23,6 +23,7 @@ import {
   validateChartEntryRecord,
   validateChartReadQuery,
 } from '@cuspatlas/contracts';
+import { databaseNow } from '../clock';
 import { recordCommand } from '../events/record-command';
 import { recordSensitiveRead } from '../events/record-sensitive-read';
 import { authorOf, resolveClinicalAuthor } from './authorship';
@@ -528,9 +529,12 @@ export function createChartOperations(base: ClinicalBase) {
         await base.authorize(ctx, op);
         assertValid<ChartReadQuery>(validateChartReadQuery, query, CLINICAL_PROPERTIES);
         const asOf = query.asOf === undefined ? null : new Date(query.asOf);
-        if (asOf !== null && asOf.getTime() > Date.now()) throw failedAt('/asOf', 'inTheFuture');
         const display = query.displaySystem ?? 'universal';
         return deps.withTenantTransaction(ctx, async (tx) => {
+          // "Now" is the database clock that stamps recorded_at (clock audit): an application clock
+          // behind it refused an instant the database had already stamped as in the future.
+          const now = await databaseNow(tx);
+          if (asOf !== null && asOf.getTime() > now.getTime()) throw failedAt('/asOf', 'inTheFuture');
           const patient = await loadClinicalPatient(tx, patientRef, '');
           assertNotMerged(patient);
           const rows = await patientEntries(tx, patient.id, asOf);
@@ -558,7 +562,7 @@ export function createChartOperations(base: ClinicalBase) {
           });
           return {
             patientRef: patient.id,
-            asOf: (asOf ?? new Date()).toISOString(),
+            asOf: (asOf ?? (await databaseNow(tx))).toISOString(),
             displaySystem: display,
             recorded: rows.length > 0,
             charts: charts

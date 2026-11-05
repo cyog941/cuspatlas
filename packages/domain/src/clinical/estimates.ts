@@ -23,6 +23,7 @@ import {
   validateEstimatePresent,
   validatePlanAlternativeCreate,
 } from '@cuspatlas/contracts';
+import { transactionNow } from '../clock';
 import { recordCommand } from '../events/record-command';
 import { recordSensitiveRead } from '../events/record-sensitive-read';
 import { resolveClinicalAuthor } from './authorship';
@@ -124,11 +125,11 @@ function responsibility(
 }
 
 /** C12 insurer portion of a stored estimate now (input freshness re-checked at every read). */
-function insurerEstimateOf(e: EstimateRow): InsurerEstimate {
+function insurerEstimateOf(e: EstimateRow, at: number): InsurerEstimate {
   if (!e.complete) return insurerEstimateUnavailable('estimate_incomplete');
   // An estimate generated before the insurer portion existed carries no inputs: unknown, never guessed.
   if (e.insurer_estimate === null) return insurerEstimateUnavailable('coverage_unknown');
-  return insurerEstimateAt(e.insurer_estimate, Date.now());
+  return insurerEstimateAt(e.insurer_estimate, at);
 }
 
 /** The consent binding of an acceptance (C13 writes consents; until then it is outstanding). */
@@ -211,10 +212,13 @@ async function project(tx: TenantTransaction, e: EstimateRow): Promise<Estimate>
       : { currency: e.currency, minor: Number(e.gross_minor) };
   const presentation = pres[0];
   const acceptance = acc[0];
+  // Freshness is re-checked at the transaction's now(), the clock B5 decides eligibility freshness
+  // with (`now() <= retrieved_at + freshness`), so the two never disagree (clock audit).
+  const at = (await transactionNow(tx)).getTime();
   const coverageNow = coverageNowOf(
     e.coverage_status,
     assumptions.map((a) => ({ kind: a.kind, sourceAsOf: a.source_as_of })),
-    Date.now(),
+    at,
   );
   return {
     estimateRef: e.id,
@@ -243,7 +247,7 @@ async function project(tx: TenantTransaction, e: EstimateRow): Promise<Estimate>
     coverageStatus: coverageNow,
     grossAmount: gross,
     patientResponsibility: responsibility(e.complete, coverageNow, gross),
-    insurerEstimate: insurerEstimateOf(e),
+    insurerEstimate: insurerEstimateOf(e, at),
     notAGuarantee: true,
     presentation: presentation
       ? {
@@ -456,7 +460,7 @@ export function createEstimateOperations(base: ClinicalBase) {
               )
                 throw conflict('fee_schedule_version_mismatch');
               const assumptions: readonly EstimateAssumptionInput[] = p.assumptions ?? [];
-              const fromSources = coverageStatusAt(assumptions, Date.now());
+              const fromSources = coverageStatusAt(assumptions, (await transactionNow(tx)).getTime());
               // B5 decides inactive or stale eligibility; entered coverage values stay caller-sourced.
               const b5 = await pricing.coverage(tx, patient.id, serviceDate);
               const status: CoverageStatus = mergeCoverageStatus(b5, fromSources);
@@ -476,7 +480,13 @@ export function createEstimateOperations(base: ClinicalBase) {
                         });
                   lines.push({ ...l, allowance });
                 }
-                insurer = computeInsurerEstimate({ currency, serviceDate, inputs: benefits, lines });
+                insurer = computeInsurerEstimate({
+                  currency,
+                  serviceDate,
+                  readAt: (await transactionNow(tx)).toISOString(),
+                  inputs: benefits,
+                  lines,
+                });
               }
               const head = await currentOf(tx, planVersionRef);
               if ((head?.number ?? 0) >= MAX_ESTIMATES) throw failedAt('/', 'tooManyEstimates');
@@ -575,7 +585,7 @@ export function createEstimateOperations(base: ClinicalBase) {
             const status = coverageNowOf(
               e.coverage_status,
               assumptions.map((a) => ({ kind: a.kind, sourceAsOf: a.source_as_of })),
-              Date.now(),
+              (await transactionNow(tx)).getTime(),
             );
             await tx.query(
               `INSERT INTO cuspatlas.clinical_estimate_presentations (tenant_id, estimate_id, coverage_status, presented_by)
@@ -686,7 +696,7 @@ export function createEstimateOperations(base: ClinicalBase) {
             const coverageNow = coverageNowOf(
               e.coverage_status,
               assumptions.map((a) => ({ kind: a.kind, sourceAsOf: a.source_as_of })),
-              Date.now(),
+              (await transactionNow(tx)).getTime(),
             );
             if (coverageNow === 'stale' && presentation.coverage_status !== 'stale') {
               throw conflict('estimate_coverage_stale', { blockingRefs: [{ kind: 'estimate', ref: e.id }] });

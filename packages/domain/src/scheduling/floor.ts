@@ -25,6 +25,7 @@ import {
   validateSchedulingEntityRef,
   vocabularyLabel,
 } from '@cuspatlas/contracts';
+import { databaseNow } from '../clock';
 import { recordCommand } from '../events/record-command';
 import { type AuthorizationDecision, assertLocation, DISPLAY_SCOPE } from '../policy/authorize';
 import { type AppointmentBase, assertVisibleLocation } from './appointment-base';
@@ -233,7 +234,8 @@ export function createFloorOperations(
               [location.id],
             )
           ).rows;
-          const now = Date.now();
+          // Elapsed time since a database-stamped attendance transition, at the database clock (clock audit).
+          const now = (await databaseNow(tx)).getTime();
           const operatories = ops.map((o) => {
             const visit = booked.find(
               (b) => b.resource_id === o.id && ON_FLOOR.has(snapshots.get(b.id)?.state ?? 'scheduled'),

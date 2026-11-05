@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { type AgentStack, inDays, startAgentStack } from './support/agent-stack';
 import { MCP_AUDIENCE } from './support/catalog-stack';
 import { patientBody } from './support/patient-fixtures';
@@ -222,4 +222,38 @@ describe('A9 budgets', () => {
     });
     expect(r.status).toBe(422);
   });
+});
+
+describe('A9 budget period at the database clock (clock audit)', () => {
+  // The usage read decided whether the period was still running with the application clock, while
+  // the charge resets it with `now()`: within a skew of the period end the read and the meter disagreed.
+  const cases = [
+    { skewMs: -5_000, endsInMs: -2_000, live: false },
+    { skewMs: 5_000, endsInMs: 4_500, live: true },
+  ];
+  for (const { skewMs, endsInMs, live } of cases) {
+    it(`a period ${live ? 'still running' : 'just ended'} reads ${live ? 'live' : 'reset'} with the app clock ${skewMs > 0 ? 'ahead' : 'behind'} 5 s`, async () => {
+      const a = await s.createAgent(TASKS, `period skew ${skewMs}`, undefined, { consent: false });
+      await s.consent(a, ['syntheticTasks.list']);
+      expect((await s.agentTool(a, 'synthetic_tasks_list', {})).isError).toBe(false);
+      await s.db.admin.query(
+        `UPDATE cuspatlas.agent_budget_usage u
+           SET period_started_at = now() - make_interval(secs => c.period_seconds) + make_interval(secs => $2::float8 / 1000)
+         FROM cuspatlas.agent_consents c WHERE c.id = u.consent_ref AND c.agent_ref = $1`,
+        [a.agentRef, endsInMs],
+      );
+      vi.useFakeTimers({ toFake: ['Date'], now: Date.now() + skewMs });
+      try {
+        const usage = await s.call(
+          'humanAll',
+          'GET',
+          `/v1/agents/budgets?agentRef=${a.agentRef}&deployment=${MCP_AUDIENCE}`,
+        );
+        expect(usage.status).toBe(200);
+        expect((usage.body.data as { calls: number }).calls).toBe(live ? 1 : 0);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  }
 });

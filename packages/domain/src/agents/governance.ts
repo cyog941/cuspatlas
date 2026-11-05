@@ -391,9 +391,12 @@ export function createAgentGovernance(base: AgentBase) {
                 calls: number | null;
                 records: number | null;
                 phi: number | null;
+                live: boolean | null;
               }
             >(
-              `SELECT c.*, u.period_started_at, u.calls, u.records, u.phi_fields AS phi
+              // The period is live by the same now() the meter resets it with (clock audit).
+              `SELECT c.*, u.period_started_at, u.calls, u.records, u.phi_fields AS phi,
+                 u.period_started_at + make_interval(secs => c.period_seconds) > now() AS live
                FROM cuspatlas.agent_consents c LEFT JOIN cuspatlas.agent_budget_usage u ON u.consent_ref = c.id
                WHERE c.agent_ref = $1 AND c.deployment = $2 AND c.state = 'active' AND c.expires_at > now()
                ORDER BY c.granted_at DESC LIMIT 1`,
@@ -401,9 +404,7 @@ export function createAgentGovernance(base: AgentBase) {
             )
           ).rows[0];
           if (!c) throw notFound();
-          const live =
-            c.period_started_at !== null &&
-            c.period_started_at.getTime() + c.period_seconds * 1000 > Date.now();
+          const live = c.period_started_at !== null && c.live === true;
           return {
             consentRef: c.id,
             periodStartedAt: live ? (c.period_started_at as Date).toISOString() : null,

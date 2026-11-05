@@ -63,7 +63,7 @@ export interface OutboundSenderDeps {
   readonly port: MessagingPort;
   /** S4 match-key pepper: send-time contact verification compares keyed digests, never plain hashes. */
   readonly matchKeyPepper: Uint8Array;
-  /** The instant E6 evaluates quiet hours for (default: now). */
+  /** The instant E6 evaluates quiet hours for (tests only; default: the database clock at send). */
   readonly clock?: () => Date;
   readonly log?: (line: SenderLogLine) => void;
   readonly backoffSeconds?: (attempt: number) => number;
@@ -97,7 +97,6 @@ export function createOutboundSender(deps: OutboundSenderDeps) {
   }
   const delay = deps.backoffSeconds ?? ((attempt: number) => backoffSeconds(attempt));
   const log = deps.log ?? (() => undefined);
-  const clock = deps.clock ?? (() => new Date());
 
   const ctxFor = (tenantId: string): ActorContext => ({
     tenantId,
@@ -190,7 +189,13 @@ export function createOutboundSender(deps: OutboundSenderDeps) {
         let prepared: Awaited<ReturnType<typeof prepareSend>>;
         try {
           prepared = await run((tx) =>
-            prepareSend(tx, m, clock(), sendTimeout, createContactDigester(deps.matchKeyPepper, m.tenantId)),
+            prepareSend(
+              tx,
+              m,
+              deps.clock?.() ?? null,
+              sendTimeout,
+              createContactDigester(deps.matchKeyPepper, m.tenantId),
+            ),
           );
         } catch (err) {
           if (isRefusalError(err) && err.code === 'forbidden') throw err;

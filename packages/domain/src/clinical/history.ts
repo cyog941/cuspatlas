@@ -32,6 +32,7 @@ import {
   validateHistoryReviewAttest,
   validateHistoryVerify,
 } from '@cuspatlas/contracts';
+import { databaseNow } from '../clock';
 import { recordCommand } from '../events/record-command';
 import { recordSensitiveRead } from '../events/record-sensitive-read';
 import { authorOf, resolveClinicalAuthor } from './authorship';
@@ -856,8 +857,10 @@ export function createHistoryOperations(base: ClinicalBase) {
         await base.authorize(ctx, op);
         assertValid<{ asOf?: string }>(validateHistoryReadQuery, query, CLINICAL_PROPERTIES);
         const asOf = query.asOf === undefined ? null : new Date(query.asOf);
-        if (asOf !== null && asOf.getTime() > Date.now()) throw failedAt('/asOf', 'inTheFuture');
         return deps.withTenantTransaction(ctx, async (tx) => {
+          // "Now" is the database clock that stamps recorded_at (clock audit, as the chart read).
+          const now = await databaseNow(tx);
+          if (asOf !== null && asOf.getTime() > now.getTime()) throw failedAt('/asOf', 'inTheFuture');
           const patient = await readable(tx, patientRef);
           const streams = await patientStreams(tx, patient.id);
           const items = await itemsAsOf(tx, patient.id, asOf);
@@ -875,7 +878,7 @@ export function createHistoryOperations(base: ClinicalBase) {
           });
           return {
             patientRef: patient.id,
-            asOf: (asOf ?? new Date()).toISOString(),
+            asOf: (asOf ?? (await databaseNow(tx))).toISOString(),
             recorded: heads.length > 0,
             streams: streams.map((s) => ({
               streamRef: s.id,

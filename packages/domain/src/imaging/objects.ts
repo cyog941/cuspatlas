@@ -333,7 +333,9 @@ export function createObjectOperations(
           const parsed = verifyGrantToken(secret, binding, token);
           const tokenDenied = () =>
             new RefusalError({ code: 'forbidden', reasonCode: 'object_token_invalid' });
-          if (!parsed || parsed.expiresEpochSeconds * 1000 <= Date.now()) throw tokenDenied();
+          // Expiry is decided by the grant row at the database clock (expires_at > now()), not by the
+          // application clock against the token's copy of it (clock audit).
+          if (!parsed) throw tokenDenied();
           const grant = await tx.query(
             `SELECT 1 FROM cuspatlas.imaging_read_grants WHERE id = $1 AND object_id = $2
                AND principal_id = cuspatlas.current_actor_id() AND revoked_at IS NULL AND expires_at > now()

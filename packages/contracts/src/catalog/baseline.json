@@ -9191,6 +9191,48 @@
       }
     },
     {
+      "operation": "messaging.replyPolicy.set",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "admin.configure",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/messaging/reply-policies"
+      },
+      "mcpTool": "messaging_reply_policy_set",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "queue": {
+            "enum": [
+              "\"billing\"",
+              "\"clinical_team\"",
+              "\"front_desk\""
+            ]
+          },
+          "replyDueBusinessDays": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 30,
+            "minimum": 1
+          }
+        },
+        "closed": true,
+        "required": [
+          "queue",
+          "replyDueBusinessDays"
+        ]
+      }
+    },
+    {
       "operation": "messaging.retention.evaluate",
       "transports": [
         "rest",
@@ -9343,6 +9385,23 @@
           "hold"
         ]
       }
+    },
+    {
+      "operation": "messaging.threads.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "messaging.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/messaging/threads"
+      },
+      "mcpTool": "messaging_threads_list"
     },
     {
       "operation": "messaging.threads.open",

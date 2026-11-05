@@ -9,7 +9,7 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-355 operations.
+357 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
@@ -17,7 +17,7 @@ transport tables and are declarations, not independent proof.
 | S | 79 | 77 | 77 | 0 | 0 | 0 |
 | C | 88 | 87 | 87 | 0 | 0 | 0 |
 | B | 64 | 64 | 64 | 0 | 0 | 0 |
-| E | 58 | 46 | 46 | 11 | 0 | 1 |
+| E | 60 | 48 | 48 | 11 | 0 | 1 |
 | I | 54 | 47 | 44 | 0 | 6 | 0 |
 
 | Operation | Owner | Kind | Authorization | Scope | Principals | Transports | REST | MCP tool | Idempotency | Sensitivity | Status |
@@ -225,10 +225,12 @@ transport tables and are declarations, not independent proof.
 | `intake.submissions.read` | E | query | authorize | `patients.read` | human, service | rest, mcp | GET `/v1/intake/submissions/{submissionRef}` | `intake_submissions_get` | none | phi | active |
 | `intake.submissions.submit` | E | command | authorize | `patients.write` | human | rest, mcp | POST `/v1/patients/{patientRef}/intake-submissions` | `intake_submissions_submit` | required | phi | active |
 | `messaging.messages.post` | E | command | authorize | `messaging.write` | human | rest, mcp | POST `/v1/messaging/threads/{threadRef}/messages` | `messaging_messages_post` | required | phi | active |
+| `messaging.replyPolicy.set` | E | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/messaging/reply-policies` | `messaging_reply_policy_set` | required | phi | active |
 | `messaging.retention.evaluate` | E | query | authorize | `messaging.read` | human, service | rest, mcp | GET `/v1/messaging/threads/{threadRef}/retention` | `messaging_retention_evaluate` | none | phi | active |
 | `messaging.threads.assign` | E | command | authorize | `messaging.write` | human | rest, mcp | POST `/v1/messaging/threads/{threadRef}/assign` | `messaging_threads_assign` | required | phi | active |
 | `messaging.threads.close` | E | command | authorize | `messaging.write` | human | rest, mcp | POST `/v1/messaging/threads/{threadRef}/close` | `messaging_threads_close` | required | phi | active |
 | `messaging.threads.hold` | E | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/messaging/threads/{threadRef}/legal-hold` | `messaging_threads_legal_hold` | required | phi | active |
+| `messaging.threads.list` | E | query | authorize | `messaging.read` | human, service | rest, mcp | GET `/v1/messaging/threads` | `messaging_threads_list` | none | phi | active |
 | `messaging.threads.open` | E | command | authorize | `messaging.write` | human | rest, mcp | POST `/v1/patients/{patientRef}/message-threads` | `messaging_threads_open` | required | phi | active |
 | `messaging.threads.read` | E | query | authorize | `messaging.read` | human | rest, mcp | GET `/v1/messaging/threads/{threadRef}` | `messaging_threads_get` | none | phi | active |
 | `messaging.threads.worklist` | E | query | authorize | `messaging.read` | human, service | rest, mcp | GET `/v1/messaging/threads/worklist` | `messaging_threads_worklist` | none | phi | active |

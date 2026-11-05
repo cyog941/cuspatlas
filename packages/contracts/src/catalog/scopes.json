@@ -39,6 +39,7 @@
         "imaging.storage.reconcile",
         "intake.forms.publish",
         "intake.forms.retire",
+        "messaging.replyPolicy.set",
         "messaging.threads.hold",
         "scheduling.export",
         "scheduling.locations.changeTimeZone",
@@ -541,6 +542,7 @@
       ],
       "operations": [
         "messaging.retention.evaluate",
+        "messaging.threads.list",
         "messaging.threads.read",
         "messaging.threads.worklist"
       ],

@@ -6810,6 +6810,41 @@
     "status": "active"
   },
   {
+    "operation": "messaging.replyPolicy.set",
+    "owner": "E",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "messaging.replyPolicy.set",
+    "scope": "admin.configure",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/messaging/reply-policies",
+      "requestSchema": "engagement:ReplyPolicySet",
+      "successStatus": "200",
+      "successSchema": "engagement:EngagementCommandResult"
+    },
+    "mcpTool": "messaging_reply_policy_set",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
     "operation": "messaging.retention.evaluate",
     "owner": "E",
     "kind": "query",
@@ -6943,6 +6978,38 @@
       "503"
     ],
     "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "messaging.threads.list",
+    "owner": "E",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "messaging.threads.list",
+    "scope": "messaging.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/messaging/threads",
+      "successStatus": "200",
+      "successSchema": "engagement:ThreadList"
+    },
+    "mcpTool": "messaging_threads_list",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "503"
+    ],
+    "idempotency": "none",
     "sensitivity": "phi",
     "status": "active"
   },

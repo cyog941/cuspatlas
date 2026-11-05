@@ -573,6 +573,33 @@ export const COMMANDS: HarnessCommand[] = [
     mcpArgs: () => ({}),
   },
   {
+    operation: 'messaging.threads.list',
+    tool: 'messaging_threads_list',
+    crossTenant: 'tenant_own_data',
+    downgradedTo: 'readOnly',
+    rest: () => ({
+      method: 'GET',
+      url: '/v1/messaging/threads?filter=needs_reply',
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: () => ({ filter: 'needs_reply' }),
+  },
+  {
+    operation: 'messaging.replyPolicy.set',
+    tool: 'messaging_reply_policy_set',
+    crossTenant: 'own_tenant_only',
+    downgradedTo: 'readOnly',
+    rest: () => ({
+      method: 'POST',
+      url: '/v1/messaging/reply-policies',
+      body: { queue: 'clinical_team', replyDueBusinessDays: 2 },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: () => ({ queue: 'clinical_team', replyDueBusinessDays: 2, idempotencyKey: randomUUID() }),
+  },
+  {
     operation: 'messaging.threads.read',
     tool: 'messaging_threads_get',
     crossTenant: 'not_found',

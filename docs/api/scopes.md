@@ -19,7 +19,7 @@ human decision (A-D2). No default role grant is asserted here.
 
 | Scope | Principal kinds | Human only | Owners | Highest sensitivity | Operations |
 |---|---|---|---|---|---|
-| `admin.configure` | human, service | no | B, C, E, I, S | phiBulk | 33 |
+| `admin.configure` | human, service | no | B, C, E, I, S | phiBulk | 34 |
 | `billing.correct` | human | yes | B | phi | 12 |
 | `billing.write` | human, service | no | B | phi | 30 |
 | `clinical.oversight` | human | yes | C | phi | 1 |
@@ -38,7 +38,7 @@ human decision (A-D2). No default role grant is asserted here.
 | `imaging.read` | human, service | no | I | phi | 20 |
 | `imaging.write` | human, service | no | I | phi | 13 |
 | `ledger.read` | human, service | no | B | phi | 5 |
-| `messaging.read` | human, service | no | E | phi | 3 |
+| `messaging.read` | human, service | no | E | phi | 4 |
 | `messaging.write` | human | yes | E | phi | 4 |
 | `openClaims.read` | human, service | no | B | phi | 3 |
 | `outbox.deliver` | service | no | F | operational | 1 |

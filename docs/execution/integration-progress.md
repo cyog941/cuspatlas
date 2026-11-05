@@ -140,3 +140,7 @@ Only this ledger conflicted; both sides kept (sections 8.4, 8.5). The worker alr
 ### 9.2 a-api-1 (A4 catalog, A5 change control, A7 forbidden matrix)
 
 No textual conflicts. `catalog:generate` against a-api-1's baseline refused three CL-04 input patterns (`rcm.appeals.draft`, `rcm.claims.attach`, `rcm.claims.packageAttachments`) as "pattern changed": section 8.2 widened `^syn-(img|obj)-…$` to `^(syn-(img|obj)-…|<uuid>)$`. That is a pure widening, so the A5 classifier (`packages/contracts/src/catalog/change-control.ts`, `patternWidens`) now treats a change as additive only when every alternative of the fully anchored old pattern is a top-level alternative of a fully anchored new one (one group spanning the body, `(…)` or `(?:…)`); anything else stays breaking. Test added to `tests/integration/api-change-control.test.ts` (widening additive; dropped alternative, unanchored alternation, non-spanning group and dropped end anchor breaking). Catalog regenerated: 355 operations; client regenerated. Tests: the six api-* suites plus billing-adapter-config, claim attachments, estimate pricing, worker-main (68 passed).
+
+### 9.3 or-engagement (E10 needs-reply queue)
+
+No conflicts. Brings `packages/contracts/src/list-envelope.ts` (OR-01 `ListEnvelope`) and migration `20261127100000_needs_reply_queue.sql`. Catalog regenerated: 357 operations. Tests: needs-reply-queue, engagement-negative-harness, tenant-isolation, api-catalog/mcp-parity/forbidden/scopes/change-control, reply-due (231 passed).

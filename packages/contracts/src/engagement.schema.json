@@ -859,6 +859,176 @@
         }
       }
     },
+    "ListScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "description": "OR-01 scope: tenant-wide, the caller's assigned locations, or an explicit location set.",
+      "properties": {
+        "kind": {
+          "enum": ["tenant_wide", "assigned_locations", "location_set"]
+        },
+        "locationRefs": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]{1,64}$"
+          }
+        }
+      }
+    },
+    "ListOrdering": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "direction", "tieBreak"],
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[A-Za-z]{1,64}$"
+        },
+        "direction": {
+          "enum": ["asc", "desc"]
+        },
+        "tieBreak": {
+          "type": "string",
+          "pattern": "^[A-Za-z]{1,64}$"
+        }
+      }
+    },
+    "ListCount": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["exact"],
+          "properties": {
+            "exact": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["atLeast"],
+          "properties": {
+            "atLeast": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      ]
+    },
+    "ThreadListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "E10 / OR-08 thread list: filter all|unread|needs_reply (default all), optional queue and assignee, a page size (default 50, at most 100) and an opaque cursor.",
+      "properties": {
+        "filter": {
+          "enum": ["all", "unread", "needs_reply"]
+        },
+        "queue": {
+          "enum": ["front_desk", "billing", "clinical_team"]
+        },
+        "assigneeRef": {
+          "$ref": "#/$defs/EntityRef"
+        },
+        "limit": {
+          "type": "string",
+          "pattern": "^([1-9]|[1-9][0-9]|100)$"
+        },
+        "cursor": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+        }
+      }
+    },
+    "ThreadList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "description": "OR-01 list envelope (asOf, appliedFilters, scope, limit, truncated, nextCursor, ordering, count) plus the page items, counts per filter and the reply-due policy in force. Never a message body.",
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "asOf",
+            "appliedFilters",
+            "scope",
+            "limit",
+            "truncated",
+            "nextCursor",
+            "ordering",
+            "count",
+            "counts",
+            "policies",
+            "items"
+          ],
+          "properties": {
+            "asOf": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "appliedFilters": {
+              "type": "object"
+            },
+            "scope": {
+              "$ref": "#/$defs/ListScope"
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "truncated": {
+              "type": "boolean"
+            },
+            "nextCursor": {
+              "type": ["string", "null"]
+            },
+            "ordering": {
+              "$ref": "#/$defs/ListOrdering"
+            },
+            "count": {
+              "$ref": "#/$defs/ListCount"
+            },
+            "counts": {
+              "type": "object"
+            },
+            "policies": {
+              "type": "object"
+            },
+            "items": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "ReplyPolicySet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["queue", "replyDueBusinessDays"],
+      "description": "E10 / OR-D4: the reply-due time of a staff queue, in business days (Monday to Friday in the thread location zone).",
+      "properties": {
+        "queue": {
+          "enum": ["front_desk", "billing", "clinical_team"]
+        },
+        "replyDueBusinessDays": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30
+        }
+      }
+    },
     "ThreadAssign": {
       "type": "object",
       "additionalProperties": false,

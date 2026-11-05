@@ -3363,6 +3363,23 @@ export type EngagementIntakeReviewResolve = {
 
 export type EngagementIntentPurpose = "reminder" | "cancellation" | "waitlist_offer" | "recall" | "message_notice";
 
+export type EngagementListCount = ({
+  readonly "exact": number;
+}) | ({
+  readonly "atLeast": number;
+});
+
+export type EngagementListOrdering = {
+  readonly "key": string;
+  readonly "direction": "asc" | "desc";
+  readonly "tieBreak": string;
+};
+
+export type EngagementListScope = {
+  readonly "kind": "tenant_wide" | "assigned_locations" | "location_set";
+  readonly "locationRefs"?: readonly (string)[];
+};
+
 export type EngagementLocalTime = string;
 
 export type EngagementMessageAttachment = {
@@ -3437,6 +3454,11 @@ export type EngagementReceiptInput = {
   readonly "deliveryKey"?: string;
 };
 
+export type EngagementReplyPolicySet = {
+  readonly "queue": "front_desk" | "billing" | "clinical_team";
+  readonly "replyDueBusinessDays": number;
+};
+
 export type EngagementSyntheticPhoneNumber = string;
 
 export type EngagementTelephonyConfigDefine = {
@@ -3484,6 +3506,22 @@ export type EngagementThreadLegalHold = {
   readonly "expectedVersion": EngagementVersion;
   readonly "hold": boolean;
   readonly "reasonCode"?: string;
+};
+
+export type EngagementThreadList = {
+  readonly "data": {
+    readonly "asOf": string;
+    readonly "appliedFilters": { readonly [k: string]: unknown };
+    readonly "scope": EngagementListScope;
+    readonly "limit": number;
+    readonly "truncated": boolean;
+    readonly "nextCursor": string | null;
+    readonly "ordering": EngagementListOrdering;
+    readonly "count": EngagementListCount;
+    readonly "counts": { readonly [k: string]: unknown };
+    readonly "policies": { readonly [k: string]: unknown };
+    readonly "items": readonly ({ readonly [k: string]: unknown })[];
+  };
 };
 
 export type EngagementThreadOpen = {
@@ -7996,6 +8034,15 @@ export interface Operations {
     successStatus: 201;
     idempotent: true;
   };
+  "messaging.replyPolicy.set": {
+    method: "POST";
+    path: "/v1/messaging/reply-policies";
+    params: {  };
+    body: EngagementReplyPolicySet;
+    result: EngagementEngagementCommandResult;
+    successStatus: 200;
+    idempotent: true;
+  };
   "messaging.retention.evaluate": {
     method: "GET";
     path: "/v1/messaging/threads/{threadRef}/retention";
@@ -8031,6 +8078,15 @@ export interface Operations {
     result: EngagementEngagementCommandResult;
     successStatus: 200;
     idempotent: true;
+  };
+  "messaging.threads.list": {
+    method: "GET";
+    path: "/v1/messaging/threads";
+    params: {  };
+    body: undefined;
+    result: EngagementThreadList;
+    successStatus: 200;
+    idempotent: false;
   };
   "messaging.threads.open": {
     method: "POST";
@@ -9543,10 +9599,12 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "intake.submissions.read": { method: "GET", path: "/v1/intake/submissions/{submissionRef}", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "intake.submissions.submit": { method: "POST", path: "/v1/patients/{patientRef}/intake-submissions", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "messaging.messages.post": { method: "POST", path: "/v1/messaging/threads/{threadRef}/messages", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "messaging.replyPolicy.set": { method: "POST", path: "/v1/messaging/reply-policies", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "messaging.retention.evaluate": { method: "GET", path: "/v1/messaging/threads/{threadRef}/retention", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "messaging.threads.assign": { method: "POST", path: "/v1/messaging/threads/{threadRef}/assign", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "messaging.threads.close": { method: "POST", path: "/v1/messaging/threads/{threadRef}/close", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "messaging.threads.hold": { method: "POST", path: "/v1/messaging/threads/{threadRef}/legal-hold", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "messaging.threads.list": { method: "GET", path: "/v1/messaging/threads", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "messaging.threads.open": { method: "POST", path: "/v1/patients/{patientRef}/message-threads", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "messaging.threads.read": { method: "GET", path: "/v1/messaging/threads/{threadRef}", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "messaging.threads.worklist": { method: "GET", path: "/v1/messaging/threads/worklist", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },

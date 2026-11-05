@@ -7158,6 +7158,89 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/messaging/threads:
+    get:
+      operationId: messaging.threads.list
+      description: >-
+        Secure-message threads filtered all, unread (per staff reader) or needs_reply (open and awaiting the
+        practice), with counts per filter, the reply-due time and overdue escalation of each needs-reply
+        item, queue and assignee filters, and the shared list envelope. Never returns a message body.
+      parameters:
+        - name: filter
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/ThreadListQuery/properties/filter'
+        - name: queue
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/ThreadListQuery/properties/queue'
+        - name: assigneeRef
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/ThreadListQuery/properties/assigneeRef'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/ThreadListQuery/properties/limit'
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/ThreadListQuery/properties/cursor'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/ThreadList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/messaging/reply-policies:
+    post:
+      operationId: messaging.replyPolicy.set
+      description: >-
+        Set the reply-due time, in business days (Monday to Friday in the thread location zone), of one staff
+        queue. Default is one business day. Administration; human staff only.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/ReplyPolicySet'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   /v1/messaging/threads/worklist:
     get:
       operationId: messaging.threads.worklist

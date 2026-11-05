@@ -34,7 +34,7 @@ export const MIGRATION_TOOLS: readonly ToolDefinition[] = MIGRATION_OPS.map((op)
         key: typeof args.idempotencyKey === 'string' ? args.idempotencyKey : '',
       };
       if (chunked && args.chunkOffset !== undefined)
-        return readChunk(() => chunked(deps.migration, actor, input, { ranged: true }), args);
+        return readChunk((range) => chunked(deps.migration, actor, input, { ranged: true, range }), args);
       return op.invoke(deps.migration, actor, input);
     },
   };

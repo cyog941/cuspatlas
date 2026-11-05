@@ -1,5 +1,17 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { copyFile, mkdir, readdir, readFile, rename, rm, stat, utimes, writeFile } from 'node:fs/promises';
+import {
+  copyFile,
+  type FileHandle,
+  mkdir,
+  open,
+  readdir,
+  readFile,
+  rename,
+  rm,
+  stat,
+  utimes,
+  writeFile,
+} from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { ObjectStoreError, type ObjectStorePort } from '@cuspatlas/contracts';
 
@@ -17,6 +29,39 @@ export interface LocalObjectStoreOptions {
   readonly root: string;
   /** Runtime environment; `production` is refused. */
   readonly env: string;
+  /**
+   * Closeout C review: how long a ranged read may reuse the digest verification of an unchanged
+   * stored file (milliseconds, default 60 s; 0 verifies on every read).
+   */
+  readonly verificationTtlMs?: number;
+  /** Test instrumentation: bytes read from disk by ranged reads (whole-file verification or range). */
+  readonly onRead?: (kind: 'verify' | 'range', bytes: number) => void;
+}
+
+/** Verifications kept for reuse by ranged reads (the oldest is dropped when full). */
+const MAX_CACHED_VERIFICATIONS = 256;
+/** Ranged reads in flight at once (each holds at most its range plus one 64 KiB hashing buffer). */
+const MAX_CONCURRENT_RANGE_READS = 8;
+const HASH_SLICE_BYTES = 64 * 1024;
+
+/** The identity of a stored file's current content: any write, replacement or touch changes it. */
+const fingerprintOf = (s: import('node:fs').BigIntStats) =>
+  `${s.dev}:${s.ino}:${s.size}:${s.mtimeNs}:${s.ctimeNs}`;
+
+/** A small counting semaphore bounding concurrent ranged reads (and so their memory). */
+function semaphore(max: number) {
+  let active = 0;
+  const waiting: (() => void)[] = [];
+  return async <T>(work: () => Promise<T>): Promise<T> => {
+    if (active >= max) await new Promise<void>((r) => waiting.push(r));
+    active += 1;
+    try {
+      return await work();
+    } finally {
+      active -= 1;
+      waiting.shift()?.();
+    }
+  };
 }
 
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
@@ -96,6 +141,29 @@ export function createLocalObjectStore(options: LocalObjectStoreOptions): Object
       if ((err as { code?: unknown }).code === 'ENOENT') return false;
       throw new ObjectStoreError('unavailable');
     }
+  }
+
+  // Closeout C review: verifications reused by ranged reads, keyed by tenant and key (the key names the
+  // digest), valid while the file's fingerprint is unchanged and for at most the TTL.
+  const verificationTtlMs = Math.max(0, options.verificationTtlMs ?? 60_000);
+  const verified = new Map<string, { fingerprint: string; at: number }>();
+  const limitRangeReads = semaphore(MAX_CONCURRENT_RANGE_READS);
+  const observe = options.onRead ?? (() => undefined);
+
+  /** Hashes an open file in bounded slices (never the whole file in memory). */
+  async function hashOpen(fh: FileHandle, size: number): Promise<string> {
+    const h = createHash('sha256');
+    const buf = Buffer.allocUnsafe(Math.min(HASH_SLICE_BYTES, Math.max(size, 1)));
+    let at = 0;
+    while (at < size) {
+      const { bytesRead } = await fh.read(buf, 0, Math.min(buf.byteLength, size - at), at);
+      if (bytesRead === 0) break;
+      h.update(buf.subarray(0, bytesRead));
+      at += bytesRead;
+    }
+    observe('verify', at);
+    if (at !== size) throw new ObjectStoreError('digest_mismatch');
+    return h.digest('hex');
   }
 
   async function storeContent(tenantId: string, bytes: Uint8Array, digest: string) {
@@ -180,6 +248,63 @@ export function createLocalObjectStore(options: LocalObjectStoreOptions): Object
       if (expectedDigest !== digest || sha256(bytes) !== expectedDigest)
         throw new ObjectStoreError('digest_mismatch');
       return new Uint8Array(bytes);
+    },
+    async readRange(tenantId, storageKey, expectedDigest, select) {
+      const digest = checkContent(tenantId, storageKey);
+      if (expectedDigest !== digest) throw new ObjectStoreError('digest_mismatch');
+      const cacheKey = `${tenantId}/${storageKey}`;
+      return limitRangeReads(async () => {
+        const fh = await open(pathOf(storageKey), 'r').catch(fsFailure);
+        try {
+          const st = await fh.stat({ bigint: true }).catch(fsFailure);
+          const fingerprint = fingerprintOf(st);
+          const size = Number(st.size);
+          const hit = verified.get(cacheKey);
+          if (!hit || hit.fingerprint !== fingerprint || Date.now() - hit.at >= verificationTtlMs) {
+            verified.delete(cacheKey);
+            if ((await hashOpen(fh, size)) !== expectedDigest) throw new ObjectStoreError('digest_mismatch');
+            if (verificationTtlMs > 0) {
+              if (verified.size >= MAX_CACHED_VERIFICATIONS) {
+                const oldest = verified.keys().next().value;
+                if (oldest !== undefined) verified.delete(oldest);
+              }
+              verified.set(cacheKey, { fingerprint, at: Date.now() });
+            }
+          }
+          const sel = select(size);
+          let bytes = new Uint8Array(0);
+          if (sel) {
+            const { start, end } = sel;
+            if (
+              !Number.isSafeInteger(start) ||
+              !Number.isSafeInteger(end) ||
+              start < 0 ||
+              end < start ||
+              end > size
+            )
+              throw new RangeError('range outside the stored object');
+            const buf = Buffer.alloc(end - start);
+            let at = 0;
+            while (at < buf.byteLength) {
+              const { bytesRead } = await fh.read(buf, at, buf.byteLength - at, start + at);
+              if (bytesRead === 0) break;
+              at += bytesRead;
+            }
+            observe('range', at);
+            if (at !== buf.byteLength) throw new ObjectStoreError('digest_mismatch');
+            bytes = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+          }
+          // The file must not have changed while it was verified or read.
+          const after = await fh.stat({ bigint: true }).catch(fsFailure);
+          if (fingerprintOf(after) !== fingerprint) {
+            verified.delete(cacheKey);
+            throw new ObjectStoreError('digest_mismatch');
+          }
+          return { bytes, start: sel?.start ?? 0, totalLength: size };
+        } finally {
+          await fh.close().catch(() => undefined);
+        }
+      });
     },
     async head(tenantId, storageKey) {
       checkContent(tenantId, storageKey);

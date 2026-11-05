@@ -1,5 +1,5 @@
 import { RefusalError } from '@cuspatlas/contracts';
-import type { PackageBytes } from '@cuspatlas/domain';
+import type { PackageBytes, PackageRangeSelect } from '@cuspatlas/domain';
 import type { Args } from './synthetic-tasks';
 
 /**
@@ -10,6 +10,9 @@ import type { Args } from './synthetic-tasks';
  * chunk repeats the whole policy layer (authorization, envelope, live grant bound to the caller and
  * export, module re-authorization, requester or administrator, a `range` sensitive-read record) and
  * re-verifies the stored bytes against the recorded digest before any byte or size is returned.
+ * Closeout C review: the domain reads only the chunk's range; the store reuses a recent digest
+ * verification of the unchanged file (bounded in time, re-verified on any change), so a chunk costs
+ * its own bytes, not the whole package.
  */
 export const MAX_MCP_CHUNK_BYTES = 1024 * 1024;
 
@@ -36,18 +39,23 @@ export const CHUNK_DESCRIPTION =
 
 /** One chunk of a verified package (the read has run every policy check and the digest check). */
 export async function readChunk(
-  read: () => Promise<{ data: PackageBytes }>,
+  read: (range: PackageRangeSelect) => Promise<{ data: PackageBytes }>,
   args: Args,
 ): Promise<{ data: Record<string, unknown> }> {
   const offset = args.chunkOffset as number;
   const max = typeof args.chunkBytes === 'number' ? args.chunkBytes : MAX_MCP_CHUNK_BYTES;
-  const { data } = await read();
+  const width = Math.min(max, MAX_MCP_CHUNK_BYTES);
+  const { data } = await read((total) =>
+    offset >= total ? null : { start: offset, end: Math.min(offset + width, total) },
+  );
   const total = data.byteLength;
   if (offset >= total) {
     throw new RefusalError({ code: 'invalid_request', detail: { reason: 'range_not_satisfiable' } });
   }
-  const end = Math.min(offset + Math.min(max, MAX_MCP_CHUNK_BYTES), total);
-  const bytes = Buffer.from(data.bytes.buffer, data.bytes.byteOffset, data.bytes.byteLength);
+  const end = Math.min(offset + width, total);
+  const all = Buffer.from(data.bytes.buffer, data.bytes.byteOffset, data.bytes.byteLength);
+  const base = data.offset ?? 0;
+  const bytes = { subarray: (a: number, b: number) => all.subarray(a - base, b - base) };
   return {
     data: {
       offset,

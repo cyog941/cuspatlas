@@ -587,7 +587,7 @@ export function registerMigrationOpRoutes(
           return sendPackageBytes(
             request,
             reply,
-            (ranged) => bytes(deps.migration, actor, input(request), { ranged }),
+            (r) => bytes(deps.migration, actor, input(request), r),
             deps.downloadChunkBytes ?? DEFAULT_DOWNLOAD_CHUNK_BYTES,
           );
         }

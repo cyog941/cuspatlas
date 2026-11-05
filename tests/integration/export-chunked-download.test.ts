@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import type { ObjectStorePort } from '@cuspatlas/contracts';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { seedBillingScopes } from './support/billing-fixtures';
 import { seedClinicalScopes } from './support/clinical-fixtures';
@@ -426,6 +427,30 @@ describe.each([practice, automation])('Closeout C MCP chunked download: $name', 
       [t.name, ref.exportRef],
     );
     expect(reads.rows[0]?.n).toBeGreaterThanOrEqual(2 * parts.length);
+  });
+
+  it('a chunk (MCP or REST range) reads only its range from the store, never the whole package', async () => {
+    const { token } = await t.grant(ref.exportRef);
+    const body = { exportRef: ref.exportRef, token };
+    const store = s.store as ObjectStorePort;
+    const original = { read: store.read, readRange: store.readRange };
+    const calls = { read: 0, readRange: 0 };
+    store.read = (...a) => {
+      calls.read += 1;
+      return original.read.apply(store, a);
+    };
+    store.readRange = (...a) => {
+      calls.readRange += 1;
+      return (original.readRange as NonNullable<ObjectStorePort['readRange']>).apply(store, a);
+    };
+    try {
+      for (const at of [0, CHUNK, 2 * CHUNK]) expect((await mcpChunk(t, body, at)).isError).toBe(false);
+      expect((await fetchBytes(t, body, { range: 'bytes=0-99' })).status).toBe(206);
+    } finally {
+      store.read = original.read;
+      store.readRange = original.readRange;
+    }
+    expect(calls).toStrictEqual({ read: 0, readRange: 4 });
   });
 
   it('caps a chunk at 1 MiB and refuses an offset at or past the end', async () => {

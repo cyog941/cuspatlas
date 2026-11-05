@@ -36,7 +36,7 @@ export const AUTOMATION_TOOLS: readonly ToolDefinition[] = AUTOMATION_OPS.map((o
         key: typeof args.idempotencyKey === 'string' ? args.idempotencyKey : '',
       };
       if (chunked && args.chunkOffset !== undefined)
-        return readChunk(() => chunked(deps.automation, actor, input, { ranged: true }), args);
+        return readChunk((range) => chunked(deps.automation, actor, input, { ranged: true, range }), args);
       return op.invoke(deps.automation, actor, input);
     },
   };

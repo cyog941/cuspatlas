@@ -285,7 +285,7 @@ export function registerAutomationOpRoutes(
           return sendPackageBytes(
             request,
             reply,
-            (ranged) => bytes(deps.automation, actor, input(request), { ranged }),
+            (r) => bytes(deps.automation, actor, input(request), r),
             deps.downloadChunkBytes ?? DEFAULT_DOWNLOAD_CHUNK_BYTES,
           );
         }

@@ -131,6 +131,20 @@ export interface ObjectStorePort {
   discardStaged(tenantId: string, stagingKey: string): Promise<void>;
   /** Reads stored bytes and verifies them against the registered digest on every read. */
   read(tenantId: string, storageKey: string, expectedDigest: string): Promise<Uint8Array>;
+  /**
+   * Closeout C review: a byte range of stored bytes (export package chunks). The whole object is
+   * verified against `expectedDigest` before any byte or size is returned (`digest_mismatch`
+   * otherwise); then `select(totalLength)` names the range `[start, end)` to read (null: none), and
+   * only that range is read. An implementation may reuse a recent verification of the same unchanged
+   * object for a bounded time (any change of its size, times or identity re-verifies). Optional: a
+   * store without it is read whole and sliced by the caller.
+   */
+  readRange?(
+    tenantId: string,
+    storageKey: string,
+    expectedDigest: string,
+    select: (totalLength: number) => { readonly start: number; readonly end: number } | null,
+  ): Promise<{ bytes: Uint8Array; start: number; totalLength: number }>;
   /** Byte length of stored bytes, or null when absent. */
   head(tenantId: string, storageKey: string): Promise<{ byteLength: number } | null>;
   /** Writes content-addressed bytes produced by the server itself (derived images). */

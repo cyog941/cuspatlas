@@ -120,6 +120,7 @@ describe('I1 object store adapter', () => {
           'quarantineStaged',
           'quarantineStored',
           'read',
+          'readRange',
           'readStaged',
           'remove',
           'stage',

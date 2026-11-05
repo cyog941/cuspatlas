@@ -29,6 +29,7 @@ import {
   PRACTICE_EXPORT_DOCUMENTS,
   type PracticeExporters,
   readVerifiedPackage,
+  readVerifiedPackageBytes,
 } from '../migration/practice-export';
 import {
   type AutomationBase,
@@ -1248,11 +1249,18 @@ export function createExportOperations(base: AutomationBase, ex: ExportDeps | un
           return ex.practice.downloadBytes(
             ctx,
             envOf('practice.export.download', { exportRef: row.practice_export_id, token: g.data.token }),
-            { ranged },
+            request.range ? { ranged, range: request.range } : { ranged },
           );
         }
-        const bytes = await storedBytes(ctx, row);
-        return { data: { bytes, digestSha256: row.package_digest as string, byteLength: bytes.byteLength } };
+        return {
+          data: await readVerifiedPackageBytes(
+            need().objectStore,
+            ctx.tenantId,
+            row.storage_key as string,
+            row.package_digest as string,
+            request.range,
+          ),
+        };
       });
     },
   };

@@ -57,13 +57,26 @@ export interface PracticeExporters {
  * time, for byte (streamed or HTTP Range) delivery. REST slices them; the digest is the package digest.
  */
 export interface PackageBytes {
+  /** The whole package, or (when `offset` is set) only the selected range starting at `offset`. */
   readonly bytes: Uint8Array;
   readonly digestSha256: string;
+  /** The whole package's length (never the length of a range). */
   readonly byteLength: number;
+  /** Closeout C review: set when only a range was read (a `range` selection was given). */
+  readonly offset?: number;
 }
+/** A selection of `[start, end)` within the package of `totalLength` bytes, or null for none. */
+export type PackageRangeSelect = (
+  totalLength: number,
+) => { readonly start: number; readonly end: number } | null;
 /** A8: how a byte delivery was asked for (a ranged read is audited with the `range` marker). */
 export interface PackageBytesRequest {
   readonly ranged?: boolean;
+  /**
+   * Closeout C review: read only this range of the verified package (REST Range, MCP chunk), not the
+   * whole package. The bytes are still verified against the recorded digest before any is returned.
+   */
+  readonly range?: PackageRangeSelect;
 }
 
 /** A8: stored bytes that no longer match the recorded digest (or are gone) are never served. */
@@ -75,6 +88,42 @@ export async function readVerifiedPackage(
 ): Promise<Uint8Array> {
   try {
     return await store.read(tenantId, storageKey, digest);
+  } catch (err) {
+    if (isObjectStoreError(err) && (err.code === 'digest_mismatch' || err.code === 'missing'))
+      throw conflict('package_integrity_failed');
+    throw err;
+  }
+}
+
+/**
+ * Closeout C review: the verified package as delivered: the whole package, or only the selected range
+ * (through the store's ranged read when it has one, so a chunk never reads the whole package; a store
+ * without one is read whole and sliced). Integrity failures refuse like `readVerifiedPackage`.
+ */
+export async function readVerifiedPackageBytes(
+  store: ObjectStorePort,
+  tenantId: string,
+  storageKey: string,
+  digest: string,
+  range?: PackageRangeSelect,
+): Promise<PackageBytes> {
+  if (!range) {
+    const bytes = await readVerifiedPackage(store, tenantId, storageKey, digest);
+    return { bytes, digestSha256: digest, byteLength: bytes.byteLength };
+  }
+  if (!store.readRange) {
+    const whole = await readVerifiedPackage(store, tenantId, storageKey, digest);
+    const sel = range(whole.byteLength);
+    return {
+      bytes: sel ? whole.subarray(sel.start, sel.end) : new Uint8Array(0),
+      digestSha256: digest,
+      byteLength: whole.byteLength,
+      offset: sel?.start ?? 0,
+    };
+  }
+  try {
+    const r = await store.readRange(tenantId, storageKey, digest, range);
+    return { bytes: r.bytes, digestSha256: digest, byteLength: r.totalLength, offset: r.start };
   } catch (err) {
     if (isObjectStoreError(err) && (err.code === 'digest_mismatch' || err.code === 'missing'))
       throw conflict('package_integrity_failed');
@@ -464,10 +513,15 @@ export function createPracticeExportOperations(base: MigrationBase) {
       envelope: CommandEnvelope<unknown>,
       request: PackageBytesRequest = {},
     ): Promise<{ data: PackageBytes }> {
-      return deliver(ctx, envelope, request.ranged === true, async (row) => {
-        const bytes = await readStored(ctx, row);
-        return { bytes, digestSha256: row.package_digest, byteLength: bytes.byteLength };
-      });
+      return deliver(ctx, envelope, request.ranged === true, (row) =>
+        readVerifiedPackageBytes(
+          pe().objectStore,
+          ctx.tenantId,
+          row.storage_key,
+          row.package_digest,
+          request.range,
+        ),
+      );
     },
 
     /**

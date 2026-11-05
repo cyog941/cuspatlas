@@ -1,6 +1,6 @@
 import { Readable } from 'node:stream';
 import { RefusalError } from '@cuspatlas/contracts';
-import type { PackageBytes } from '@cuspatlas/domain';
+import type { PackageBytes, PackageBytesRequest } from '@cuspatlas/domain';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { mapErrorToRefusal } from './errors';
 
@@ -11,7 +11,8 @@ import { mapErrorToRefusal } from './errors';
  *
  * - `ETag: "sha256-<hex>"` and `Repr-Digest: sha-256=:<base64>:` both carry the package digest recorded
  *   at build time (the server re-verifies the stored bytes against it on every request, refusing with
- *   409 `package_integrity_failed` otherwise), so a client can resume and verify the completed file;
+ *   409 `package_integrity_failed` otherwise; a range read may reuse a recent verification of the
+ *   unchanged stored file, re-verifying on any change), so a client can resume and verify the file;
  * - a single `Range: bytes=a-b`, `bytes=a-` or `bytes=-n` answers 206 with `Content-Range`; a range
  *   wider than the per-chunk cap is truncated to the cap (the `Content-Range` says what was sent);
  * - multiple ranges, a start at or past the end, or `bytes=-0` answer 416 with `Content-Range: bytes
@@ -69,20 +70,44 @@ function* slices(bytes: Buffer): Generator<Buffer> {
 }
 
 /**
- * Serves the byte representation. `read(ranged)` is the domain call (policy, grant, integrity and
- * audit); nothing about the package, its size included, is sent before it returns.
+ * Serves the byte representation. `read(request)` is the domain call (policy, grant, integrity and
+ * audit); nothing about the package, its size included, is sent before it returns. A satisfiable
+ * `Range` without `If-Range` asks the domain for that range only (Closeout C review: a chunk never
+ * reads the whole package); any other request reads the whole package.
  */
 export async function sendPackageBytes(
   request: FastifyRequest,
   reply: FastifyReply,
-  read: (ranged: boolean) => Promise<{ data: PackageBytes }>,
+  read: (request: PackageBytesRequest) => Promise<{ data: PackageBytes }>,
   cap: number,
 ): Promise<FastifyReply> {
   const rangeHeader = typeof request.headers.range === 'string' ? request.headers.range : undefined;
-  const { data } = await read(rangeHeader !== undefined);
+  const ifRange = request.headers['if-range'];
+  // A syntactically ignorable Range is ignorable whatever the size, so it never selects a range.
+  const selectable =
+    rangeHeader !== undefined &&
+    typeof ifRange !== 'string' &&
+    parseByteRange(rangeHeader, Number.MAX_SAFE_INTEGER, cap).kind !== 'none';
+  let selected: ByteRange | null = null;
+  const { data } = await read(
+    selectable
+      ? {
+          ranged: true,
+          range: (total) => {
+            selected = parseByteRange(rangeHeader, total, cap);
+            return selected.kind === 'range' ? { start: selected.start, end: selected.end + 1 } : null;
+          },
+        }
+      : { ranged: rangeHeader !== undefined },
+  );
   const etag = `"sha256-${data.digestSha256}"`;
   const total = data.byteLength;
   const bytes = Buffer.from(data.bytes.buffer, data.bytes.byteOffset, data.bytes.byteLength);
+  /** Bytes `[start, end]` of the package, whether the domain returned the range or the whole. */
+  const slice = (start: number, end: number) =>
+    data.offset === undefined
+      ? bytes.subarray(start, end + 1)
+      : bytes.subarray(start - data.offset, end + 1 - data.offset);
   reply
     .header('accept-ranges', 'bytes')
     .header('etag', etag)
@@ -91,11 +116,11 @@ export async function sendPackageBytes(
     .header('content-disposition', 'attachment')
     .header('content-security-policy', "default-src 'none'; sandbox")
     .header('referrer-policy', 'no-referrer');
-  const ifRange = request.headers['if-range'];
-  const range =
-    rangeHeader === undefined || (typeof ifRange === 'string' && ifRange.trim() !== etag)
+  const range: ByteRange =
+    selected ??
+    (rangeHeader === undefined || (typeof ifRange === 'string' && ifRange.trim() !== etag)
       ? ({ kind: 'none' } as const)
-      : parseByteRange(rangeHeader, total, cap);
+      : parseByteRange(rangeHeader, total, cap));
   if (range.kind === 'unsatisfiable') {
     const { body } = mapErrorToRefusal(
       new RefusalError({ code: 'invalid_request', detail: { reason: 'range_not_satisfiable' } }),
@@ -113,7 +138,7 @@ export async function sendPackageBytes(
       .type(OCTET)
       .header('content-range', `bytes ${range.start}-${range.end}/${total}`)
       .header('content-length', String(range.end - range.start + 1))
-      .send(bytes.subarray(range.start, range.end + 1));
+      .send(slice(range.start, range.end));
   }
   return reply
     .code(200)

@@ -15,6 +15,7 @@ export {
   documentDigest,
   type PackageBytes,
   type PackageBytesRequest,
+  type PackageRangeSelect,
   PRACTICE_EXPORT_DOCUMENTS,
   type PracticeExportDeps,
   type PracticeExporters,

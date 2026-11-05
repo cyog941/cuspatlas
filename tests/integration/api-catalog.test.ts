@@ -42,6 +42,9 @@ const REVIEWED_ROUTE_SITES: Record<string, number> = {
   // A2: one loop over AGENT_OPS rows, each with onRequest authentication for its operation id.
   'apps/api/src/routes/agent-ops.ts: app.get': 1,
   'apps/api/src/routes/agent-ops.ts: app.post': 1,
+  // A batch 4: one loop over AUTOMATION_OPS rows (A14 webhooks, A15 exports).
+  'apps/api/src/routes/automation-ops.ts: app.get': 1,
+  'apps/api/src/routes/automation-ops.ts: app.post': 1,
   'apps/api/src/routes/appointments.ts: app.get': 5,
   'apps/api/src/routes/appointments.ts: app.post': 3,
   'apps/api/src/routes/billing-ops-routes.ts: app.get': 1,

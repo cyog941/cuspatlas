@@ -545,6 +545,40 @@ export const LIST_OPERATIONS: Readonly<Record<string, ListOperationSpec>> = {
     cursor: false,
     scope: 'tenant',
   },
+  // Workstream A batch 4 (A14): tenant-wide reads (location-restricted members are refused).
+  'webhooks.deliveries.failures.list': {
+    rows: 'items',
+    ordering: { key: 'createdAt', direction: 'desc', tieBreak: 'deliveryRef' },
+    limit: { default: 25, max: 100 },
+    cursor: true,
+    scope: 'tenant',
+    placement: 'existing',
+  },
+  'webhooks.deliveries.list': {
+    rows: 'items',
+    ordering: { key: 'createdAt', direction: 'desc', tieBreak: 'deliveryRef' },
+    limit: { default: 25, max: 100 },
+    cursor: true,
+    scope: 'tenant',
+    placement: 'existing',
+  },
+  // The closed event catalog, returned whole (never truncated); `eventType` is unique.
+  'webhooks.eventTypes.list': {
+    rows: 'items',
+    ordering: { key: 'eventType', direction: 'asc', tieBreak: 'eventType' },
+    limit: { default: 25, max: 100 },
+    cursor: false,
+    scope: 'tenant',
+    placement: 'existing',
+  },
+  'webhooks.subscriptions.list': {
+    rows: 'items',
+    ordering: { key: 'createdAt', direction: 'desc', tieBreak: 'subscriptionRef' },
+    limit: { default: 25, max: 100 },
+    cursor: true,
+    scope: 'tenant',
+    placement: 'existing',
+  },
 };
 
 /** Transport-only arguments that are not filters. */

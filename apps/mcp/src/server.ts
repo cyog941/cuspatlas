@@ -44,6 +44,7 @@ import {
   createAiSourceReaders,
   createAppointmentService,
   createAuthorize,
+  createAutomationService,
   createBillingEstimatePricing,
   createBillingService,
   createClinicalService,
@@ -71,8 +72,11 @@ import {
   resolveImagingTokenSecret,
   resolveMatchKeyPepper,
   resolveModelAdapter,
+  resolveWebhookPort,
+  resolveWebhookSecretKey,
   runInListScope,
   type StagingMaintenance,
+  type WebhookDeliveryPort,
 } from '@cuspatlas/domain';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -86,6 +90,7 @@ import { assertDistinctAudience, assertIdentityAllowed, createMcpAuthenticator }
 import { toolCatalogDrift } from './catalog';
 import { AGENT_TOOLS } from './tools/agent-ops';
 import { APPOINTMENT_TOOLS } from './tools/appointments';
+import { AUTOMATION_TOOLS } from './tools/automation-ops';
 import { BILLING_TOOLS } from './tools/billing';
 import { BILLING_OP_TOOLS } from './tools/billing-ops';
 import { CLINICAL_TOOLS } from './tools/clinical';
@@ -148,6 +153,14 @@ export interface McpServerDeps {
   readonly execute?: CommandExecutor;
   /** A11: model adapter; synthetic-test only (default: the synthetic adapter; null: AI disabled). */
   readonly aiModel?: ModelAdapter | null;
+  /** A14: webhook delivery port (honoured in synthetic-test only; absent: adapter_not_configured). */
+  readonly webhookPort?: WebhookDeliveryPort | null;
+  /** A14: operator allowlist of webhook endpoint hosts (A-D7); default empty. */
+  readonly webhookAllowlist?: () => readonly string[];
+  /** A14: name resolution for the endpoint guard; absent: literal checks only. */
+  readonly webhookResolveHost?: (host: string) => Promise<readonly string[]>;
+  /** A14: AES-GCM sealing key of subscription secrets (synthetic-test has a test-only default). */
+  readonly webhookSecretKey?: Uint8Array;
   readonly cursors?: CursorCodec;
   /** Proposal policy version (defaults to PROPOSAL_POLICY_VERSION); tests bump it. */
   readonly proposalPolicyVersion?: string;
@@ -210,6 +223,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   ...IMAGING_TOOLS,
   ...MIGRATION_TOOLS,
   ...AGENT_TOOLS,
+  ...AUTOMATION_TOOLS,
 ];
 
 /** Path parameters of the REST twin. A malformed one is a 404 there, decided by the domain. */
@@ -495,8 +509,22 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
       },
     },
   });
+  const automation = createAutomationService({
+    env: deps.env,
+    authorize,
+    withTenantTransaction: deps.tenantTransactions,
+    recording,
+    execute,
+    webhooks: {
+      port: resolveWebhookPort(deps.env, deps.webhookPort),
+      ...(deps.webhookAllowlist ? { allowlist: deps.webhookAllowlist } : {}),
+      ...(deps.webhookResolveHost ? { resolveHost: deps.webhookResolveHost } : {}),
+      secretKey: resolveWebhookSecretKey(deps.env, deps.webhookSecretKey),
+    },
+  });
   const toolDeps: ToolDeps = {
     agents,
+    automation,
     service,
     proposals,
     patients,

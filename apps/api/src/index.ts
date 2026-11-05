@@ -4,6 +4,7 @@ export * from './billing-openapi';
 export * from './errors';
 export * from './migration-openapi';
 export * from './routes/agent-ops';
+export * from './routes/automation-ops';
 export * from './routes/billing-ops';
 export * from './routes/engagement-ops';
 export * from './routes/imaging-ops';

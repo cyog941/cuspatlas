@@ -24505,6 +24505,322 @@
         "404",
         "503"
       ]
+    },
+    {
+      "operation": "webhooks.deliveries.dispatch",
+      "transports": [
+        "worker"
+      ],
+      "scope": "outbox.deliver",
+      "principals": [
+        "service"
+      ],
+      "idempotency": "none",
+      "refusals": []
+    },
+    {
+      "operation": "webhooks.deliveries.failures.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "webhooks.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/webhooks/deliveries/failures"
+      },
+      "mcpTool": "webhooks_deliveries_failures_list",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
+      "operation": "webhooks.deliveries.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "webhooks.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/webhooks/deliveries"
+      },
+      "mcpTool": "webhooks_deliveries_list",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
+      "operation": "webhooks.deliveries.replay",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "webhooks.manage",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/webhooks/deliveries/replay"
+      },
+      "mcpTool": "webhooks_deliveries_replay",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "deliveryRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "deliveryRef"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "webhooks.eventTypes.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "webhooks.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/webhooks/event-types"
+      },
+      "mcpTool": "webhooks_event_types_list",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
+      "operation": "webhooks.subscriptions.create",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "webhooks.manage",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/webhooks/subscriptions"
+      },
+      "mcpTool": "webhooks_subscriptions_create",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "endpointUrl": {
+            "type": [
+              "string"
+            ],
+            "maxLength": 2048,
+            "minLength": 8,
+            "pattern": "^[A-Za-z][A-Za-z0-9+.-]{0,15}://[^\\s]+$"
+          },
+          "eventTypes": {
+            "type": [
+              "array"
+            ],
+            "maxItems": 64,
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": [
+                "string"
+              ],
+              "pattern": "^[a-z][A-Za-z]{0,63}\\.[a-z][A-Za-z]{0,31}$"
+            }
+          },
+          "eventVersion": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 99,
+            "minimum": 1
+          }
+        },
+        "required": [
+          "endpointUrl",
+          "eventTypes",
+          "eventVersion"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "webhooks.subscriptions.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "webhooks.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/webhooks/subscriptions"
+      },
+      "mcpTool": "webhooks_subscriptions_list",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
+      "operation": "webhooks.subscriptions.revoke",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "webhooks.manage",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/webhooks/subscriptions/revoke"
+      },
+      "mcpTool": "webhooks_subscriptions_revoke",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "reason": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z_]{1,64}$"
+          },
+          "subscriptionRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "reason",
+          "subscriptionRef"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "webhooks.subscriptions.rotateSecret",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "webhooks.manage",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/webhooks/subscriptions/rotate-secret"
+      },
+      "mcpTool": "webhooks_subscriptions_rotate_secret",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "subscriptionRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "subscriptionRef"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
     }
   ]
 }

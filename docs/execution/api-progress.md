@@ -344,3 +344,36 @@ Workstream A batch 2 (A8-A13) on synthetic data only. Framing, recorded before a
   failed); and the S14 structural check listed `agent_consents` as a communication-consent table.
   Fixed by dropping the back-reference key (the checked functions write both rows together) and by
   excluding `agent_*` tables from the patient-consent check with the reason stated.
+
+## A batch 4
+
+### A14: webhook subscriptions with signing, retries, replay and dead-letter
+
+- Red: `tests/integration/automation-webhooks.test.ts` 13 failed (exit 1: no operations); green 13/13.
+  `tests/integration/automation-negative-harness.test.ts` covers every new operation (scope, service,
+  agent on REST and MCP).
+- Operations (8, table `apps/api/src/routes/automation-ops.ts`, schema `automation.schema.json`):
+  `webhooks.eventTypes.list`, `webhooks.subscriptions.create|list|rotateSecret|revoke`,
+  `webhooks.deliveries.list|failures.list|replay`; worker command `webhooks.deliveries.dispatch`
+  (service principal, `outbox.deliver`, `apps/worker/src/webhook-dispatch.ts`). Scopes
+  `webhooks.manage` (human only) and `webhooks.read`.
+- Event catalog `cuspatlas-webhook-events.1`: 13 `<aggregate>.changed` types from published outbox
+  aggregate types (internal aggregates excluded); version 1 body = identity, type, version,
+  references and field names only.
+- Signing: HMAC-SHA-256 over `"<t>." || bytes`; header `t=…,v1=…`; 300 s window; constant-time
+  compare; rotation overlap 24 h (both signatures). Secrets sealed with AES-256-GCM under a server key
+  (`resolveWebhookSecretKey`; test-only key in synthetic-test, refused elsewhere), shown once, never in
+  the idempotency store, lists, audit or logs (test scans all three plus log lines).
+- Delivery: fan-out from `outbox_events` to active subscriptions (idempotent per subscription and
+  event), fenced lease (token + expiry), send-time guard (allowlist, private/loopback/link-local/
+  metadata, resolver for rebinding), 5 bounded attempts with backoff, `dead_lettered`, replay as a new
+  delivery with the same event identity. Revoke cancels queued deliveries in the same transaction.
+  Without a port (any environment but synthetic-test) deliveries become `adapter_not_configured`.
+- Migration `20261204000000_webhook_subscriptions.sql`; vocabularies `webhook_subscription`,
+  `webhook_delivery` (module `automation`); consumer contract `docs/api/webhooks.md`.
+- Decisions recommended-pending-approval: A-D7 (operator allowlist; no allowlist is configured in the
+  worker composition yet, so every send-time guard refuses there until one exists), dedupe retention
+  7 days, backoff and attempt bound.
+- Not done: a real HTTP egress adapter, a second event version (the version selection path exists but
+  only version 1 is published), per-subscription rate limits, an operator allowlist configuration
+  surface, an external consumer review (A-S4).

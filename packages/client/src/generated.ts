@@ -575,6 +575,158 @@ export type AgentsUuid = string;
 
 export type AgentsVersion = number;
 
+export type AutomationListCount = ({
+  readonly "exact": number;
+}) | ({
+  readonly "atLeast": number;
+});
+
+export type AutomationListOrdering = {
+  readonly "key": string;
+  readonly "direction": "asc" | "desc";
+  readonly "tieBreak": string;
+};
+
+export type AutomationListScope = {
+  readonly "kind": "tenant_wide" | "assigned_locations" | "location_set";
+  readonly "locationRefs"?: readonly (string)[];
+};
+
+export type AutomationReasonCode = string;
+
+export type AutomationUuid = string;
+
+export type AutomationVersion = number;
+
+export type AutomationWebhookDelivery = {
+  readonly "deliveryRef": AutomationUuid;
+  readonly "subscriptionRef": AutomationUuid;
+  readonly "eventRef": AutomationUuid;
+  readonly "eventType": AutomationWebhookEventTypeName;
+  readonly "eventVersion": number;
+  readonly "state": AutomationWebhookDeliveryState;
+  readonly "attempts": number;
+  readonly "maxAttempts": number;
+  readonly "lastResponseClass": (AutomationWebhookResponseClass) | (null);
+  readonly "lastGuard": string | null;
+  readonly "replayOf": (AutomationUuid) | (null);
+  readonly "nextAttemptAt": string;
+  readonly "deliveredAt": string | null;
+  readonly "createdAt": string;
+};
+
+export type AutomationWebhookDeliveryCommandResult = {
+  readonly "data": AutomationWebhookDelivery;
+  readonly "version": AutomationVersion;
+  readonly "correlationId": AutomationUuid;
+  readonly "replayed": boolean;
+};
+
+export type AutomationWebhookDeliveryList = {
+  readonly "asOf": string;
+  readonly "appliedFilters": { readonly [k: string]: unknown };
+  readonly "scope": AutomationListScope;
+  readonly "limit": number;
+  readonly "truncated": boolean;
+  readonly "nextCursor": string | null;
+  readonly "ordering": AutomationListOrdering;
+  readonly "count": AutomationListCount;
+  readonly "items": readonly (AutomationWebhookDelivery)[];
+};
+
+export type AutomationWebhookDeliveryState = "pending" | "delivering" | "retrying" | "delivered" | "dead_lettered" | "adapter_not_configured" | "paused" | "cancelled";
+
+export type AutomationWebhookEndpointUrl = string;
+
+export type AutomationWebhookEventTypeEntry = {
+  readonly "eventType": AutomationWebhookEventTypeName;
+  readonly "aggregateType": string;
+  readonly "versions": readonly (number)[];
+  readonly "description": string;
+};
+
+export type AutomationWebhookEventTypeList = {
+  readonly "asOf": string;
+  readonly "appliedFilters": { readonly [k: string]: unknown };
+  readonly "scope": AutomationListScope;
+  readonly "limit": number;
+  readonly "truncated": boolean;
+  readonly "nextCursor": string | null;
+  readonly "ordering": AutomationListOrdering;
+  readonly "count": AutomationListCount;
+  readonly "catalogVersion": string;
+  readonly "items": readonly (AutomationWebhookEventTypeEntry)[];
+};
+
+export type AutomationWebhookEventTypeName = string;
+
+export type AutomationWebhookReplay = {
+  readonly "deliveryRef": AutomationUuid;
+};
+
+export type AutomationWebhookResponseClass = "2xx" | "3xx" | "4xx" | "5xx" | "network" | "timeout";
+
+export type AutomationWebhookSubscription = {
+  readonly "subscriptionRef": AutomationUuid;
+  readonly "endpointUrl": string;
+  readonly "eventTypes": readonly (AutomationWebhookEventTypeName)[];
+  readonly "eventVersion": number;
+  readonly "state": AutomationWebhookSubscriptionState;
+  readonly "secretFingerprint": string;
+  readonly "previousSecretExpiresAt": string | null;
+  readonly "version": AutomationVersion;
+  readonly "createdAt": string;
+};
+
+export type AutomationWebhookSubscriptionCommand = {
+  readonly "subscriptionRef": AutomationUuid;
+  readonly "endpointUrl": string;
+  readonly "eventTypes": readonly (AutomationWebhookEventTypeName)[];
+  readonly "eventVersion": number;
+  readonly "state": AutomationWebhookSubscriptionState;
+  readonly "secretFingerprint": string;
+  readonly "previousSecretExpiresAt": string | null;
+  readonly "version": AutomationVersion;
+  readonly "createdAt": string;
+  readonly "signingSecret"?: string;
+};
+
+export type AutomationWebhookSubscriptionCommandResult = {
+  readonly "data": AutomationWebhookSubscriptionCommand;
+  readonly "version": AutomationVersion;
+  readonly "correlationId": AutomationUuid;
+  readonly "replayed": boolean;
+};
+
+export type AutomationWebhookSubscriptionCreate = {
+  readonly "endpointUrl": AutomationWebhookEndpointUrl;
+  readonly "eventTypes": readonly (AutomationWebhookEventTypeName)[];
+  readonly "eventVersion": number;
+};
+
+export type AutomationWebhookSubscriptionList = {
+  readonly "asOf": string;
+  readonly "appliedFilters": { readonly [k: string]: unknown };
+  readonly "scope": AutomationListScope;
+  readonly "limit": number;
+  readonly "truncated": boolean;
+  readonly "nextCursor": string | null;
+  readonly "ordering": AutomationListOrdering;
+  readonly "count": AutomationListCount;
+  readonly "items": readonly (AutomationWebhookSubscription)[];
+};
+
+export type AutomationWebhookSubscriptionRevoke = {
+  readonly "subscriptionRef": AutomationUuid;
+  readonly "reason": AutomationReasonCode;
+};
+
+export type AutomationWebhookSubscriptionRotate = {
+  readonly "subscriptionRef": AutomationUuid;
+};
+
+export type AutomationWebhookSubscriptionState = "active" | "revoked";
+
 export type BillingAccount = "patient_receivable" | "insurer_receivable" | "production_revenue" | "unapplied_credit" | "undeposited_funds" | "settled_cash" | "adjustment_expense" | "insurer_clearing" | "insurer_cash" | "opening_receivable" | "opening_credit" | "opening_equity";
 
 export type BillingAdjustmentCommandData = {
@@ -12173,6 +12325,86 @@ export interface Operations {
     successStatus: 200;
     idempotent: false;
   };
+  "webhooks.deliveries.failures.list": {
+    method: "GET";
+    path: "/v1/webhooks/deliveries/failures";
+    params: {  };
+    query: { readonly limit?: string; readonly cursor?: string; readonly subscriptionRef?: string; };
+    body: undefined;
+    result: AutomationWebhookDeliveryList;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "webhooks.deliveries.list": {
+    method: "GET";
+    path: "/v1/webhooks/deliveries";
+    params: {  };
+    query: { readonly limit?: string; readonly cursor?: string; readonly subscriptionRef?: string; readonly state?: string; };
+    body: undefined;
+    result: AutomationWebhookDeliveryList;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "webhooks.deliveries.replay": {
+    method: "POST";
+    path: "/v1/webhooks/deliveries/replay";
+    params: {  };
+    query: Record<string, never>;
+    body: AutomationWebhookReplay;
+    result: AutomationWebhookDeliveryCommandResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "webhooks.eventTypes.list": {
+    method: "GET";
+    path: "/v1/webhooks/event-types";
+    params: {  };
+    query: Record<string, never>;
+    body: undefined;
+    result: AutomationWebhookEventTypeList;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "webhooks.subscriptions.create": {
+    method: "POST";
+    path: "/v1/webhooks/subscriptions";
+    params: {  };
+    query: Record<string, never>;
+    body: AutomationWebhookSubscriptionCreate;
+    result: AutomationWebhookSubscriptionCommandResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "webhooks.subscriptions.list": {
+    method: "GET";
+    path: "/v1/webhooks/subscriptions";
+    params: {  };
+    query: { readonly limit?: string; readonly cursor?: string; readonly state?: string; };
+    body: undefined;
+    result: AutomationWebhookSubscriptionList;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "webhooks.subscriptions.revoke": {
+    method: "POST";
+    path: "/v1/webhooks/subscriptions/revoke";
+    params: {  };
+    query: Record<string, never>;
+    body: AutomationWebhookSubscriptionRevoke;
+    result: AutomationWebhookSubscriptionCommandResult;
+    successStatus: 200;
+    idempotent: true;
+  };
+  "webhooks.subscriptions.rotateSecret": {
+    method: "POST";
+    path: "/v1/webhooks/subscriptions/rotate-secret";
+    params: {  };
+    query: Record<string, never>;
+    body: AutomationWebhookSubscriptionRotate;
+    result: AutomationWebhookSubscriptionCommandResult;
+    successStatus: 200;
+    idempotent: true;
+  };
 }
 
 export type OperationId = keyof Operations;
@@ -12615,4 +12847,12 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "telephony.handling.resolve": { method: "GET", path: "/v1/telephony/handling", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "vocabularies.list": { method: "GET", path: "/v1/vocabularies", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "vocabularies.read": { method: "GET", path: "/v1/vocabularies/{name}", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "webhooks.deliveries.failures.list": { method: "GET", path: "/v1/webhooks/deliveries/failures", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "webhooks.deliveries.list": { method: "GET", path: "/v1/webhooks/deliveries", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "webhooks.deliveries.replay": { method: "POST", path: "/v1/webhooks/deliveries/replay", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "webhooks.eventTypes.list": { method: "GET", path: "/v1/webhooks/event-types", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "webhooks.subscriptions.create": { method: "POST", path: "/v1/webhooks/subscriptions", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "webhooks.subscriptions.list": { method: "GET", path: "/v1/webhooks/subscriptions", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "webhooks.subscriptions.revoke": { method: "POST", path: "/v1/webhooks/subscriptions/revoke", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "webhooks.subscriptions.rotateSecret": { method: "POST", path: "/v1/webhooks/subscriptions/rotate-secret", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
 };

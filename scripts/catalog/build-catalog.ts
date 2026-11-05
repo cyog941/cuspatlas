@@ -48,6 +48,9 @@ const OWNERS: Record<string, OwnerWorkstream> = {
   actions: 'A',
   ai: 'A',
   prescriptions: 'A',
+  // Workstream A batch 4 (A14 webhooks, A15 exports).
+  webhooks: 'A',
+  exports: 'A',
 };
 
 /**

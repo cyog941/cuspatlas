@@ -13,6 +13,7 @@ import {
   type TenantTransaction,
 } from '@cuspatlas/contracts';
 import { AGENT_REPLAY_CODECS } from '../agents/codecs';
+import { AUTOMATION_WEBHOOK_CODECS } from '../automation/webhooks';
 import { BILLING_REPLAY_CODECS } from '../billing/codecs';
 import { CLINICAL_REPLAY_CODECS } from '../clinical/codecs';
 import { ENGAGEMENT_REPLAY_CODECS } from '../engagement/codecs';
@@ -273,6 +274,7 @@ const ALL_CODECS: Readonly<Record<string, ReplayCodec<any>>> = {
   ...IMAGING_REPLAY_CODECS,
   ...MIGRATION_REPLAY_CODECS,
   ...AGENT_REPLAY_CODECS,
+  ...AUTOMATION_WEBHOOK_CODECS,
 };
 
 /**

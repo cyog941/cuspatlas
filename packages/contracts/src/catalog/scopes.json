@@ -829,10 +829,12 @@
       ],
       "humanOnly": false,
       "owners": [
+        "A",
         "F"
       ],
       "operations": [
-        "outbox.deliver"
+        "outbox.deliver",
+        "webhooks.deliveries.dispatch"
       ],
       "sensitivity": "operational"
     },
@@ -1213,6 +1215,45 @@
       ],
       "operations": [
         "billing.worklist.list"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "webhooks.manage",
+      "noun": "webhooks",
+      "verb": "manage",
+      "principalClasses": [
+        "human"
+      ],
+      "humanOnly": true,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "webhooks.deliveries.replay",
+        "webhooks.subscriptions.create",
+        "webhooks.subscriptions.revoke",
+        "webhooks.subscriptions.rotateSecret"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "webhooks.read",
+      "noun": "webhooks",
+      "verb": "read",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "webhooks.deliveries.failures.list",
+        "webhooks.deliveries.list",
+        "webhooks.eventTypes.list",
+        "webhooks.subscriptions.list"
       ],
       "sensitivity": "phi"
     }

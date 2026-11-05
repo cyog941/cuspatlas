@@ -1,4 +1,5 @@
 export * from './agents';
+export * from './automation';
 export * from './billing';
 export * from './clinical';
 export * from './commands/boundary';

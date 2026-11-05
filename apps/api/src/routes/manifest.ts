@@ -1,5 +1,6 @@
 import { AGENT_OP_ROUTES } from './agent-ops';
 import { APPOINTMENT_ROUTES } from './appointment-manifest';
+import { AUTOMATION_OP_ROUTES } from './automation-ops';
 import { BILLING_ROUTES } from './billing-manifest';
 import { BILLING_OP_ROUTES } from './billing-ops';
 import { CLINICAL_ROUTES } from './clinical-manifest';
@@ -378,6 +379,8 @@ export const ROUTES: readonly RouteContract[] = [
   // Workstream M: migration intake, import, reconciliation and sign-off (REST + MCP).
   ...MIGRATION_OP_ROUTES(),
   ...AGENT_OP_ROUTES(),
+  // Workstream A batch 4: A14 webhooks and A15 exports (REST + MCP).
+  ...AUTOMATION_OP_ROUTES(),
 ];
 
 export function routeFor(operationId: string): RouteContract & { fastifyPath: string } {

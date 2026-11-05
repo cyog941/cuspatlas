@@ -194,6 +194,8 @@ export async function startImagingStack(
     seed?: boolean;
     /** Test-only: wraps the per-run store (for example to pause inside a port call). */
     wrapStore?: (store: ObjectStorePort) => ObjectStorePort;
+    /** A14/A15: extra transport deps (webhook port, allowlist, resolver) passed to REST and MCP alike. */
+    extraDeps?: Record<string, unknown>;
   } = {},
 ): Promise<ImagingStack> {
   const db = opts.database ?? (await openTestDatabase(label));
@@ -227,6 +229,7 @@ export async function startImagingStack(
       : { objectStore: opts.wrapStore ? opts.wrapStore(temp.store) : temp.store }),
     ...(opts.limits ? { imagingLimits: opts.limits } : {}),
     ...(opts.withStore === false ? {} : { stagingMaintenance: createLocalStagingMaintenance(temp.root) }),
+    ...(opts.extraDeps ?? {}),
   };
   const app = await buildApp({
     ...shared,

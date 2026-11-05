@@ -1,5 +1,6 @@
 export * from './action-proposal';
 export * from './agents';
+export * from './automation';
 export * from './billing';
 export * from './billing-export';
 export * from './billing-rcm';

@@ -1,0 +1,697 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cuspatlas.invalid/schemas/automation/v1",
+  "title": "CuspAtlas automation contracts (A14 webhooks, A15 exports)",
+  "$defs": {
+    "IdempotencyKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$"
+    },
+    "Version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "Uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "Cursor": {
+      "type": "string",
+      "description": "Opaque, tenant-bound, HMAC-protected. Never parse it.",
+      "pattern": "^[A-Za-z0-9_-]{1,200}\\.[A-Za-z0-9_-]{22}$"
+    },
+    "Instant": {
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 40
+    },
+    "ReasonCode": {
+      "type": "string",
+      "pattern": "^[a-z_]{1,64}$"
+    },
+    "WebhookEventTypeName": {
+      "type": "string",
+      "pattern": "^[a-z][A-Za-z]{0,63}\\.[a-z][A-Za-z]{0,31}$"
+    },
+    "WebhookEndpointUrl": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 2048,
+      "pattern": "^[A-Za-z][A-Za-z0-9+.-]{0,15}://[^\\s]+$",
+      "description": "Checked by the endpoint guard (https only, operator allowlist, no private, loopback, link-local or metadata address, no credentials) at registration and again before every send."
+    },
+    "WebhookSubscriptionState": {
+      "type": "string",
+      "enum": ["active", "revoked"]
+    },
+    "WebhookDeliveryState": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "delivering",
+        "retrying",
+        "delivered",
+        "dead_lettered",
+        "adapter_not_configured",
+        "paused",
+        "cancelled"
+      ]
+    },
+    "WebhookResponseClass": {
+      "type": "string",
+      "enum": ["2xx", "3xx", "4xx", "5xx", "network", "timeout"]
+    },
+    "WebhookSubscriptionCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["endpointUrl", "eventTypes", "eventVersion"],
+      "properties": {
+        "endpointUrl": {
+          "$ref": "#/$defs/WebhookEndpointUrl"
+        },
+        "eventTypes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/WebhookEventTypeName"
+          }
+        },
+        "eventVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 99
+        }
+      }
+    },
+    "WebhookSubscriptionRotate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["subscriptionRef"],
+      "properties": {
+        "subscriptionRef": {
+          "$ref": "#/$defs/Uuid"
+        }
+      }
+    },
+    "WebhookSubscriptionRevoke": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["subscriptionRef", "reason"],
+      "properties": {
+        "subscriptionRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "reason": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "WebhookSubscriptionListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "cursor": {
+          "$ref": "#/$defs/Cursor"
+        },
+        "state": {
+          "$ref": "#/$defs/WebhookSubscriptionState"
+        }
+      }
+    },
+    "WebhookSubscription": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "subscriptionRef",
+        "endpointUrl",
+        "eventTypes",
+        "eventVersion",
+        "state",
+        "secretFingerprint",
+        "previousSecretExpiresAt",
+        "version",
+        "createdAt"
+      ],
+      "properties": {
+        "subscriptionRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "endpointUrl": {
+          "type": "string"
+        },
+        "eventTypes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WebhookEventTypeName"
+          }
+        },
+        "eventVersion": {
+          "type": "integer"
+        },
+        "state": {
+          "$ref": "#/$defs/WebhookSubscriptionState"
+        },
+        "secretFingerprint": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "previousSecretExpiresAt": {
+          "type": ["string", "null"]
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "WebhookSubscriptionCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A14 subscription command result data.",
+      "required": [
+        "subscriptionRef",
+        "endpointUrl",
+        "eventTypes",
+        "eventVersion",
+        "state",
+        "secretFingerprint",
+        "previousSecretExpiresAt",
+        "version",
+        "createdAt"
+      ],
+      "properties": {
+        "subscriptionRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "endpointUrl": {
+          "type": "string"
+        },
+        "eventTypes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WebhookEventTypeName"
+          }
+        },
+        "eventVersion": {
+          "type": "integer"
+        },
+        "state": {
+          "$ref": "#/$defs/WebhookSubscriptionState"
+        },
+        "secretFingerprint": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "previousSecretExpiresAt": {
+          "type": ["string", "null"]
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "signingSecret": {
+          "type": "string",
+          "pattern": "^whsec_[A-Za-z0-9_-]{43}$",
+          "description": "Shown once, on create and rotate only; never on an idempotent replay, a read or a list."
+        }
+      }
+    },
+    "WebhookSubscriptionCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A14 subscription command result.",
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/WebhookSubscriptionCommand"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "WebhookSubscriptionList": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A14 subscriptions (OR-01 envelope), newest first. Never a secret.",
+      "required": [
+        "asOf",
+        "appliedFilters",
+        "scope",
+        "limit",
+        "truncated",
+        "nextCursor",
+        "ordering",
+        "count",
+        "items"
+      ],
+      "properties": {
+        "asOf": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "appliedFilters": {
+          "type": "object"
+        },
+        "scope": {
+          "$ref": "#/$defs/ListScope"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "nextCursor": {
+          "type": ["string", "null"]
+        },
+        "ordering": {
+          "$ref": "#/$defs/ListOrdering"
+        },
+        "count": {
+          "$ref": "#/$defs/ListCount"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WebhookSubscription"
+          }
+        }
+      }
+    },
+    "WebhookEventTypeListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {}
+    },
+    "WebhookEventTypeEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["eventType", "aggregateType", "versions", "description"],
+      "properties": {
+        "eventType": {
+          "$ref": "#/$defs/WebhookEventTypeName"
+        },
+        "aggregateType": {
+          "type": "string"
+        },
+        "versions": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "WebhookEventTypeList": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A14 published event catalog (closed, versioned), returned whole.",
+      "required": [
+        "asOf",
+        "appliedFilters",
+        "scope",
+        "limit",
+        "truncated",
+        "nextCursor",
+        "ordering",
+        "count",
+        "items",
+        "catalogVersion"
+      ],
+      "properties": {
+        "asOf": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "appliedFilters": {
+          "type": "object"
+        },
+        "scope": {
+          "$ref": "#/$defs/ListScope"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "nextCursor": {
+          "type": ["string", "null"]
+        },
+        "ordering": {
+          "$ref": "#/$defs/ListOrdering"
+        },
+        "count": {
+          "$ref": "#/$defs/ListCount"
+        },
+        "catalogVersion": {
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WebhookEventTypeEntry"
+          }
+        }
+      }
+    },
+    "WebhookDeliveryListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "cursor": {
+          "$ref": "#/$defs/Cursor"
+        },
+        "subscriptionRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "state": {
+          "$ref": "#/$defs/WebhookDeliveryState"
+        }
+      }
+    },
+    "WebhookFailureListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "cursor": {
+          "$ref": "#/$defs/Cursor"
+        },
+        "subscriptionRef": {
+          "$ref": "#/$defs/Uuid"
+        }
+      }
+    },
+    "WebhookDelivery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "deliveryRef",
+        "subscriptionRef",
+        "eventRef",
+        "eventType",
+        "eventVersion",
+        "state",
+        "attempts",
+        "maxAttempts",
+        "lastResponseClass",
+        "lastGuard",
+        "replayOf",
+        "nextAttemptAt",
+        "deliveredAt",
+        "createdAt"
+      ],
+      "properties": {
+        "deliveryRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "subscriptionRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "eventRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "eventType": {
+          "$ref": "#/$defs/WebhookEventTypeName"
+        },
+        "eventVersion": {
+          "type": "integer"
+        },
+        "state": {
+          "$ref": "#/$defs/WebhookDeliveryState"
+        },
+        "attempts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxAttempts": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "lastResponseClass": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WebhookResponseClass"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lastGuard": {
+          "type": ["string", "null"]
+        },
+        "replayOf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "nextAttemptAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "deliveredAt": {
+          "type": ["string", "null"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "WebhookDeliveryList": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A14 delivery log (OR-01 envelope), newest first. Bodies are never listed.",
+      "required": [
+        "asOf",
+        "appliedFilters",
+        "scope",
+        "limit",
+        "truncated",
+        "nextCursor",
+        "ordering",
+        "count",
+        "items"
+      ],
+      "properties": {
+        "asOf": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "appliedFilters": {
+          "type": "object"
+        },
+        "scope": {
+          "$ref": "#/$defs/ListScope"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "nextCursor": {
+          "type": ["string", "null"]
+        },
+        "ordering": {
+          "$ref": "#/$defs/ListOrdering"
+        },
+        "count": {
+          "$ref": "#/$defs/ListCount"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WebhookDelivery"
+          }
+        }
+      }
+    },
+    "WebhookReplay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["deliveryRef"],
+      "properties": {
+        "deliveryRef": {
+          "$ref": "#/$defs/Uuid"
+        }
+      }
+    },
+    "WebhookDeliveryCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A14 replay: a new delivery identity for the same event identity.",
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/WebhookDelivery"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ListScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "description": "OR-01 scope: tenant-wide, the caller's assigned locations, or an explicit location set (locationRefs present for the last two).",
+      "properties": {
+        "kind": {
+          "enum": ["tenant_wide", "assigned_locations", "location_set"]
+        },
+        "locationRefs": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]{1,64}$"
+          }
+        }
+      }
+    },
+    "ListOrdering": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "direction", "tieBreak"],
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[A-Za-z.]{1,64}$"
+        },
+        "direction": {
+          "enum": ["asc", "desc"]
+        },
+        "tieBreak": {
+          "type": "string",
+          "pattern": "^[A-Za-z.]{1,64}$"
+        }
+      }
+    },
+    "ListCount": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["exact"],
+          "properties": {
+            "exact": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["atLeast"],
+          "properties": {
+            "atLeast": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      ]
+    },
+    "ListEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "OR-01 list envelope, shared by every list and worklist response.",
+      "required": [
+        "asOf",
+        "appliedFilters",
+        "scope",
+        "limit",
+        "truncated",
+        "nextCursor",
+        "ordering",
+        "count"
+      ],
+      "properties": {
+        "asOf": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server instant the list was read."
+        },
+        "appliedFilters": {
+          "type": "object",
+          "description": "Normalized filters, including the defaults the server applied."
+        },
+        "scope": {
+          "$ref": "#/$defs/ListScope"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "nextCursor": {
+          "type": ["string", "null"]
+        },
+        "ordering": {
+          "$ref": "#/$defs/ListOrdering"
+        },
+        "count": {
+          "$ref": "#/$defs/ListCount"
+        }
+      }
+    }
+  }
+}

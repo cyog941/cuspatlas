@@ -608,6 +608,18 @@ export const ACTION_POLICIES = {
   'prescriptions.drafts.create': { scope: 'prescriptions.draft', principals: ['human'] },
   'prescriptions.submit': { scope: 'prescriptions.submit', principals: ['human'] },
   'prescriptions.cancel': { scope: 'prescriptions.draft', principals: ['human'] },
+  // A14 webhooks (workstream A batch 4): subscription administration and replay are human only
+  // (agents and services never register an endpoint or re-send an event); reads admit services; the
+  // dispatch is the worker's own service principal under outbox.deliver.
+  'webhooks.eventTypes.list': { scope: 'webhooks.read', principals: ['human', 'service'] },
+  'webhooks.subscriptions.create': { scope: 'webhooks.manage', principals: ['human'] },
+  'webhooks.subscriptions.list': { scope: 'webhooks.read', principals: ['human', 'service'] },
+  'webhooks.subscriptions.rotateSecret': { scope: 'webhooks.manage', principals: ['human'] },
+  'webhooks.subscriptions.revoke': { scope: 'webhooks.manage', principals: ['human'] },
+  'webhooks.deliveries.list': { scope: 'webhooks.read', principals: ['human', 'service'] },
+  'webhooks.deliveries.failures.list': { scope: 'webhooks.read', principals: ['human', 'service'] },
+  'webhooks.deliveries.replay': { scope: 'webhooks.manage', principals: ['human'] },
+  'webhooks.deliveries.dispatch': { scope: 'outbox.deliver', principals: ['service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

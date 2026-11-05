@@ -323,6 +323,8 @@ describe('runtime database role', () => {
       'visit_context_items',
       'waitlist_entries',
       'waitlist_offers',
+      'webhook_deliveries',
+      'webhook_subscriptions',
     ]);
     for (const r of rows)
       expect([r.relname, r.relrowsecurity, r.relforcerowsecurity]).toStrictEqual([r.relname, true, true]);

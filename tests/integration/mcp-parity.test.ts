@@ -1,6 +1,6 @@
 import { generateKeyPairSync, randomBytes, randomUUID } from 'node:crypto';
 import { request as httpRequest } from 'node:http';
-import { AGENT_OPS, buildApp } from '@cuspatlas/api';
+import { AGENT_OPS, AUTOMATION_OPS, buildApp } from '@cuspatlas/api';
 import { REFUSAL_HTTP_STATUS, type RefusalCode } from '@cuspatlas/contracts';
 import {
   createMembershipSource,
@@ -416,6 +416,8 @@ const TOOL_NAMES = [
   'practice_export_verify',
   // Workstream A batch 2: listed by id and tool in agents-negative-harness.test.ts.
   ...AGENT_OPS.map((o) => o.tool),
+  // Workstream A batch 4: listed by id and tool in automation-negative-harness.test.ts.
+  ...AUTOMATION_OPS.map((o) => o.tool),
 ].sort();
 
 let db: TestDatabase;

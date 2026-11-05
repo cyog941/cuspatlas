@@ -91,6 +91,8 @@ Registered by workstream M migration (synthetic implementation; decisions pendin
 
 Registered by workstream A batch 2 (2026-11-05, synthetic implementation; A-D2, A-D4 and A-D9 recommended-pending-approval, see docs/execution/api-progress.md): `agents.manage` (human only, non-delegable: create, suspend, resume, revoke, rotate and re-sponsor agent principals) and `agents.read` (agent records and their live grants; the registry and the separate agent-audit stream are human reads). A9 consent records use `agents.manage`; budget reads use `agents.read`. A10: `actions.prepare` (prepare or abandon a proposal for an operation whose catalog approval mode is `proposal`; the proposer must also hold that operation's own scope), `actions.approve` (human only, non-delegable: approve and commit proposals; never the proposer or an agent proposer's sponsor) and `actions.read`. A11: `ai.draft` (request an AI draft from records the caller can already read), `ai.read` (AI drafts and the use-case registry) and `ai.review` (human only, non-delegable: accept or reject an AI draft through the owning command); switching AI use cases is `admin.configure`. A13: `prescriptions.draft` and `prescriptions.submit` (both human only; submission, controlled substances included, is non-delegable). No partner is qualified, so every prescribing operation refuses.
 
+Registered by workstream A batch 4 (2026-11-05, synthetic implementation; A-D7 recommended-pending-approval, see docs/execution/api-progress.md "A batch 4"): `webhooks.manage` (human only: register, rotate and revoke webhook subscriptions and replay deliveries; agents and services never register an endpoint or re-send an event) and `webhooks.read` (the event catalog, subscriptions without secrets, the delivery log and the failures worklist). The worker dispatches deliveries under its own service principal with `outbox.deliver`.
+
 Camel-case scope names (`receivables.read` written as `receivablesRead`) are a defect. A scope used in any plan must appear in the registry; a plan that needs a new scope adds it there first.
 
 ### Scope registry table
@@ -151,6 +153,8 @@ The machine-readable registry rows (A-M2/A-S8, 2026-11-05). Generation reads **o
 | `syntheticTasks.write` | no |
 | `telephony.events` | no |
 | `undistributedFunds.read` | no |
+| `webhooks.manage` | yes |
+| `webhooks.read` | no |
 
 ### Relationship scopes
 

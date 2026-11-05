@@ -689,6 +689,10 @@
     "MemoryClassification": {
       "enum": ["operational", "reference", "phi"]
     },
+    "MemoryValueKind": {
+      "enum": ["code", "counter", "flag", "instant", "duration", "operation", "reference", "text"],
+      "description": "Closeout D5: what a memory value is. A non-phi note must be one of the structured kinds and match its grammar (code: lower-case dotted identifier; counter: integer up to 7 digits; flag: true or false; instant: UTC date-time; duration: ISO 8601 days to seconds; operation: a catalog operation name; reference: an opaque UUID). text (free text) is accepted only classified phi under the tenant PHI policy."
+    },
     "SessionListQuery": {
       "type": "object",
       "additionalProperties": false,
@@ -1006,6 +1010,10 @@
         "classification": {
           "$ref": "#/$defs/MemoryClassification"
         },
+        "kind": {
+          "$ref": "#/$defs/MemoryValueKind",
+          "description": "Closeout D5: required for a non-phi note (one of the structured kinds, matching its grammar); a phi note defaults to text."
+        },
         "retentionDays": {
           "type": "integer",
           "minimum": 1,
@@ -1094,6 +1102,10 @@
         "classification": {
           "$ref": "#/$defs/MemoryClassification"
         },
+        "kind": {
+          "oneOf": [{ "$ref": "#/$defs/MemoryValueKind" }, { "type": "null" }],
+          "description": "Closeout D5: the value kind (null for a note stored before default-deny)."
+        },
         "value": {
           "type": "string",
           "maxLength": 2000
@@ -1151,6 +1163,10 @@
         },
         "classification": {
           "$ref": "#/$defs/MemoryClassification"
+        },
+        "kind": {
+          "oneOf": [{ "$ref": "#/$defs/MemoryValueKind" }, { "type": "null" }],
+          "description": "Closeout D5: the value kind (null for a note stored before default-deny)."
         },
         "expiresAt": {
           "$ref": "#/$defs/Instant"

@@ -44,8 +44,15 @@ async function principal(kind: 'human' | 'service', scopes: readonly string[]): 
   );
   return id;
 }
+// Closeout D5: a non-phi note is a structured kind (here a code); a phi note is free text.
 const write = (a: AgentHandle, k: string, value: string, classification = 'operational') =>
-  s.agentTool(a, 'agents_memory_write', { key: k, value, classification, idempotencyKey: key() });
+  s.agentTool(a, 'agents_memory_write', {
+    key: k,
+    value,
+    classification,
+    ...(classification === 'phi' ? {} : { kind: 'code' }),
+    idempotencyKey: key(),
+  });
 const reason = (r: { body: Record<string, unknown> }) => (r.body.detail as { reason?: string })?.reason;
 
 describe('A23 sessions', () => {
@@ -143,14 +150,14 @@ describe('A23 sessions', () => {
 describe('A23 scoped memory', () => {
   it('an agent writes and reads its own note; both are audited in the agent stream and charged', async () => {
     const a = await s.createAgent(WS, 'memory basics');
-    const w = await write(a, 'recall.window', 'Prefer the morning recall batch.');
+    const w = await write(a, 'recall.window', 'morning.batch');
     expect(w.isError, JSON.stringify(w.body)).toBe(false);
     expect(w.body.data).toMatchObject({ key: 'recall.window', classification: 'operational' });
     const exp = Date.parse((w.body.data as { expiresAt: string }).expiresAt);
     expect(Math.round((exp - Date.now()) / 86_400_000)).toBe(30);
     const r = await s.agentTool(a, 'agents_memory_get', { key: 'recall.window' });
     expect(r.isError, JSON.stringify(r.body)).toBe(false);
-    expect((r.body.data as { value: string }).value).toBe('Prefer the morning recall batch.');
+    expect((r.body.data as { value: string }).value).toBe('morning.batch');
     const audit = await s.db.admin.query<{ operation: string }>(
       `SELECT operation FROM cuspatlas.agent_audit_events WHERE agent_ref = $1 AND operation LIKE 'agents.memory.%'
        ORDER BY occurred_at`,
@@ -167,7 +174,7 @@ describe('A23 scoped memory', () => {
       envelope: { count: { exact: 1 } },
       phiPolicy: { phiAllowed: false },
     });
-    expect(JSON.stringify(listed.body.data)).not.toContain('morning recall');
+    expect(JSON.stringify(listed.body.data)).not.toContain('morning.batch');
   });
 
   it('PHI is refused (one uniform refusal): a phi classification, contacts, DOB phrases, patient refs and names', async () => {
@@ -223,7 +230,7 @@ describe('A23 scoped memory', () => {
   it('other agents, non-sponsors, another tenant and a display principal cannot reach the memory', async () => {
     const a = await s.createAgent(WS, 'memory owner');
     const b = await s.createAgent(WS, 'memory other');
-    await write(a, 'private.note', 'Owner only.');
+    await write(a, 'private.note', 'owner.only');
     expect(
       (await s.agentTool(b, 'agents_memory_get', { agentRef: a.agentRef, key: 'private.note' })).body.code,
     ).toBe('not_found');
@@ -234,7 +241,7 @@ describe('A23 scoped memory', () => {
     const q = `/v1/agents/memory/entry?agentRef=${a.agentRef}&key=private.note`;
     const sponsor = await s.call('humanAll', 'GET', q);
     expect(sponsor.status).toBe(200);
-    expect((sponsor.body.data as { value: string }).value).toBe('Owner only.');
+    expect((sponsor.body.data as { value: string }).value).toBe('owner.only');
     const stranger = await principal('human', ['agentWorkspace.read']);
     expect((await s.call(stranger, 'GET', q)).status).toBe(404);
     expect((await s.call('humanBeta', 'GET', q)).status).toBe(404);
@@ -250,8 +257,8 @@ describe('A23 scoped memory', () => {
 
   it('the sponsor or an agent manager deletes a note; an agent and a stranger cannot; expired notes vanish', async () => {
     const a = await s.createAgent(WS, 'memory delete');
-    await write(a, 'to.delete', 'Short lived.');
-    await write(a, 'to.expire', 'Expires.');
+    await write(a, 'to.delete', 'short.lived');
+    await write(a, 'to.expire', 'expires');
     const del = { agentRef: a.agentRef, key: 'to.delete' };
     const stranger = await principal('human', ['agentWorkspace.read']);
     expect((await s.call(stranger, 'POST', '/v1/agents/memory/delete', del)).status).toBe(404);
@@ -282,7 +289,7 @@ describe('A23 scoped memory', () => {
   it('memory reads count toward the record budget', async () => {
     const a = await s.createAgent(WS, 'memory budget', undefined, { consent: false });
     await s.consent(a, ['agents.memory.write', 'agents.memory.read'], { recordsPerPeriod: 3 });
-    await write(a, 'b.one', 'One.');
+    await write(a, 'b.one', 'one');
     expect((await s.agentTool(a, 'agents_memory_get', { key: 'b.one' })).isError).toBe(false);
     expect((await s.agentTool(a, 'agents_memory_get', { key: 'b.one' })).isError).toBe(false);
     const third = await s.agentTool(a, 'agents_memory_get', { key: 'b.one' });
@@ -408,7 +415,7 @@ describe('A23 scheduled tasks', () => {
     const t = taskOf(
       await schedule(a, policyOf(await policy(a, ['syntheticTasks.list'])), 'syntheticTasks.list'),
     );
-    await write(a, 'purge.me', 'Old.');
+    await write(a, 'purge.me', 'old');
     await s.db.admin.query(
       `UPDATE cuspatlas.agent_memory_entries SET created_at = now() - interval '20 days',
          updated_at = now() - interval '20 days', expires_at = now() - interval '1 minute' WHERE agent_ref = $1`,

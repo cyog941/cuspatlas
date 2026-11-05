@@ -54,7 +54,7 @@ export const AGENT_REPLAY_CODECS: Record<string, ReplayCodec<any>> = {
   'agents.sessions.end': flatCodec(['sessionRef', 'state', 'endedAt', 'endReason']),
   'agents.memory.write': flatCodec(
     ['memoryRef', 'agentRef', 'key', 'state'],
-    ['classification', 'expiresAt'],
+    ['classification', 'expiresAt', 'kind'],
   ),
   'agents.memory.delete': flatCodec(['memoryRef', 'agentRef', 'key', 'state']),
   'agents.memory.policy.set': flatCodec(['phiAllowed']),

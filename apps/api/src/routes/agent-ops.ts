@@ -296,7 +296,7 @@ export const AGENT_OPS: AgentOp[] = [
     '/v1/agents/memory',
     'agents.memory.write',
     'agents_memory_write',
-    'A23: the calling agent stores a classified note under a key (replacing an earlier value), kept 30 days by default. PHI is refused unless the tenant policy allows it and the note is classified phi; contacts, DOB-like phrases, patient references and patient names or birth dates (S4 match keys) are detected and refused otherwise. Audited in the agent-audit stream. Agents only.',
+    'A23 / Closeout D5: the calling agent stores a classified note under a key (replacing an earlier value), kept 30 days by default. Default-deny: a non-phi note must declare a structured kind (code, counter, flag, instant, duration, operation or reference) whose grammar the value matches; free text is accepted only classified phi while the tenant PHI policy allows it. Contacts, DOB-like phrases, patient references and patient names or birth dates (S4 match keys) are also refused. Every refusal is memory_value_refused. Audited in the agent-audit stream. Agents only.',
     'MemoryWrite',
     'MemoryCommandResult',
     (svc) => svc.writeAgentMemory,

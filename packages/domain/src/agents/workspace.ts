@@ -34,8 +34,9 @@ import { presentSession, SESSION_SELECT, type SessionRow } from './sessions';
 /**
  * A23 / OR-13 agent workspace: sessions (history = references to agent_tool_calls and the agent-audit
  * stream), scoped memory (per agent, tenant-bound, classified; a phi classification needs the tenant
- * policy, enforced in the database; unlabelled PHI is screened by a best-effort heuristic, not enforced
- * default-deny, with a database regex backstop for contact and DOB patterns; 30-day retention,
+ * policy, enforced in the database; Closeout D5: any other note is default-deny, accepted only as a
+ * structured kind matching its grammar, in the domain and in the database, with the best-effort PHI
+ * heuristic and the contact/DOB regex backstop as extra refusal layers; 30-day retention,
  * deletion by the sponsor or an agent manager, every agent read and write in the agent-audit stream and
  * metered by the MCP budget gate) and scheduled tasks under a human-owned standing policy, rechecked by
  * the worker at execution. An agent reaches only its own workspace; a human reaches an agent's workspace
@@ -53,6 +54,29 @@ const forbidden = (reasonCode: 'principal_kind_denied') =>
   new RefusalError({ code: 'forbidden', reasonCode });
 /** The one memory write refusal: no reason distinguishes a name, DOB, ref, pattern or policy. */
 const refusedValue = () => failed('memory_value_refused', '/value');
+
+/**
+ * Closeout D5: the positive allowlist of structured, non-PHI memory value kinds and their grammars (the
+ * same as the database constraint agent_memory_entries_value_structured). `text` is not here: free
+ * text is accepted only classified phi under the tenant PHI policy.
+ */
+const STRUCTURED_KINDS: Readonly<Record<string, (v: string) => boolean>> = {
+  code: (v) => v.length <= 64 && /^[a-z][a-z0-9]*([._:-][a-z0-9]+){0,7}$/.test(v),
+  // At most 7 digits: 8 or more read as a phone-like run to the screens.
+  counter: (v) => /^-?[0-9]{1,7}$/.test(v),
+  flag: (v) => v === 'true' || v === 'false',
+  instant: (v) =>
+    /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,6})?Z$/.test(v) &&
+    !Number.isNaN(Date.parse(v)),
+  duration: (v) =>
+    /^P([0-9]{1,4}D)?(T([0-9]{1,4}H)?([0-9]{1,4}M)?([0-9]{1,4}S)?)?$/.test(v) &&
+    !/^PT?$/.test(v) &&
+    !v.endsWith('T'),
+  // A catalog operation name (never free text), checked against the catalog itself.
+  operation: (v) => /^[a-z][A-Za-z]*(\.[a-z][A-Za-z]*){1,5}$/.test(v) && CATALOG_INDEX.has(v),
+  reference: (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(v),
+};
+export const MEMORY_VALUE_KINDS = [...Object.keys(STRUCTURED_KINDS), 'text'] as const;
 const MRN_LIKE =
   /\b(?:mrn|medical\s+record(?:\s+(?:number|no\.?))?|chart\s*(?:number|no\.?|#))\s*[:#.-]?\s*[A-Za-z0-9-]*\d/i;
 
@@ -62,6 +86,7 @@ interface MemoryRow extends Record<string, unknown> {
   key: string;
   value: string;
   classification: 'operational' | 'reference' | 'phi';
+  value_kind: string | null;
   created_at: Date;
   updated_at: Date;
   expires_at: Date;
@@ -72,6 +97,7 @@ const presentMemory = (r: MemoryRow, withValue: boolean) => ({
   agentRef: r.agent_ref,
   key: r.key,
   classification: r.classification,
+  kind: r.value_kind ?? null,
   ...(withValue ? { value: r.value } : {}),
   createdAt: r.created_at.toISOString(),
   updatedAt: r.updated_at.toISOString(),
@@ -257,16 +283,25 @@ export function createAgentWorkspace(base: AgentBase) {
   }
 
   /**
-   * Best-effort PHI screening of an unlabelled note (a heuristic, not de-identification or enforced
-   * default-deny): text is NFKC-normalized with zero-width characters removed and spacing collapsed, then
+   * Best-effort PHI screening (a heuristic, not de-identification). Closeout D5: an extra refusal layer
+   * behind the default-deny structured-kind allowlist; `allTokens` matches every letter token of three
+   * or more letters (not only capitalized ones) against patient family names. Text is NFKC-normalized
+   * with zero-width characters removed and spacing collapsed, then
    * checked for contacts, DOB phrases, SSN/MRN-like patterns, long digit runs once separators are dropped,
    * patient refs, S4 name/birth match keys, and capitalized tokens (3+ letters) equal to a patient's
    * family name. Free-text identifiers outside these patterns can pass; the database backstop
    * (agent_memory_entries_value_screen) independently refuses contact and DOB patterns.
    */
-  async function carriesPhi(tx: TenantTransaction, ctx: ActorContext, raw: string): Promise<boolean> {
+  async function carriesPhi(
+    tx: TenantTransaction,
+    ctx: ActorContext,
+    raw: string,
+    opts: { readonly allTokens?: boolean; readonly strictGrammar?: boolean } = {},
+  ): Promise<boolean> {
     const text = raw.normalize('NFKC').replace(/[​-‍⁠﻿­]/g, '').replace(/\s+/g, ' ');
-    if (carriesContact(text) || carriesDobPhrase(text)) return true;
+    // A strict UTC instant or UUID reference (the D5 grammars) can read as a phone-like digit run; an
+    // instant's date is still matched against patient birth dates and a reference against patients below.
+    if ((!opts.strictGrammar && carriesContact(text)) || carriesDobPhrase(text)) return true;
     if (/\b\d{3}-\d{2}-\d{4}\b/.test(text)) return true;
     if (MRN_LIKE.test(text)) return true;
     const withoutRefs = text.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, ' ');
@@ -289,7 +324,11 @@ export function createAgentWorkspace(base: AgentBase) {
       keys.add(keyer.key(MATCH_KEY.birthDate, d));
     }
     const surnames = [
-      ...new Set([...text.matchAll(/(?<!\p{L})\p{Lu}[\p{L}'-]{2,}/gu)].map((m) => normalizeText(m[0]))),
+      ...new Set(
+        [...text.matchAll(opts.allTokens ? /\p{L}[\p{L}'-]{2,}/gu : /(?<!\p{L})\p{Lu}[\p{L}'-]{2,}/gu)].map(
+          (m) => normalizeText(m[0]),
+        ),
+      ),
     ];
     const refs = uuids(text);
     if (keys.size === 0 && refs.length === 0 && surnames.length === 0) return false;
@@ -459,6 +498,7 @@ export function createAgentWorkspace(base: AgentBase) {
             key: string;
             value: string;
             classification: MemoryRow['classification'];
+            kind?: string;
             retentionDays?: number;
           };
           // One uniform refusal for every reason, so writes cannot probe names, DOBs or refs. The phi
@@ -469,10 +509,23 @@ export function createAgentWorkspace(base: AgentBase) {
               'SELECT phi_allowed FROM cuspatlas.agent_memory_policies',
             )
           ).rows[0];
+          // Closeout D5 default-deny: phi needs the explicit tenant policy; anything else needs a
+          // positive allowlist classification (a structured kind whose grammar the value matches), and the
+          // PHI heuristic stays as an extra refusal layer over the key and the value.
+          const kind = p.kind ?? (p.classification === 'phi' ? 'text' : null);
           if (p.classification === 'phi') {
             if (!policy?.phi_allowed) throw refusedValue();
-          } else if (await carriesPhi(tx, ctx, `${p.key.replace(/[._-]/g, ' ')}\n${p.value}`)) {
-            throw refusedValue();
+          } else {
+            const grammar = kind === null ? undefined : STRUCTURED_KINDS[kind];
+            if (!grammar?.(p.value)) throw refusedValue();
+            if (
+              (await carriesPhi(tx, ctx, p.key.replace(/[._-]/g, ' '), { allTokens: true })) ||
+              (await carriesPhi(tx, ctx, p.value, {
+                allTokens: true,
+                strictGrammar: kind === 'instant' || kind === 'reference',
+              }))
+            )
+              throw refusedValue();
           }
           await tx.query(
             'DELETE FROM cuspatlas.agent_memory_entries WHERE agent_ref = $1 AND expires_at <= now()',
@@ -483,13 +536,14 @@ export function createAgentWorkspace(base: AgentBase) {
           try {
             row = (
               await tx.query<{ id: string; version: number; expires_at: Date }>(
-                `INSERT INTO cuspatlas.agent_memory_entries (tenant_id, agent_ref, key, value, classification, expires_at)
-                 VALUES (cuspatlas.current_tenant_id(), cuspatlas.current_actor_id(), $1, $2, $3, now() + make_interval(days => $4))
-                 ON CONFLICT (agent_ref, key) DO UPDATE SET value = EXCLUDED.value,
+                `INSERT INTO cuspatlas.agent_memory_entries (tenant_id, agent_ref, key, value, classification, expires_at,
+                   value_kind)
+                 VALUES (cuspatlas.current_tenant_id(), cuspatlas.current_actor_id(), $1, $2, $3, now() + make_interval(days => $4), $5)
+                 ON CONFLICT (agent_ref, key) DO UPDATE SET value = EXCLUDED.value, value_kind = EXCLUDED.value_kind,
                    classification = EXCLUDED.classification, updated_at = now(), expires_at = EXCLUDED.expires_at,
                    version = cuspatlas.agent_memory_entries.version + 1
                  RETURNING id, version, expires_at`,
-                [p.key, p.value, p.classification, days],
+                [p.key, p.value, p.classification, days, kind],
               )
             ).rows[0];
           } catch (err) {
@@ -509,6 +563,7 @@ export function createAgentWorkspace(base: AgentBase) {
               key: p.key,
               state: 'stored' as const,
               classification: p.classification,
+              kind,
               expiresAt: row.expires_at.toISOString(),
             },
             version: row.version,

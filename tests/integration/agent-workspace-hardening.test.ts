@@ -37,8 +37,15 @@ async function principal(kind: 'human' | 'service', scopes: readonly string[]): 
   );
   return id;
 }
+// Closeout D5: a non-phi note is a structured kind (here a code); a phi note is free text.
 const write = (a: AgentHandle, k: string, value: string, classification = 'operational') =>
-  s.agentTool(a, 'agents_memory_write', { key: k, value, classification, idempotencyKey: key() });
+  s.agentTool(a, 'agents_memory_write', {
+    key: k,
+    value,
+    classification,
+    ...(classification === 'phi' ? {} : { kind: 'code' }),
+    idempotencyKey: key(),
+  });
 const reason = (r: { body: Record<string, unknown> }) => (r.body.detail as { reason?: string })?.reason;
 const setPolicy = async (phiAllowed: boolean) => {
   const r = await s.call('humanAll', 'POST', '/v1/agents/memory/policy', { phiAllowed });
@@ -196,8 +203,10 @@ describe('A23 hardening: best-effort screening and the database backstop', () =>
       expect(reason(r), value).toBe('memory_value_refused');
       expect(JSON.stringify(r.body), value).not.toMatch(/phi_detected|phi_not_permitted/);
     }
-    // A heuristic, not de-identification: a lower-case surname token is not matched.
-    expect((await write(a, 'k.lower', 'the brannock bridge note')).isError).toBe(false);
+    // Closeout D5: behind the default-deny allowlist, the heuristic matches every token of a structured
+    // value, so a lower-case surname in a code is refused too; other codes pass.
+    expect(reason(await write(a, 'k.lower', 'brannock.bridge'))).toBe('memory_value_refused');
+    expect((await write(a, 'k.lower', 'bridge.note')).isError).toBe(false);
   });
 
   it('the database refuses a contact or DOB pattern in a non-phi note, whoever writes it', async () => {
@@ -218,7 +227,7 @@ describe('A23 hardening: best-effort screening and the database backstop', () =>
 describe('A23 hardening: database reach rule', () => {
   it('RLS limits workspace rows to the agent, its current sponsor and agent managers', async () => {
     const a = await s.createAgent(WS, 'rls reach');
-    expect((await write(a, 'rls.note', 'Reach checked.')).isError).toBe(false);
+    expect((await write(a, 'rls.note', 'reach.checked')).isError).toBe(false);
     const stranger = await principal('human', ['agentWorkspace.read']);
     const manager = await principal('human', ['agentWorkspace.read', 'agents.manage']);
     for (const table of ['agent_memory_entries', 'agent_sessions']) {

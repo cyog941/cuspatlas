@@ -513,6 +513,7 @@ export type AgentsMemoryCommand = {
   readonly "key": AgentsMemoryKey;
   readonly "state": "stored" | "deleted";
   readonly "classification"?: AgentsMemoryClassification;
+  readonly "kind"?: (AgentsMemoryValueKind) | (null);
   readonly "expiresAt"?: AgentsInstant;
 };
 
@@ -533,6 +534,7 @@ export type AgentsMemoryEntry = {
   readonly "agentRef": AgentsAgentRef;
   readonly "key": AgentsMemoryKey;
   readonly "classification": AgentsMemoryClassification;
+  readonly "kind"?: (AgentsMemoryValueKind) | (null);
   readonly "value"?: string;
   readonly "createdAt": AgentsInstant;
   readonly "updatedAt": AgentsInstant;
@@ -568,10 +570,13 @@ export type AgentsMemoryRead = {
   readonly "data": AgentsMemoryEntry;
 };
 
+export type AgentsMemoryValueKind = "code" | "counter" | "flag" | "instant" | "duration" | "operation" | "reference" | "text";
+
 export type AgentsMemoryWrite = {
   readonly "key": AgentsMemoryKey;
   readonly "value": string;
   readonly "classification": AgentsMemoryClassification;
+  readonly "kind"?: AgentsMemoryValueKind;
   readonly "retentionDays"?: number;
 };
 

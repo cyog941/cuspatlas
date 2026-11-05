@@ -241,9 +241,33 @@ export const CLOCK_ALLOWLIST: readonly ClockAllowlistEntry[] = [
   },
   {
     file: 'packages/domain/src/clinical/estimates.ts',
+    code: 'Date.now(),',
+    reason:
+      '(a) ages a caller-entered coverage sourceAsOf against a 30-day window; no database-stamped fact (the B5 fresh_until check moved to transactionNow)',
+  },
+  {
+    file: 'packages/domain/src/clinical/estimates.ts',
     code: 'const serviceDate = at[0]?.service_date ?? new Date().toISOString().slice(0, 10);',
     reason:
       '(a) unreachable fallback: the left side is a database now()/RETURNING value that is always present',
+  },
+  {
+    file: 'packages/domain/src/clinical/estimates.ts',
+    code: 'const fromSources = coverageStatusAt(assumptions, Date.now());',
+    reason:
+      '(a) ages a caller-entered coverage sourceAsOf against a 30-day window; no database-stamped fact (the B5 fresh_until check moved to transactionNow)',
+  },
+  {
+    file: 'packages/domain/src/clinical/estimates.ts',
+    code: 'Date.now(),',
+    reason:
+      '(a) ages a caller-entered coverage sourceAsOf against a 30-day window; no database-stamped fact (the B5 fresh_until check moved to transactionNow)',
+  },
+  {
+    file: 'packages/domain/src/clinical/estimates.ts',
+    code: 'Date.now(),',
+    reason:
+      '(a) ages a caller-entered coverage sourceAsOf against a 30-day window; no database-stamped fact (the B5 fresh_until check moved to transactionNow)',
   },
   {
     file: 'packages/domain/src/clinical/history.ts',

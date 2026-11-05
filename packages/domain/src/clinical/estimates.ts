@@ -212,13 +212,14 @@ async function project(tx: TenantTransaction, e: EstimateRow): Promise<Estimate>
       : { currency: e.currency, minor: Number(e.gross_minor) };
   const presentation = pres[0];
   const acceptance = acc[0];
-  // Freshness is re-checked at the transaction's now(), the clock B5 decides eligibility freshness
-  // with (`now() <= retrieved_at + freshness`), so the two never disagree (clock audit).
+  // The insurer portion's input freshness (B5 fresh_until, now()-derived) is re-checked at the
+  // transaction's now(), the clock B5 decides it with (clock audit). The coverage status re-check
+  // below ages caller-entered sourceAsOf instants and stays on the application clock.
   const at = (await transactionNow(tx)).getTime();
   const coverageNow = coverageNowOf(
     e.coverage_status,
     assumptions.map((a) => ({ kind: a.kind, sourceAsOf: a.source_as_of })),
-    at,
+    Date.now(),
   );
   return {
     estimateRef: e.id,
@@ -460,7 +461,7 @@ export function createEstimateOperations(base: ClinicalBase) {
               )
                 throw conflict('fee_schedule_version_mismatch');
               const assumptions: readonly EstimateAssumptionInput[] = p.assumptions ?? [];
-              const fromSources = coverageStatusAt(assumptions, (await transactionNow(tx)).getTime());
+              const fromSources = coverageStatusAt(assumptions, Date.now());
               // B5 decides inactive or stale eligibility; entered coverage values stay caller-sourced.
               const b5 = await pricing.coverage(tx, patient.id, serviceDate);
               const status: CoverageStatus = mergeCoverageStatus(b5, fromSources);
@@ -585,7 +586,7 @@ export function createEstimateOperations(base: ClinicalBase) {
             const status = coverageNowOf(
               e.coverage_status,
               assumptions.map((a) => ({ kind: a.kind, sourceAsOf: a.source_as_of })),
-              (await transactionNow(tx)).getTime(),
+              Date.now(),
             );
             await tx.query(
               `INSERT INTO cuspatlas.clinical_estimate_presentations (tenant_id, estimate_id, coverage_status, presented_by)
@@ -696,7 +697,7 @@ export function createEstimateOperations(base: ClinicalBase) {
             const coverageNow = coverageNowOf(
               e.coverage_status,
               assumptions.map((a) => ({ kind: a.kind, sourceAsOf: a.source_as_of })),
-              (await transactionNow(tx)).getTime(),
+              Date.now(),
             );
             if (coverageNow === 'stale' && presentation.coverage_status !== 'stale') {
               throw conflict('estimate_coverage_stale', { blockingRefs: [{ kind: 'estimate', ref: e.id }] });

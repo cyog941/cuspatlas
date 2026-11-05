@@ -1,0 +1,946 @@
+{
+  "version": 1,
+  "scopes": [
+    {
+      "name": "admin.configure",
+      "noun": "admin",
+      "verb": "configure",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "B",
+        "C",
+        "E",
+        "I",
+        "S"
+      ],
+      "operations": [
+        "billing.export",
+        "clinical.authors.define",
+        "clinical.consentTemplates.register",
+        "clinical.export",
+        "clinical.noteTemplates.define",
+        "clinical.noteTemplates.retire",
+        "clinical.noteTemplates.revise",
+        "communications.channelPolicies.define",
+        "communications.export",
+        "communications.templates.define",
+        "communications.templates.withdraw",
+        "imaging.devices.issuePairingCode",
+        "imaging.devices.register",
+        "imaging.devices.revoke",
+        "imaging.devices.setCapabilities",
+        "imaging.export",
+        "imaging.export.blobs",
+        "imaging.retention.setPolicy",
+        "imaging.storage.reconcile",
+        "intake.forms.publish",
+        "intake.forms.retire",
+        "messaging.threads.hold",
+        "scheduling.export",
+        "scheduling.locations.changeTimeZone",
+        "scheduling.locations.define",
+        "scheduling.recall.definePolicy",
+        "scheduling.resources.dataQuality",
+        "scheduling.resources.deactivate",
+        "scheduling.resources.define",
+        "scheduling.resources.setAvailability",
+        "scheduling.standingPolicies.grant",
+        "scheduling.standingPolicies.revoke",
+        "telephony.config.define"
+      ],
+      "sensitivity": "phiBulk"
+    },
+    {
+      "name": "billing.correct",
+      "noun": "billing",
+      "verb": "correct",
+      "principalClasses": [
+        "human"
+      ],
+      "humanOnly": true,
+      "owners": [
+        "B"
+      ],
+      "operations": [
+        "billing.adjustments.decide",
+        "billing.entries.reverse",
+        "billing.funds.transfer",
+        "billing.payments.refund",
+        "billing.plans.close",
+        "rcm.appeals.review",
+        "rcm.remittances.decideResolution",
+        "rcm.remittances.reverse",
+        "rcm.submissionPolicies.create",
+        "rcm.submissionPolicies.revoke",
+        "rcm.workflowPolicies.publish",
+        "rcm.workflows.close"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "billing.write",
+      "noun": "billing",
+      "verb": "write",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "B"
+      ],
+      "operations": [
+        "billing.adjustments.post",
+        "billing.charges.post",
+        "billing.feeSchedules.publish",
+        "billing.payments.allocate",
+        "billing.payments.reconcile",
+        "billing.payments.record",
+        "billing.payments.settle",
+        "billing.plans.amend",
+        "billing.plans.authorize",
+        "billing.plans.autopay",
+        "billing.plans.collect",
+        "billing.plans.create",
+        "billing.procedures.consume",
+        "billing.responsibility.transfer",
+        "billing.statements.generate",
+        "rcm.appeals.draft",
+        "rcm.claims.attach",
+        "rcm.claims.packageAttachments",
+        "rcm.claims.poll",
+        "rcm.claims.prepare",
+        "rcm.claims.prepareSecondary",
+        "rcm.claims.replace",
+        "rcm.claims.submit",
+        "rcm.claims.validate",
+        "rcm.remittances.ingest",
+        "rcm.remittances.resolveLine",
+        "rcm.remittances.settle",
+        "rcm.workflows.advance",
+        "rcm.workflows.fireTimer",
+        "rcm.workflows.start"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "clinical.oversight",
+      "noun": "clinical",
+      "verb": "oversight",
+      "principalClasses": [
+        "human"
+      ],
+      "humanOnly": true,
+      "owners": [
+        "C"
+      ],
+      "operations": [
+        "clinical.notes.amendOthers"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "clinical.read",
+      "noun": "clinical",
+      "verb": "read",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "C"
+      ],
+      "operations": [
+        "clinical.authors.context",
+        "clinical.chart.read",
+        "clinical.consents.list",
+        "clinical.consents.read",
+        "clinical.encounters.list",
+        "clinical.encounters.read",
+        "clinical.estimates.list",
+        "clinical.estimates.read",
+        "clinical.history.alerts",
+        "clinical.history.read",
+        "clinical.history.readVersion",
+        "clinical.imageLinks.list",
+        "clinical.imageLinks.read",
+        "clinical.labCases.export",
+        "clinical.labCases.list",
+        "clinical.labCases.read",
+        "clinical.labCases.worklist",
+        "clinical.noteTemplates.applicable",
+        "clinical.noteTemplates.read",
+        "clinical.noteTemplates.readVersion",
+        "clinical.notes.list",
+        "clinical.notes.read",
+        "clinical.perio.compare",
+        "clinical.perio.listExams",
+        "clinical.perio.readExam",
+        "clinical.procedures.list",
+        "clinical.procedures.read",
+        "clinical.referrals.export",
+        "clinical.referrals.list",
+        "clinical.referrals.read",
+        "clinical.referrals.worklist",
+        "clinical.treatmentPlans.alternatives",
+        "clinical.treatmentPlans.list",
+        "clinical.treatmentPlans.read"
+      ],
+      "sensitivity": "phiBulk"
+    },
+    {
+      "name": "clinical.sign",
+      "noun": "clinical",
+      "verb": "sign",
+      "principalClasses": [
+        "human"
+      ],
+      "humanOnly": true,
+      "owners": [
+        "C"
+      ],
+      "operations": [
+        "clinical.notes.amend",
+        "clinical.notes.cosign",
+        "clinical.notes.sign"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "clinical.write",
+      "noun": "clinical",
+      "verb": "write",
+      "principalClasses": [
+        "human"
+      ],
+      "humanOnly": true,
+      "owners": [
+        "C"
+      ],
+      "operations": [
+        "clinical.chart.correctEntry",
+        "clinical.chart.recordEntry",
+        "clinical.consents.capture",
+        "clinical.consents.withdraw",
+        "clinical.encounters.assign",
+        "clinical.encounters.close",
+        "clinical.encounters.open",
+        "clinical.estimates.accept",
+        "clinical.estimates.generate",
+        "clinical.estimates.present",
+        "clinical.history.attestReview",
+        "clinical.history.recordChange",
+        "clinical.history.verifyItem",
+        "clinical.imageLinks.link",
+        "clinical.imageLinks.relink",
+        "clinical.imageLinks.unlink",
+        "clinical.labCases.attach",
+        "clinical.labCases.create",
+        "clinical.labCases.recordReturn",
+        "clinical.labCases.remake",
+        "clinical.labCases.setState",
+        "clinical.notes.addendum",
+        "clinical.notes.createDraft",
+        "clinical.notes.updateDraft",
+        "clinical.perio.correctExam",
+        "clinical.perio.derive",
+        "clinical.perio.recordExam",
+        "clinical.procedures.correct",
+        "clinical.procedures.render",
+        "clinical.referrals.close",
+        "clinical.referrals.create",
+        "clinical.referrals.markSent",
+        "clinical.referrals.preparePackage",
+        "clinical.referrals.recall",
+        "clinical.referrals.recordResponse",
+        "clinical.referrals.recordShare",
+        "clinical.referrals.recordTransmissionFailure",
+        "clinical.treatmentPlans.addDetail",
+        "clinical.treatmentPlans.addItem",
+        "clinical.treatmentPlans.create",
+        "clinical.treatmentPlans.createAlternative",
+        "clinical.treatmentPlans.setDetailState",
+        "clinical.treatmentPlans.setItemState",
+        "clinical.treatmentPlans.supersede"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "communications.deliver",
+      "noun": "communications",
+      "verb": "deliver",
+      "principalClasses": [
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "E"
+      ],
+      "operations": [
+        "communications.deliver"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "communications.read",
+      "noun": "communications",
+      "verb": "read",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "E"
+      ],
+      "operations": [
+        "communications.channelPolicies.list",
+        "communications.consents.list",
+        "communications.decisions.read",
+        "communications.deliveries.read",
+        "communications.deliveries.worklist",
+        "communications.recall.enrollments",
+        "communications.suppression.preview",
+        "telephony.calls.list",
+        "telephony.calls.read",
+        "telephony.config.read",
+        "telephony.handling.resolve"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "communications.receipts",
+      "noun": "communications",
+      "verb": "receipts",
+      "principalClasses": [
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "E"
+      ],
+      "operations": [
+        "communications.receipts.record"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "communications.write",
+      "noun": "communications",
+      "verb": "write",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "E"
+      ],
+      "operations": [
+        "communications.consents.optOut",
+        "communications.consents.record",
+        "communications.contacts.verify",
+        "communications.deliveries.resolve",
+        "communications.recall.enroll",
+        "telephony.calls.link"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "coverage.read",
+      "noun": "coverage",
+      "verb": "read",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "B"
+      ],
+      "operations": [
+        "rcm.coverages.read",
+        "rcm.coverages.resolve",
+        "rcm.visits.prepare"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "coverage.write",
+      "noun": "coverage",
+      "verb": "write",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "B"
+      ],
+      "operations": [
+        "rcm.coverages.change",
+        "rcm.coverages.record",
+        "rcm.eligibility.record"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "imaging.associate",
+      "noun": "imaging",
+      "verb": "associate",
+      "principalClasses": [
+        "human"
+      ],
+      "humanOnly": true,
+      "owners": [
+        "I"
+      ],
+      "operations": [
+        "imaging.associations.candidates",
+        "imaging.associations.confirm",
+        "imaging.associations.correct"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "imaging.delete",
+      "noun": "imaging",
+      "verb": "delete",
+      "principalClasses": [
+        "human"
+      ],
+      "humanOnly": true,
+      "owners": [
+        "I"
+      ],
+      "operations": [
+        "imaging.deletions.execute",
+        "imaging.deletions.request"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "imaging.legalHold",
+      "noun": "imaging",
+      "verb": "legalHold",
+      "principalClasses": [
+        "human"
+      ],
+      "humanOnly": true,
+      "owners": [
+        "I"
+      ],
+      "operations": [
+        "imaging.legalHolds.place",
+        "imaging.legalHolds.release"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "imaging.read",
+      "noun": "imaging",
+      "verb": "read",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "I"
+      ],
+      "operations": [
+        "imaging.annotations.list",
+        "imaging.associations.history",
+        "imaging.associations.unmatched",
+        "imaging.bridge.worklist",
+        "imaging.bridgeJobs.read",
+        "imaging.containers.inspect",
+        "imaging.deletions.evaluate",
+        "imaging.devices.list",
+        "imaging.devices.read",
+        "imaging.imageRefs.resolve",
+        "imaging.ingress.failures",
+        "imaging.ingress.read",
+        "imaging.legalHolds.list",
+        "imaging.mounts.read",
+        "imaging.objects.content",
+        "imaging.objects.grantRead",
+        "imaging.objects.list",
+        "imaging.objects.read",
+        "imaging.objects.revokeGrant",
+        "imaging.retention.policies"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "imaging.write",
+      "noun": "imaging",
+      "verb": "write",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "I"
+      ],
+      "operations": [
+        "imaging.acquisitions.request",
+        "imaging.acquisitions.resolve",
+        "imaging.annotations.create",
+        "imaging.annotations.supersede",
+        "imaging.bridgeJobs.enqueue",
+        "imaging.bridgeJobs.reconcile",
+        "imaging.derived.create",
+        "imaging.grants.revokeAny",
+        "imaging.ingress.begin",
+        "imaging.ingress.complete",
+        "imaging.ingress.upload",
+        "imaging.mounts.create",
+        "imaging.mounts.revise"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "ledger.read",
+      "noun": "ledger",
+      "verb": "read",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "B"
+      ],
+      "operations": [
+        "billing.balances.read",
+        "billing.charges.read",
+        "billing.entries.read",
+        "billing.fees.resolve",
+        "billing.ledger.list"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "messaging.read",
+      "noun": "messaging",
+      "verb": "read",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "E"
+      ],
+      "operations": [
+        "messaging.retention.evaluate",
+        "messaging.threads.read",
+        "messaging.threads.worklist"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "messaging.write",
+      "noun": "messaging",
+      "verb": "write",
+      "principalClasses": [
+        "human"
+      ],
+      "humanOnly": true,
+      "owners": [
+        "E"
+      ],
+      "operations": [
+        "messaging.messages.post",
+        "messaging.threads.assign",
+        "messaging.threads.close",
+        "messaging.threads.open"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "openClaims.read",
+      "noun": "openClaims",
+      "verb": "read",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "B"
+      ],
+      "operations": [
+        "rcm.claims.read",
+        "rcm.claims.worklist",
+        "rcm.workflows.read"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "outbox.deliver",
+      "noun": "outbox",
+      "verb": "deliver",
+      "principalClasses": [
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "F"
+      ],
+      "operations": [
+        "outbox.deliver"
+      ],
+      "sensitivity": "operational"
+    },
+    {
+      "name": "patients.merge",
+      "noun": "patients",
+      "verb": "merge",
+      "principalClasses": [
+        "human"
+      ],
+      "humanOnly": true,
+      "owners": [
+        "S"
+      ],
+      "operations": [
+        "patients.duplicates.find",
+        "patients.merge",
+        "patients.unmerge"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "patients.mergeReconcile",
+      "noun": "patients",
+      "verb": "mergeReconcile",
+      "principalClasses": [
+        "human"
+      ],
+      "humanOnly": true,
+      "owners": [
+        "S"
+      ],
+      "operations": [
+        "patients.unmerge.reconcile"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "patients.read",
+      "noun": "patients",
+      "verb": "read",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "E",
+        "S"
+      ],
+      "operations": [
+        "intake.forms.list",
+        "intake.reviews.read",
+        "intake.reviews.worklist",
+        "intake.submissions.list",
+        "intake.submissions.read",
+        "patients.access.resolve",
+        "patients.merges.list",
+        "patients.read",
+        "patients.relationships.list",
+        "patients.search",
+        "portal.grants.list",
+        "portal.principals.read"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "patients.write",
+      "noun": "patients",
+      "verb": "write",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "E",
+        "S"
+      ],
+      "operations": [
+        "intake.reviews.resolve",
+        "intake.submissions.submit",
+        "patients.create",
+        "patients.relationships.add",
+        "patients.relationships.revoke",
+        "patients.setStatus",
+        "patients.updateDemographics"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "paymentDistribution.read",
+      "noun": "paymentDistribution",
+      "verb": "read",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "B"
+      ],
+      "operations": [
+        "billing.payments.read",
+        "rcm.remittances.read"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "portal.manage",
+      "noun": "portal",
+      "verb": "manage",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "E"
+      ],
+      "operations": [
+        "portal.principals.enroll",
+        "portal.principals.revoke",
+        "portal.principals.verify"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "receivables.read",
+      "noun": "receivables",
+      "verb": "read",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "B"
+      ],
+      "operations": [
+        "billing.plans.read",
+        "billing.plans.worklist",
+        "billing.reports.receivables",
+        "billing.statements.read"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "scheduling.override",
+      "noun": "scheduling",
+      "verb": "override",
+      "principalClasses": [
+        "human"
+      ],
+      "humanOnly": true,
+      "owners": [
+        "S"
+      ],
+      "operations": [
+        "scheduling.appointments.override"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "scheduling.read",
+      "noun": "scheduling",
+      "verb": "read",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "S"
+      ],
+      "operations": [
+        "scheduling.appointments.read",
+        "scheduling.attendance.list",
+        "scheduling.attendance.visitStatus",
+        "scheduling.availability.search",
+        "scheduling.followUp.worklist",
+        "scheduling.locations.list",
+        "scheduling.notifications.read",
+        "scheduling.notifications.worklist",
+        "scheduling.recall.due",
+        "scheduling.recall.policies",
+        "scheduling.recovery.list",
+        "scheduling.recovery.read",
+        "scheduling.requests.list",
+        "scheduling.requests.read",
+        "scheduling.requests.unbookedReport",
+        "scheduling.resources.list",
+        "scheduling.resources.read",
+        "scheduling.series.plan",
+        "scheduling.series.read",
+        "scheduling.standingPolicies.list",
+        "scheduling.visitContext.items",
+        "scheduling.visitContext.read",
+        "scheduling.waitlist.list",
+        "scheduling.waitlist.offers.read",
+        "scheduling.worklist.daily"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "scheduling.write",
+      "noun": "scheduling",
+      "verb": "write",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "S"
+      ],
+      "operations": [
+        "scheduling.appointments.book",
+        "scheduling.appointments.cancel",
+        "scheduling.appointments.reschedule",
+        "scheduling.attendance.record",
+        "scheduling.holds.create",
+        "scheduling.holds.reconcile",
+        "scheduling.holds.release",
+        "scheduling.recall.createTask",
+        "scheduling.recall.resolveTask",
+        "scheduling.recovery.execute",
+        "scheduling.requests.close",
+        "scheduling.requests.create",
+        "scheduling.requests.reopen",
+        "scheduling.requests.review",
+        "scheduling.requests.updatePreferences",
+        "scheduling.series.create",
+        "scheduling.series.end",
+        "scheduling.series.extend",
+        "scheduling.timeBlocks.create",
+        "scheduling.visitContext.assignForm",
+        "scheduling.visitContext.linkLabCase",
+        "scheduling.visitContext.pinMedicalHistory",
+        "scheduling.visitContext.relinkLabCase",
+        "scheduling.visitContext.unassignForm",
+        "scheduling.waitlist.add",
+        "scheduling.waitlist.offer",
+        "scheduling.waitlist.reconcileOffers",
+        "scheduling.waitlist.remove",
+        "scheduling.waitlist.respond"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "syntheticTasks.approve",
+      "noun": "syntheticTasks",
+      "verb": "approve",
+      "principalClasses": [
+        "human"
+      ],
+      "humanOnly": true,
+      "owners": [
+        "F"
+      ],
+      "operations": [
+        "syntheticTasks.approve",
+        "syntheticTasks.proposals.approve"
+      ],
+      "sensitivity": "operational"
+    },
+    {
+      "name": "syntheticTasks.read",
+      "noun": "syntheticTasks",
+      "verb": "read",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "F"
+      ],
+      "operations": [
+        "syntheticTasks.list",
+        "syntheticTasks.proposals.commit",
+        "syntheticTasks.proposals.prepare",
+        "syntheticTasks.proposals.read",
+        "syntheticTasks.read"
+      ],
+      "sensitivity": "operational"
+    },
+    {
+      "name": "syntheticTasks.write",
+      "noun": "syntheticTasks",
+      "verb": "write",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "F"
+      ],
+      "operations": [
+        "syntheticTasks.create",
+        "syntheticTasks.relabel"
+      ],
+      "sensitivity": "operational"
+    },
+    {
+      "name": "telephony.events",
+      "noun": "telephony",
+      "verb": "events",
+      "principalClasses": [
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "E"
+      ],
+      "operations": [
+        "telephony.calls.record"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "undistributedFunds.read",
+      "noun": "undistributedFunds",
+      "verb": "read",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "B"
+      ],
+      "operations": [
+        "billing.worklist.list"
+      ],
+      "sensitivity": "phi"
+    }
+  ],
+  "relationshipScopes": [
+    "demographics",
+    "scheduling",
+    "clinical_read",
+    "financial",
+    "consent"
+  ]
+}

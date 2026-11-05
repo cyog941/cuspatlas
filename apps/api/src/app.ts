@@ -1,12 +1,14 @@
 import { type KeyObject, randomUUID } from 'node:crypto';
-import type {
-  DeviceCredentialSource,
-  MalwareScannerPort,
-  MembershipSource,
-  ObjectStorePort,
-  PortalPrincipalSource,
-  SecurityAttemptSink,
-  WithTenantTransaction,
+import {
+  DEPRECATIONS,
+  type DeprecationEntry,
+  type DeviceCredentialSource,
+  type MalwareScannerPort,
+  type MembershipSource,
+  type ObjectStorePort,
+  type PortalPrincipalSource,
+  type SecurityAttemptSink,
+  type WithTenantTransaction,
 } from '@cuspatlas/contracts';
 import {
   type AttachmentRefResolver,
@@ -56,6 +58,7 @@ import {
   isConfiguredIdentity,
   isTestIssuer,
 } from './auth';
+import { registerDeprecationHeaders } from './deprecation';
 import { createDeviceAuthenticator } from './device-auth';
 import { mapErrorToRefusal, safeErrorKind } from './errors';
 import {
@@ -140,6 +143,8 @@ export interface AppDeps {
    * only when this is configured.
    */
   readonly deviceCredentials?: DeviceCredentialSource;
+  /** A5 deprecation entries (default: the published packages/contracts/src/catalog/deprecations.json). */
+  readonly deprecations?: readonly DeprecationEntry[];
   /** I6 server job-signing key (Ed25519 private key); see resolveBridgeSigningKey. */
   readonly bridgeSigningKey?: KeyObject | null;
 }
@@ -172,6 +177,13 @@ export function resolveRuntimeEnv(env: NodeJS.ProcessEnv): RuntimeEnvironment {
   }
   return value as RuntimeEnvironment;
 }
+
+/** A4: the routes each built app registered (method and Fastify path), for the catalog check. */
+export interface RegisteredRoute {
+  readonly method: string;
+  readonly url: string;
+}
+export const REGISTERED_ROUTES = new WeakMap<FastifyInstance, readonly RegisteredRoute[]>();
 
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   if (!RUNTIME_ENVIRONMENTS.includes(deps.env)) {
@@ -224,6 +236,15 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     onConstructorPoisoning: 'error',
     return503OnClosing: true,
   });
+
+  // A4: every registered route, so the catalog check can prove each maps to one catalog entry.
+  const registered: RegisteredRoute[] = [];
+  REGISTERED_ROUTES.set(app, registered);
+  app.addHook('onRoute', (r) => {
+    for (const method of [r.method].flat()) if (method !== 'HEAD') registered.push({ method, url: r.url });
+  });
+
+  registerDeprecationHeaders(app, deps.deprecations ?? DEPRECATIONS);
 
   app.decorateRequest('actor', null);
   app.addHook('onRequest', async (request, reply) => {

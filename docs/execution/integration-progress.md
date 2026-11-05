@@ -130,3 +130,13 @@ Verification (orchestrator, 2026-11-05): full `corepack pnpm run ci` on the work
 - `docs/runbooks/development.md`: the worker section and every variable (`CUSPATLAS_IDEMPOTENCY_DIGEST_KEY`, `CUSPATLAS_MATCH_KEY_PEPPER`, `CUSPATLAS_IMAGING_TOKEN_SECRET`, `CUSPATLAS_BRIDGE_SIGNING_KEY_PEM`, `CUSPATLAS_OBJECT_STORE_DIR`, worker variables, audiences) with placeholders only.
 - Open: real adapters and their selection are blocked on E-S1 and the B partner/processor decisions; fakes reach the worker only through `syntheticProviders` under synthetic-test, consistent with the API refusing implicit fakes (section 8.3); the worker's maintenance role is a deployment decision (ADR 0002). Nothing here is deployed.
 - Gate: `corepack pnpm run ci` exit 0, 125 files / 2830 tests.
+
+## 9. Round 2 merges (integration 2)
+
+### 9.1 integration-ops (merge 320fbf8)
+
+Only this ledger conflicted; both sides kept (sections 8.4, 8.5). The worker already builds `createBillingService` with a clearinghouse or processor only from `syntheticProviders` (refused outside synthetic-test), so it matches the API's `adapter_not_configured` behaviour. Tests: worker-main, billing-adapter-config, integration-imaging, clinical-export, billing-export (28 passed).
+
+### 9.2 a-api-1 (A4 catalog, A5 change control, A7 forbidden matrix)
+
+No textual conflicts. `catalog:generate` against a-api-1's baseline refused three CL-04 input patterns (`rcm.appeals.draft`, `rcm.claims.attach`, `rcm.claims.packageAttachments`) as "pattern changed": section 8.2 widened `^syn-(img|obj)-…$` to `^(syn-(img|obj)-…|<uuid>)$`. That is a pure widening, so the A5 classifier (`packages/contracts/src/catalog/change-control.ts`, `patternWidens`) now treats a change as additive only when every alternative of the fully anchored old pattern is a top-level alternative of a fully anchored new one (one group spanning the body, `(…)` or `(?:…)`); anything else stays breaking. Test added to `tests/integration/api-change-control.test.ts` (widening additive; dropped alternative, unanchored alternation, non-spanning group and dropped end anchor breaking). Catalog regenerated: 355 operations; client regenerated. Tests: the six api-* suites plus billing-adapter-config, claim attachments, estimate pricing, worker-main (68 passed).

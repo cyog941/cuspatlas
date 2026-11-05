@@ -143,6 +143,15 @@ export function createAdministrationOperations(base: ComposerBase, deps: { execu
           const { rows: devices } = await t.query<{ id: string; state: string; revoked_at: Date | null }>(
             'SELECT id, state, revoked_at FROM cuspatlas.imaging_devices ORDER BY id LIMIT 1000',
           );
+          // The review discloses who holds which access: it is itself a logged sensitive read.
+          const refs = members.map((m) => m.principal_id);
+          await recordSensitiveRead(t, {
+            operation: op,
+            resourceType: 'membership',
+            resourceRefs: refs.slice(0, 100),
+            ...(refs.length > 100 ? { totalCount: refs.length } : {}),
+            queryFields: [],
+          });
           const iso = (d: Date | null) => (d ? d.toISOString() : null);
           return {
             data: {

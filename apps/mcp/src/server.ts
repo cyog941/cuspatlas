@@ -489,6 +489,7 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
       withTenantTransaction: deps.tenantTransactions,
       recording,
       memberships: deps.membership,
+      execute,
     }),
     authorize,
     recording,

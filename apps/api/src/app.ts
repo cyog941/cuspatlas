@@ -442,6 +442,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
           withTenantTransaction: deps.tenantTransactions,
           recording,
           memberships: deps.membership,
+          execute,
         }),
       });
     }

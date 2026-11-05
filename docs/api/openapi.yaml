@@ -12680,6 +12680,272 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/me/saved-views:
+    get:
+      operationId: preferences.savedViews.list
+      description: >-
+        A22 (OR-12): the saved list and report views of the caller (filters only, never another user's),
+        with the list envelope.
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/SavedViewList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    post:
+      operationId: preferences.savedViews.save
+      description: >-
+        A22 (OR-12): save (or replace by name) a view of a registered list operation. Filters only: an
+        identifying filter (name, birth date, phone) or a cursor is refused, and a name may hold letters,
+        spaces, dots, dashes and underscores only, so no patient identity is stored.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/SavedViewSave'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/SavedViewCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/me/saved-views/{viewRef}/delete:
+    post:
+      operationId: preferences.savedViews.delete
+      description: >-
+        A22 (OR-12): delete one of the caller's saved views (another user's view is 404).
+      parameters:
+        - name: viewRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/Uuid'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/EmptyCommand'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/SavedViewDeleteResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/me/favourite-reports:
+    get:
+      operationId: preferences.favourites.list
+      description: >-
+        A22 (OR-12): the favourite reports (catalog read operations) of the caller, with the list envelope.
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/FavouriteReportList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    post:
+      operationId: preferences.favourites.add
+      description: >-
+        A22 (OR-12): mark a catalog read operation as a favourite report of the caller.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/FavouriteReportChange'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/FavouriteReportCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/me/favourite-reports/remove:
+    post:
+      operationId: preferences.favourites.remove
+      description: >-
+        A22 (OR-12): remove a favourite report of the caller.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/FavouriteReportChange'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/FavouriteReportCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/me/recent-patients:
+    get:
+      operationId: preferences.recentPatients.list
+      description: >-
+        A22 (OR-12, OR-D5): the patients the caller opened in the last 7 days, references only, newest first
+        (at most 50). Expired entries are purged on every access and never returned; never shared across
+        users or tenants.
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/RecentPatientList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    post:
+      operationId: preferences.recentPatients.record
+      description: >-
+        A22 (OR-12): remember that the caller opened a patient (reference only; needs patients.read; another
+        tenant's patient is 404).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/RecentPatientRecord'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/RecentPatientCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/me/recent-patients/clear:
+    post:
+      operationId: preferences.recentPatients.clear
+      description: >-
+        A22 (OR-12): clear the recent-patient list of the caller.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/EmptyCommand'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/RecentPatientClearResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   # END: READ_OPS
 components:
   securitySchemes:

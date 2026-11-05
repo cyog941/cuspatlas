@@ -478,6 +478,31 @@ export const LIST_OPERATIONS: Readonly<Record<string, ListOperationSpec>> = {
     scope: 'tenant',
   },
   // The whole registry (bounded by the contracts, never truncated).
+  // A22 (OR-12): the caller's own preferences (envelope built by the domain read).
+  'preferences.savedViews.list': {
+    rows: 'data',
+    ordering: { key: 'name', direction: 'asc', tieBreak: 'viewRef' },
+    limit: { default: 100, max: 100 },
+    cursor: false,
+    scope: 'tenant',
+    placement: 'existing',
+  },
+  'preferences.favourites.list': {
+    rows: 'data',
+    ordering: { key: 'operation', direction: 'asc', tieBreak: 'operation' },
+    limit: { default: 100, max: 100 },
+    cursor: false,
+    scope: 'tenant',
+    placement: 'existing',
+  },
+  'preferences.recentPatients.list': {
+    rows: 'data',
+    ordering: { key: 'openedAt', direction: 'desc', tieBreak: 'patientRef' },
+    limit: { default: 50, max: 50 },
+    cursor: false,
+    scope: 'tenant',
+    placement: 'existing',
+  },
   'vocabularies.list': {
     rows: 'data',
     ordering: { key: 'name', direction: 'asc', tieBreak: 'name' },

@@ -32,6 +32,7 @@ const param = (input: OpInput, name: string) => input.params[name] ?? '';
 /** Path parameter -> foundation schema definition. */
 export const READ_PARAM_DEFS: Readonly<Record<string, string>> = {
   appointmentRef: 'Uuid',
+  viewRef: 'Uuid',
 };
 
 export const READ_OPS: readonly ReadOp[] = [
@@ -71,6 +72,121 @@ export const READ_OPS: readonly ReadOp[] = [
     description:
       'A24 (OR-14): the navigable capabilities of the operation catalog grouped by area (scheduling, clinical, financial, communications, imaging, administration, migration), filtered by the live permissions of the caller: a capability appears only when its entry operation is allowed and lists only allowed operations. Navigation grants nothing; every operation still authorizes its own resource.',
     invoke: (svc, actor) => svc.readNavigation(actor),
+  },
+  {
+    method: 'get',
+    path: '/v1/me/saved-views',
+    operationId: 'preferences.savedViews.list',
+    protected: true,
+    success: { status: '200', schema: 'SavedViewList' },
+    refusals: ['401', '403', '503'],
+    tool: 'preferences_saved_views_list',
+    description:
+      "A22 (OR-12): the saved list and report views of the caller (filters only, never another user's), with the list envelope.",
+    invoke: (svc, actor) => svc.listSavedViews(actor),
+  },
+  {
+    method: 'post',
+    path: '/v1/me/saved-views',
+    operationId: 'preferences.savedViews.save',
+    protected: true,
+    requestBody: 'SavedViewSave',
+    success: { status: '201', schema: 'SavedViewCommandResult' },
+    refusals: READ_COMMAND_REFUSALS,
+    tool: 'preferences_saved_views_save',
+    description:
+      'A22 (OR-12): save (or replace by name) a view of a registered list operation. Filters only: an identifying filter (name, birth date, phone) or a cursor is refused, and a name may hold letters, spaces, dots, dashes and underscores only, so no patient identity is stored.',
+    invoke: (svc, actor, i) => svc.saveView(actor, readEnvelope('preferences.savedViews.save', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/me/saved-views/{viewRef}/delete',
+    operationId: 'preferences.savedViews.delete',
+    protected: true,
+    requestBody: 'EmptyCommand',
+    success: { status: '201', schema: 'SavedViewDeleteResult' },
+    refusals: READ_COMMAND_REFUSALS,
+    tool: 'preferences_saved_views_delete',
+    description: "A22 (OR-12): delete one of the caller's saved views (another user's view is 404).",
+    invoke: (svc, actor, i) =>
+      svc.deleteView(actor, param(i, 'viewRef'), readEnvelope('preferences.savedViews.delete', i)),
+  },
+  {
+    method: 'get',
+    path: '/v1/me/favourite-reports',
+    operationId: 'preferences.favourites.list',
+    protected: true,
+    success: { status: '200', schema: 'FavouriteReportList' },
+    refusals: ['401', '403', '503'],
+    tool: 'preferences_favourites_list',
+    description:
+      'A22 (OR-12): the favourite reports (catalog read operations) of the caller, with the list envelope.',
+    invoke: (svc, actor) => svc.listFavourites(actor),
+  },
+  {
+    method: 'post',
+    path: '/v1/me/favourite-reports',
+    operationId: 'preferences.favourites.add',
+    protected: true,
+    requestBody: 'FavouriteReportChange',
+    success: { status: '201', schema: 'FavouriteReportCommandResult' },
+    refusals: READ_COMMAND_REFUSALS,
+    tool: 'preferences_favourites_add',
+    description: 'A22 (OR-12): mark a catalog read operation as a favourite report of the caller.',
+    invoke: (svc, actor, i) =>
+      svc.changeFavourite(actor, true, readEnvelope('preferences.favourites.add', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/me/favourite-reports/remove',
+    operationId: 'preferences.favourites.remove',
+    protected: true,
+    requestBody: 'FavouriteReportChange',
+    success: { status: '201', schema: 'FavouriteReportCommandResult' },
+    refusals: READ_COMMAND_REFUSALS,
+    tool: 'preferences_favourites_remove',
+    description: 'A22 (OR-12): remove a favourite report of the caller.',
+    invoke: (svc, actor, i) =>
+      svc.changeFavourite(actor, false, readEnvelope('preferences.favourites.remove', i)),
+  },
+  {
+    method: 'get',
+    path: '/v1/me/recent-patients',
+    operationId: 'preferences.recentPatients.list',
+    protected: true,
+    success: { status: '200', schema: 'RecentPatientList' },
+    refusals: ['401', '403', '503'],
+    tool: 'preferences_recent_patients_list',
+    description:
+      'A22 (OR-12, OR-D5): the patients the caller opened in the last 7 days, references only, newest first (at most 50). Expired entries are purged on every access and never returned; never shared across users or tenants.',
+    invoke: (svc, actor) => svc.listRecentPatients(actor),
+  },
+  {
+    method: 'post',
+    path: '/v1/me/recent-patients',
+    operationId: 'preferences.recentPatients.record',
+    protected: true,
+    requestBody: 'RecentPatientRecord',
+    success: { status: '201', schema: 'RecentPatientCommandResult' },
+    refusals: READ_COMMAND_REFUSALS,
+    tool: 'preferences_recent_patients_record',
+    description:
+      "A22 (OR-12): remember that the caller opened a patient (reference only; needs patients.read; another tenant's patient is 404).",
+    invoke: (svc, actor, i) =>
+      svc.recordRecentPatient(actor, readEnvelope('preferences.recentPatients.record', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/me/recent-patients/clear',
+    operationId: 'preferences.recentPatients.clear',
+    protected: true,
+    requestBody: 'EmptyCommand',
+    success: { status: '201', schema: 'RecentPatientClearResult' },
+    refusals: READ_COMMAND_REFUSALS,
+    tool: 'preferences_recent_patients_clear',
+    description: 'A22 (OR-12): clear the recent-patient list of the caller.',
+    invoke: (svc, actor, i) =>
+      svc.clearRecentPatients(actor, readEnvelope('preferences.recentPatients.clear', i)),
   },
 ];
 

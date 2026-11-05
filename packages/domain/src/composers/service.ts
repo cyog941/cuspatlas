@@ -1,5 +1,8 @@
 import type { MembershipSource } from '@cuspatlas/contracts';
+import { executeOnce } from '../commands/execute-once';
+import type { CommandExecutor } from '../commands/executor';
 import { createNavigationReads } from '../navigation/navigation';
+import { createPreferenceOperations } from '../preferences/preferences';
 import { type ComposerDeps, createComposerBase } from './framework';
 import { type ComposerProducers, createReadComposers, DEFAULT_PRODUCERS } from './read-composers';
 
@@ -12,6 +15,8 @@ export interface ReadSurfaceDeps extends ComposerDeps {
   readonly producers?: Partial<ComposerProducers>;
   /** Live membership lookup (A24 navigation evaluates many actions against one load). */
   readonly memberships?: MembershipSource;
+  /** Durable command executor for the preference and administration commands. */
+  readonly execute?: CommandExecutor;
 }
 
 export function createReadSurfaceService(deps: ReadSurfaceDeps) {
@@ -19,6 +24,7 @@ export function createReadSurfaceService(deps: ReadSurfaceDeps) {
   return {
     ...createReadComposers(base, { ...DEFAULT_PRODUCERS, ...deps.producers }),
     ...createNavigationReads(base, deps.memberships),
+    ...createPreferenceOperations(base, { execute: deps.execute ?? executeOnce }),
   };
 }
 

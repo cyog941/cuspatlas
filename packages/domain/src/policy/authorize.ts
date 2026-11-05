@@ -26,6 +26,17 @@ export const ACTION_POLICIES = {
   'appointments.detail': { scope: 'scheduling.read', principals: ['human', 'service'] },
   // A24 (OR-14): navigation from the catalog, filtered by the caller's live permissions.
   'navigation.read': { scope: null, principals: ['human', 'service'] },
+  // A22 (OR-12): the caller's own preferences (RLS binds every row to tenant AND actor). Human only:
+  // an agent keeps no recent-patient list. Recording a recent patient also needs patients.read.
+  'preferences.savedViews.list': { scope: null, principals: ['human'] },
+  'preferences.savedViews.save': { scope: null, principals: ['human'] },
+  'preferences.savedViews.delete': { scope: null, principals: ['human'] },
+  'preferences.favourites.list': { scope: null, principals: ['human'] },
+  'preferences.favourites.add': { scope: null, principals: ['human'] },
+  'preferences.favourites.remove': { scope: null, principals: ['human'] },
+  'preferences.recentPatients.list': { scope: null, principals: ['human'] },
+  'preferences.recentPatients.record': { scope: null, principals: ['human'] },
+  'preferences.recentPatients.clear': { scope: null, principals: ['human'] },
   'syntheticTasks.read': { scope: 'syntheticTasks.read', principals: ['human', 'service'] },
   'syntheticTasks.create': { scope: 'syntheticTasks.write', principals: ['human', 'service'] },
   'syntheticTasks.relabel': { scope: 'syntheticTasks.write', principals: ['human', 'service'] },

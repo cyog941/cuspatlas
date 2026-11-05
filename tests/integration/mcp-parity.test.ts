@@ -418,6 +418,15 @@ const TOOL_NAMES = [
   'schedule_view',
   'appointments_detail',
   'navigation_get',
+  'preferences_saved_views_list',
+  'preferences_saved_views_save',
+  'preferences_saved_views_delete',
+  'preferences_favourites_list',
+  'preferences_favourites_add',
+  'preferences_favourites_remove',
+  'preferences_recent_patients_list',
+  'preferences_recent_patients_record',
+  'preferences_recent_patients_clear',
 ].sort();
 
 let db: TestDatabase;

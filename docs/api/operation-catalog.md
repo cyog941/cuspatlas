@@ -9,12 +9,12 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-407 operations.
+416 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
 | F | 14 | 12 | 10 | 0 | 0 | 1 |
-| A | 3 | 3 | 3 | 0 | 0 | 0 |
+| A | 12 | 12 | 12 | 0 | 0 | 0 |
 | S | 92 | 90 | 90 | 0 | 0 | 0 |
 | C | 88 | 87 | 87 | 0 | 0 | 0 |
 | B | 66 | 66 | 66 | 0 | 0 | 0 |
@@ -299,6 +299,15 @@ transport tables and are declarations, not independent proof.
 | `practice.export.download` | M | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/practice/exports/package` | `practice_export_download` | required | phiBulk | active |
 | `practice.export.grant` | M | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/practice/exports/grants` | `practice_export_grant` | required | phiBulk | active |
 | `practice.export.verify` | M | query | authorize | `admin.configure` | human | rest, mcp | GET `/v1/practice/exports/verification` | `practice_export_verify` | none | phiBulk | active |
+| `preferences.favourites.add` | A | command | authorize | - | human | rest, mcp | POST `/v1/me/favourite-reports` | `preferences_favourites_add` | required | phi | active |
+| `preferences.favourites.list` | A | query | authorize | - | human | rest, mcp | GET `/v1/me/favourite-reports` | `preferences_favourites_list` | none | phi | active |
+| `preferences.favourites.remove` | A | command | authorize | - | human | rest, mcp | POST `/v1/me/favourite-reports/remove` | `preferences_favourites_remove` | required | phi | active |
+| `preferences.recentPatients.clear` | A | command | authorize | - | human | rest, mcp | POST `/v1/me/recent-patients/clear` | `preferences_recent_patients_clear` | required | phi | active |
+| `preferences.recentPatients.list` | A | query | authorize | - | human | rest, mcp | GET `/v1/me/recent-patients` | `preferences_recent_patients_list` | none | phi | active |
+| `preferences.recentPatients.record` | A | command | authorize | - | human | rest, mcp | POST `/v1/me/recent-patients` | `preferences_recent_patients_record` | required | phi | active |
+| `preferences.savedViews.delete` | A | command | authorize | - | human | rest, mcp | POST `/v1/me/saved-views/{viewRef}/delete` | `preferences_saved_views_delete` | required | phi | active |
+| `preferences.savedViews.list` | A | query | authorize | - | human | rest, mcp | GET `/v1/me/saved-views` | `preferences_saved_views_list` | none | phi | active |
+| `preferences.savedViews.save` | A | command | authorize | - | human | rest, mcp | POST `/v1/me/saved-views` | `preferences_saved_views_save` | required | phi | active |
 | `rcm.appeals.draft` | B | command | authorize | `billing.write` | human | rest, mcp | POST `/v1/rcm/claims/{claimRef}/appeals` | `rcm_appeals_draft` | required | phi | active |
 | `rcm.appeals.review` | B | command | authorize | `billing.correct` | human | rest, mcp | POST `/v1/rcm/appeals/{appealRef}/review` | `rcm_appeals_review` | required | phi | active |
 | `rcm.claims.attach` | B | command | authorize | `billing.write` | human, service | rest, mcp | POST `/v1/rcm/claims/{claimRef}/attachments` | `rcm_claims_attach` | required | phi | active |

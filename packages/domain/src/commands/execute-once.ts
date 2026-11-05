@@ -18,6 +18,7 @@ import { ENGAGEMENT_REPLAY_CODECS } from '../engagement/codecs';
 import { IMAGING_REPLAY_CODECS } from '../imaging/codecs';
 import { MIGRATION_REPLAY_CODECS } from '../migration/codecs';
 import { PATIENT_REPLAY_CODECS } from '../patients/replay-codecs';
+import { PREFERENCE_REPLAY_CODECS } from '../preferences/preferences';
 import { APPOINTMENT_REPLAY_CODECS, SCHEDULING_REPLAY_CODECS } from '../scheduling/codecs';
 import { EXTENDED_SCHEDULING_CODECS } from '../scheduling/ext-codecs';
 import {
@@ -271,6 +272,7 @@ const ALL_CODECS: Readonly<Record<string, ReplayCodec<any>>> = {
   ...ENGAGEMENT_REPLAY_CODECS,
   ...IMAGING_REPLAY_CODECS,
   ...MIGRATION_REPLAY_CODECS,
+  ...PREFERENCE_REPLAY_CODECS,
 };
 
 /**

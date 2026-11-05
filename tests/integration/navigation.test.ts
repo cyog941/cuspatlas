@@ -71,7 +71,8 @@ describe('A24 navigation from the catalog', () => {
     const nav = h.ok<{ data: Json }>(await h.call('a4', 'GET', '/v1/navigation')).data;
     const areas = nav.areas.map((a: Json) => a.area);
     expect(areas).toEqual(expect.arrayContaining(['scheduling', 'administration']));
-    for (const hidden of ['clinical', 'financial', 'imaging', 'migration']) expect(areas).not.toContain(hidden);
+    for (const hidden of ['clinical', 'financial', 'imaging', 'migration'])
+      expect(areas).not.toContain(hidden);
     const schedule = nav.areas[0].capabilities.find((c: Json) => c.key === 'schedule');
     expect(schedule.entry).toEqual({
       operation: 'schedule.view',

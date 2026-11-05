@@ -9172,6 +9172,306 @@
     "status": "active"
   },
   {
+    "operation": "preferences.favourites.add",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "preferences.favourites.add",
+    "scope": null,
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/me/favourite-reports",
+      "requestSchema": "FavouriteReportChange",
+      "successStatus": "201",
+      "successSchema": "FavouriteReportCommandResult"
+    },
+    "mcpTool": "preferences_favourites_add",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "preferences.favourites.list",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "preferences.favourites.list",
+    "scope": null,
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/me/favourite-reports",
+      "successStatus": "200",
+      "successSchema": "FavouriteReportList"
+    },
+    "mcpTool": "preferences_favourites_list",
+    "refusals": [
+      "401",
+      "403",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "preferences.favourites.remove",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "preferences.favourites.remove",
+    "scope": null,
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/me/favourite-reports/remove",
+      "requestSchema": "FavouriteReportChange",
+      "successStatus": "201",
+      "successSchema": "FavouriteReportCommandResult"
+    },
+    "mcpTool": "preferences_favourites_remove",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "preferences.recentPatients.clear",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "preferences.recentPatients.clear",
+    "scope": null,
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/me/recent-patients/clear",
+      "requestSchema": "EmptyCommand",
+      "successStatus": "201",
+      "successSchema": "RecentPatientClearResult"
+    },
+    "mcpTool": "preferences_recent_patients_clear",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "preferences.recentPatients.list",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "preferences.recentPatients.list",
+    "scope": null,
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/me/recent-patients",
+      "successStatus": "200",
+      "successSchema": "RecentPatientList"
+    },
+    "mcpTool": "preferences_recent_patients_list",
+    "refusals": [
+      "401",
+      "403",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "preferences.recentPatients.record",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "preferences.recentPatients.record",
+    "scope": null,
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/me/recent-patients",
+      "requestSchema": "RecentPatientRecord",
+      "successStatus": "201",
+      "successSchema": "RecentPatientCommandResult"
+    },
+    "mcpTool": "preferences_recent_patients_record",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "preferences.savedViews.delete",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "preferences.savedViews.delete",
+    "scope": null,
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/me/saved-views/{viewRef}/delete",
+      "requestSchema": "EmptyCommand",
+      "successStatus": "201",
+      "successSchema": "SavedViewDeleteResult"
+    },
+    "mcpTool": "preferences_saved_views_delete",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "preferences.savedViews.list",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "preferences.savedViews.list",
+    "scope": null,
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/me/saved-views",
+      "successStatus": "200",
+      "successSchema": "SavedViewList"
+    },
+    "mcpTool": "preferences_saved_views_list",
+    "refusals": [
+      "401",
+      "403",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "preferences.savedViews.save",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "preferences.savedViews.save",
+    "scope": null,
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/me/saved-views",
+      "requestSchema": "SavedViewSave",
+      "successStatus": "201",
+      "successSchema": "SavedViewCommandResult"
+    },
+    "mcpTool": "preferences_saved_views_save",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
     "operation": "rcm.appeals.draft",
     "owner": "B",
     "kind": "command",

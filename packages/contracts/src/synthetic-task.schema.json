@@ -864,6 +864,218 @@
           }
         }
       }
+    },
+    "EmptyCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "SavedViewName": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z ._-]{0,59}$",
+      "description": "Letters, spaces, dots, dashes and underscores only: no digits, so no date, phone or chart number."
+    },
+    "OperationId": {
+      "type": "string",
+      "pattern": "^[a-z][A-Za-z]{0,40}(\\.[a-z][A-Za-z]{0,40}){0,3}$"
+    },
+    "SavedViewSave": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "operation", "filters"],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/SavedViewName"
+        },
+        "operation": {
+          "$ref": "#/$defs/OperationId"
+        },
+        "filters": {
+          "type": "object",
+          "maxProperties": 16,
+          "propertyNames": {
+            "pattern": "^[a-z][A-Za-z]{0,40}$"
+          },
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "array",
+                "maxItems": 20,
+                "items": {
+                  "type": "string",
+                  "maxLength": 64
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "SavedView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["viewRef", "name", "operation", "filters", "version", "updatedAt"],
+      "properties": {
+        "viewRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "name": {
+          "$ref": "#/$defs/SavedViewName"
+        },
+        "operation": {
+          "$ref": "#/$defs/OperationId"
+        },
+        "filters": {
+          "type": "object"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "SavedViewList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "envelope"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/SavedView"
+          }
+        },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
+        }
+      }
+    },
+    "PreferenceCommandResult": {
+      "type": "object",
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object"
+        },
+        "version": {
+          "type": "integer"
+        },
+        "correlationId": {
+          "type": "string"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "SavedViewCommandResult": {
+      "$ref": "#/$defs/PreferenceCommandResult"
+    },
+    "SavedViewDeleteResult": {
+      "$ref": "#/$defs/PreferenceCommandResult"
+    },
+    "FavouriteReportChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation"],
+      "properties": {
+        "operation": {
+          "$ref": "#/$defs/OperationId"
+        }
+      }
+    },
+    "FavouriteReportList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "envelope"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["operation", "addedAt"],
+            "properties": {
+              "operation": {
+                "$ref": "#/$defs/OperationId"
+              },
+              "addedAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
+        }
+      }
+    },
+    "FavouriteReportCommandResult": {
+      "$ref": "#/$defs/PreferenceCommandResult"
+    },
+    "RecentPatientRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["patientRef"],
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/Uuid"
+        }
+      }
+    },
+    "RecentPatientList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "retentionDays", "envelope"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["patientRef", "openedAt"],
+            "properties": {
+              "patientRef": {
+                "$ref": "#/$defs/Uuid"
+              },
+              "openedAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        },
+        "retentionDays": {
+          "const": 7
+        },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
+        }
+      }
+    },
+    "RecentPatientCommandResult": {
+      "$ref": "#/$defs/PreferenceCommandResult"
+    },
+    "RecentPatientClearResult": {
+      "$ref": "#/$defs/PreferenceCommandResult"
     }
   }
 }

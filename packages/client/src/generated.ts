@@ -7284,6 +7284,24 @@ export type SyntheticAppointmentDetailResult = {
 
 export type SyntheticCursor = string;
 
+export type SyntheticEmptyCommand = {
+
+};
+
+export type SyntheticFavouriteReportChange = {
+  readonly "operation": SyntheticOperationId;
+};
+
+export type SyntheticFavouriteReportCommandResult = SyntheticPreferenceCommandResult;
+
+export type SyntheticFavouriteReportList = {
+  readonly "data": readonly ({
+    readonly "operation": SyntheticOperationId;
+    readonly "addedAt": string;
+  })[];
+  readonly "envelope": SyntheticListEnvelope;
+};
+
 export type SyntheticLabel = string;
 
 export type SyntheticListCount = ({
@@ -7343,6 +7361,16 @@ export type SyntheticNavigationRead = {
   readonly [k: string]: unknown;
 };
 
+export type SyntheticOperationId = string;
+
+export type SyntheticPreferenceCommandResult = {
+  readonly "data": { readonly [k: string]: unknown };
+  readonly "version": number;
+  readonly "correlationId": string;
+  readonly "replayed": boolean;
+  readonly [k: string]: unknown;
+};
+
 export type SyntheticReadComponent = {
   readonly "status": "ok" | "restricted" | "unavailable";
   readonly "owner": string;
@@ -7358,6 +7386,23 @@ export type SyntheticReadFreshness = {
   readonly "asOf": string;
   readonly "state": "current" | "stale";
   readonly "basis": string;
+};
+
+export type SyntheticRecentPatientClearResult = SyntheticPreferenceCommandResult;
+
+export type SyntheticRecentPatientCommandResult = SyntheticPreferenceCommandResult;
+
+export type SyntheticRecentPatientList = {
+  readonly "data": readonly ({
+    readonly "patientRef": SyntheticUuid;
+    readonly "openedAt": string;
+  })[];
+  readonly "retentionDays": 7;
+  readonly "envelope": SyntheticListEnvelope;
+};
+
+export type SyntheticRecentPatientRecord = {
+  readonly "patientRef": SyntheticUuid;
 };
 
 export type SyntheticRefusal = {
@@ -7411,6 +7456,32 @@ export type SyntheticRefusal = {
         })[];
     })[];
   };
+};
+
+export type SyntheticSavedView = {
+  readonly "viewRef": SyntheticUuid;
+  readonly "name": SyntheticSavedViewName;
+  readonly "operation": SyntheticOperationId;
+  readonly "filters": { readonly [k: string]: unknown };
+  readonly "version": number;
+  readonly "updatedAt": string;
+};
+
+export type SyntheticSavedViewCommandResult = SyntheticPreferenceCommandResult;
+
+export type SyntheticSavedViewDeleteResult = SyntheticPreferenceCommandResult;
+
+export type SyntheticSavedViewList = {
+  readonly "data": readonly (SyntheticSavedView)[];
+  readonly "envelope": SyntheticListEnvelope;
+};
+
+export type SyntheticSavedViewName = string;
+
+export type SyntheticSavedViewSave = {
+  readonly "name": SyntheticSavedViewName;
+  readonly "operation": SyntheticOperationId;
+  readonly "filters": { readonly [k: string]: (string) | (number) | (boolean) | (readonly (string)[]) };
 };
 
 export type SyntheticScheduleView = {
@@ -7474,6 +7545,8 @@ export type SyntheticSyntheticTaskRelabel = {
 };
 
 export type SyntheticTaskRef = string;
+
+export type SyntheticUuid = string;
 
 export type SyntheticVersion = number;
 
@@ -10196,6 +10269,96 @@ export interface Operations {
     successStatus: 200;
     idempotent: false;
   };
+  "preferences.favourites.add": {
+    method: "POST";
+    path: "/v1/me/favourite-reports";
+    params: {  };
+    query: Record<string, never>;
+    body: SyntheticFavouriteReportChange;
+    result: SyntheticFavouriteReportCommandResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "preferences.favourites.list": {
+    method: "GET";
+    path: "/v1/me/favourite-reports";
+    params: {  };
+    query: Record<string, never>;
+    body: undefined;
+    result: SyntheticFavouriteReportList;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "preferences.favourites.remove": {
+    method: "POST";
+    path: "/v1/me/favourite-reports/remove";
+    params: {  };
+    query: Record<string, never>;
+    body: SyntheticFavouriteReportChange;
+    result: SyntheticFavouriteReportCommandResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "preferences.recentPatients.clear": {
+    method: "POST";
+    path: "/v1/me/recent-patients/clear";
+    params: {  };
+    query: Record<string, never>;
+    body: SyntheticEmptyCommand;
+    result: SyntheticRecentPatientClearResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "preferences.recentPatients.list": {
+    method: "GET";
+    path: "/v1/me/recent-patients";
+    params: {  };
+    query: Record<string, never>;
+    body: undefined;
+    result: SyntheticRecentPatientList;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "preferences.recentPatients.record": {
+    method: "POST";
+    path: "/v1/me/recent-patients";
+    params: {  };
+    query: Record<string, never>;
+    body: SyntheticRecentPatientRecord;
+    result: SyntheticRecentPatientCommandResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "preferences.savedViews.delete": {
+    method: "POST";
+    path: "/v1/me/saved-views/{viewRef}/delete";
+    params: { readonly viewRef: string; };
+    query: Record<string, never>;
+    body: SyntheticEmptyCommand;
+    result: SyntheticSavedViewDeleteResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "preferences.savedViews.list": {
+    method: "GET";
+    path: "/v1/me/saved-views";
+    params: {  };
+    query: Record<string, never>;
+    body: undefined;
+    result: SyntheticSavedViewList;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "preferences.savedViews.save": {
+    method: "POST";
+    path: "/v1/me/saved-views";
+    params: {  };
+    query: Record<string, never>;
+    body: SyntheticSavedViewSave;
+    result: SyntheticSavedViewCommandResult;
+    successStatus: 201;
+    idempotent: true;
+  };
   "rcm.appeals.draft": {
     method: "POST";
     path: "/v1/rcm/claims/{claimRef}/appeals";
@@ -11780,6 +11943,15 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "practice.export.download": { method: "POST", path: "/v1/practice/exports/package", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "practice.export.grant": { method: "POST", path: "/v1/practice/exports/grants", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "practice.export.verify": { method: "GET", path: "/v1/practice/exports/verification", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "preferences.favourites.add": { method: "POST", path: "/v1/me/favourite-reports", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "preferences.favourites.list": { method: "GET", path: "/v1/me/favourite-reports", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "preferences.favourites.remove": { method: "POST", path: "/v1/me/favourite-reports/remove", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "preferences.recentPatients.clear": { method: "POST", path: "/v1/me/recent-patients/clear", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "preferences.recentPatients.list": { method: "GET", path: "/v1/me/recent-patients", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "preferences.recentPatients.record": { method: "POST", path: "/v1/me/recent-patients", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "preferences.savedViews.delete": { method: "POST", path: "/v1/me/saved-views/{viewRef}/delete", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "preferences.savedViews.list": { method: "GET", path: "/v1/me/saved-views", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "preferences.savedViews.save": { method: "POST", path: "/v1/me/saved-views", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "rcm.appeals.draft": { method: "POST", path: "/v1/rcm/claims/{claimRef}/appeals", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "rcm.appeals.review": { method: "POST", path: "/v1/rcm/appeals/{appealRef}/review", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "rcm.claims.attach": { method: "POST", path: "/v1/rcm/claims/{claimRef}/attachments", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },

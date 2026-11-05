@@ -12,7 +12,7 @@ import { openTestDatabase, type TestDatabase } from './support/db';
 
 /**
  * Integration hardening: the S-owned patient references registered in the merge registry have the
- * database relink guard C records have (migration 20261120010000). Every forged write runs under the
+ * database relink guard C records have (migration 20261125010000). Every forged write runs under the
  * runtime role `cuspatlas_app` with tenant and actor context, exactly as the application does, and
  * commits so the deferred checks run. Real merges and unmerges (S6 through the API) still relink.
  */

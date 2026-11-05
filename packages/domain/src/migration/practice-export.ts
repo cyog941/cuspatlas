@@ -266,7 +266,7 @@ const MODULE_EXPORT_ACTIONS = [
   'billing.export',
 ] as const;
 const REQUEST_COLUMNS = `id, state, purpose, practice_export_id, artifact_format, manifest_digest, package_digest,
-  byte_length, document_count, diagnostic, version, created_at, completed_at`;
+  byte_length, document_count, diagnostic, version, created_at, completed_at, created_by`;
 interface PracticeRequestRow extends Record<string, unknown> {
   id: string;
   state: 'building' | 'ready' | 'failed';
@@ -280,6 +280,7 @@ interface PracticeRequestRow extends Record<string, unknown> {
   diagnostic: string | null;
   version: number;
   created_at: Date;
+  created_by: string;
   completed_at: Date | null;
 }
 const presentRequest = (r: PracticeRequestRow) => ({
@@ -455,15 +456,29 @@ export function createPracticeExportOperations(base: MigrationBase) {
       });
     },
 
-    /** Closeout D2: the state of one M1 practice export request (the poll after create). */
+    /**
+     * Closeout D2: the state of one M1 practice export request (the poll after create). Deliberately
+     * tenant-wide, not filtered to the requester: any human tenant-wide administrator (admin.configure,
+     * no location restriction) may read any practice export request of the tenant, consistent with
+     * `practice.export.grant` and `practice.export.download`. Review fix S3: since the catalog marks it
+     * phiBulk, every read is a sensitive read naming the request, with resource type `exportRequest`
+     * when the reader is the requester and `exportRequestNotRequester` otherwise.
+     */
     readPracticeExport(ctx: ActorContext, query: unknown): Promise<{ data: PracticeExportRequestView }> {
       const op = 'practice.export.read';
       return base.guarded(ctx, op, async () => {
         await tenantWide(ctx, op);
         validate<{ requestRef: string }>(validatePracticeExportRequestQuery, query);
-        return deps.withTenantTransaction(ctx, async (tx) => ({
-          data: presentRequest(await loadRequest(tx, query.requestRef)),
-        }));
+        return deps.withTenantTransaction(ctx, async (tx) => {
+          const row = await loadRequest(tx, query.requestRef);
+          await recordSensitiveRead(tx, {
+            operation: op,
+            resourceType: row.created_by === ctx.actorId ? 'exportRequest' : 'exportRequestNotRequester',
+            resourceRefs: [row.id],
+            queryFields: ['requestRef'],
+          });
+          return { data: presentRequest(row) };
+        });
       });
     },
 

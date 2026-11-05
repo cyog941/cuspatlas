@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { seedBillingScopes } from './support/billing-fixtures';
-import { seedClinicalScopes } from './support/clinical-fixtures';
+import { seedClinicalScopes, USER_A7 } from './support/clinical-fixtures';
 import { seedEngagementScopes } from './support/engagement-fixtures';
 import { exportWorker, runExportBuilds } from './support/export-jobs';
 import { T_ALPHA, USER_A1 } from './support/fixtures';
@@ -102,6 +102,38 @@ describe('Closeout D2: the M1 practice export builds in the worker', () => {
     expect(rows).toStrictEqual([
       { resource_type: 'exportRequest', actor_id: USER_A1 },
       { resource_type: 'practiceExport', actor_id: USER_A1 },
+    ]);
+  });
+
+  it('every read is a sensitive read naming the request and whether the reader is the requester', async () => {
+    // Review fix S3: practice.export.read stays tenant-wide for admin.configure humans (like grant and
+    // download), and every read is recorded as a sensitive read (the catalog marks it phiBulk).
+    const c = await s.command('owner', '/v1/practice/exports', { purpose: 'verification' }, randomUUID());
+    expect(c.status).toBe(201);
+    const ref = data<View>(c).requestRef;
+    await setScopes(USER_A7, ['admin.configure']);
+    try {
+      expect((await poll(ref)).status).toBe(200);
+      const other = await poll(ref, 'deleter');
+      expect(other.status, JSON.stringify(other.json)).toBe(200);
+      expect(data<View>(other).requestRef).toBe(ref);
+      expect((await s.mcp('owner', 'practice_export_read', { requestRef: ref })).isError).toBe(false);
+    } finally {
+      await setScopes(USER_A7, [], ['admin.configure']);
+    }
+    const { rows } = await s.db.admin.query<{
+      actor_id: string;
+      resource_type: string;
+      query_fields: string[];
+    }>(
+      `SELECT actor_id, resource_type, query_fields FROM cuspatlas.sensitive_read_events
+       WHERE operation = 'practice.export.read' AND resource_refs = ARRAY[$1]::uuid[] ORDER BY occurred_at`,
+      [ref],
+    );
+    expect(rows).toStrictEqual([
+      { actor_id: USER_A1, resource_type: 'exportRequest', query_fields: ['requestRef'] },
+      { actor_id: USER_A7, resource_type: 'exportRequestNotRequester', query_fields: ['requestRef'] },
+      { actor_id: USER_A1, resource_type: 'exportRequest', query_fields: ['requestRef'] },
     ]);
   });
 

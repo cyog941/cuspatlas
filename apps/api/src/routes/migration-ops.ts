@@ -512,7 +512,7 @@ export const MIGRATION_OPS: MigrationOp[] = [
     refusals: READ,
     tool: 'practice_export_read',
     description:
-      'M1 (Closeout D2): the state of one practice export request recorded by practice.export.create: building, ready with the exportRef of the M1 package (then practice.export.grant and practice.export.download), or failed with a fixed diagnostic. Tenant-wide human administrators only; an A15 exports.create request is not readable here.',
+      'M1 (Closeout D2): the state of one practice export request recorded by practice.export.create: building, ready with the exportRef of the M1 package (then practice.export.grant and practice.export.download), or failed with a fixed diagnostic. Tenant-wide human administrators only: any of them may read any practice export request of the tenant (not only their own), consistent with practice.export.grant and download; every read is a sensitive read naming the request and whether the reader is the requester. An A15 exports.create request is not readable here.',
     invoke: (svc, actor, i) => svc.readPracticeExport(actor, i.body),
   },
   {

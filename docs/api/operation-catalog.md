@@ -9,12 +9,12 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-406 operations.
+407 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
 | F | 14 | 12 | 10 | 0 | 0 | 1 |
-| A | 2 | 2 | 2 | 0 | 0 | 0 |
+| A | 3 | 3 | 3 | 0 | 0 | 0 |
 | S | 92 | 90 | 90 | 0 | 0 | 0 |
 | C | 88 | 87 | 87 | 0 | 0 | 0 |
 | B | 66 | 66 | 66 | 0 | 0 | 0 |
@@ -259,6 +259,7 @@ transport tables and are declarations, not independent proof.
 | `migration.reviewItems.resolve` | M | command | authorize | `migration.write` | human | rest, mcp | POST `/v1/migration/review-items/resolve` | `migration_review_items_resolve` | required | phi | active |
 | `migration.signoffs.record` | M | command | authorize | `migration.signoff` | human | rest, mcp | POST `/v1/migration/signoffs` | `migration_signoffs_record` | required | phi | active |
 | `migration.sourceProfiles.register` | M | command | authorize | `migration.write` | human | rest, mcp | POST `/v1/migration/source-profiles` | `migration_source_profiles_register` | required | phi | active |
+| `navigation.read` | A | query | authorize | - | human, service | rest, mcp | GET `/v1/navigation` | `navigation_get` | none | phi | active |
 | `operations.alerts.list` | M | query | authorize | `migration.read` | human, service | rest, mcp | GET `/v1/operations/alerts` | `operations_alerts_list` | none | phi | active |
 | `operations.backupVerifications.record` | M | command | authorize | `migration.write` | human, service | rest, mcp | POST `/v1/operations/backup-verifications` | `operations_backup_verifications_record` | required | phi | active |
 | `operations.operatorProfiles.record` | M | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/operations/operator-profiles` | `operations_operator_profiles_record` | required | operational | active |

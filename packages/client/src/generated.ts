@@ -7318,6 +7318,31 @@ export type SyntheticLocalDate = string;
 
 export type SyntheticLocationRef = string;
 
+export type SyntheticNavigationOperation = {
+  readonly "operation": string;
+  readonly "kind": "query" | "command" | "capability";
+  readonly "method": "get" | "post" | null;
+  readonly "path": string | null;
+  readonly "mcpTool": string | null;
+};
+
+export type SyntheticNavigationRead = {
+  readonly "data": {
+    readonly "version": string;
+    readonly "areas": readonly ({
+      readonly "area": "scheduling" | "clinical" | "financial" | "communications" | "imaging" | "administration" | "migration";
+      readonly "label": string;
+      readonly "capabilities": readonly ({
+        readonly "key": string;
+        readonly "label": string;
+        readonly "entry": SyntheticNavigationOperation;
+        readonly "operations": readonly (SyntheticNavigationOperation)[];
+      })[];
+    })[];
+  };
+  readonly [k: string]: unknown;
+};
+
 export type SyntheticReadComponent = {
   readonly "status": "ok" | "restricted" | "unavailable";
   readonly "owner": string;
@@ -9791,6 +9816,16 @@ export interface Operations {
     successStatus: 201;
     idempotent: true;
   };
+  "navigation.read": {
+    method: "GET";
+    path: "/v1/navigation";
+    params: {  };
+    query: Record<string, never>;
+    body: undefined;
+    result: SyntheticNavigationRead;
+    successStatus: 200;
+    idempotent: false;
+  };
   "operations.alerts.list": {
     method: "GET";
     path: "/v1/operations/alerts";
@@ -11707,6 +11742,7 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "migration.reviewItems.resolve": { method: "POST", path: "/v1/migration/review-items/resolve", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "migration.signoffs.record": { method: "POST", path: "/v1/migration/signoffs", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "migration.sourceProfiles.register": { method: "POST", path: "/v1/migration/source-profiles", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "navigation.read": { method: "GET", path: "/v1/navigation", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "operations.alerts.list": { method: "GET", path: "/v1/operations/alerts", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "operations.backupVerifications.record": { method: "POST", path: "/v1/operations/backup-verifications", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "operations.operatorProfiles.record": { method: "POST", path: "/v1/operations/operator-profiles", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },

@@ -1,3 +1,5 @@
+import type { MembershipSource } from '@cuspatlas/contracts';
+import { createNavigationReads } from '../navigation/navigation';
 import { type ComposerDeps, createComposerBase } from './framework';
 import { type ComposerProducers, createReadComposers, DEFAULT_PRODUCERS } from './read-composers';
 
@@ -8,12 +10,15 @@ import { type ComposerProducers, createReadComposers, DEFAULT_PRODUCERS } from '
 export interface ReadSurfaceDeps extends ComposerDeps {
   /** Composer producers; a missing one (null) is reported `unavailable`. Defaults to every published read. */
   readonly producers?: Partial<ComposerProducers>;
+  /** Live membership lookup (A24 navigation evaluates many actions against one load). */
+  readonly memberships?: MembershipSource;
 }
 
 export function createReadSurfaceService(deps: ReadSurfaceDeps) {
   const base = createComposerBase(deps);
   return {
     ...createReadComposers(base, { ...DEFAULT_PRODUCERS, ...deps.producers }),
+    ...createNavigationReads(base, deps.memberships),
   };
 }
 

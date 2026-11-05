@@ -7870,6 +7870,37 @@
     "status": "active"
   },
   {
+    "operation": "navigation.read",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "navigation.read",
+    "scope": null,
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/navigation",
+      "successStatus": "200",
+      "successSchema": "NavigationRead"
+    },
+    "mcpTool": "navigation_get",
+    "refusals": [
+      "401",
+      "403",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
     "operation": "operations.alerts.list",
     "owner": "M",
     "kind": "query",

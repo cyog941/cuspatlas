@@ -24,6 +24,8 @@ export const ACTION_POLICIES = {
   // authorized by its owning domain's own read action (restricted when denied).
   'schedule.view': { scope: 'scheduling.read', principals: ['human', 'service'] },
   'appointments.detail': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  // A24 (OR-14): navigation from the catalog, filtered by the caller's live permissions.
+  'navigation.read': { scope: null, principals: ['human', 'service'] },
   'syntheticTasks.read': { scope: 'syntheticTasks.read', principals: ['human', 'service'] },
   'syntheticTasks.create': { scope: 'syntheticTasks.write', principals: ['human', 'service'] },
   'syntheticTasks.relabel': { scope: 'syntheticTasks.write', principals: ['human', 'service'] },
@@ -626,6 +628,26 @@ function deny(reasonCode: SecurityReasonCode): never {
 }
 
 /**
+ * The membership part of the policy decision for one action (null = allowed), shared by `authorize`
+ * and by reads that evaluate many actions against ONE live membership load (A24 navigation). Resource
+ * and location checks stay with the caller of `authorize`.
+ */
+export function membershipDenial(
+  m: MembershipRecord | null | undefined,
+  ctx: ActorContext,
+  action: string,
+): SecurityReasonCode | null {
+  const policy: ActionPolicy | undefined = (ACTION_POLICIES as Record<string, ActionPolicy>)[action];
+  if (!policy) return 'scope_missing';
+  if (!m?.active) return 'membership_inactive';
+  if (m.principal !== ctx.principal || !policy.principals.includes(m.principal))
+    return 'principal_kind_denied';
+  if (policy.scope !== null && !(m.scopes.includes(policy.scope) && ctx.scopes.includes(policy.scope)))
+    return 'scope_missing';
+  return null;
+}
+
+/**
  * Builds `authorize`. Every call reloads the membership (no cached authority), so revocation, role
  * downgrade and kind changes apply to tokens and queued work issued earlier.
  */
@@ -636,12 +658,9 @@ export function createAuthorize(memberships: MembershipSource): Authorize {
     if (resource.tenantId !== ctx.tenantId) deny('tenant_mismatch');
 
     const m = await memberships.load(ctx.actorId, ctx.tenantId);
-    if (!m?.active) deny('membership_inactive');
-    if (m.principal !== ctx.principal || !policy.principals.includes(m.principal))
-      deny('principal_kind_denied');
-    if (policy.scope !== null && !(m.scopes.includes(policy.scope) && ctx.scopes.includes(policy.scope))) {
-      deny('scope_missing');
-    }
+    const reason = membershipDenial(m, ctx, action);
+    if (reason !== null) deny(reason);
+    if (!m) deny('membership_inactive');
     if (resource.locationId !== undefined) assertLocation(m.locationRefs, resource.locationId);
     recordListScope(m.locationRefs);
     return { action, locationRefs: m.locationRefs };

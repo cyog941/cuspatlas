@@ -12473,6 +12473,29 @@
       ]
     },
     {
+      "operation": "navigation.read",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": null,
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/navigation"
+      },
+      "mcpTool": "navigation_get",
+      "idempotency": "none",
+      "refusals": [
+        "401",
+        "403",
+        "503"
+      ]
+    },
+    {
       "operation": "operations.alerts.list",
       "transports": [
         "rest",

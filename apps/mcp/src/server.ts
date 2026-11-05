@@ -484,7 +484,12 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     engagement,
     imaging,
     migration,
-    reads: createReadSurfaceService({ authorize, withTenantTransaction: deps.tenantTransactions, recording }),
+    reads: createReadSurfaceService({
+      authorize,
+      withTenantTransaction: deps.tenantTransactions,
+      recording,
+      memberships: deps.membership,
+    }),
     authorize,
     recording,
   };

@@ -777,6 +777,93 @@
           "$ref": "#/$defs/AppointmentDetail"
         }
       }
+    },
+    "NavigationOperation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "kind", "method", "path", "mcpTool"],
+      "properties": {
+        "operation": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": ["query", "command", "capability"]
+        },
+        "method": {
+          "enum": ["get", "post", null]
+        },
+        "path": {
+          "type": ["string", "null"]
+        },
+        "mcpTool": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "NavigationRead": {
+      "type": "object",
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["version", "areas"],
+          "properties": {
+            "version": {
+              "type": "string"
+            },
+            "areas": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["area", "label", "capabilities"],
+                "properties": {
+                  "area": {
+                    "enum": [
+                      "scheduling",
+                      "clinical",
+                      "financial",
+                      "communications",
+                      "imaging",
+                      "administration",
+                      "migration"
+                    ]
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "capabilities": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["key", "label", "entry", "operations"],
+                      "properties": {
+                        "key": {
+                          "type": "string"
+                        },
+                        "label": {
+                          "type": "string"
+                        },
+                        "entry": {
+                          "$ref": "#/$defs/NavigationOperation"
+                        },
+                        "operations": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/$defs/NavigationOperation"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

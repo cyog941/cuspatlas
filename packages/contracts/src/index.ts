@@ -4,6 +4,7 @@ export * from './billing-export';
 export * from './billing-rcm';
 export type { CatalogOperation, DeprecationEntry } from './catalog/catalog';
 export { DEPRECATIONS, deprecationHeaders, deprecationIndex, deprecationNotice } from './catalog/deprecation';
+export * from './catalog/navigation';
 export * from './clinical';
 export * from './clinical-care';
 export * from './clinical-chart';

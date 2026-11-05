@@ -60,6 +60,18 @@ export const READ_OPS: readonly ReadOp[] = [
       'A21 (OR-10): one appointment with its patient summary (name, age, chart identifier; phone only with communications read), coverage verification status and carrier, balance summary, planned procedures with tooth and surfaces, attendance with next transitions, and a chart reference. Each component is ok, restricted or unavailable with its own freshness. Writes nothing.',
     invoke: (svc, actor, i) => svc.readAppointmentDetail(actor, param(i, 'appointmentRef')),
   },
+  {
+    method: 'get',
+    path: '/v1/navigation',
+    operationId: 'navigation.read',
+    protected: true,
+    success: { status: '200', schema: 'NavigationRead' },
+    refusals: ['401', '403', '503'],
+    tool: 'navigation_get',
+    description:
+      'A24 (OR-14): the navigable capabilities of the operation catalog grouped by area (scheduling, clinical, financial, communications, imaging, administration, migration), filtered by the live permissions of the caller: a capability appears only when its entry operation is allowed and lists only allowed operations. Navigation grants nothing; every operation still authorizes its own resource.',
+    invoke: (svc, actor) => svc.readNavigation(actor),
+  },
 ];
 
 export const READ_OP_ROUTES: readonly RouteContract[] = READ_OPS.map((o) => ({

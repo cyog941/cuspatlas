@@ -417,6 +417,7 @@ const TOOL_NAMES = [
   // A batch 3 read surfaces.
   'schedule_view',
   'appointments_detail',
+  'navigation_get',
 ].sort();
 
 let db: TestDatabase;

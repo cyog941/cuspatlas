@@ -134,7 +134,7 @@ describe('I9 bridge routes refuse everything but a live device of the same tenan
     const rev = await revoked.raw('POST', url, body, revoked.assertion('POST', url));
     expect(['revoked', rev.status]).toStrictEqual(['revoked', 403]);
     expect(await attemptReasons(s.db.admin, rev.json.correlationId)).toStrictEqual(['device_revoked']);
-    const once = alpha.assertion('POST', url);
+    const once = alpha.assertion('POST', url, { body });
     await alpha.raw('POST', url, body, once);
     const replay = await alpha.raw('POST', url, body, once);
     expect(['replay', replay.status]).toStrictEqual(['replay', 401]);
@@ -142,7 +142,7 @@ describe('I9 bridge routes refuse everything but a live device of the same tenan
       'device_assertion_replayed',
     ]);
     if (op.path.includes('{jobRef}')) {
-      const foreign = await beta.raw('POST', url, body, beta.assertion('POST', url));
+      const foreign = await beta.raw('POST', url, body, beta.assertion('POST', url, { body }));
       expect(['crossTenant', foreign.status]).toStrictEqual(['crossTenant', 404]);
       expect(await attemptReasons(s.db.admin, foreign.json.correlationId)).toStrictEqual([
         'resource_hidden_or_missing',

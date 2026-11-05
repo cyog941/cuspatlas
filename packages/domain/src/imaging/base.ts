@@ -41,6 +41,11 @@ export interface ImagingLimits {
   readonly maxDeferredAcquisitions?: number;
 }
 
+/** Maintenance interface (not on the object store port, which has no listing): old staged keys. */
+export interface StagingMaintenance {
+  listStagedOlderThan(tenantId: string, olderThanMs: number): Promise<string[]>;
+}
+
 export interface ImagingDeps {
   readonly authorize: Authorize;
   readonly withTenantTransaction: WithTenantTransaction;
@@ -49,6 +54,8 @@ export interface ImagingDeps {
   readonly execute?: CommandExecutor;
   /** Object store; absent means every byte path is a typed 503 (never an empty or fabricated result). */
   readonly objectStore?: ObjectStorePort;
+  /** Maintenance-only listing for the orphan-staging sweep (never handed to a request path). */
+  readonly stagingMaintenance?: StagingMaintenance;
   /** Malware scanner; absent means every verdict is `unknown`, so nothing becomes available. */
   readonly scanner?: MalwareScannerPort;
   /** HMAC secret of read grants (>= 32 bytes); null disables grants (503). See resolveImagingTokenSecret. */

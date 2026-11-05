@@ -95,6 +95,12 @@ const deferralData = (d: DeferralRow) => ({
  */
 export const sweepBridgeStep: ReconcileStep = async (tx, _ctx, _store: ObjectStorePort, op) => {
   await sweepBridgeJobs(tx, op);
+  // Assertion identifiers expired for over an hour can no longer be replayed; the database permits
+  // deleting only those (bounded batch per sweep).
+  await tx.query(
+    `DELETE FROM cuspatlas.imaging_device_nonces WHERE ctid IN (
+       SELECT ctid FROM cuspatlas.imaging_device_nonces WHERE expires_at < now() - interval '1 hour' LIMIT 1000)`,
+  );
   return {};
 };
 
@@ -392,7 +398,9 @@ export function createBridgeHealthOperations(base: ImagingBase, opts: HealthOpti
              ORDER BY updated_at, id LIMIT 100`,
           );
           for (const j of jobs.rows) {
-            const unknown = j.state === 'outcome_unknown' || (j.state === 'transferring' && j.lease_over);
+            const unknown =
+              j.state === 'outcome_unknown' ||
+              (j.lease_over && (j.state === 'transferring' || j.kind === 'acquire'));
             const kind =
               j.state === 'failed'
                 ? 'bridge_job_failed'
@@ -415,7 +423,7 @@ export function createBridgeHealthOperations(base: ImagingBase, opts: HealthOpti
                 kind === 'bridge_job_failed'
                   ? 'The bridge job failed (or ran out of attempts); nothing was imported.'
                   : kind === 'bridge_outcome_unknown'
-                    ? 'Bytes were received but no signed result arrived before the lease ended. The job is never re-run automatically: a late signed result completes it, or a person requeues or cancels it.'
+                    ? 'No signed result arrived before the lease ended (bytes may have been received, or an acquisition may already have exposed the patient). The job is never re-run automatically: a late signed result completes it, or a person requeues or cancels it.'
                     : kind === 'bridge_late_result'
                       ? 'A result arrived after the job expired; it was not applied.'
                       : 'The claim lease ran out without bytes; the job is retried with bounded backoff.',

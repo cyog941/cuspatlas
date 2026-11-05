@@ -7,6 +7,7 @@ import type { ObjectStorePort } from '@cuspatlas/contracts';
 import {
   createDeviceCredentialSource,
   createLocalObjectStore,
+  createLocalStagingMaintenance,
   createMembershipSource,
   createSecurityAttemptSink,
   createTenantTransactionRunner,
@@ -225,6 +226,7 @@ export async function startImagingStack(
       ? {}
       : { objectStore: opts.wrapStore ? opts.wrapStore(temp.store) : temp.store }),
     ...(opts.limits ? { imagingLimits: opts.limits } : {}),
+    ...(opts.withStore === false ? {} : { stagingMaintenance: createLocalStagingMaintenance(temp.root) }),
   };
   const app = await buildApp({
     ...shared,

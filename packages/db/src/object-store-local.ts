@@ -235,3 +235,32 @@ export async function listLocalStoreKeys(
   await walk(base);
   return out.sort();
 }
+
+/**
+ * Maintenance listing for the orphan-staging sweep: staged files older than a window. Separate from the
+ * object store port (which has no listing), handed only to the reconcile sweep.
+ */
+export function createLocalStagingMaintenance(root: string): {
+  listStagedOlderThan(tenantId: string, olderThanMs: number): Promise<string[]>;
+} {
+  return {
+    async listStagedOlderThan(tenantId, olderThanMs) {
+      assertTenant(tenantId);
+      const dir = join(root, 'staging', tenantId);
+      let names: string[];
+      try {
+        names = await readdir(dir);
+      } catch (err) {
+        if ((err as { code?: unknown }).code === 'ENOENT') return [];
+        throw new ObjectStoreError('unavailable');
+      }
+      const out: string[] = [];
+      for (const n of names) {
+        if (!UUID_RE.test(n)) continue;
+        const st = await stat(join(dir, n)).catch(() => null);
+        if (st?.isFile() && Date.now() - st.mtimeMs > olderThanMs) out.push(`staging/${tenantId}/${n}`);
+      }
+      return out.sort();
+    },
+  };
+}

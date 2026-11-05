@@ -20,7 +20,15 @@ import {
 } from '@cuspatlas/contracts';
 import { recordCommand } from '../events/record-command';
 import { hintKeys, tenantKeyer } from './association';
-import { checkEnvelope, checkRef, failed, type ImagingBase, notFound, refused } from './base';
+import {
+  checkEnvelope,
+  checkRef,
+  failed,
+  type ImagingBase,
+  notFound,
+  refused,
+  type StagingMaintenance,
+} from './base';
 import { dotOnlyName, knownTimeZone, sniffContentType } from './gating';
 import { OBJECT_RESOURCE, type ReconcileStep } from './objects';
 
@@ -575,3 +583,27 @@ export const sweepAbandonedIngress: ReconcileStep = async (tx, ctx, store: Objec
   }
   return { abandonedIngress: rows.length };
 };
+
+/**
+ * Reconcile step: staged bytes that no ingress session or bridge job names and that are older than the
+ * abandonment window are orphans of an upload whose database transaction rolled back (or whose process
+ * died after staging); they are discarded. A young file is never touched (its transaction may be open).
+ */
+export const sweepOrphanStaging =
+  (maintenance: StagingMaintenance): ReconcileStep =>
+  async (tx, ctx, store: ObjectStorePort) => {
+    const old = await maintenance.listStagedOlderThan(ctx.tenantId, INGRESS_ABANDON_HOURS * 3600 * 1000);
+    if (old.length === 0) return {};
+    const named = await tx.query<{ k: string }>(
+      `SELECT staging_key AS k FROM cuspatlas.imaging_ingress_sessions WHERE staging_key IS NOT NULL
+     UNION SELECT staging_key FROM cuspatlas.imaging_bridge_jobs WHERE staging_key IS NOT NULL`,
+    );
+    const keep = new Set(named.rows.map((r) => r.k));
+    let removed = 0;
+    for (const key of old.slice(0, 500)) {
+      if (keep.has(key)) continue;
+      await store.discardStaged(ctx.tenantId, key);
+      removed += 1;
+    }
+    return { abandonedIngress: removed };
+  };

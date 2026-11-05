@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path';
 import {
   backupObjectStore,
   createBackup,
+  findStaleRestoredDevices,
   type RestoreConnection,
   restoreBackup,
   restoreObjectStore,
@@ -19,6 +20,7 @@ import {
   startImagingStack,
 } from './support/imaging-fixtures';
 import { patientBody } from './support/patient-fixtures';
+import { SyntheticBridge } from './support/synthetic-bridge';
 
 /**
  * I9 imaging restore drill (replaces the simulated restore of the I8 suite). A real F8 logical backup
@@ -89,6 +91,8 @@ let late: { objectRef: string; bytes: Uint8Array };
 let atBackup: Record<string, number>;
 let backupDir: string;
 let objectsDir: string;
+let rotated: SyntheticBridge;
+let revokedLater: SyntheticBridge;
 
 beforeAll(async () => {
   src = await startImagingStack('imaging_drill_src');
@@ -125,6 +129,24 @@ beforeAll(async () => {
     allowedPathPrefixes: ['exports'],
   });
   expect(reg.status).toBe(201);
+  const pairNew = async (label: string) => {
+    const r = await src.command('owner', '/v1/imaging/devices', {
+      label,
+      allowedJobKinds: ['import'],
+      allowedPathPrefixes: ['exports'],
+    });
+    const ref = data<{ deviceRef: string }>(r).deviceRef;
+    const code = data<{ pairingCode: string }>(
+      await src.inject('owner', 'POST', `/v1/imaging/devices/${ref}/pairing-codes`, {}),
+    ).pairingCode;
+    const b = new SyntheticBridge(src.app);
+    expect((await b.pair(code)).status).toBe(201);
+    return b;
+  };
+  rotated = await pairNew('Rotated After Backup');
+  revokedLater = await pairNew('Revoked After Backup');
+  const untouched = await pairNew('Untouched');
+  expect(untouched.deviceRef).not.toBe('');
 
   // The backups: logical database backup (F8) and the object-store backup.
   backupDir = tmp('db');
@@ -138,7 +160,16 @@ beforeAll(async () => {
   await backupObjectStore(src.storeRoot, objectsDir);
   atBackup = await counts(src);
 
-  // After the backup: a deletion executes (tombstone, bytes removed) and a new image arrives.
+  // After the backup: a device key rotates and another device is revoked (neither is in the backup),
+  // a deletion executes (tombstone, bytes removed) and a new image arrives.
+  expect((await rotated.rotate()).reply.status).toBe(200);
+  expect(
+    (
+      await src.command('owner', `/v1/imaging/devices/${revokedLater.deviceRef}/revoke`, {
+        reasonCode: 'device_replaced',
+      })
+    ).status,
+  ).toBe(200);
   const req = await src.command('owner', `/v1/imaging/objects/${doomed.objectRef}/deletion-requests`, {
     reasonCode: 'requested_by_practice',
   });
@@ -175,6 +206,23 @@ describe('I9 imaging restore drill', () => {
       storeRoot,
       seed: false,
     });
+
+    // The deleted image's bytes are not in the restored store at all (not merely marked deleted).
+    expect(
+      existsSync(
+        join(storeRoot, 't', T_ALPHA, 'sha256', sha256(doomed.bytes).slice(0, 2), sha256(doomed.bytes)),
+      ),
+    ).toBe(false);
+
+    // Devices whose restored state is behind the live one are flagged: the rotated-away key is active
+    // again, and the later revocation is lost. The untouched device is not flagged.
+    const stale = await findStaleRestoredDevices(restored.db.admin, src.db.admin);
+    expect(stale.map((d) => [d.deviceRef, d.reason]).sort()).toStrictEqual(
+      [
+        [rotated.deviceRef, 'rotated_after_backup'],
+        [revokedLater.deviceRef, 'revoked_after_backup'],
+      ].sort(),
+    );
 
     // Every imaging row of the backup is back, imaging and bridge tables included.
     expect(await counts(restored)).toStrictEqual(atBackup);

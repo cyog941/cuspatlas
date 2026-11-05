@@ -39,6 +39,7 @@ import {
   type ImagingLimits,
   resolveImagingTokenSecret,
   resolveMatchKeyPepper,
+  type StagingMaintenance,
 } from '@cuspatlas/domain';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -113,6 +114,7 @@ export interface McpServerDeps {
   readonly allowedHosts?: readonly string[];
   /** I imaging: object store (metadata tools work without it; byte-touching commands are 503). */
   readonly objectStore?: ObjectStorePort;
+  readonly stagingMaintenance?: StagingMaintenance;
   readonly scanner?: MalwareScannerPort;
   /** I1 read-grant secret; optional only under synthetic-test. */
   readonly imagingTokenSecret?: Uint8Array;
@@ -286,6 +288,7 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     tokenSecret: resolveImagingTokenSecret(deps.env, deps.imagingTokenSecret),
     matchKeyPepper: resolveMatchKeyPepper(deps.env, deps.matchKeyPepper),
     ...(deps.objectStore ? { objectStore: deps.objectStore } : {}),
+    ...(deps.stagingMaintenance ? { stagingMaintenance: deps.stagingMaintenance } : {}),
     ...(deps.scanner ? { scanner: deps.scanner } : {}),
     ...(deps.imagingLimits ? { limits: deps.imagingLimits } : {}),
     alert: (code) => write({ level: 'error', msg: 'imaging alert', alert: code }),

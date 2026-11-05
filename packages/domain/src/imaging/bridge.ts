@@ -287,8 +287,9 @@ export async function insertJob(
 
 /**
  * Lease sweep (I7 failure and recovery): a claimed job whose lease ran out without bytes is retried
- * with bounded backoff (or fails after max attempts); a job whose bytes were staged but whose result
- * never arrived is `outcome_unknown` (never re-run automatically: a late signed result can still
+ * with bounded backoff (or fails after max attempts) when it is an import or probe; an acquire job
+ * whose lease ran out is always `outcome_unknown` (the device may already have exposed the patient); a
+ * job whose bytes were staged but whose result never arrived is `outcome_unknown` (never re-run automatically: a late signed result can still
  * complete it, or a person reconciles it); a queued job past its expiry is `expired`.
  */
 export async function sweepBridgeJobs(
@@ -309,7 +310,9 @@ export async function sweepBridgeJobs(
     if (j.state === 'queued') {
       await bumpJob(tx, op, j, { state: 'expired', failure_reason: 'job_expired' });
       out.expired += 1;
-    } else if (j.state === 'transferring') {
+    } else if (j.state === 'transferring' || j.kind === 'acquire') {
+      // Radiation safety: an acquire job whose lease ran out may already have exposed the patient, so
+      // it is never requeued automatically (only import and probe are safe to repeat).
       await bumpJob(tx, op, j, { state: 'outcome_unknown', lease_expires_at: null });
       out.unknown += 1;
     } else if (j.attempts < j.max_attempts) {
@@ -364,7 +367,8 @@ export function createBridgeOperations(base: ImagingBase, opts: BridgeOptions) {
   };
   const activeDevice = async (tx: TenantTransaction, ctx: ActorContext, lock = 'FOR SHARE') => {
     const d = await loadDevice(tx, ctx.actorId, lock);
-    if (d.state !== 'active') throw deviceDenied('device_revoked');
+    if (d.state !== 'active')
+      throw deviceDenied(d.state === 'pending' ? 'device_unpaired' : 'device_revoked');
     return d;
   };
 

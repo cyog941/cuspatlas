@@ -2,7 +2,12 @@ import type { ObjectContent } from '@cuspatlas/contracts';
 import type { ImagingService } from '@cuspatlas/domain';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { type Authenticator, authenticateOnRequest, requireActor } from '../auth';
-import { authenticateDeviceOnRequest, type DeviceAuthenticator } from '../device-auth';
+import {
+  authenticateDeviceOnRequest,
+  type DeviceAuthenticator,
+  verifyDeviceBodyPreParsing,
+} from '../device-auth';
+import { PairThrottle, pairingIdOf } from '../pair-throttle';
 import { IMAGING_OPS } from './imaging-ops';
 import { routeFor } from './manifest';
 import { pathParamsOf } from './scheduling-ops';
@@ -24,8 +29,11 @@ export function registerImagingRoutes(
     maxObjectBytes: number;
     /** I6 bridge audience; bridge routes are registered only when it is configured. */
     deviceAuthenticator?: DeviceAuthenticator;
+    /** Anonymous pairing throttle (defaults: 5 failures per code, 30 per source, per minute). */
+    pairThrottle?: PairThrottle;
   },
 ): void {
+  const pairThrottle = deps.pairThrottle ?? new PairThrottle();
   app.register(async (scope) => {
     scope.addContentTypeParser(
       'application/octet-stream',
@@ -49,11 +57,19 @@ export function registerImagingRoutes(
       };
       if (op.transport === 'pairing') {
         // The one anonymous bridge route: the one-time code in the body authenticates it.
-        scope.post(r.fastifyPath, async (request, reply) =>
-          reply
-            .code(Number(op.success.status))
-            .send(await op.invokeAnonymous?.(deps.imaging, input(request), request.id)),
-        );
+        scope.post(r.fastifyPath, async (request, reply) => {
+          const source = request.ip;
+          const pairingId = pairingIdOf(request.body);
+          pairThrottle.check(source, pairingId);
+          try {
+            return reply
+              .code(Number(op.success.status))
+              .send(await op.invokeAnonymous?.(deps.imaging, input(request), request.id));
+          } catch (err) {
+            pairThrottle.recordFailure(source, pairingId);
+            throw err;
+          }
+        });
         continue;
       }
       const opts = {
@@ -62,6 +78,10 @@ export function registerImagingRoutes(
             ? authenticateDeviceOnRequest(deps.deviceAuthenticator, op.operationId)
             : authenticateOnRequest(deps.authenticator, op.operationId),
         ...(op.requestMedia ? { bodyLimit: deps.maxObjectBytes } : {}),
+        // A device assertion commits to the exact body bytes (`bdy`); checked before parsing.
+        ...(op.transport === 'device' && deps.deviceAuthenticator && op.method !== 'get'
+          ? { preParsing: verifyDeviceBodyPreParsing(deps.deviceAuthenticator, op.operationId) }
+          : {}),
       };
       if (op.method === 'get' && op.success.media === 'application/octet-stream') {
         scope.get(r.fastifyPath, opts, async (request, reply) => {

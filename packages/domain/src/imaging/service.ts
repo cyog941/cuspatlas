@@ -10,7 +10,7 @@ import {
 } from './composition';
 import { createDicomOperations } from './dicom';
 import { createExportOperations } from './export';
-import { createIngressOperations, sweepAbandonedIngress } from './ingress';
+import { createIngressOperations, sweepAbandonedIngress, sweepOrphanStaging } from './ingress';
 import { createObjectOperations } from './objects';
 import { createRetentionOperations, reconcileDeletions } from './retention';
 
@@ -24,7 +24,12 @@ export function createImagingService(deps: ImagingDeps) {
     ...createObjectOperations(
       base,
       [associationExtension(() => sourceOfDerived), compositionExtension],
-      [sweepAbandonedIngress, reconcileDeletions, sweepBridgeStep],
+      [
+        sweepAbandonedIngress,
+        ...(deps.stagingMaintenance ? [sweepOrphanStaging(deps.stagingMaintenance)] : []),
+        reconcileDeletions,
+        sweepBridgeStep,
+      ],
     ),
     ...createIngressOperations(base),
     ...createAssociationOperations(base, [mountGuard], deps.limits?.unmatchedEscalationHours ?? 48),

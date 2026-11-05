@@ -2,6 +2,7 @@ import {
   assertSyntheticDatabaseName,
   createDeviceCredentialSource,
   createLocalObjectStore,
+  createLocalStagingMaintenance,
   createMembershipSource,
   createSecurityAttemptSink,
   createTenantTransactionRunner,
@@ -45,7 +46,10 @@ export async function startServer(env: NodeJS.ProcessEnv): Promise<FastifyInstan
       : {}),
     // I1: the local adapter is synthetic only (refused under production); I-D1 picks the managed store.
     ...(env.CUSPATLAS_OBJECT_STORE_DIR
-      ? { objectStore: createLocalObjectStore({ root: env.CUSPATLAS_OBJECT_STORE_DIR, env: runtimeEnv }) }
+      ? {
+          objectStore: createLocalObjectStore({ root: env.CUSPATLAS_OBJECT_STORE_DIR, env: runtimeEnv }),
+          stagingMaintenance: createLocalStagingMaintenance(env.CUSPATLAS_OBJECT_STORE_DIR),
+        }
       : {}),
     // I6 bridge audience (server side only; no bridge is built). Without a configured Ed25519 key outside
     // synthetic-test, claims are a typed 503 with an alert.

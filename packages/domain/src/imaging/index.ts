@@ -1,4 +1,4 @@
-export type { ImagingAlert, ImagingDeps, ImagingLimits } from './base';
+export type { ImagingAlert, ImagingDeps, ImagingLimits, StagingMaintenance } from './base';
 export { bridgeBackoffSeconds } from './bridge';
 export {
   BRIDGE_AUDIENCE,

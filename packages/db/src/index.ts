@@ -3,6 +3,7 @@ export * from './device-identity';
 export * from './idempotency-maintenance';
 export * from './identity';
 export * from './imaging-import';
+export * from './imaging-restore-check';
 export * from './migrate';
 export * from './object-store-backup';
 export * from './object-store-local';

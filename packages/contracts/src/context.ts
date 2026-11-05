@@ -162,6 +162,7 @@ export const SECURITY_REASON_CODES = [
   'device_assertion_invalid',
   'device_assertion_replayed',
   'device_revoked',
+  'device_unpaired',
   'device_signature_invalid',
 ] as const;
 export type SecurityReasonCode = (typeof SECURITY_REASON_CODES)[number];

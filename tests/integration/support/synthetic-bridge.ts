@@ -22,6 +22,14 @@ const b64 = (x: Uint8Array | string) =>
   Buffer.from(typeof x === 'string' ? Buffer.from(x, 'utf8') : x).toString('base64url');
 const rawOf = (k: KeyObject) => (k.export({ format: 'jwk' }) as { x: string }).x;
 
+/** The exact bytes `raw` puts on the wire for a body. */
+export const bodyBytes = (body: unknown): Uint8Array =>
+  body === undefined
+    ? new Uint8Array()
+    : body instanceof Uint8Array
+      ? body
+      : Buffer.from(JSON.stringify(body));
+
 export interface KeyPair {
   readonly privateKey: KeyObject;
   readonly publicKey: KeyObject;
@@ -122,6 +130,10 @@ export class SyntheticBridge {
       htu?: string;
       tenantRef?: string;
       deviceRef?: string;
+      /** The body the request will carry (digest committed in `bdy`); default `{}` for non-GET. */
+      body?: unknown;
+      /** Negative fixture: sign without a body digest. */
+      omitBody?: boolean;
     } = {},
   ): string {
     const now = Math.floor(Date.now() / 1000) + (o.iatOffsetSeconds ?? 0);
@@ -142,6 +154,13 @@ export class SyntheticBridge {
         jti: randomUUID(),
         htm: method,
         htu: o.htu ?? path,
+        ...(method === 'GET' || o.omitBody === true
+          ? {}
+          : {
+              bdy: createHash('sha256')
+                .update(bodyBytes(o.body === undefined ? {} : o.body))
+                .digest('base64url'),
+            }),
       },
       (o.key ?? this.keys).privateKey,
     );
@@ -174,7 +193,7 @@ export class SyntheticBridge {
     body: unknown = {},
     o: Parameters<SyntheticBridge['assertion']>[2] = {},
   ): Promise<Reply> {
-    return this.raw('POST', path, body, this.assertion('POST', path, o));
+    return this.raw('POST', path, body, this.assertion('POST', path, { body, ...o }));
   }
 
   /** Verifies a signed job envelope with the server key learned at pairing; null when forged. */

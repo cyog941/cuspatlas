@@ -171,10 +171,11 @@ async function removeBytes(
 
 /** Takes every governing hold-subject lock of an object (sorted; see the review-hardening migration). */
 async function lockHoldSubjects(tx: TenantTransaction, objectId: string): Promise<void> {
-  await tx.query(
-    'SELECT cuspatlas.imaging_lock_subjects(cuspatlas.current_tenant_id(), cuspatlas.imaging_hold_subjects($1))',
-    [objectId],
-  );
+  // Recomputes after locking until the set is stable, so an association that committed while this
+  // transaction waited is covered too.
+  await tx.query('SELECT cuspatlas.imaging_lock_hold_subjects(cuspatlas.current_tenant_id(), $1)', [
+    objectId,
+  ]);
 }
 
 /** I8: retention policy versions, legal holds and tombstone deletion with byte removal. */

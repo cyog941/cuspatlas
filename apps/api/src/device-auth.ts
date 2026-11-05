@@ -1,3 +1,5 @@
+import { createHash, timingSafeEqual } from 'node:crypto';
+import { Readable } from 'node:stream';
 import {
   type ActorContext,
   type DeviceCredentialSource,
@@ -20,6 +22,13 @@ const KID = /^([0-9a-f-]{36})\.([1-9][0-9]{0,5})$/;
 /** Longest accepted assertion lifetime and clock tolerance, in seconds. */
 export const DEVICE_ASSERTION_MAX_SECONDS = 120;
 const TOLERANCE_SECONDS = 5;
+const BODY_DIGEST = /^[A-Za-z0-9_-]{43}$/;
+/** Methods that carry no body: their assertions carry no `bdy` claim. */
+const BODYLESS = new Set(['GET', 'HEAD']);
+
+/** The SHA-256 body digest (base64url) an authenticated assertion committed to, by actor context. */
+const bodyDigests = new WeakMap<object, string>();
+export const bodyDigestOf = (actor: ActorContext): string | undefined => bodyDigests.get(actor);
 
 export interface DeviceAuthenticator {
   authenticate(
@@ -28,13 +37,17 @@ export interface DeviceAuthenticator {
     correlationId: string,
     operation: string,
   ): Promise<ActorContext>;
+  /** Refuses (401 device_assertion_invalid, recorded) a body that does not match the signed digest. */
+  verifyBody(actor: ActorContext, body: Uint8Array, correlationId: string, operation: string): Promise<void>;
 }
 
 /**
  * I6 bridge-audience authenticator. A device assertion is a compact JWS (EdDSA, typ
  * cuspatlas-device-assertion+jws) signed by the device's own active key, naming the device (kid
  * `<deviceRef>.<keyVersion>`, iss = sub), the bridge audience, the device's tenant, a lifetime of at
- * most 120 s, a single-use jti and the request it is for (htm and htu). The device and its tenant are
+ * most 120 s, a single-use jti and the request it is for (htm and htu); a request with a body also
+ * carries `bdy`, the base64url SHA-256 of the exact body bytes, checked once the body has been read, so
+ * a body cannot be swapped under a valid assertion. The device and its tenant are
  * loaded from the database; a tenant claim that disagrees is refused. Staff bearer tokens are never
  * device assertions (no device kid, wrong signer) and device assertions never verify against the
  * staff issuer key, so neither credential works on the other's routes. The context carries principal
@@ -75,11 +88,14 @@ export function createDeviceAuthenticator(
           return deny('forbidden', 'device_revoked', { tenantId: record.tenantId, actorId: deviceRef });
         return deny('unauthenticated', 'device_assertion_invalid');
       }
+      const bodyless = BODYLESS.has(request.method);
       const now = Math.floor(Date.now() / 1000);
       const iat = claims.iat;
       const exp = claims.exp;
       const valid =
-        Object.keys(claims).sort().join(',') === 'aud,exp,htm,htu,iat,iss,jti,sub,tid' &&
+        Object.keys(claims).sort().join(',') ===
+          (bodyless ? 'aud,exp,htm,htu,iat,iss,jti,sub,tid' : 'aud,bdy,exp,htm,htu,iat,iss,jti,sub,tid') &&
+        (bodyless || (typeof claims.bdy === 'string' && BODY_DIGEST.test(claims.bdy))) &&
         claims.iss === deviceRef &&
         claims.sub === deviceRef &&
         claims.aud === BRIDGE_AUDIENCE &&
@@ -98,14 +114,15 @@ export function createDeviceAuthenticator(
         claims.htu === request.path;
       if (!valid) return deny('unauthenticated', 'device_assertion_invalid');
       const who = { tenantId: record.tenantId, actorId: deviceRef };
-      if (record.state !== 'active') return deny('forbidden', 'device_revoked', who);
+      if (record.state !== 'active')
+        return deny('forbidden', record.state === 'pending' ? 'device_unpaired' : 'device_revoked', who);
       const fresh = await devices.consumeNonce(
         record,
         claims.jti as string,
         new Date((exp + TOLERANCE_SECONDS) * 1000),
       );
       if (!fresh) return deny('unauthenticated', 'device_assertion_replayed', who);
-      return Object.freeze({
+      const actor = Object.freeze({
         tenantId: record.tenantId,
         actorId: deviceRef,
         principal: 'device' as const,
@@ -113,6 +130,25 @@ export function createDeviceAuthenticator(
         scopes: Object.freeze([]) as readonly string[],
         correlationId,
       });
+      if (!bodyless) bodyDigests.set(actor, claims.bdy as string);
+      return actor;
+    },
+    async verifyBody(actor, body, correlationId, operation) {
+      const want = bodyDigests.get(actor);
+      const got = createHash('sha256').update(body).digest('base64url');
+      if (
+        want !== undefined &&
+        want.length === got.length &&
+        timingSafeEqual(Buffer.from(want), Buffer.from(got))
+      )
+        return;
+      const err = new RefusalError({ code: 'unauthenticated', reasonCode: 'device_assertion_invalid' });
+      await recordDenial(
+        recording,
+        { correlationId, operation, tenantId: actor.tenantId, actorId: actor.actorId },
+        err,
+      );
+      throw err;
     },
   };
 }
@@ -127,5 +163,28 @@ export function authenticateDeviceOnRequest(authenticator: DeviceAuthenticator, 
       request.id,
       operation,
     );
+  };
+}
+
+/**
+ * Route-level `preParsing` hook for bridge routes with a body: reads the raw body (bounded by the
+ * route's limit), checks it against the signed `bdy` digest, and hands the same bytes on to the parser.
+ */
+export function verifyDeviceBodyPreParsing(authenticator: DeviceAuthenticator, operation: string) {
+  return async (request: FastifyRequest, _reply: unknown, payload: Readable): Promise<Readable> => {
+    const limit = request.routeOptions.bodyLimit;
+    const chunks: Buffer[] = [];
+    let size = 0;
+    for await (const chunk of payload) {
+      const b = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array);
+      size += b.length;
+      if (size > limit) throw Object.assign(new Error('body too large'), { statusCode: 413 });
+      chunks.push(b);
+    }
+    const body = Buffer.concat(chunks);
+    await authenticator.verifyBody(request.actor as ActorContext, body, request.id, operation);
+    const out = Readable.from([body]) as Readable & { receivedEncodedLength?: number };
+    out.receivedEncodedLength = body.length;
+    return out;
   };
 }

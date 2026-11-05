@@ -22,6 +22,7 @@ import {
   type ImagingLimits,
   resolveImagingTokenSecret,
   resolveMatchKeyPepper,
+  type StagingMaintenance,
 } from '@cuspatlas/domain';
 import Fastify, {
   type FastifyInstance,
@@ -73,6 +74,8 @@ export interface AppDeps {
   readonly matchKeyPepper?: Uint8Array;
   /** I1: private object store (synthetic local adapter in tests); absent = every byte path is 503. */
   readonly objectStore?: ObjectStorePort;
+  /** Maintenance-only staging listing for the orphan sweep (absent = only database-named staging is swept). */
+  readonly stagingMaintenance?: StagingMaintenance;
   /** I2: malware scanner; absent = every verdict is unknown, so nothing becomes available. */
   readonly scanner?: MalwareScannerPort;
   /** I1 read-grant secret (CUSPATLAS_IMAGING_TOKEN_SECRET); optional only under synthetic-test. */
@@ -222,6 +225,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         tokenSecret: resolveImagingTokenSecret(deps.env, deps.imagingTokenSecret),
         matchKeyPepper: resolveMatchKeyPepper(deps.env, deps.matchKeyPepper),
         ...(deps.objectStore ? { objectStore: deps.objectStore } : {}),
+        ...(deps.stagingMaintenance ? { stagingMaintenance: deps.stagingMaintenance } : {}),
         ...(deps.scanner ? { scanner: deps.scanner } : {}),
         ...(deps.imagingLimits ? { limits: deps.imagingLimits } : {}),
         bridgeSigningKey: deps.bridgeSigningKey ?? null,

@@ -9,7 +9,9 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
  * quarantine. Restore verifies every file against the manifest (and every content file against the
  * digest its key names) before writing, refuses any key outside the two areas, and carries the live
  * store's tombstones forward (the runbook rule: tombstones outlive the oldest restorable backup), so a
- * deletion made after the backup can never resurrect an image as available.
+ * deletion made after the backup can never resurrect an image as available. Content named by a
+ * tombstone (backup's or live) is not restored either, unless the live store still holds it (identical
+ * bytes shared with a live object): a deleted image's bytes never come back.
  */
 export const OBJECT_STORE_BACKUP_FORMAT = 'cuspatlas-object-store-backup/1';
 const KEY =
@@ -87,7 +89,7 @@ export async function restoreObjectStore(
   backupDir: string,
   targetRoot: string,
   opts: { tombstonesFrom?: string } = {},
-): Promise<{ files: number; carriedTombstones: number }> {
+): Promise<{ files: number; carriedTombstones: number; skippedTombstoned: number }> {
   const manifest = JSON.parse(
     await readFile(join(backupDir, 'object-store-manifest.json'), 'utf8'),
   ) as ObjectStoreBackupManifest;
@@ -103,14 +105,49 @@ export async function restoreObjectStore(
       throw new Error('Object store content does not match its key');
     verified.push({ key: f.key, bytes });
   }
+  // Digests named by tombstones, per tenant: from the backup's own tombstones and the live store's.
+  const tombstoned = new Set<string>();
+  const noteTombstone = async (file: string, key: string) => {
+    try {
+      const body = JSON.parse(await readFile(file, 'utf8')) as { digestSha256?: unknown };
+      const tenant = key.split('/')[1];
+      if (typeof body.digestSha256 === 'string' && /^[0-9a-f]{64}$/.test(body.digestSha256))
+        tombstoned.add(`${tenant}/${body.digestSha256}`);
+    } catch {}
+  };
+  for (const v of verified)
+    if (v.key.startsWith('tombstones/'))
+      await noteTombstone(inside(join(backupDir, 'objects'), v.key), v.key);
+  const liveTombstones = opts.tombstonesFrom ? await walk(opts.tombstonesFrom, 'tombstones') : [];
+  for (const key of liveTombstones) await noteTombstone(inside(opts.tombstonesFrom as string, key), key);
+  const stillLive = async (key: string) => {
+    if (!opts.tombstonesFrom) return false;
+    try {
+      await stat(inside(opts.tombstonesFrom, key));
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  let skipped = 0;
+  const toWrite: typeof verified = [];
   for (const v of verified) {
+    if (v.key.startsWith('t/') && tombstoned.has(`${v.key.split('/')[1]}/${v.key.slice(-64)}`)) {
+      if (!(await stillLive(v.key))) {
+        skipped += 1;
+        continue;
+      }
+    }
+    toWrite.push(v);
+  }
+  for (const v of toWrite) {
     const dst = inside(targetRoot, v.key);
     await mkdir(dirname(dst), { recursive: true, mode: 0o700 });
     await writeFile(dst, v.bytes, { mode: 0o600, flag: 'wx' });
   }
   let carried = 0;
   if (opts.tombstonesFrom) {
-    for (const key of await walk(opts.tombstonesFrom, 'tombstones')) {
+    for (const key of liveTombstones) {
       const dst = inside(targetRoot, key);
       try {
         await stat(dst);
@@ -121,5 +158,5 @@ export async function restoreObjectStore(
       carried += 1;
     }
   }
-  return { files: verified.length, carriedTombstones: carried };
+  return { files: toWrite.length, carriedTombstones: carried, skippedTombstoned: skipped };
 }

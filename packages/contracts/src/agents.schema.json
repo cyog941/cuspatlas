@@ -3159,6 +3159,121 @@
         "pattern": "^[a-z]{1,32}-state-labels.[0-9]+$"
       },
       "maxProperties": 8
+    },
+    "SponsorOfferListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "agentRef": {
+          "$ref": "#/$defs/AgentRef"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "cursor": {
+          "$ref": "#/$defs/Cursor"
+        }
+      }
+    },
+    "SponsorOffer": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A23 hardening: one sponsor change offer (H3 3c).",
+      "required": [
+        "offerRef",
+        "agentRef",
+        "sponsorRef",
+        "offeredBy",
+        "offeredAt",
+        "expiresAt",
+        "state",
+        "decidedAt"
+      ],
+      "properties": {
+        "offerRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "agentRef": {
+          "$ref": "#/$defs/AgentRef"
+        },
+        "sponsorRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "offeredBy": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "offeredAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "state": {
+          "enum": ["pending", "accepted", "declined", "superseded"]
+        },
+        "decidedAt": {
+          "type": ["string", "null"],
+          "format": "date-time"
+        }
+      }
+    },
+    "SponsorOfferList": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A23 hardening: sponsor offers the caller may see (offeree: own pending offers; sponsor or agent manager: offers for their agents), oldest first (OR-01 envelope).",
+      "required": [
+        "asOf",
+        "appliedFilters",
+        "scope",
+        "limit",
+        "truncated",
+        "nextCursor",
+        "ordering",
+        "count",
+        "items"
+      ],
+      "properties": {
+        "asOf": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "appliedFilters": {
+          "type": "object"
+        },
+        "scope": {
+          "$ref": "#/$defs/ListScope"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "nextCursor": {
+          "type": ["string", "null"]
+        },
+        "ordering": {
+          "$ref": "#/$defs/ListOrdering"
+        },
+        "count": {
+          "$ref": "#/$defs/ListCount"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SponsorOffer"
+          }
+        },
+        "vocabularies": {
+          "$ref": "#/$defs/VocabularyVersions"
+        }
+      }
     }
   }
 }

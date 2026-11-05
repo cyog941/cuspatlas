@@ -167,7 +167,7 @@ describe('A23 scoped memory', () => {
     expect(JSON.stringify(listed.body.items)).not.toContain('morning recall');
   });
 
-  it('PHI is refused by default: a phi classification, contacts, DOB phrases, patient refs and names', async () => {
+  it('PHI is refused (one uniform refusal): a phi classification, contacts, DOB phrases, patient refs and names', async () => {
     const a = await s.createAgent([...WS, 'patients.write'], 'memory phi');
     const created = await s.agentTool(a, 'patients_create', {
       ...patientBody('Quillon'),
@@ -177,7 +177,7 @@ describe('A23 scoped memory', () => {
     const patientRef = (created.body.data as { patientRef: string }).patientRef;
     const phi = await write(a, 'k.phi', 'anything', 'phi');
     expect(phi.body.code).toBe('validation_failed');
-    expect(reason(phi)).toBe('phi_not_permitted');
+    expect(reason(phi)).toBe('memory_value_refused');
     const legal = patientBody('Quillon').legalName as { given: string; family: string };
     for (const value of [
       'Call back at 555-201-3344 tomorrow',
@@ -188,13 +188,13 @@ describe('A23 scoped memory', () => {
     ]) {
       const r = await write(a, 'k.detect', value);
       expect(r.body.code, value).toBe('validation_failed');
-      expect(reason(r), value).toBe('phi_detected');
+      expect(reason(r), value).toBe('memory_value_refused');
     }
     // An explicit per-tenant policy admits PHI only when classified as phi.
     const set = await s.call('humanAll', 'POST', '/v1/agents/memory/policy', { phiAllowed: true });
     expect(set.status, JSON.stringify(set.body)).toBe(200);
     const unlabelled = await write(a, 'k.name', `Follow up with ${legal.given} ${legal.family}`);
-    expect(reason(unlabelled)).toBe('phi_detected');
+    expect(reason(unlabelled)).toBe('memory_value_refused');
     const labelled = await write(a, 'k.name', `Follow up with ${legal.given} ${legal.family}`, 'phi');
     expect(labelled.isError, JSON.stringify(labelled.body)).toBe(false);
     const read = await s.agentTool(a, 'agents_memory_get', { key: 'k.name' });

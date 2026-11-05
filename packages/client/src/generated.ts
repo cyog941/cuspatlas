@@ -744,6 +744,30 @@ export type AgentsSessionToolCall = {
   readonly "occurredAt": AgentsInstant;
 };
 
+export type AgentsSponsorOffer = {
+  readonly "offerRef": AgentsUuid;
+  readonly "agentRef": AgentsAgentRef;
+  readonly "sponsorRef": AgentsUuid;
+  readonly "offeredBy": AgentsUuid;
+  readonly "offeredAt": string;
+  readonly "expiresAt": string;
+  readonly "state": "pending" | "accepted" | "declined" | "superseded";
+  readonly "decidedAt": string | null;
+};
+
+export type AgentsSponsorOfferList = {
+  readonly "asOf": string;
+  readonly "appliedFilters": { readonly [k: string]: unknown };
+  readonly "scope": AgentsListScope;
+  readonly "limit": number;
+  readonly "truncated": boolean;
+  readonly "nextCursor": string | null;
+  readonly "ordering": AgentsListOrdering;
+  readonly "count": AgentsListCount;
+  readonly "items": readonly (AgentsSponsorOffer)[];
+  readonly "vocabularies"?: AgentsVocabularyVersions;
+};
+
 export type AgentsTask = {
   readonly "taskRef": AgentsUuid;
   readonly "agentRef": AgentsAgentRef;
@@ -9034,6 +9058,16 @@ export interface Operations {
     successStatus: 200;
     idempotent: true;
   };
+  "agents.sponsors.offers.list": {
+    method: "GET";
+    path: "/v1/agents/sponsors/offers";
+    params: {  };
+    query: { readonly agentRef?: string; readonly limit?: string; readonly cursor?: string; };
+    body: undefined;
+    result: AgentsSponsorOfferList;
+    successStatus: 200;
+    idempotent: false;
+  };
   "agents.taskPolicies.list": {
     method: "GET";
     path: "/v1/agents/task-policies";
@@ -13521,6 +13555,7 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "agents.sponsors.accept": { method: "POST", path: "/v1/agents/sponsors/accept", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "agents.sponsors.change": { method: "POST", path: "/v1/agents/sponsors/change", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "agents.sponsors.decline": { method: "POST", path: "/v1/agents/sponsors/decline", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "agents.sponsors.offers.list": { method: "GET", path: "/v1/agents/sponsors/offers", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "agents.taskPolicies.list": { method: "GET", path: "/v1/agents/task-policies", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "agents.taskPolicies.record": { method: "POST", path: "/v1/agents/task-policies", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "agents.taskPolicies.revoke": { method: "POST", path: "/v1/agents/task-policies/revoke", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },

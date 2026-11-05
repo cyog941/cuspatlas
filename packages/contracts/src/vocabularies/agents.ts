@@ -35,7 +35,11 @@ export const AGENTS_VOCABULARIES: ModuleVocabularies = {
     {
       // H3 3c: a sponsor change is an offer the named human accepts or declines.
       name: 'agent_sponsor_offer',
-      sources: ['agent_sponsor_offers.state', 'schema:agents:AgentCommand.offerState'],
+      sources: [
+        'agent_sponsor_offers.state',
+        'schema:agents:AgentCommand.offerState',
+        'schema:agents:SponsorOffer.state',
+      ],
       entries: [
         e('pending', 'PEN', 'Awaiting the new sponsor', 'lifecycle', false),
         e('accepted', 'ACC', 'Accepted by the new sponsor', 'lifecycle', true),

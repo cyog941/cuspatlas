@@ -44,6 +44,7 @@ export const validateAgentSessionEnd = def('SessionEnd');
 export const validateAgentMemoryWrite = def('MemoryWrite');
 export const validateAgentMemoryQuery = def('MemoryQuery');
 export const validateAgentMemoryListQuery = def('MemoryListQuery');
+export const validateAgentSponsorOfferListQuery = def('SponsorOfferListQuery');
 export const validateAgentMemoryDelete = def('MemoryDelete');
 export const validateAgentMemoryPolicySet = def('MemoryPolicySet');
 export const validateAgentTaskPolicyRecord = def('TaskPolicyRecord');

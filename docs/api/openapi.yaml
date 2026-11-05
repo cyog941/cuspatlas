@@ -12905,6 +12905,46 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/agents/sponsors/offers:
+    get:
+      operationId: agents.sponsors.offers.list
+      description: >-
+        A23 hardening: sponsor offers, oldest first (OR-01 list envelope). The offeree sees its own pending
+        offers; the agent sponsor and agent managers see the offers for their agents; nobody else sees an
+        offer. Human only.
+      parameters:
+        - name: agentRef
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/agents.schema.json#/$defs/AgentRef'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/agents.schema.json#/$defs/SponsorOfferListQuery'
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/agents.schema.json#/$defs/Cursor'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/agents.schema.json#/$defs/SponsorOfferList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   /v1/agents/principals/state:
     get:
       operationId: agents.principals.read

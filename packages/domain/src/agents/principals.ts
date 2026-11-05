@@ -15,6 +15,7 @@ import {
   validateAgentQuery,
   validateAgentSponsorChange,
   validateAgentSponsorDecision,
+  validateAgentSponsorOfferListQuery,
   validateAgentTransition,
 } from '@cuspatlas/contracts';
 import { recordCommand } from '../events/record-command';
@@ -390,6 +391,74 @@ export function createAgentPrincipals(base: AgentBase) {
               total,
             }),
             items: rows.map(present),
+          };
+        });
+      });
+    },
+
+    /**
+     * A23 hardening: the offers the caller may see. The offeree sees its own pending offers; the agent's
+     * current sponsor and agent managers see every offer for the agent (RLS enforces the same rule).
+     */
+    listAgentSponsorOffers(ctx: ActorContext, query: unknown) {
+      const op = 'agents.sponsors.offers.list';
+      return base.guarded(ctx, op, async () => {
+        const decision = await base.authorize(ctx, op);
+        validate<{ agentRef?: string; limit?: number; cursor?: string }>(
+          validateAgentSponsorOfferListQuery,
+          query,
+        );
+        if (query.agentRef !== undefined) assertRef(query.agentRef);
+        const pg = base.page(ctx, query);
+        return deps.withTenantTransaction(ctx, async (tx) => {
+          const at = await now(tx);
+          const where = `($1::uuid IS NULL OR o.agent_ref = $1)
+            AND ((o.sponsor_ref = cuspatlas.current_actor_id() AND o.state = 'pending')
+              OR cuspatlas.agent_human_reach(o.agent_ref))`;
+          const agentRef = query.agentRef ?? null;
+          const total = Number(
+            (
+              await tx.query<{ n: string }>(
+                `SELECT count(*) AS n FROM cuspatlas.agent_sponsor_offers o WHERE ${where}`,
+                [agentRef],
+              )
+            ).rows[0]?.n ?? 0,
+          );
+          const { rows } = await tx.query<{
+            id: string;
+            agent_ref: string;
+            sponsor_ref: string;
+            offered_by: string;
+            offered_at: Date;
+            expires_at: Date;
+            state: OfferState;
+            decided_at: Date | null;
+          }>(
+            `SELECT o.id, o.agent_ref, o.sponsor_ref, o.offered_by, o.offered_at, o.expires_at, o.state, o.decided_at
+             FROM cuspatlas.agent_sponsor_offers o WHERE ${where}
+             ORDER BY o.offered_at, o.id LIMIT $2 OFFSET $3`,
+            [agentRef, pg.limit, pg.offset],
+          );
+          return {
+            ...listEnvelope({
+              asOf: at,
+              appliedFilters: { agentRef },
+              locationRefs: decision.locationRefs,
+              limit: pg.limit,
+              nextCursor: pg.next(rows.length, total),
+              ordering: { key: 'offeredAt', direction: 'asc', tieBreak: 'offerRef' },
+              total,
+            }),
+            items: rows.map((r) => ({
+              offerRef: r.id,
+              agentRef: r.agent_ref,
+              sponsorRef: r.sponsor_ref,
+              offeredBy: r.offered_by,
+              offeredAt: r.offered_at.toISOString(),
+              expiresAt: r.expires_at.toISOString(),
+              state: r.state,
+              decidedAt: r.decided_at === null ? null : r.decided_at.toISOString(),
+            })),
           };
         });
       });

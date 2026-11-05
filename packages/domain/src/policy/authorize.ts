@@ -602,6 +602,8 @@ export const ACTION_POLICIES = {
   // H3 3c: the offered human accepts or declines (the authority is the offer, not a scope).
   'agents.sponsors.accept': { scope: null, principals: ['human'] },
   'agents.sponsors.decline': { scope: null, principals: ['human'] },
+  // A23 hardening: the offeree, the sponsor or an agent manager (a relationship, not a scope).
+  'agents.sponsors.offers.list': { scope: null, principals: ['human'] },
   'agents.principals.read': { scope: 'agents.read', principals: ['human', 'service'] },
   'agents.principals.list': { scope: 'agents.read', principals: ['human'] },
   'agents.audit.list': { scope: 'agents.read', principals: ['human'] },

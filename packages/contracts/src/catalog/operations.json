@@ -1090,6 +1090,38 @@
     "status": "active"
   },
   {
+    "operation": "agents.sponsors.offers.list",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "agents.sponsors.offers.list",
+    "scope": null,
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/agents/sponsors/offers",
+      "successStatus": "200",
+      "successSchema": "agents:SponsorOfferList"
+    },
+    "mcpTool": "agents_sponsors_offers_list",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
     "operation": "agents.taskPolicies.list",
     "owner": "A",
     "kind": "query",

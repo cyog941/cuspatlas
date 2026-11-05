@@ -9,12 +9,12 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-487 operations.
+488 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
 | F | 14 | 12 | 10 | 0 | 0 | 1 |
-| A | 83 | 80 | 80 | 0 | 0 | 2 |
+| A | 84 | 81 | 81 | 0 | 0 | 2 |
 | S | 92 | 90 | 90 | 0 | 0 | 0 |
 | C | 88 | 87 | 87 | 0 | 0 | 0 |
 | B | 66 | 66 | 66 | 0 | 0 | 0 |
@@ -56,6 +56,7 @@ transport tables and are declarations, not independent proof.
 | `agents.sponsors.accept` | A | command | authorize | - | human | rest, mcp | POST `/v1/agents/sponsors/accept` | `agents_sponsors_accept` | required | phi | active |
 | `agents.sponsors.change` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/sponsors/change` | `agents_sponsors_change` | required | phi | active |
 | `agents.sponsors.decline` | A | command | authorize | - | human | rest, mcp | POST `/v1/agents/sponsors/decline` | `agents_sponsors_decline` | required | phi | active |
+| `agents.sponsors.offers.list` | A | query | authorize | - | human | rest, mcp | GET `/v1/agents/sponsors/offers` | `agents_sponsors_offers_list` | none | phi | active |
 | `agents.taskPolicies.list` | A | query | authorize | `agentWorkspace.read` | human, service | rest, mcp | GET `/v1/agents/task-policies` | `agents_task_policies_list` | none | phi | active |
 | `agents.taskPolicies.record` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/task-policies` | `agents_task_policies_record` | required | phi | active |
 | `agents.taskPolicies.revoke` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/task-policies/revoke` | `agents_task_policies_revoke` | required | phi | active |

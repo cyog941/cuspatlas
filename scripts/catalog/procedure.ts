@@ -22,6 +22,7 @@ export const NULL_SCOPE_OPERATIONS: readonly string[] = [
   // or the agent itself), checked by the service; there is no scope to hold.
   'agents.sponsors.accept',
   'agents.sponsors.decline',
+  'agents.sponsors.offers.list',
   'agents.sessions.end',
   'agents.memory.delete',
   'agents.tasks.cancel',

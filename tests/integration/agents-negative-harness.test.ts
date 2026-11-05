@@ -12,7 +12,8 @@ import { T_ALPHA } from './support/fixtures';
  */
 type Admits = 'human' | 'humanAndService' | 'service';
 /** scopeless: the authority is a relationship (offered sponsor, sponsor or own agent), not a scope. */
-const CASES: Record<string, { tool: string; admits: Admits; scopeless?: true }> = {
+/** relationList: a scopeless list that answers only the caller's own relationship rows (none here). */
+const CASES: Record<string, { tool: string; admits: Admits; scopeless?: true; relationList?: true }> = {
   'agents.principals.create': { tool: 'agents_principals_create', admits: 'human' },
   'agents.principals.suspend': { tool: 'agents_principals_suspend', admits: 'human' },
   'agents.principals.resume': { tool: 'agents_principals_resume', admits: 'human' },
@@ -21,6 +22,12 @@ const CASES: Record<string, { tool: string; admits: Admits; scopeless?: true }> 
   'agents.sponsors.change': { tool: 'agents_sponsors_change', admits: 'human' },
   'agents.sponsors.accept': { tool: 'agents_sponsors_accept', admits: 'human', scopeless: true },
   'agents.sponsors.decline': { tool: 'agents_sponsors_decline', admits: 'human', scopeless: true },
+  'agents.sponsors.offers.list': {
+    tool: 'agents_sponsors_offers_list',
+    admits: 'human',
+    scopeless: true,
+    relationList: true,
+  },
   'agents.principals.read': { tool: 'agents_principals_get', admits: 'humanAndService' },
   'agents.principals.list': { tool: 'agents_principals_list', admits: 'human' },
   'agents.audit.list': { tool: 'agents_audit_list', admits: 'human' },
@@ -93,6 +100,12 @@ describe('workstream A batch 2 negative harness', () => {
       const { method, url } = restOf(op);
       const r = await s.call('humanNone', method as 'GET' | 'POST', url, {});
       const m = await s.mcp('humanNone', op.tool, {});
+      if (CASES[op.operationId]?.relationList) {
+        // No scope to lack and nothing related to this caller: an empty page, never another's rows.
+        expect(r.status, op.operationId).toBe(200);
+        expect(r.body.items, op.operationId).toStrictEqual([]);
+        continue;
+      }
       if (CASES[op.operationId]?.scopeless) {
         // No scope to lack: an empty call is refused as invalid, never answered.
         expect(r.status, op.operationId).toBe(400);

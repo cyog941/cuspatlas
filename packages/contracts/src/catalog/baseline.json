@@ -1417,6 +1417,30 @@
       ]
     },
     {
+      "operation": "agents.sponsors.offers.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": null,
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/agents/sponsors/offers"
+      },
+      "mcpTool": "agents_sponsors_offers_list",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
       "operation": "agents.taskPolicies.list",
       "transports": [
         "rest",

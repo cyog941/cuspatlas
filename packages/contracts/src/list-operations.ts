@@ -56,6 +56,14 @@ export const LIST_OPERATIONS: Readonly<Record<string, ListOperationSpec>> = {
     scope: 'tenant',
     placement: 'existing',
   },
+  'agents.sponsors.offers.list': {
+    rows: 'items',
+    ordering: { key: 'offeredAt', direction: 'asc', tieBreak: 'offerRef' },
+    limit: { default: 25, max: 100 },
+    cursor: true,
+    scope: 'tenant',
+    placement: 'existing',
+  },
   'agents.memory.list': {
     rows: 'items',
     ordering: { key: 'createdAt', direction: 'asc', tieBreak: 'memoryRef' },

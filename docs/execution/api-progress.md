@@ -589,3 +589,49 @@ Exports (A15):
   tests green before each commit; one full `pnpm run ci`: 3312 of 3313 tests passed; the one failure
   was `imaging-restore-drill` (`tuple concurrently updated` while replaying migrations into a fresh
   restore target under parallel load), which passes alone. GitHub Linux CI is the clean gate.
+
+## A23 hardening after independent review
+
+Review of 29ac357 (read-only critic). Synthetic data only; every value stays recommended-pending-approval.
+
+- MUST 1 PHI policy flip. Migration `20261206100000_agent_workspace_hardening.sql`: the phi guard takes
+  `FOR SHARE` on the tenant policy row and fires only on `INSERT` or `UPDATE OF classification, value`
+  (a read-count bump never raises); an `AFTER UPDATE OF phi_allowed` trigger removes every phi note of
+  the tenant in the same transaction when the policy turns off. Reads re-check the policy: a phi note
+  while the policy is off is a typed refusal (`forbidden`, reason `phi_not_permitted`) to agents and
+  humans alike, recorded after commit (agent: `agentMemoryReadRefused` audit row copied to the agent
+  stream; human: a sensitive read), and the read count is not bumped.
+- MUST 2 Detector honesty. Memory PHI screening is a best-effort heuristic, not enforced default-deny
+  (spec OR-13, code comments). The detector now NFKC-normalizes, strips zero-width characters and
+  collapses spacing, adds SSN- and MRN/chart-number-like patterns, a 9+ digit run once separators are
+  dropped (UUIDs excluded), and capitalized 3+ letter tokens equal to a patient's family name. Database
+  backstop: `agent_memory_entries_value_screen` CHECK (non-phi rows: e-mail, phone-like digit runs, DOB
+  phrases; `NOT VALID`, so existing synthetic rows are not rechecked).
+- SHOULD 3 One uniform write refusal: `validation_failed` / `memory_value_refused` at `/value` for every
+  reason (phi classification without policy, detector hit, P0422, CHECK violation).
+- SHOULD 4 RLS reach rule via definer helpers `agent_actor_manages()`, `agent_human_reach(agent)`,
+  `agent_workspace_reach(agent)`: agents own rows; humans the current sponsor or `agents.manage`; the
+  worker service holding `outbox.deliver`. Task policies: `UPDATE` only `state, revoked_at, revoked_by,
+  version` (column grants), only by the owner or a manager. `agent_scheduled_tasks_policy_same_agent`
+  composite FK binds a task to a policy of the same agent and tenant.
+- SHOULD 5 Worker claim rechecks `agent_task_owner_live(owner, agent)` (live human member holding
+  `agents.manage` or sponsoring the agent; else stop `policy_owner_inactive`) and
+  `agent_task_consent_live(agent, deployment)` (no active consent: stop `consent_revoked` instead of a
+  refusal every interval; an expired-but-active consent is still refused by the MCP gate).
+- SHOULD 6 New operation `agents.sponsors.offers.list` (GET `/v1/agents/sponsors/offers`, MCP
+  `agents_sponsors_offers_list`, human only, scopeless: the offeree sees its own pending offers, the
+  sponsor and managers the offers for their agents; OR-01 envelope). Offer RLS now limits reads to the
+  offeree, the offering manager, the agent's sponsor and managers; agents never read offers.
+- NITs: `agent_sponsor_decide` locks agent then offer (the order `agent_sponsor_offer` uses). A human
+  session end is advisory (a later call by the agent under the same consent opens a new session; the
+  consent is the authority to stop calls). An `agents.manage` holder can move sponsorship to any
+  qualifying human through an offer the new sponsor must accept; that takeover rule is
+  recommended-pending-approval (A-D9).
+- Red: `tests/integration/agent-workspace-hardening.test.ts` 10 of 10 failed (exit 1) before the
+  change. Green: 10 of 10, with `agent-workspace` and `agents-negative-harness` updated (uniform refusal;
+  scopeless relation list answers an empty page).
+- Verification: full `pnpm run ci` (A19 work in progress parked outside the tree): tsc, biome,
+  contract and catalog checks green; 3427 of 3429 tests passed; the two failures were the A3
+  new-operation procedure and A6 parity matrix (the scopeless list was missing from
+  `NULL_SCOPE_OPERATIONS`), fixed in `scripts/catalog/procedure.ts` and green when re-run (19 of 19).
+  Catalog: 488 operations. GitHub Linux CI is the clean gate.

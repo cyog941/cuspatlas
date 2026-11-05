@@ -38,6 +38,11 @@
     "cursor",
     "limit"
   ],
+  "agents.sponsors.offers.list": [
+    "agentRef",
+    "cursor",
+    "limit"
+  ],
   "agents.taskPolicies.list": [
     "agentRef",
     "cursor",

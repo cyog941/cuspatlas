@@ -33,7 +33,9 @@ import { presentSession, SESSION_SELECT, type SessionRow } from './sessions';
 
 /**
  * A23 / OR-13 agent workspace: sessions (history = references to agent_tool_calls and the agent-audit
- * stream), scoped memory (per agent, tenant-bound, classified, PHI default deny, 30-day retention,
+ * stream), scoped memory (per agent, tenant-bound, classified; a phi classification needs the tenant
+ * policy, enforced in the database; unlabelled PHI is screened by a best-effort heuristic, not enforced
+ * default-deny, with a database regex backstop for contact and DOB patterns; 30-day retention,
  * deletion by the sponsor or an agent manager, every agent read and write in the agent-audit stream and
  * metered by the MCP budget gate) and scheduled tasks under a human-owned standing policy, rechecked by
  * the worker at execution. An agent reaches only its own workspace; a human reaches an agent's workspace
@@ -49,6 +51,10 @@ const uuids = (text: string) =>
   text.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi) ?? [];
 const forbidden = (reasonCode: 'principal_kind_denied') =>
   new RefusalError({ code: 'forbidden', reasonCode });
+/** The one memory write refusal: no reason distinguishes a name, DOB, ref, pattern or policy. */
+const refusedValue = () => failed('memory_value_refused', '/value');
+const MRN_LIKE =
+  /\b(?:mrn|medical\s+record(?:\s+(?:number|no\.?))?|chart\s*(?:number|no\.?|#))\s*[:#.-]?\s*[A-Za-z0-9-]*\d/i;
 
 interface MemoryRow extends Record<string, unknown> {
   id: string;
@@ -250,9 +256,21 @@ export function createAgentWorkspace(base: AgentBase) {
     };
   }
 
-  /** PHI detectors (H3 minimization reused): contacts, DOB phrases, patient refs, S4 name/birth keys. */
-  async function carriesPhi(tx: TenantTransaction, ctx: ActorContext, text: string): Promise<boolean> {
+  /**
+   * Best-effort PHI screening of an unlabelled note (a heuristic, not de-identification or enforced
+   * default-deny): text is NFKC-normalized with zero-width characters removed and spacing collapsed, then
+   * checked for contacts, DOB phrases, SSN/MRN-like patterns, long digit runs once separators are dropped,
+   * patient refs, S4 name/birth match keys, and capitalized tokens (3+ letters) equal to a patient's
+   * family name. Free-text identifiers outside these patterns can pass; the database backstop
+   * (agent_memory_entries_value_screen) independently refuses contact and DOB patterns.
+   */
+  async function carriesPhi(tx: TenantTransaction, ctx: ActorContext, raw: string): Promise<boolean> {
+    const text = raw.normalize('NFKC').replace(/[​-‍⁠﻿­]/g, '').replace(/\s+/g, ' ');
     if (carriesContact(text) || carriesDobPhrase(text)) return true;
+    if (/\b\d{3}-\d{2}-\d{4}\b/.test(text)) return true;
+    if (MRN_LIKE.test(text)) return true;
+    const withoutRefs = text.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, ' ');
+    if (/\d{9,}/.test(withoutRefs.replace(/[\s.()/_-]/g, ''))) return true;
     if (!pepper)
       throw new RefusalError({ code: 'service_unavailable', detail: { reason: 'phi_detector_unavailable' } });
     const keyer = createMatchKeyer(pepper, ctx.tenantId);
@@ -270,11 +288,15 @@ export function createAgentWorkspace(base: AgentBase) {
       const d = `${m[3]}-${(m[1] as string).padStart(2, '0')}-${(m[2] as string).padStart(2, '0')}`;
       keys.add(keyer.key(MATCH_KEY.birthDate, d));
     }
+    const surnames = [
+      ...new Set([...text.matchAll(/(?<!\p{L})\p{Lu}[\p{L}'-]{2,}/gu)].map((m) => normalizeText(m[0]))),
+    ];
     const refs = uuids(text);
-    if (keys.size === 0 && refs.length === 0) return false;
+    if (keys.size === 0 && refs.length === 0 && surnames.length === 0) return false;
     const hit = await tx.query(
-      'SELECT 1 FROM cuspatlas.patients WHERE id = ANY ($1::uuid[]) OR match_keys && $2::text[] LIMIT 1',
-      [refs, [...keys]],
+      `SELECT 1 FROM cuspatlas.patients WHERE id = ANY ($1::uuid[]) OR match_keys && $2::text[]
+         OR ((legal_name ->> 'known')::boolean AND lower(legal_name ->> 'family') = ANY ($3::text[])) LIMIT 1`,
+      [refs, [...keys], surnames],
     );
     return (hit.rowCount ?? 0) > 0;
   }
@@ -439,15 +461,18 @@ export function createAgentWorkspace(base: AgentBase) {
             classification: MemoryRow['classification'];
             retentionDays?: number;
           };
+          // One uniform refusal for every reason, so writes cannot probe names, DOBs or refs. The phi
+          // guard trigger share-locks the policy row: a concurrent flip to off waits for this write and
+          // then removes it, or commits first and the insert is refused.
           const policy = (
             await tx.query<{ phi_allowed: boolean }>(
               'SELECT phi_allowed FROM cuspatlas.agent_memory_policies',
             )
           ).rows[0];
           if (p.classification === 'phi') {
-            if (!policy?.phi_allowed) throw failed('phi_not_permitted', '/classification');
+            if (!policy?.phi_allowed) throw refusedValue();
           } else if (await carriesPhi(tx, ctx, `${p.key.replace(/[._-]/g, ' ')}\n${p.value}`)) {
-            throw failed('phi_detected', '/value');
+            throw refusedValue();
           }
           await tx.query(
             'DELETE FROM cuspatlas.agent_memory_entries WHERE agent_ref = $1 AND expires_at <= now()',
@@ -468,7 +493,7 @@ export function createAgentWorkspace(base: AgentBase) {
               )
             ).rows[0];
           } catch (err) {
-            if (pgCode(err) === 'P0422') throw failed('phi_not_permitted', '/classification');
+            if (pgCode(err) === 'P0422' || pgCode(err) === '23514') throw refusedValue();
             throw err;
           }
           if (!row) throw new Error('memory write returned no row');
@@ -498,7 +523,7 @@ export function createAgentWorkspace(base: AgentBase) {
         await base.authorize(ctx, op);
         validate<{ agentRef?: string; key: string }>(validateAgentMemoryQuery, query);
         const agentRef = targetOf(ctx, query.agentRef);
-        return deps.withTenantTransaction(ctx, async (tx) => {
+        const read = await deps.withTenantTransaction(ctx, async (tx) => {
           await assertReach(tx, ctx, agentRef);
           const row = (
             await tx.query<MemoryRow>(
@@ -507,6 +532,26 @@ export function createAgentWorkspace(base: AgentBase) {
             )
           ).rows[0];
           if (!row) throw notFound();
+          if (row.classification === 'phi') {
+            // Re-check the policy: a phi value is never returned while the tenant policy denies PHI.
+            const policy = (
+              await tx.query<{ phi_allowed: boolean }>(
+                'SELECT phi_allowed FROM cuspatlas.agent_memory_policies',
+              )
+            ).rows[0];
+            if (!policy?.phi_allowed) {
+              if (ctx.agent) await recordAccess(tx, op, 'agentMemoryReadRefused', row.id, row.version);
+              else {
+                await recordSensitiveRead(tx, {
+                  operation: op,
+                  resourceType: 'agentMemoryReadRefused',
+                  resourceRefs: [row.id],
+                  queryFields: ['agentRef', 'key'],
+                });
+              }
+              return null;
+            }
+          }
           if (ctx.agent) {
             // The agent-audit stream gets one row per read (resource version = the read count).
             const n = (
@@ -526,6 +571,10 @@ export function createAgentWorkspace(base: AgentBase) {
           }
           return presentMemory(row, true);
         });
+        // Refused after the commit, so the refusal's audit row is kept (the read count is not bumped).
+        if (read === null)
+          throw new RefusalError({ code: 'forbidden', detail: { reason: 'phi_not_permitted' } });
+        return read;
       });
     },
 
@@ -972,8 +1021,9 @@ export function createAgentWorkspace(base: AgentBase) {
     // ---- Worker (its own principal; never an MCP or REST operation) ----
     /**
      * Claims the due tasks of one deployment in the caller's tenant, rechecking the standing policy and
-     * the agent at execution: a revoked or expired policy, an operation the policy no longer names, or
-     * a revoked or expired agent stops the task (recorded as a finished run). Over the policy's daily
+     * the agent at execution: a revoked or expired policy, an operation the policy no longer names, a
+     * revoked or expired agent, a policy owner who is no longer a live member holding agents.manage or
+     * sponsoring the agent, or a revoked consent stops the task (recorded as a finished run). Over the policy's daily
      * run limit the run is skipped and recorded. Each claim advances next_run_at by the interval.
      */
     claimDueAgentTasks(ctx: ActorContext, deployment: string, limit = 20) {
@@ -989,12 +1039,16 @@ export function createAgentWorkspace(base: AgentBase) {
               max_runs_per_day: number;
               runs_today: number;
               a_live: boolean;
+              owner_live: boolean;
+              consent_live: boolean;
             }
           >(
             `SELECT t.*, p.state AS p_state, p.expires_at <= now() AS p_expired, p.operations, p.max_runs_per_day,
                (SELECT count(*)::int FROM cuspatlas.agent_task_runs r
                   WHERE r.task_ref = t.id AND r.started_at > now() - interval '1 day') AS runs_today,
-               (a.state <> 'revoked' AND a.expires_at > now()) AS a_live
+               (a.state <> 'revoked' AND a.expires_at > now()) AS a_live,
+               cuspatlas.agent_task_owner_live(p.owner_ref, t.agent_ref) AS owner_live,
+               cuspatlas.agent_task_consent_live(t.agent_ref, p.deployment) AS consent_live
              FROM cuspatlas.agent_scheduled_tasks t
              JOIN cuspatlas.agent_task_policies p ON p.id = t.policy_ref
              JOIN cuspatlas.agent_principals a ON a.principal_id = t.agent_ref
@@ -1015,7 +1069,11 @@ export function createAgentWorkspace(base: AgentBase) {
                     ? 'operation_not_in_policy'
                     : !t.a_live
                       ? 'agent_inactive'
-                      : null;
+                      : !t.owner_live
+                        ? 'policy_owner_inactive'
+                        : !t.consent_live
+                          ? 'consent_revoked'
+                          : null;
             const skip = stop === null && t.runs_today >= t.max_runs_per_day ? 'run_limit_reached' : null;
             const finished = stop ?? skip;
             const run = (

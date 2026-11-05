@@ -164,6 +164,15 @@ export const AGENT_OPS: AgentOp[] = [
     (svc) => svc.declineAgentSponsor,
     'AgentSponsorDecision',
   ),
+  wsRead(
+    '/v1/agents/sponsors/offers',
+    'agents.sponsors.offers.list',
+    'agents_sponsors_offers_list',
+    'A23 hardening: sponsor offers, oldest first (OR-01 list envelope). The offeree sees its own pending offers; the agent sponsor and agent managers see the offers for their agents; nobody else sees an offer. Human only.',
+    'SponsorOfferListQuery',
+    'SponsorOfferList',
+    (svc) => svc.listAgentSponsorOffers,
+  ),
   {
     method: 'get',
     path: '/v1/agents/principals/state',

@@ -126,6 +126,8 @@ export function createEntryOperations(base: BillingBase) {
         assertRef(entryRef);
         return deps.withTenantTransaction(ctx, async (tx) => {
           const original = await loadEntry(tx, entryRef);
+          // M5: an opening fact is corrected by a superseding migration record, never a reversal.
+          if (original.kind === 'openingBalance') throw conflict('opening_balance_correction_via_migration');
           const lines = await loadLines(tx, [original.id]);
           const locks: AggregateLocks = {
             payments: [...new Set(lines.map((l) => l.payment_id).filter((x): x is string => x !== null))],

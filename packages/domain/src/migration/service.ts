@@ -2,6 +2,7 @@ import { loadSettings } from '../billing/base';
 import { createMigrationBase, type MigrationDeps } from './base';
 import { createIdentityOperations } from './identity';
 import { createIntakeOperations } from './intake';
+import { createOpeningOperations, financialPlanner, postOpening } from './opening';
 import { createImportOperations } from './plan';
 
 /**
@@ -17,8 +18,10 @@ export function createMigrationService(deps: MigrationDeps) {
     ...createIntakeOperations(base, identity.hooks),
     mergeIdentityGroup: identity.mergeIdentityGroup,
     readProvenance: identity.readProvenance,
+    ...createOpeningOperations(base),
     ...createImportOperations(base, {
-      financial: null,
+      financial: financialPlanner(),
+      postFinancial: postOpening,
       currency: async (tx) => (await loadSettings(tx)).currency,
     }),
   };

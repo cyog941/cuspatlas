@@ -102,7 +102,7 @@ export interface ImportApplySummary {
 /** Decides financial rows (M5); without it they stay blocked. */
 export type FinancialPlanner = (
   staged: StagedRecord,
-  ctx: { accepted: boolean; patient: PlannedEntry | undefined; currency: string },
+  ctx: { accepted: boolean; patient: PlannedEntry | undefined; currency: string; seen: Set<string> },
 ) => Omit<PlannedEntry, 'staged'>;
 
 export const ENTITY_ORDER = [
@@ -213,6 +213,7 @@ export async function computePlan(
     for (const id of i.staged_record_ids) byRecord.set(id, [...(byRecord.get(id) ?? []), i]);
   }
   const patients = new Map<string, PlannedEntry>();
+  const seen = new Set<string>();
   const entries: PlannedEntry[] = [];
   const blocked = (s: StagedRecord, code: string): PlannedEntry => ({ staged: s, kind: 'blocked', code });
   const excluded = (s: StagedRecord, code: string): PlannedEntry => ({ staged: s, kind: 'excluded', code });
@@ -264,6 +265,7 @@ export async function computePlan(
                 accepted: own.some((i) => i.decision === 'acceptProposal'),
                 patient: patients.get(dep.patientSource),
                 currency,
+                seen,
               }),
               patientSource: dep.patientSource,
             }

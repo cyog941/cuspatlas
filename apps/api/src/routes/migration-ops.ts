@@ -150,6 +150,19 @@ export const MIGRATION_OPS: MigrationOp[] = [
       'M4: source provenance of one patient and every identity merged into it: source system, source id, entity, applied action and time precision. Merges never overwrite provenance.',
     invoke: (svc, actor, i) => data(svc.readProvenance(actor, i.body)),
   },
+  {
+    method: 'get',
+    path: '/v1/migration/opening-items',
+    operationId: 'migration.openingItems.list',
+    protected: true,
+    query: 'PackageQuery',
+    success: { status: '200', schema: M('OpeningReconciliation') },
+    refusals: READ,
+    tool: 'migration_opening_items_list',
+    description:
+      'M5: opening balances, unapplied credits (per source payment, with age basis) and open-claim references of one package, with per-guarantor source vs imported totals and the explicit difference (integer minor units). Opening figures need financial sign-off.',
+    invoke: (svc, actor, i) => data(svc.listOpeningReconciliation(actor, i.body)),
+  },
 ];
 
 export const MIGRATION_OP_ROUTES = (): RouteContract[] =>

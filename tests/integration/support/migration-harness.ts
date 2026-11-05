@@ -130,6 +130,14 @@ export const MIGRATION_HARNESS_ROWS: Row[] = [
     rest: (f) => get(`/v1/migration/provenance?patientRef=${f.alphaPatient}`),
     mcpArgs: (f) => ({ patientRef: f.alphaPatient }),
   },
+  {
+    operation: 'migration.openingItems.list',
+    tool: 'migration_opening_items_list',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => get(`/v1/migration/opening-items?${pq(f)}`),
+    mcpArgs: (f) => ({ packageRef: f.alphaMigrationPackage }),
+  },
 ];
 
 type Owner = (
@@ -168,4 +176,5 @@ export const MIGRATION_STATE_SQL: readonly string[] = [
   'SELECT count(*)::int AS n FROM cuspatlas.migration_staged_records',
   'SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.migration_review_items',
   'SELECT count(*)::int AS n FROM cuspatlas.migration_applied_records',
+  'SELECT count(*)::int AS n FROM cuspatlas.migration_opening_items',
 ];

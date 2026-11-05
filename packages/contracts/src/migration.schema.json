@@ -736,6 +736,96 @@
           }
         }
       }
+    },
+    "OpeningReconciliation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "required": ["currency", "items", "byGuarantor", "totals"],
+          "properties": {
+            "currency": {
+              "$ref": "#/$defs/CurrencyCode"
+            },
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["openingRef", "kind", "patientRef", "amount", "asOfPrecision", "sourceRef"],
+                "properties": {
+                  "openingRef": {
+                    "$ref": "#/$defs/Uuid"
+                  },
+                  "kind": {
+                    "enum": ["balance", "unappliedCredit", "openClaim"]
+                  },
+                  "patientRef": {
+                    "$ref": "#/$defs/PatientRef"
+                  },
+                  "guarantorSourceId": {
+                    "type": ["string", "null"]
+                  },
+                  "amount": {
+                    "$ref": "#/$defs/Money"
+                  },
+                  "asOf": {
+                    "type": ["string", "null"]
+                  },
+                  "asOfPrecision": {
+                    "enum": ["day", "approximate"]
+                  },
+                  "ageBasis": {
+                    "type": ["string", "null"]
+                  },
+                  "claimState": {
+                    "type": ["string", "null"]
+                  },
+                  "sourceRef": {
+                    "type": "string"
+                  },
+                  "entryRef": {
+                    "type": ["string", "null"]
+                  }
+                }
+              }
+            },
+            "byGuarantor": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "guarantorSourceId": {
+                    "type": "string"
+                  },
+                  "sourceBalance": {
+                    "$ref": "#/$defs/Money"
+                  },
+                  "importedBalance": {
+                    "$ref": "#/$defs/Money"
+                  },
+                  "balanceDifference": {
+                    "$ref": "#/$defs/Money"
+                  },
+                  "sourceCredit": {
+                    "$ref": "#/$defs/Money"
+                  },
+                  "importedCredit": {
+                    "$ref": "#/$defs/Money"
+                  },
+                  "creditDifference": {
+                    "$ref": "#/$defs/Money"
+                  }
+                }
+              }
+            },
+            "totals": {
+              "type": "object"
+            }
+          }
+        }
+      }
     }
   }
 }

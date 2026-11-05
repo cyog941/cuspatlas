@@ -11299,6 +11299,36 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/migration/opening-items:
+    get:
+      operationId: migration.openingItems.list
+      description: >-
+        M5: opening balances, unapplied credits (per source payment, with age basis) and open-claim
+        references of one package, with per-guarantor source vs imported totals and the explicit difference
+        (integer minor units). Opening figures need financial sign-off.
+      parameters:
+        - name: packageRef
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/migration.schema.json#/$defs/PackageRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/OpeningReconciliation'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   # END generated: MIGRATION_OPS
 components:
   securitySchemes:

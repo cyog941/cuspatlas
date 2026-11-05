@@ -155,10 +155,10 @@ describe('M3 dry run and staged application', () => {
     expect(b1).toMatchObject({ appliedThisBatch: 2, state: 'partial' });
     expect(await count(db, 'patients')).toBe(patientsBefore + 2);
     const b2 = await applied(packageRef, first.planDigest, 50);
-    expect(b2).toMatchObject({ appliedThisBatch: 3, alreadyApplied: 2, remaining: 0, state: 'partial' });
+    expect(b2).toMatchObject({ appliedThisBatch: 8, alreadyApplied: 2, remaining: 0, state: 'partial' });
     expect(b2.blocked).toBeGreaterThan(0);
     const again = await applied(packageRef, first.planDigest, 50);
-    expect(again).toMatchObject({ appliedThisBatch: 0, alreadyApplied: 5, remaining: 0 });
+    expect(again).toMatchObject({ appliedThisBatch: 0, alreadyApplied: 10, remaining: 0 });
     expect(await count(db, 'patients')).toBe(patientsBefore + 3);
     // No booking, attendance or clinical fact was fabricated from legacy history.
     for (const t of [
@@ -174,7 +174,7 @@ describe('M3 dry run and staged application', () => {
     const { rows } = await db.admin.query(
       `SELECT a.action, a.source_id, a.time_precision, a.provenance, a.patient_id, a.staged_record_id, s.entity
        FROM cuspatlas.migration_applied_records a JOIN cuspatlas.migration_staged_records s ON s.id = a.staged_record_id
-       WHERE a.package_id = $1 ORDER BY s.entity, a.source_id`,
+       WHERE a.package_id = $1 AND s.entity IN ('patients', 'appointments') ORDER BY s.entity, a.source_id`,
       [packageRef],
     );
     expect(rows.map((r) => [r.entity, r.source_id, r.action, r.time_precision])).toStrictEqual([

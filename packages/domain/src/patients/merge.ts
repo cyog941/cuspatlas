@@ -299,6 +299,11 @@ export const MERGE_EXCLUDED_REFERENCES: readonly { table: string; column: string
   },
   { table: 'patients', column: 'merged_into', why: 'the merge link itself' },
   {
+    table: 'migration_opening_items',
+    column: 'patient_id',
+    why: 'an opening financial fact is never relinked (like posted journal lines); the account is the merge set at read time',
+  },
+  {
     table: 'migration_applied_records',
     column: 'patient_id',
     why: 'migration provenance links a source record to the identity it became; merges are resolved at read time (M4)',

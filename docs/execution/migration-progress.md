@@ -26,6 +26,7 @@ format; a real adapter is a new format/version in `SOURCE_ADAPTERS` (MG-01).
 | M2 intake and mapping | tested (synthetic) | `tests/integration/migration-intake.test.ts`; negative-harness rows |
 | M3 dry run and staged import | tested (synthetic) | `tests/integration/migration-import.test.ts`; harness rows |
 | M4 identity and provenance | tested (synthetic) | `tests/integration/migration-identity.test.ts`; harness rows |
+| M5 opening balances and open items | tested (synthetic); financial sign-off pending | `tests/integration/migration-opening-balances.test.ts`; harness rows |
 
 ### M2
 
@@ -86,3 +87,29 @@ format; a real adapter is a new format/version in `SOURCE_ADAPTERS` (MG-01).
 - Full-suite note: the full run under heavy machine load (~49 postgres / 48 node processes from
   parallel workers) hit hook timeouts in 13 unrelated files; every one passed on rerun with
   `--maxWorkers=2` (10 files, 246 tests) or alone; no assertion failure. Recorded, not hidden.
+
+### M5
+
+- New B1 entry kind wiring: `openingBalance` (which `billing_check_entry` previously failed closed
+  for) may touch only three new accounts keyed on a migration opening item: `opening_receivable`
+  (never negative), `opening_credit` (never positive) and `opening_equity` (balancing side). New
+  `billing_journal_lines.opening_item_id` dimension; the DB check requires exactly two lines naming
+  one opening item of the same patient, amount and kind, posted once, never a reversal. The domain
+  sign table mirrors it. Opening entries cannot touch charge, revenue, payment or allocation accounts,
+  so an opening balance can never be posted as a charge (`charge_path_forbidden` structurally); the B
+  reversal command refuses them (`opening_balance_correction_via_migration`, 409, not a 500).
+- `migration_opening_items` (append-only): one per source row, kind balance / unappliedCredit (per
+  source payment, age basis kept) / openClaim (reference only, no claim row, never submittable),
+  as-of `day` or `approximate` (never a fabricated date). Duplicate balance per patient, currency
+  and as-of is excluded in the plan (`duplicate_opening`) and unique in the DB. Currency must equal
+  the tenant billing currency (a mismatch is review-only, `exclude`). A negative legacy balance is
+  posted as unapplied credit only after staff accept the proposal.
+- `migration.openingItems.list`: items plus per-guarantor source vs imported balance and credit, and
+  the explicit difference (BigInt arithmetic, integer minor units).
+- Contract touch: `LedgerAccount` and billing.schema.json `Account` gain the three opening accounts;
+  `postEntry` writes `openingItemId`. Pending B seam: B balance/statement projections do not yet
+  include opening receivable or opening credit (opening credit is not allocatable to charges yet);
+  superseding correction of an opening figure is not built.
+- Red: 4/4 failing (exit 1). First green attempt: 500 from `billing_journal_entries.external_ref`
+  pattern (fixed to `syn-mig-<staged ref>`). Green: 23/23 migration tests; full suite with
+  `--maxWorkers=4`: 2877/2877.

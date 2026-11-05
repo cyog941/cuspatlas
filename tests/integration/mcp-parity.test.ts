@@ -374,6 +374,7 @@ const TOOL_NAMES = [
   'migration_imports_apply',
   'migration_identity_merge',
   'migration_provenance_read',
+  'migration_opening_items_list',
 ].sort();
 
 let db: TestDatabase;

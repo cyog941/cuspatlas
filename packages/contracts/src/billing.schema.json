@@ -177,6 +177,10 @@
       "properties": {
         "reasonCode": {
           "$ref": "#/$defs/ReasonCode"
+        },
+        "expectedVersion": {
+          "$ref": "#/$defs/Version",
+          "description": "Optional optimistic check: the current version of the aggregate the reversal reports (payment, charge, or for an opening-credit allocation the opening item)."
         }
       }
     },

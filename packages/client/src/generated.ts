@@ -1810,6 +1810,7 @@ export type BillingEntryRef = string;
 
 export type BillingEntryReverse = {
   readonly "reasonCode": BillingReasonCode;
+  readonly "expectedVersion"?: BillingVersion;
 };
 
 export type BillingEvidenceRef = string;

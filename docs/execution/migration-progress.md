@@ -332,9 +332,10 @@ Pending decisions (recommended values are recommended-pending-approval, never ap
   support tiers, M-D8 rollback after new work.
 - Archive retention period (ten years from registration) and disposal procedure; downtime-log
   operations (`openDowntimeLog`/`recordManualEvent`/`reconcileManualEvents`) not built; wiring the
-  backup verification job into the worker tick; reversing an opening-credit allocation (from M-10).
-  The admin-facing reviewer assignment commands (from M-5) are built and tested in Closeout A6
-  (`migration.reviewers.assign`/`.unassign`/`.list`, docs/execution/integration-progress.md).
+  backup verification job into the worker tick. The admin-facing reviewer assignment commands (from
+  M-5) are built and tested in Closeout A6 (`migration.reviewers.assign`/`.unassign`/`.list`), and
+  reversing an opening-credit allocation (from M-10) in Closeout A7 through `billing.entries.reverse`
+  (docs/execution/integration-progress.md).
 
 Blocked on discovery: M-S1 (authorised incumbent export and rights: no real export has been
 received), M-S2 (lawful archive arrangement for history that will not export), M-S3 (named

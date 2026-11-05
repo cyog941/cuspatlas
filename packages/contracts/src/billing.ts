@@ -45,6 +45,7 @@ export interface ChargePost {
 }
 export interface EntryReverse {
   readonly reasonCode: string;
+  readonly expectedVersion?: number;
 }
 export interface LedgerQuery {
   readonly limit?: string;

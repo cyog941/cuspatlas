@@ -12,6 +12,7 @@ import {
   negateMoney,
   type Page,
   type PatientBalance,
+  RefusalError,
   subtractMoney,
   type TenantTransaction,
   validateBalanceQuery,
@@ -109,6 +110,29 @@ function reversalRefusal(
 
 const DEFAULT_LIMIT = 25;
 
+/** H2 M-10: the resource an opening-credit allocation and its reversal are audited against. */
+export const OPENING_ITEM_RESOURCE = 'migrationOpeningItem';
+
+/** An opening item's version: the number of posted entries naming it (the opening entry first). */
+export async function openingItemVersion(tx: TenantTransaction, itemId: string): Promise<number> {
+  const { rows } = await tx.query<{ v: number }>(
+    'SELECT count(DISTINCT entry_id)::int AS v FROM cuspatlas.billing_journal_lines WHERE opening_item_id = $1',
+    [itemId],
+  );
+  return rows[0]?.v ?? 1;
+}
+
+/** The current version of the aggregate a reversal of `row` reports (checked against expectedVersion). */
+async function reportedVersion(tx: TenantTransaction, resource: string, ref: string): Promise<number> {
+  if (resource === OPENING_ITEM_RESOURCE) return openingItemVersion(tx, ref);
+  const table = resource === PAYMENT_RESOURCE ? 'billing_payments' : 'billing_charges';
+  const { rows } = await tx.query<{ version: number }>(
+    `SELECT version FROM cuspatlas.${table} WHERE id = $1`,
+    [ref],
+  );
+  return rows[0]?.version ?? 1;
+}
+
 /** B1 reversal and journal reads: one correction path for every entry kind, never an edit. */
 export function createEntryOperations(base: BillingBase) {
   const { deps, execute, cursors } = base;
@@ -130,6 +154,21 @@ export function createEntryOperations(base: BillingBase) {
           // M5: an opening fact is corrected by a superseding migration record, never a reversal.
           if (original.kind === 'openingBalance') throw conflict('opening_balance_correction_via_migration');
           const lines = await loadLines(tx, [original.id]);
+          // Closeout A7 (H2 M-10): an opening-credit allocation returns its amount to the same opening
+          // item. The item's patient row is locked first, as the allocation command does, so a reversal
+          // and a concurrent allocation of one item serialize.
+          const openingItems = [
+            ...new Set(lines.map((l) => l.opening_item_id).filter((x): x is string => x !== null)),
+          ];
+          if (openingItems.length > 0) {
+            await tx.query(
+              `SELECT p.id FROM cuspatlas.patients p JOIN cuspatlas.migration_opening_items i ON i.patient_id = p.id
+               WHERE i.id = ANY ($1::uuid[]) ORDER BY p.id FOR NO KEY UPDATE OF p`,
+              [openingItems],
+            );
+          }
+          const opening = openingItems.length === 1 ? (openingItems[0] as string) : null;
+          if (openingItems.length > 1) throw new Error('entry draws on more than one opening item');
           const locks: AggregateLocks = {
             payments: [...new Set(lines.map((l) => l.payment_id).filter((x): x is string => x !== null))],
             charges: [...new Set(lines.map((l) => l.charge_id).filter((x): x is string => x !== null))],
@@ -139,6 +178,19 @@ export function createEntryOperations(base: BillingBase) {
             // Re-read after the locks: a concurrent reversal that committed meanwhile is now visible.
             const row = await loadEntry(tx, entryRef);
             assertReversible(row);
+            const primary = opening ?? row.payment_id ?? row.charge_id ?? locks.charges[0] ?? null;
+            if (primary === null) throw new Error('entry without an owning aggregate');
+            const resourceType =
+              opening !== null
+                ? OPENING_ITEM_RESOURCE
+                : row.payment_id !== null
+                  ? PAYMENT_RESOURCE
+                  : CHARGE_RESOURCE;
+            if (p.expectedVersion !== undefined) {
+              const current = await reportedVersion(tx, resourceType, primary);
+              if (current !== p.expectedVersion)
+                throw new RefusalError({ code: 'stale_version', detail: { currentVersion: current } });
+            }
             let reversal: string;
             try {
               reversal = await postEntry(tx, {
@@ -164,14 +216,14 @@ export function createEntryOperations(base: BillingBase) {
               throw err;
             }
             const versions = await bumpAggregates(tx, locks);
-            const primary = row.payment_id ?? row.charge_id ?? locks.charges[0] ?? null;
-            if (primary === null) throw new Error('entry without an owning aggregate');
-            const version = versions.get(primary) ?? 1;
+            // The opening item is reported like its allocation reports it: by its count of posted entries.
+            const version =
+              opening !== null ? await openingItemVersion(tx, opening) : (versions.get(primary) ?? 1);
             await recordCommand(
               tx,
               {
                 operation: op,
-                resourceType: row.payment_id !== null ? PAYMENT_RESOURCE : CHARGE_RESOURCE,
+                resourceType,
                 resourceRef: primary,
                 resourceVersion: version,
               },

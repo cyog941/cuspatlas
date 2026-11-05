@@ -241,6 +241,7 @@ interface LineRow extends Record<string, unknown> {
   payer_ref: string | null;
   coverage_id: string | null;
   remittance_id: string | null;
+  opening_item_id: string | null;
 }
 
 export const ENTRY_COLUMNS = `e.id, e.kind, e.currency, e.charge_id, e.payment_id, e.reverses_entry_id,
@@ -263,7 +264,7 @@ export async function loadLines(tx: TenantTransaction, entryIds: readonly string
   if (entryIds.length === 0) return [];
   const { rows } = await tx.query<LineRow>(
     `SELECT entry_id, line_no, account, amount_minor::text AS amount, patient_id, charge_id, payment_id, payer_ref,
-       coverage_id, remittance_id
+       coverage_id, remittance_id, opening_item_id
      FROM cuspatlas.billing_journal_lines WHERE entry_id = ANY ($1::uuid[]) ORDER BY entry_id, line_no`,
     [[...entryIds]],
   );
@@ -312,6 +313,8 @@ export function negatedLines(lines: readonly LineRow[], currency: string): LineI
     payerRef: l.payer_ref,
     coverageId: l.coverage_id,
     remittanceId: l.remittance_id,
+    // H2 M-10 / Closeout A7: an opening-credit line is returned to the same opening item.
+    openingItemId: l.opening_item_id,
   }));
 }
 

@@ -293,7 +293,7 @@ export interface ClaimWorkflowView {
   }[];
   readonly timers: readonly {
     readonly timerRef: string;
-    readonly kind: 'payer_follow_up' | 'exception_escalation';
+    readonly kind: 'payer_follow_up' | 'exception_escalation' | 'automation_retry';
     readonly subjectRef: string;
     readonly level: number;
     readonly dueAt: string;

@@ -4,6 +4,7 @@ import { createCoverageOperations } from '../rcm/coverage';
 import { createBillingExportOperations } from '../rcm/export';
 import { createRemittanceOperations } from '../rcm/remittance';
 import { createRemittanceResolutionOperations } from '../rcm/remittance-resolution';
+import { lateSecondaryDue } from '../rcm/secondary-due';
 import { createWorkflowOperations, type WorkflowDrivers } from '../rcm/workflow';
 import { createAdjustmentOperations } from './adjustments';
 import { createAllocationOperations } from './allocations';
@@ -34,7 +35,7 @@ export function createBillingService(deps: BillingDeps) {
     ...createEntryOperations(base),
     ...createPaymentOperations(base, provider),
     ...createPlanOperations(base, provider),
-    ...createStatementOperations(base),
+    ...createStatementOperations(base, (tx, patientIds) => lateSecondaryDue(tx, { patientIds })),
     ...createCoverageOperations(base, deps.eligibility),
     ...createAllocationOperations(base),
     ...createWorklistOperations(base),

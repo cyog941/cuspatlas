@@ -21,7 +21,11 @@ export { BILLING_EXPORT_FORMAT };
  * 2. every single-column foreign key whose parent has a tenant column is checked to name a parent of
  *    the same tenant (a tenant-blind key could otherwise point at another tenant's row);
  * 3. the journal invariants are re-verified for every imported entry with the database's own check
- *    (balanced, declared line count, kinds and accounts, exact reversal, sign rules).
+ *    (balanced, declared line count, kinds and accounts, exact reversal, sign rules);
+ * 4. the invariants the database enforces by trigger (which the replica role skips) are re-checked by
+ *    SQL: a second human decides an adjustment, a resolution needing approval and an appeal; an insurer
+ *    line carries its coverage's payer; an entry is reversed at most once, a remittance reversed once;
+ * 5. every amount and every currency column is in the tenant's currency (never converted).
  * Any failure rolls the whole import back. This is the B round-trip check, not the M1 migration import.
  */
 const IDENT = /^[a-z_][a-z0-9_]*$/;
@@ -31,7 +35,10 @@ const quote = (name: string): string => {
 };
 
 /** Money back to its integer minor-unit column (and refuse a malformed amount). */
-function fromExportRow(row: Readonly<Record<string, unknown>>): Record<string, unknown> {
+function fromExportRow(
+  row: Readonly<Record<string, unknown>>,
+  currencies: Set<string>,
+): Record<string, unknown> {
   return Object.fromEntries(
     Object.entries(row).map(([k, v]) => {
       if (!isMoneyColumn(k) || v === null) return [k, v];
@@ -39,9 +46,83 @@ function fromExportRow(row: Readonly<Record<string, unknown>>): Record<string, u
       if (typeof m !== 'object' || typeof m.currency !== 'string' || !Number.isSafeInteger(m.minor)) {
         throw new Error(`Malformed amount in column ${k}`);
       }
+      currencies.add(m.currency);
       return [k, m.minor];
     }),
   );
+}
+
+/** Every amount (and every currency column) of the tenant is in the tenant's one currency (ADR 0008 M-3). */
+async function assertCurrency(
+  client: pg.PoolClient,
+  tenantId: string,
+  seen: ReadonlySet<string>,
+): Promise<void> {
+  const { rows } = await client.query<{ currency: string }>(
+    'SELECT currency FROM cuspatlas.billing_settings WHERE tenant_id = $1',
+    [tenantId],
+  );
+  const tenant = rows[0]?.currency ?? 'USD';
+  for (const c of seen)
+    if (c !== tenant) throw new Error(`Import carries an amount in currency ${c}, not the tenant currency`);
+  const { rows: cols } = await client.query<{ table_name: string }>(
+    `SELECT table_name FROM information_schema.columns
+     WHERE table_schema = 'cuspatlas' AND column_name = 'currency' AND table_name = ANY ($1::text[])
+     ORDER BY table_name`,
+    [[...BILLING_EXPORT_TABLES]],
+  );
+  for (const t of cols) {
+    const bad = await client.query(
+      `SELECT 1 FROM cuspatlas.${quote(t.table_name)} WHERE tenant_id = $1 AND currency <> $2 LIMIT 1`,
+      [tenantId, tenant],
+    );
+    if (bad.rows.length > 0)
+      throw new Error(`Import carries a currency column other than the tenant currency (${t.table_name})`);
+  }
+}
+
+/** Trigger-enforced invariants re-checked by SQL, because `session_replication_role = replica` skips triggers. */
+async function assertTriggerInvariants(client: pg.PoolClient, tenantId: string): Promise<void> {
+  const checks: [string, string][] = [
+    [
+      'an adjustment is decided by someone other than its requester',
+      `SELECT 1 FROM cuspatlas.billing_adjustment_decisions d
+       JOIN cuspatlas.billing_adjustment_requests r ON r.id = d.request_id AND r.tenant_id = d.tenant_id
+       WHERE d.tenant_id = $1 AND r.requested_by = d.decided_by LIMIT 1`,
+    ],
+    [
+      'a resolution needing approval is decided by someone other than its requester',
+      `SELECT 1 FROM cuspatlas.rcm_remittance_resolution_decisions d
+       JOIN cuspatlas.rcm_remittance_line_resolutions r ON r.id = d.resolution_id AND r.tenant_id = d.tenant_id
+       WHERE d.tenant_id = $1 AND (r.requested_by = d.decided_by OR NOT r.needs_approval) LIMIT 1`,
+    ],
+    [
+      'an appeal is reviewed by someone other than its drafter',
+      `SELECT 1 FROM cuspatlas.rcm_appeal_reviews v
+       JOIN cuspatlas.rcm_appeals a ON a.id = v.appeal_id AND a.tenant_id = v.tenant_id
+       WHERE v.tenant_id = $1 AND a.drafted_by = v.reviewed_by LIMIT 1`,
+    ],
+    [
+      'an insurer line carries its coverage payer',
+      `SELECT 1 FROM cuspatlas.billing_journal_lines l
+       JOIN cuspatlas.rcm_coverages c ON c.id = l.coverage_id AND c.tenant_id = l.tenant_id
+       WHERE l.tenant_id = $1 AND l.account = 'insurer_receivable' AND c.payer_ref IS DISTINCT FROM l.payer_ref LIMIT 1`,
+    ],
+    [
+      'a journal entry is reversed at most once',
+      `SELECT 1 FROM cuspatlas.billing_journal_entries WHERE tenant_id = $1 AND reverses_entry_id IS NOT NULL
+       GROUP BY reverses_entry_id HAVING count(*) > 1 LIMIT 1`,
+    ],
+    [
+      'a remittance is reversed at most once',
+      `SELECT 1 FROM cuspatlas.rcm_remittance_reversals WHERE tenant_id = $1 GROUP BY remittance_id
+       HAVING count(*) > 1 LIMIT 1`,
+    ],
+  ];
+  for (const [rule, sql] of checks) {
+    const bad = await client.query(sql, [tenantId]);
+    if (bad.rows.length > 0) throw new Error(`Import breaks a trigger invariant: ${rule}`);
+  }
 }
 
 async function assertReferences(client: pg.PoolClient, tenantId: string): Promise<void> {
@@ -118,8 +199,9 @@ export async function importBillingExport(
   const known = new Set<string>(BILLING_EXPORT_TABLES);
   for (const t of Object.keys(doc.tables)) if (!known.has(t)) throw new Error('Unknown table in export');
   // Every amount is converted (and a malformed one refused) before anything is written.
+  const currencies = new Set<string>();
   const prepared = BILLING_EXPORT_TABLES.map(
-    (table) => [table, (doc.tables[table] ?? []).map(fromExportRow)] as const,
+    (table) => [table, (doc.tables[table] ?? []).map((row) => fromExportRow(row, currencies))] as const,
   );
   const client = await pool.connect();
   try {
@@ -141,6 +223,8 @@ export async function importBillingExport(
       counts[table] = list.length;
     }
     await assertReferences(client, tenantId);
+    await assertCurrency(client, tenantId, currencies);
+    await assertTriggerInvariants(client, tenantId);
     counts.verifiedEntries = await assertLedger(client, tenantId);
     await client.query('COMMIT');
     return counts;

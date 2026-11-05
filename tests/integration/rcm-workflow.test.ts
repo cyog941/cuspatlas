@@ -239,6 +239,8 @@ describe('CL-08 durable timers, owned exceptions and bounded escalation', () => 
     ]);
     expect(v.timers.map((t) => [t.kind, t.level, t.firedOutcome]).sort()).toStrictEqual(
       [
+        // The continuation after the validation (the submit the standing policy still owed) fired harmlessly.
+        ['automation_retry', 0, 'fired'],
         ['exception_escalation', 1, 'escalated_level_1'],
         ['payer_follow_up', 0, 'fired'],
       ].sort(),
@@ -254,7 +256,7 @@ describe('CL-08 durable timers, owned exceptions and bounded escalation', () => 
        JOIN cuspatlas.rcm_claim_workflow_timers t ON t.id = f.timer_id WHERE t.workflow_id = $1`,
       [wf],
     );
-    expect(rows[0].n).toBe(2);
+    expect(rows[0].n).toBe(3);
     expect((await r.h.call('a1', 'POST', `/v1/rcm/workflow-timers/${timer}/fire`, {})).statusCode).toBe(403);
   });
 

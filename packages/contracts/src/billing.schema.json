@@ -5105,7 +5105,7 @@
                 "$ref": "#/$defs/Uuid"
               },
               "kind": {
-                "enum": ["payer_follow_up", "exception_escalation"]
+                "enum": ["payer_follow_up", "exception_escalation", "automation_retry"]
               },
               "subjectRef": {
                 "type": "string"

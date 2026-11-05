@@ -30,11 +30,20 @@ import { recordCommand } from '../events/record-command';
 import { recordSensitiveRead } from '../events/record-sensitive-read';
 import { type ClaimRowLite, claimWorkItems, loadClaimRow } from './claims';
 import { latestWorkflowPolicy } from './remittance-resolution';
+import { lateSecondaryDue } from './secondary-due';
 
 export const WORKFLOW_RESOURCE = 'rcmClaimWorkflow';
 export const WORKFLOW_TIMER_AGGREGATE = 'rcmWorkflowTimer';
 /** Automation attempts per action and subject before the workflow stops retrying (bounded). */
 export const WORKFLOW_MAX_ATTEMPTS = 3;
+/**
+ * Minutes before the automation is tried again, by refused attempts so far on the claim's head version
+ * (0 = the continuation of an action that succeeded). Bounded: no timer exists past the last attempt.
+ */
+export const WORKFLOW_RETRY_BACKOFF_MINUTES = [0, 5, 15] as const;
+/** How long an advance waits for another advance of the same workflow before a retryable 409. */
+const ADVANCE_WAIT_MS = 8000;
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 /** Synthetic defaults when no workflow policy version exists (pending a practice policy). */
 const DEFAULT_POLICY = { ack: 1440, follow: 43200, due: 1440, max: 2 } as const;
 
@@ -46,6 +55,12 @@ interface Issue {
   readonly owner: Owner;
   readonly owedBy: OwedBy;
   readonly sourceRef: string | null;
+}
+/** An automated action still pending after this observation: it needs a timer, not a person yet. */
+interface Retry {
+  readonly claimId: string;
+  readonly claimVersion: number;
+  readonly attempts: number;
 }
 interface Step {
   readonly step: string;
@@ -185,15 +200,22 @@ export function createWorkflowOperations(base: BillingBase, drivers: () => Workf
         }
       : { id: null, version_no: 0, ...DEFAULT_POLICY };
   };
-  /** Refused automation attempts per `${action}:${claimRef}` (bounded retries). */
-  const refusedOf = async (tx: TenantTransaction, workflowId: string) => {
-    const { rows } = await tx.query<{ outcome: string; subject_ref: string; n: number }>(
-      `SELECT outcome, subject_ref, count(*)::int AS n FROM cuspatlas.rcm_claim_workflow_steps
-       WHERE workflow_id = $1 AND step = 'automation' AND outcome LIKE '%_refused_%' GROUP BY outcome, subject_ref`,
+  /**
+   * Refused automation attempts per `${action}:${claimRef}` on the claim's current head version
+   * (bounded retries): a new version of the claim is a new budget, an old version's refusals stay history.
+   */
+  const refusedOf = async (tx: TenantTransaction, workflowId: string, claims: readonly ClaimRowLite[]) => {
+    const { rows } = await tx.query<{ outcome: string; subject_ref: string; v: string | null; n: number }>(
+      `SELECT outcome, subject_ref, input_versions ->> 'claimVersion' AS v, count(*)::int AS n
+       FROM cuspatlas.rcm_claim_workflow_steps
+       WHERE workflow_id = $1 AND step = 'automation' AND outcome LIKE '%_refused_%'
+       GROUP BY outcome, subject_ref, input_versions ->> 'claimVersion'`,
       [workflowId],
     );
+    const head = new Map(claims.map((c) => [c.id, String(c.version)]));
     const out = new Map<string, number>();
     for (const r of rows) {
+      if (head.get(r.subject_ref) !== r.v) continue;
       const action = r.outcome.split('_refused_')[0] as string;
       const k = `${action}:${r.subject_ref}`;
       out.set(k, (out.get(k) ?? 0) + r.n);
@@ -543,17 +565,19 @@ export function createWorkflowOperations(base: BillingBase, drivers: () => Workf
     claims: readonly ClaimRowLite[],
     seen: Awaited<ReturnType<typeof observeSteps>>,
     now: Date,
-  ): Promise<Issue[]> {
-    const refused = await refusedOf(tx, wf.id);
+  ): Promise<{ issues: Issue[]; retries: Retry[] }> {
+    const refused = await refusedOf(tx, wf.id, claims);
     // Under a standing policy the workflow itself owns validate / submit / reconcile, until its bounded
-    // attempts are spent: only then do they surface as a person's exception.
-    const automated = (kind: string, claimId: string) => {
+    // attempts are spent: only then do they surface as a person's exception. While it owns them a
+    // durable timer (never a person's memory) brings the workflow back to the pending action.
+    const retries = new Map<string, Retry>();
+    const automated = (kind: string, c: ClaimRowLite) => {
       const action = AUTOMATABLE[kind];
-      return (
-        wf.submission_policy_id !== null &&
-        action !== undefined &&
-        (refused.get(`${action}:${claimId}`) ?? 0) < WORKFLOW_MAX_ATTEMPTS
-      );
+      const attempts = refused.get(`${action}:${c.id}`) ?? 0;
+      const owned =
+        wf.submission_policy_id !== null && action !== undefined && attempts < WORKFLOW_MAX_ATTEMPTS;
+      if (owned) retries.set(c.id, { claimId: c.id, claimVersion: c.version, attempts });
+      return owned;
     };
     const issues = new Map<string, Issue>();
     const add = (i: Issue) => {
@@ -562,7 +586,7 @@ export function createWorkflowOperations(base: BillingBase, drivers: () => Workf
     for (const c of claims) {
       for (const w of await claimWorkItems(tx, c, now)) {
         // Silent-payer follow-up is driven by the policy timer, not the claim worklist default.
-        if (w.kind === 'follow_up' || automated(w.kind, c.id)) continue;
+        if (w.kind === 'follow_up' || automated(w.kind, c)) continue;
         const ref = w.sourceRef && /^[0-9a-f-]{36}$/.test(w.sourceRef) ? w.sourceRef : c.id;
         add({
           key: `${w.kind === 'resolve_issue' ? w.reasonCode : w.kind}:${ref}`,
@@ -574,6 +598,11 @@ export function createWorkflowOperations(base: BillingBase, drivers: () => Workf
       }
     }
     const ids = claims.map((c) => c.id);
+    // A review line belongs to the workflows it concerns, never to every workflow sharing its ERA: a
+    // matched line to its claim's lineage, a line a person resolved to the resolution's claim, and an
+    // unmatched, unresolved line only to a lineage it could still match (a transmitted claim line of the
+    // same payer and line number whose insurer responsibility is open). The remittance itself lists
+    // every line with its review state for the ERA-level view.
     const { rows: review } = await tx.query<{
       remittance_id: string;
       line_no: number;
@@ -581,13 +610,25 @@ export function createWorkflowOperations(base: BillingBase, drivers: () => Workf
       state: string | null;
     }>(
       `SELECT l.remittance_id, l.line_no, l.review_reason,
-         (SELECT CASE WHEN d.decision IS NOT NULL THEN d.decision WHEN r.needs_approval THEN 'pending'
-                      WHEN r.action = 'route_to_appeal' THEN 'routed' ELSE 'posted' END
-          FROM cuspatlas.rcm_remittance_line_resolutions r
-          LEFT JOIN cuspatlas.rcm_remittance_resolution_decisions d ON d.resolution_id = r.id
-          WHERE r.remittance_id = l.remittance_id AND r.line_no = l.line_no ORDER BY r.created_at DESC, r.id DESC LIMIT 1) AS state
-       FROM cuspatlas.rcm_remittance_lines l WHERE l.status = 'review' AND l.remittance_id = ANY ($1::uuid[])
-         AND (l.claim_id = ANY ($2::uuid[]) OR l.claim_id IS NULL)`,
+         CASE WHEN x.id IS NULL THEN NULL WHEN d.decision IS NOT NULL THEN d.decision WHEN x.needs_approval THEN 'pending'
+              WHEN x.action = 'route_to_appeal' THEN 'routed' ELSE 'posted' END AS state
+       FROM cuspatlas.rcm_remittance_lines l
+       JOIN cuspatlas.rcm_remittances rem ON rem.id = l.remittance_id
+       LEFT JOIN LATERAL (SELECT r.id, r.action, r.needs_approval, r.claim_id FROM cuspatlas.rcm_remittance_line_resolutions r
+                          WHERE r.remittance_id = l.remittance_id AND r.line_no = l.line_no
+                          ORDER BY r.created_at DESC, r.id DESC LIMIT 1) x ON true
+       LEFT JOIN cuspatlas.rcm_remittance_resolution_decisions d ON d.resolution_id = x.id
+       WHERE l.status = 'review' AND l.remittance_id = ANY ($1::uuid[])
+         AND (l.claim_id = ANY ($2::uuid[])
+           OR (x.id IS NOT NULL AND d.decision IS DISTINCT FROM 'rejected' AND x.claim_id = ANY ($2::uuid[]))
+           OR ((x.id IS NULL OR d.decision = 'rejected') AND l.claim_id IS NULL AND EXISTS (
+                 SELECT 1 FROM cuspatlas.rcm_claims c
+                 JOIN cuspatlas.rcm_claim_submissions s ON s.claim_id = c.id AND s.outcome = 'transmitted'
+                 JOIN cuspatlas.rcm_claim_lines cl ON cl.version_id = s.version_id AND cl.line_no = l.claim_line_no
+                 WHERE c.id = ANY ($2::uuid[]) AND c.payer_ref = rem.payer_ref
+                   AND (SELECT coalesce(sum(j.amount_minor), 0) FROM cuspatlas.billing_journal_lines j
+                        WHERE j.charge_id = cl.charge_id AND j.account = 'insurer_receivable'
+                          AND j.coverage_id = c.coverage_id) > 0)))`,
       [seen.remittances, ids],
     );
     for (const l of review) {
@@ -626,13 +667,35 @@ export function createWorkflowOperations(base: BillingBase, drivers: () => Workf
     );
     const rankOf = new Map(ranks.map((r) => [r.id, r.rank]));
     const hasSecondary = claims.some((c) => c.rank === 2);
+    // The standing policy prepares the secondary itself (bounded); only then is it a person's exception.
+    const primary = claims[0];
+    const secondaryOwned = (): boolean => {
+      if (wf.submission_policy_id === null || !primary) return false;
+      const attempts = refused.get(`secondary:${primary.id}`) ?? 0;
+      if (attempts >= WORKFLOW_MAX_ATTEMPTS) return false;
+      retries.set(primary.id, { claimId: primary.id, claimVersion: primary.version, attempts });
+      return true;
+    };
+    // CL-11: a secondary coverage recorded after the primary ERA leaves the patient responsibility with
+    // the patient; it is the secondary's to be claimed first, so it is due, and the patient is not billed.
+    const late = hasSecondary ? [] : await lateSecondaryDue(tx, { claimIds: ids });
+    for (const x of late)
+      if (!secondaryOwned())
+        add({
+          key: `secondary_claim_due:${x.coverageId}`,
+          reason: 'secondary_coverage_added_late',
+          owner: 'billing',
+          owedBy: 'practice',
+          sourceRef: x.coverageId,
+        });
     for (const o of open) {
       if (
         o.account === 'insurer_receivable' &&
         o.coverage_id &&
         BigInt(o.s) > 0n &&
         rankOf.get(o.coverage_id) === 2 &&
-        !hasSecondary
+        !hasSecondary &&
+        !secondaryOwned()
       )
         add({
           key: `secondary_claim_due:${o.coverage_id}`,
@@ -667,6 +730,7 @@ export function createWorkflowOperations(base: BillingBase, drivers: () => Workf
     if (
       insurerOpen === 0n &&
       patientOpen > 0n &&
+      late.length === 0 &&
       claims.every((c) => c.state === 'paid' || c.state === 'denied')
     ) {
       const { rows } = await tx.query<{ at: Date | null }>(
@@ -717,7 +781,7 @@ export function createWorkflowOperations(base: BillingBase, drivers: () => Workf
         owedBy: 'payer',
         sourceRef: f.subject_ref,
       });
-    return [...issues.values()];
+    return { issues: [...issues.values()], retries: [...retries.values()] };
   }
 
   /** Persists the observation: new steps, new and resolved exceptions, and the durable timers. */
@@ -728,7 +792,7 @@ export function createWorkflowOperations(base: BillingBase, drivers: () => Workf
     let changed = 0;
     for (const s of seen.steps) changed += await insertStep(tx, wf.id, s);
     const policy = await policyOf(tx, wf, claims[0]?.payer_ref ?? '');
-    const issues = await observeIssues(tx, wf, claims, seen, now);
+    const { issues, retries } = await observeIssues(tx, wf, claims, seen, now);
     const { rows: open } = await tx.query<{
       id: string;
       issue_key: string;
@@ -777,6 +841,26 @@ export function createWorkflowOperations(base: BillingBase, drivers: () => Workf
       [claims.map((c) => c.id), policy.follow],
     );
     for (const s of silent) changed += await timer(tx, wf.id, 'payer_follow_up', s.id, 0, s.at, policy.id);
+    // An automated action that is still pending (the next step after one that succeeded, or one refused
+    // with attempts left) brings the workflow back by a durable timer, so nothing waits for a manual advance.
+    for (const x of retries) {
+      const last = WORKFLOW_RETRY_BACKOFF_MINUTES.length - 1;
+      // biome-ignore lint/complexity/useMathMinMax: billing sources avoid Math (no-float-money test)
+      const minutes = WORKFLOW_RETRY_BACKOFF_MINUTES[x.attempts < last ? x.attempts : last];
+      const { rows: due } = await tx.query<{ at: Date }>(
+        "SELECT now() + $1::int * interval '1 minute' AS at",
+        [minutes],
+      );
+      changed += await timer(
+        tx,
+        wf.id,
+        'automation_retry',
+        keyOf(x.claimId, 'automation_retry', x.claimVersion, x.attempts),
+        x.attempts,
+        (due[0] as { at: Date }).at,
+        policy.id,
+      );
+    }
     return { changed, policy, issues, now };
   }
 
@@ -805,7 +889,7 @@ export function createWorkflowOperations(base: BillingBase, drivers: () => Workf
   async function timer(
     tx: TenantTransaction,
     workflowId: string,
-    kind: 'payer_follow_up' | 'exception_escalation',
+    kind: 'payer_follow_up' | 'exception_escalation' | 'automation_retry',
     subjectRef: string,
     level: number,
     dueAt: Date,
@@ -845,7 +929,7 @@ export function createWorkflowOperations(base: BillingBase, drivers: () => Workf
     const plan = await deps.withTenantTransaction(ctx, async (tx) => {
       const claims = await lineage(tx, wf);
       const actions: { action: string; claim: ClaimRowLite; extra?: string; attempts: number }[] = [];
-      const counts = await refusedOf(tx, wf.id);
+      const counts = await refusedOf(tx, wf.id, claims);
       const refused = (action: string, subject: string) => counts.get(`${action}:${subject}`) ?? 0;
       const { rows: clock } = await tx.query<{ now: Date }>('SELECT now() AS now');
       const now = (clock[0] as { now: Date }).now;
@@ -872,11 +956,14 @@ export function createWorkflowOperations(base: BillingBase, drivers: () => Workf
            AND v.benefit_rank = 2 GROUP BY l.coverage_id HAVING sum(l.amount_minor) > 0 LIMIT 1`,
           [primary.id],
         );
-        if (rows[0])
+        // A secondary coverage recorded after the ERA leaves the amount with the patient (CL-11).
+        const coverageId =
+          rows[0]?.coverage_id ?? (await lateSecondaryDue(tx, { claimIds: [primary.id] }))[0]?.coverageId;
+        if (coverageId)
           actions.push({
             action: 'secondary',
             claim: primary,
-            extra: rows[0].coverage_id,
+            extra: coverageId,
             attempts: refused('secondary', primary.id),
           });
       }
@@ -940,11 +1027,41 @@ export function createWorkflowOperations(base: BillingBase, drivers: () => Workf
     return out;
   }
 
+  /**
+   * One observation of the workflow. The workflow row is locked before anything is evaluated and held
+   * through the automation, so two advances never race one action into a refusal step: a concurrent
+   * advance does not hold a connection while it waits (it polls `SKIP LOCKED`, so the pool cannot be
+   * exhausted by waiters starving the holder's own commands), then sees the first one's facts. After
+   * `ADVANCE_WAIT_MS` it is a retryable 409. The owning commands run in their own transactions and
+   * never touch the workflow row.
+   */
   async function advance(ctx: ActorContext, workflowRef: string) {
-    const first = await deps.withTenantTransaction(ctx, (tx) => loadWorkflow(tx, workflowRef));
-    const auto = await automate(ctx, first);
+    const deadline = Date.now() + ADVANCE_WAIT_MS;
+    for (;;) {
+      const done = await advanceOnce(ctx, workflowRef);
+      if (done) return done;
+      if (Date.now() >= deadline)
+        throw new RefusalError({ code: 'conflict', retryable: true, detail: { reason: 'workflow_busy' } });
+      await sleep(75);
+    }
+  }
+  async function advanceOnce(ctx: ActorContext, workflowRef: string) {
     return deps.withTenantTransaction(ctx, async (tx) => {
-      const wf = await loadWorkflow(tx, workflowRef, 'FOR UPDATE');
+      assertRef(workflowRef);
+      const { rows: locked } = await tx.query<WorkflowRow>(
+        `SELECT id, claim_id, workflow_policy_id, submission_policy_id, version FROM cuspatlas.rcm_claim_workflows
+         WHERE id = $1 FOR UPDATE SKIP LOCKED`,
+        [workflowRef],
+      );
+      const wf = locked[0];
+      if (!wf) {
+        const { rows: exists } = await tx.query('SELECT 1 FROM cuspatlas.rcm_claim_workflows WHERE id = $1', [
+          workflowRef,
+        ]);
+        if (exists.length === 0) throw notFound();
+        return null;
+      }
+      const auto = await automate(ctx, wf);
       let changed = 0;
       for (const s of auto) changed += await insertStep(tx, wf.id, s);
       const claims = await lineage(tx, wf);
@@ -1066,7 +1183,7 @@ export function createWorkflowOperations(base: BillingBase, drivers: () => Workf
       })),
       timers: timers.map((t) => ({
         timerRef: t.id,
-        kind: t.kind as 'payer_follow_up' | 'exception_escalation',
+        kind: t.kind as 'payer_follow_up' | 'exception_escalation' | 'automation_retry',
         subjectRef: t.subject_ref,
         level: t.level,
         dueAt: t.due_at.toISOString(),
@@ -1320,6 +1437,24 @@ export function createWorkflowOperations(base: BillingBase, drivers: () => Workf
                       o.account === 'patient_receivable' ? 'patientResponsibility' : 'insurerResponsibility',
                     ref: o.charge_id,
                   });
+              // Live under the lock (not from the observation made before it): an ERA that still holds
+              // reported money in clearing is unsettled whatever the exceptions say.
+              const { rows: eras } = await tx.query<{ remittance_id: string }>(
+                `SELECT DISTINCT l.remittance_id FROM cuspatlas.rcm_remittance_lines l
+                 WHERE l.claim_id = ANY ($1::uuid[]) OR EXISTS (SELECT 1 FROM cuspatlas.rcm_remittance_line_resolutions x
+                   WHERE x.remittance_id = l.remittance_id AND x.line_no = l.line_no AND x.claim_id = ANY ($1::uuid[]))
+                 ORDER BY 1`,
+                [claims.map((c) => c.id)],
+              );
+              for (const e of eras) {
+                const { rows } = await tx.query<{ s: string }>(
+                  `SELECT coalesce(sum(amount_minor), 0)::text AS s FROM cuspatlas.billing_journal_lines
+                   WHERE remittance_id = $1 AND account = 'insurer_clearing'`,
+                  [e.remittance_id],
+                );
+                if (BigInt(rows[0]?.s ?? '0') > 0n)
+                  blockers.push({ kind: 'unsettledRemittance', ref: e.remittance_id });
+              }
               const { rows: ex } = await tx.query<{ id: string }>(
                 `SELECT x.id FROM cuspatlas.rcm_claim_workflow_exceptions x WHERE x.workflow_id = $1
                  AND NOT EXISTS (SELECT 1 FROM cuspatlas.rcm_claim_workflow_exception_events e WHERE e.exception_id = x.id AND e.kind = 'resolved')`,

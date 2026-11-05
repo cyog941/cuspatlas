@@ -61,6 +61,23 @@ export interface MatchRow extends Record<string, unknown> {
   secondary_payer_ref: string | null;
 }
 
+/**
+ * An ERA line that writes down an amount with no allowance on file to verify it against (review
+ * SHOULD): everything adjusted as contractual with nothing paid, or a contractual share of the billed
+ * amount above this limit (synthetic default, pending a practice or billing policy), is reviewed by a
+ * person instead of posted. With a configured allowance the underpayment rule applies instead.
+ */
+export const UNVERIFIED_CONTRACTUAL_MAX_PERCENT = 50;
+export const unverifiedWriteDown = (m: Pick<MatchRow, 'allowance' | 'billed'>, l: RemittanceLineAmounts) => {
+  if (m.allowance !== null) return false;
+  const contractual = BigInt(String(l.contractualMinor));
+  if (contractual <= 0n) return false;
+  return (
+    BigInt(String(l.paidMinor)) === 0n ||
+    contractual * 100n > BigInt(m.billed) * BigInt(UNVERIFIED_CONTRACTUAL_MAX_PERCENT)
+  );
+};
+
 export async function loadRemittanceForUpdate(tx: TenantTransaction, ref: string) {
   assertRef(ref);
   const { rows } = await tx.query<{
@@ -358,6 +375,14 @@ export function createRemittanceOperations(
             }
             const remId = rows[0].id;
             const counts = { posted: 0, review: 0, denied: 0 };
+            // Every charge the ERA touches is locked once, in id order, before the first line is matched
+            // or posted: two ERAs naming the same charges in opposite order cannot deadlock.
+            const touched = new Set<string>();
+            for (const l of advice.lines) {
+              const probe = await matchClaimLine(tx, l.claimRef, l.claimLineNo);
+              if (probe) touched.add(probe.charge_id);
+            }
+            await lockAggregates(tx, { payments: [], charges: [...touched] });
             for (const l of advice.lines) {
               const m = await matchClaimLine(tx, l.claimRef, l.claimLineNo);
               let status: 'posted' | 'denied' | 'review' = 'posted';
@@ -372,6 +397,7 @@ export function createRemittanceOperations(
                 BigInt(l.paidMinor) + BigInt(l.patientResponsibilityMinor) < BigInt(m.allowance)
               )
                 [status, why] = ['review', 'underpayment'];
+              else if (unverifiedWriteDown(m, l)) [status, why] = ['review', 'allowance_unknown_write_down'];
               else if (BigInt(m.insurer_open) < sum) [status, why] = ['review', 'insurer_balance_mismatch'];
               if (status === 'posted' && m) {
                 // All of a line's entries post together or not at all (review MUST-FAIL 3): the charge is

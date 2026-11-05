@@ -83,7 +83,7 @@ export const BILLING_OPS: BillingOp[] = [
     refusals: COMMAND,
     tool: 'billing_adjustments_post',
     description:
-      'B9: adjust one charge with a configured reason. Contractual (insurer) posts a journal entry; courtesy and write-off create a request another human must approve (no silent write-off).',
+      'B9: request a manual adjustment of one charge with a configured reason (human only). Every kind, contractual (insurer, capped at billed less the payer allowance) included, creates a request that another human must approve before any journal entry exists (no silent adjustment or write-off); insurer contractual amounts post on their own only from remittance ingestion.',
     invoke: (svc, actor, i) =>
       svc.postAdjustment(actor, param(i, 'chargeRef'), env('billing.adjustments.post', i)),
   },
@@ -293,7 +293,7 @@ export const BILLING_OPS: BillingOp[] = [
     refusals: COMMAND,
     tool: 'rcm_remittances_ingest',
     description:
-      'B7: ingest a synthetic ERA-like remittance from the fake clearinghouse (idempotent per reference). Matched lines post insurer payment to clearing, contractual adjustment and patient responsibility; unmatched, mismatched or underpaid lines go to review; an ERA is never cash.',
+      'B7: ingest a synthetic ERA-like remittance from the fake clearinghouse (idempotent per reference). Matched lines post insurer payment to clearing, contractual adjustment and patient responsibility; unmatched, mismatched or underpaid lines, and a write-down with no allowance to verify it against, go to review; an ERA is never cash.',
     invoke: (svc, actor, i) => svc.ingestRemittance(actor, env('rcm.remittances.ingest', i)),
   },
   {
@@ -448,7 +448,7 @@ export const BILLING_OPS: BillingOp[] = [
     refusals: COMMAND,
     tool: 'rcm_workflows_advance',
     description:
-      'CL workflow: under the standing policy drive the next owned claim work items (bounded attempts), then record every new fact as a step, open or resolve one exception per underlying issue and schedule the durable timers. Idempotent: a repeat records nothing twice.',
+      'CL workflow: under the standing policy drive the next owned claim work items (bounded attempts), then record every new fact as a step, open or resolve one exception per underlying issue and schedule the durable timers (including a bounded retry timer for an automated action that is still pending). One advance of a workflow at a time. Idempotent: a repeat records nothing twice.',
     invoke: (svc, actor, i) => svc.advanceClaimWorkflow(actor, param(i, 'workflowRef')),
   },
   {

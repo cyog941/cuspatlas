@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createPatient, T_ALPHA } from './support/appointment-fixtures';
 import { BILLING_ALL, type BillingHarness, openBillingHarness, usd } from './support/billing-fixtures';
 import { openTestDatabase, type TestDatabase } from './support/db';
-import { ctxFor, seedTenancy, T_BETA, USER_A1 } from './support/fixtures';
+import { ctxFor, seedTenancy, T_BETA, USER_A1, USER_A3 } from './support/fixtures';
 import { openRcmHarness, type RcmHarness, SVC_BILLING_WORKER, today } from './support/rcm-fixtures';
 
 /**
@@ -130,6 +130,88 @@ beforeAll(async () => {
     201,
   );
   await svc.advanceClaimWorkflow(a1(), workflowRef);
+  // A second claim whose ERA line needs review, written off under a policy and approved by another human.
+  const patient2 = await createPatient(r.h, 'Synthetic Export Resolution');
+  const coverage2 = r.h.ok<{ data: { coverageRef: string } }>(
+    await r.h.call('a1', 'POST', '/v1/rcm/coverages', {
+      patientRef: patient2,
+      payerRef: 'syn-payer-export',
+      rank: 'primary',
+      relationshipToSubscriber: 'self',
+      memberRef: 'syn-member-export-2',
+      effectiveFrom: '2026-01-01',
+    }),
+    201,
+  ).data.coverageRef;
+  r.h.ok(
+    await r.h.call('a1', 'POST', `/v1/rcm/coverages/${coverage2}/eligibility`, {
+      source: 'fake_adapter',
+      serviceDate: today(),
+    }),
+    201,
+  );
+  const proc2 = await r.render(await r.encounter(patient2), 'SYN-EXP-100');
+  r.h.ok(await r.consume(proc2));
+  const claim2 = (
+    await svc.prepareClaim(
+      a1(),
+      env('rcm.claims.prepare', { patientRef: patient2, coverageRef: coverage2, procedureRefs: [proc2] }),
+    )
+  ).data.claimRef;
+  await svc.validateClaim(a1(), claim2, env('rcm.claims.validate', { expectedVersion: 1 }));
+  await svc.submitClaim(
+    a1(),
+    claim2,
+    env('rcm.claims.submit', { expectedVersion: 2, authorization: { mode: 'explicit' } }),
+  );
+  await svc.pollClaim(a1(), claim2);
+  const era2 = `syn-era-export-res-${Date.now().toString(36)}`;
+  fake.stageRemittance({
+    remittanceRef: era2,
+    payerRef: 'syn-payer-export',
+    currency: 'USD',
+    totalPaidMinor: 10000,
+    lines: [
+      {
+        lineNo: 1,
+        claimRef: claim2,
+        claimLineNo: 1,
+        paidMinor: 10000,
+        contractualMinor: 0,
+        patientResponsibilityMinor: 0,
+      },
+    ],
+  });
+  const rem2 = (await svc.ingestRemittance(a1(), env('rcm.remittances.ingest', { remittanceRef: era2 }))).data
+    .remittanceRef;
+  await source.admin.query(
+    "UPDATE cuspatlas.memberships SET scopes = scopes || '{billing.correct}'::text[] WHERE principal_id = $1",
+    [USER_A3],
+  );
+  await svc.publishWorkflowPolicy(
+    a1(),
+    env('rcm.workflowPolicies.publish', {
+      payerRef: 'syn-payer-export',
+      acknowledgementDueMinutes: 60,
+      followUpMinutes: 43200,
+      exceptionDueMinutes: 1440,
+      maxEscalations: 2,
+      writeOffLimit: usd(100000),
+    }),
+  );
+  const resolution = (
+    await svc.resolveRemittanceLine(
+      a1(),
+      rem2,
+      '1',
+      env('rcm.remittances.resolveLine', { action: 'write_off', reasonCode: 'staff_review' }),
+    )
+  ).data.resolutionRef;
+  await svc.decideRemittanceResolution(
+    ctxFor(T_ALPHA, USER_A3, 'human', [...BILLING_ALL, 'patients.read', 'patients.write']),
+    resolution,
+    env('rcm.remittances.decideResolution', { decision: 'approved' }),
+  );
   target = await openTestDatabase('billing_export_target');
   t = await openBillingHarness(target);
   await target.admin.query(
@@ -287,6 +369,30 @@ describe('B10 billing export round trip', () => {
       };
       line.amount_minor = { ...line.amount_minor, minor: line.amount_minor.minor + 1 };
       await expect(importBillingExport(fresh.admin, T_ALPHA, crafted)).rejects.toThrow(/journal invariant/);
+      expect(await alphaEntries()).toBe(0);
+    });
+
+    it('a self-approved write-off decision breaks a trigger invariant the replica import skips and rolls back', async () => {
+      const doc = await exportOf(r.h);
+      const crafted = structuredClone(doc);
+      const res = crafted.tables.rcm_remittance_line_resolutions?.[0] as Record<string, unknown>;
+      expect(res.action).toBe('write_off');
+      const decision = crafted.tables.rcm_remittance_resolution_decisions?.[0] as Record<string, unknown>;
+      decision.decided_by = res.requested_by;
+      await expect(importBillingExport(fresh.admin, T_ALPHA, crafted)).rejects.toThrow(
+        /other than its requester/,
+      );
+      expect(await alphaEntries()).toBe(0);
+    });
+
+    it('a Money amount in another currency than the tenant’s is refused and rolls back', async () => {
+      const doc = await exportOf(r.h);
+      const crafted = structuredClone(doc);
+      const line = crafted.tables.billing_journal_lines?.[0] as {
+        amount_minor: { currency: string; minor: number };
+      };
+      line.amount_minor = { ...line.amount_minor, currency: 'EUR' };
+      await expect(importBillingExport(fresh.admin, T_ALPHA, crafted)).rejects.toThrow(/currency/);
       expect(await alphaEntries()).toBe(0);
     });
 

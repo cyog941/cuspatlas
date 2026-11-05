@@ -21,6 +21,7 @@ import {
   assertRef,
   type BillingBase,
   checkEnvelope,
+  conflict,
   failed,
   loadPatient,
   loadSettings,
@@ -176,7 +177,14 @@ interface StatementRow extends Record<string, unknown> {
  * names the one it supersedes. Delivery (and any consent or suppression decision) belongs to E7: the
  * record carries channel `none`.
  */
-export function createStatementOperations(base: BillingBase) {
+export function createStatementOperations(
+  base: BillingBase,
+  /** Charges whose patient responsibility a secondary coverage may still owe (the rcm domain's read, injected). */
+  pendingSecondary: (
+    tx: TenantTransaction,
+    patientIds: readonly string[],
+  ) => Promise<readonly { readonly chargeId: string }[]> = async () => [],
+) {
   const { deps, execute } = base;
   return {
     generateStatement(
@@ -204,6 +212,14 @@ export function createStatementOperations(base: BillingBase) {
             const settings = await loadSettings(tx);
             const accounts = await coveredAccounts(tx, guarantor.id);
             if (accounts.size === 0) throw failed('guarantor_unresolved');
+            // CL-11: patient responsibility that a late-recorded secondary coverage may owe is not yet the
+            // patient's to be billed; a statement is refused until the secondary claim resolves it.
+            const waiting = await pendingSecondary(tx, allIds(accounts));
+            if (waiting.length > 0)
+              throw conflict(
+                'secondary_claim_pending',
+                waiting.slice(0, 20).map((x) => ({ kind: 'charge', ref: x.chargeId })),
+              );
             const cutoffAt = (when[0] as { cutoff: Date }).cutoff.toISOString();
             const snapshot = await takeSnapshot(tx, guarantor.id, cutoffAt, settings.currency, accounts);
             const digest = sha256Hex(canonicalJson(snapshot));

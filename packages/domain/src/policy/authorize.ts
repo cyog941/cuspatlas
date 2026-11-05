@@ -485,6 +485,9 @@ export const ACTION_POLICIES = {
   // A-D4: the admin reconcile is human only; the worker runs the same sweep as its own service-only command.
   'imaging.storage.reconcile': { scope: 'admin.configure', principals: ['human'] },
   'imaging.storage.sweep': { scope: 'admin.configure', principals: ['service'] },
+  // Closeout A5: orphan-bytes sweep of the tenant's object-store prefix. Human practice administration;
+  // a real (removing) run also needs imaging.delete (checked in the domain command).
+  'imaging.storage.sweepOrphanBytes': { scope: 'admin.configure', principals: ['human'] },
   // I2 ingress: staging and completing an upload is imaging work (a bridge may be a service principal).
   'imaging.ingress.begin': { scope: 'imaging.write', principals: ['human', 'service'] },
   'imaging.ingress.upload': { scope: 'imaging.write', principals: ['human', 'service'] },

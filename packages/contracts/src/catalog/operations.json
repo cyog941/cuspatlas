@@ -8524,6 +8524,39 @@
     "status": "active"
   },
   {
+    "operation": "imaging.storage.sweepOrphanBytes",
+    "owner": "I",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "imaging.storage.sweepOrphanBytes",
+    "scope": "admin.configure",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/imaging/storage/orphan-bytes/sweep",
+      "requestSchema": "imaging:StorageOrphanSweep",
+      "successStatus": "200",
+      "successSchema": "imaging:StorageOrphanSweepResult"
+    },
+    "mcpTool": "imaging_storage_sweep_orphan_bytes",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "409",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "operational",
+    "status": "active"
+  },
+  {
     "operation": "intake.forms.list",
     "owner": "E",
     "kind": "query",

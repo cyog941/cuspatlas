@@ -133,6 +133,21 @@ export const ROWS: ImagingHarnessRow[] = [
     }),
     mcpArgs: () => ({ idempotencyKey: randomUUID() }),
   },
+  // Closeout A5 orphan-bytes sweep (a dry run here; removal and its extra scope are covered in
+  // imaging-orphan-bytes.test.ts).
+  {
+    operation: 'imaging.storage.sweepOrphanBytes',
+    crossTenant: 'own_tenant_only',
+    downgradedTo: 'imagingReadOnly',
+    rest: () => ({
+      method: 'POST',
+      url: '/v1/imaging/storage/orphan-bytes/sweep',
+      body: {},
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: () => ({ idempotencyKey: randomUUID() }),
+  },
   // I2 ingress.
   {
     operation: 'imaging.ingress.begin',
@@ -955,6 +970,8 @@ describe('A-D4 imaging service-principal boundary (recommended-pending-approval)
     const reconcile = await s.command('service', '/v1/imaging/storage/reconcile', {});
     expect(reconcile.status).toBe(403);
     // imaging.storage.sweep is the worker's own service-only command: it has no route or tool.
-    expect((await s.mcpToolNames('owner')).some((t) => t.includes('sweep'))).toBe(false);
+    expect((await s.mcpToolNames('owner')).includes('imaging_storage_sweep')).toBe(false);
+    const orphans = await s.command('service', '/v1/imaging/storage/orphan-bytes/sweep', {});
+    expect(orphans.status).toBe(403);
   });
 });

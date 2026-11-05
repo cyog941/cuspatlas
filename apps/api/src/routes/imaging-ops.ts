@@ -135,6 +135,19 @@ export const IMAGING_OPS: readonly ImagingOp[] = [
       'Integrity sweep: verify stored bytes of available objects against their digest and quarantine missing or altered ones (bounded per run).',
     invoke: (svc, actor, i) => svc.reconcileStorage(actor, env('imaging.storage.reconcile', i)),
   },
+  {
+    method: 'post',
+    path: '/v1/imaging/storage/orphan-bytes/sweep',
+    operationId: 'imaging.storage.sweepOrphanBytes',
+    protected: true,
+    requestBody: I('StorageOrphanSweep'),
+    success: { status: '200', schema: I('StorageOrphanSweepResult') },
+    refusals: ['400', '401', '403', '409', '503'],
+    tool: 'imaging_storage_sweep_orphan_bytes',
+    description:
+      "Orphan-bytes sweep of the tenant's object store: report (dryRun, the default) or remove content no image object, legal hold or export references, written before the grace period (graceHours, default 24). Removal also needs imaging.delete; every run leaves an audit record.",
+    invoke: (svc, actor, i) => svc.sweepOrphanBytes(actor, env('imaging.storage.sweepOrphanBytes', i)),
+  },
   // I2 ingress: staging, gating and patient-scoped dedupe (bytes on REST only).
   {
     method: 'post',

@@ -12,6 +12,7 @@ import { createDicomOperations } from './dicom';
 import { createExportOperations } from './export';
 import { createIngressOperations, sweepAbandonedIngress, sweepOrphanStaging } from './ingress';
 import { createObjectOperations } from './objects';
+import { createOrphanBytesOperations } from './orphan-bytes';
 import { createRetentionOperations, reconcileDeletions } from './retention';
 
 /**
@@ -35,6 +36,7 @@ export function createImagingService(deps: ImagingDeps) {
     ...createAssociationOperations(base, [mountGuard], deps.limits?.unmatchedEscalationHours ?? 48),
     ...createCompositionOperations(base),
     ...createRetentionOperations(base),
+    ...createOrphanBytesOperations(base),
     ...createDicomOperations(base),
     ...createExportOperations(base),
     ...createBridgeHealthOperations(base, {

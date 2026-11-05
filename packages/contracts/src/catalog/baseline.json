@@ -13025,6 +13025,50 @@
       "refusals": []
     },
     {
+      "operation": "imaging.storage.sweepOrphanBytes",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "admin.configure",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/imaging/storage/orphan-bytes/sweep"
+      },
+      "mcpTool": "imaging_storage_sweep_orphan_bytes",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "dryRun": {
+            "type": [
+              "boolean"
+            ]
+          },
+          "graceHours": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 720,
+            "minimum": 1
+          }
+        }
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "409",
+        "503"
+      ]
+    },
+    {
       "operation": "intake.forms.list",
       "transports": [
         "rest",

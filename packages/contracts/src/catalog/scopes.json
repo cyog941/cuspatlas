@@ -112,6 +112,7 @@
         "imaging.retention.setPolicy",
         "imaging.storage.reconcile",
         "imaging.storage.sweep",
+        "imaging.storage.sweepOrphanBytes",
         "intake.forms.publish",
         "intake.forms.retire",
         "messaging.replyPolicy.set",

@@ -490,6 +490,117 @@
         }
       }
     },
+    "StorageOrphanSweep": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Orphan-bytes sweep of the caller tenant's object-store prefix. dryRun defaults to true (report only); graceHours defaults to 24 (files written more recently are never candidates).",
+      "properties": {
+        "dryRun": {
+          "type": "boolean"
+        },
+        "graceHours": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 720
+        }
+      }
+    },
+    "StorageOrphanSweepResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sweepRef", "dryRun", "graceHours", "scanned", "orphans", "removed", "kept", "more"],
+          "properties": {
+            "sweepRef": {
+              "$ref": "#/$defs/EntityRef"
+            },
+            "dryRun": {
+              "type": "boolean"
+            },
+            "graceHours": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 720
+            },
+            "scanned": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "orphans": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "$ref": "#/$defs/Sha256"
+              },
+              "description": "Unreferenced content digests older than the grace period (removal candidates)."
+            },
+            "removed": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "$ref": "#/$defs/Sha256"
+              },
+              "description": "Digests whose bytes this run removed (always empty in a dry run)."
+            },
+            "kept": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "withinGrace",
+                "liveObject",
+                "tombstoneRetained",
+                "legalHold",
+                "exportPackage",
+                "contentLocked"
+              ],
+              "properties": {
+                "withinGrace": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "liveObject": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "tombstoneRetained": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "legalHold": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "exportPackage": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "contentLocked": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            },
+            "more": {
+              "type": "boolean"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
     "IngressRef": {
       "$ref": "#/$defs/EntityRef",
       "description": "Opaque ingress session reference (staging; never an object)."

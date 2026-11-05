@@ -168,6 +168,11 @@ export const validateObjectListQuery = def('ObjectListQuery');
 export const validateReadGrantRequest = def('ReadGrantRequest');
 export const validateReadGrantRevoke = def('ReadGrantRevoke');
 export const validateStorageReconcile = def('StorageReconcile');
+export const validateStorageOrphanSweep = def('StorageOrphanSweep');
+export interface StorageOrphanSweep {
+  readonly dryRun?: boolean;
+  readonly graceHours?: number;
+}
 
 // I2 ingress.
 export type IngressState = 'awaiting_bytes' | 'staged' | 'accepted' | 'quarantined' | 'abandoned';

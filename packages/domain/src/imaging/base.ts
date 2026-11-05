@@ -44,6 +44,13 @@ export interface ImagingLimits {
 /** Maintenance interface (not on the object store port, which has no listing): old staged keys. */
 export interface StagingMaintenance {
   listStagedOlderThan(tenantId: string, olderThanMs: number): Promise<string[]>;
+  /** A5: content files of one tenant prefix (sorted by key, at most `limit`) with their write time. */
+  listContent(
+    tenantId: string,
+    limit: number,
+  ): Promise<{ storageKey: string; digestSha256: string; modifiedAt: Date }[]>;
+  /** A5: removes one content file only if it is still older than the window; whether it did. */
+  removeContentIfOlderThan(tenantId: string, storageKey: string, olderThanMs: number): Promise<boolean>;
 }
 
 export interface ImagingDeps {

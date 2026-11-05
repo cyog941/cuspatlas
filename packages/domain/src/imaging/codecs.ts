@@ -52,6 +52,47 @@ export const imagingCodec: ReplayCodec<Record<string, unknown>> = {
   },
 };
 
+const KEPT = [
+  'withinGrace',
+  'liveObject',
+  'tombstoneRetained',
+  'legalHold',
+  'exportPackage',
+  'contentLocked',
+] as const;
+const keptKey = (k: string) => `kept${k[0]?.toUpperCase()}${k.slice(1)}`;
+
+/**
+ * A5 orphan-bytes sweep: `kept` is flattened and the digest lists are left out of the stored
+ * projection (they can exceed the idempotency row's size); a replay reads them back from the sweep
+ * record named by `sweepRef` (see orphan-bytes.ts).
+ */
+export const orphanSweepCodec: ReplayCodec<Record<string, unknown>> = {
+  persist(data) {
+    const {
+      kept,
+      orphans: _o,
+      removed: _r,
+      ...rest
+    } = data as Record<string, unknown> & {
+      kept: Record<string, number>;
+    };
+    return imagingCodec.persist({
+      ...rest,
+      ...Object.fromEntries(KEPT.map((k) => [keptKey(k), kept[k] ?? 0])),
+    });
+  },
+  restore(stored, payload) {
+    const flat = imagingCodec.restore(stored, payload) as Record<string, unknown>;
+    const kept: Record<string, unknown> = {};
+    for (const k of KEPT) {
+      kept[k] = flat[keptKey(k)];
+      delete flat[keptKey(k)];
+    }
+    return { ...flat, orphans: [], removed: [], kept };
+  },
+};
+
 /** Imaging commands replayed through `imagingCodec`; each imaging task appends its commands. */
 export const IMAGING_OPERATIONS: readonly string[] = [
   'imaging.objects.revokeGrant',
@@ -81,6 +122,7 @@ export const IMAGING_OPERATIONS: readonly string[] = [
   'imaging.bridgeJobs.reconcile',
 ];
 
-export const IMAGING_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<unknown>>> = Object.fromEntries(
-  IMAGING_OPERATIONS.map((op) => [op, imagingCodec as ReplayCodec<unknown>]),
-);
+export const IMAGING_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<unknown>>> = {
+  ...Object.fromEntries(IMAGING_OPERATIONS.map((op) => [op, imagingCodec as ReplayCodec<unknown>])),
+  'imaging.storage.sweepOrphanBytes': orphanSweepCodec as ReplayCodec<unknown>,
+};

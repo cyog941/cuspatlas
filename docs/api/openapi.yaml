@@ -8797,6 +8797,38 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/imaging/storage/orphan-bytes/sweep:
+    post:
+      operationId: imaging.storage.sweepOrphanBytes
+      description: >-
+        Orphan-bytes sweep of the tenant's object store: report (dryRun, the default) or remove content no
+        image object, legal hold or export references, written before the grace period (graceHours,
+        default 24). Removal also needs imaging.delete; every run leaves an audit record.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/StorageOrphanSweep'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/StorageOrphanSweepResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   /v1/imaging/ingress:
     post:
       operationId: imaging.ingress.begin

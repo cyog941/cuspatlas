@@ -5792,6 +5792,34 @@ export type ImagingScanVerdict = "clean" | "infected" | "unknown";
 
 export type ImagingSha256 = string;
 
+export type ImagingStorageOrphanSweep = {
+  readonly "dryRun"?: boolean;
+  readonly "graceHours"?: number;
+};
+
+export type ImagingStorageOrphanSweepResult = {
+  readonly "data": {
+    readonly "sweepRef": ImagingEntityRef;
+    readonly "dryRun": boolean;
+    readonly "graceHours": number;
+    readonly "scanned": number;
+    readonly "orphans": readonly (ImagingSha256)[];
+    readonly "removed": readonly (ImagingSha256)[];
+    readonly "kept": {
+      readonly "withinGrace": number;
+      readonly "liveObject": number;
+      readonly "tombstoneRetained": number;
+      readonly "legalHold": number;
+      readonly "exportPackage": number;
+      readonly "contentLocked": number;
+    };
+    readonly "more": boolean;
+  };
+  readonly "version": ImagingVersion;
+  readonly "correlationId": string;
+  readonly "replayed": boolean;
+};
+
 export type ImagingStorageReconcile = {
 
 };
@@ -11341,6 +11369,16 @@ export interface Operations {
     successStatus: 200;
     idempotent: true;
   };
+  "imaging.storage.sweepOrphanBytes": {
+    method: "POST";
+    path: "/v1/imaging/storage/orphan-bytes/sweep";
+    params: {  };
+    query: Record<string, never>;
+    body: ImagingStorageOrphanSweep;
+    result: ImagingStorageOrphanSweepResult;
+    successStatus: 200;
+    idempotent: true;
+  };
   "intake.forms.list": {
     method: "GET";
     path: "/v1/intake/forms";
@@ -13945,6 +13983,7 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "imaging.retention.policies": { method: "GET", path: "/v1/imaging/retention/policies", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "imaging.retention.setPolicy": { method: "POST", path: "/v1/imaging/retention/policies", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "imaging.storage.reconcile": { method: "POST", path: "/v1/imaging/storage/reconcile", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "imaging.storage.sweepOrphanBytes": { method: "POST", path: "/v1/imaging/storage/orphan-bytes/sweep", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "intake.forms.list": { method: "GET", path: "/v1/intake/forms", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "intake.forms.publish": { method: "POST", path: "/v1/intake/forms", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "intake.forms.retire": { method: "POST", path: "/v1/intake/forms/{formRef}/retire", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },

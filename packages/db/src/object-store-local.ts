@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { copyFile, mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, readFile, rename, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { ObjectStoreError, type ObjectStorePort } from '@cuspatlas/contracts';
 
@@ -52,6 +52,12 @@ function checkContent(tenantId: string, key: string): string {
   return m[2] as string;
 }
 
+/** Refreshes a file's modification time (best effort: a vanished file is the caller's next error). */
+async function touch(abs: string): Promise<void> {
+  const now = new Date();
+  await utimes(abs, now, now).catch(() => undefined);
+}
+
 function fsFailure(err: unknown): never {
   if (err instanceof ObjectStoreError) throw err;
   const code = (err as { code?: unknown } | null)?.code;
@@ -98,7 +104,12 @@ export function createLocalObjectStore(options: LocalObjectStoreOptions): Object
     if (await exists(abs)) {
       // Identical content is already stored: verify it is intact before relying on it.
       const current = await readFile(abs).catch(fsFailure);
-      if (sha256(current) === digest) return { storageKey: key, created: false };
+      if (sha256(current) === digest) {
+        // A5: reusing stored bytes refreshes their modification time, so the orphan-bytes sweep's grace
+        // period counts from the latest use and a re-check just before removal sees it.
+        await touch(abs);
+        return { storageKey: key, created: false };
+      }
       // Review hardening: the stored file was altered. The caller's bytes are verified against the
       // digest, so they repair the content key; the altered file is kept in quarantine for review
       // (objects already quarantined because of it stay quarantined).
@@ -129,8 +140,10 @@ export function createLocalObjectStore(options: LocalObjectStoreOptions): Object
       if (!(await exists(staged))) {
         // Retry after a promotion whose database transaction rolled back: the bytes already moved to
         // their content key; verify them there instead of failing.
-        const current = await readFile(pathOf(contentKey(tenantId, expectedDigest))).catch(fsFailure);
+        const contentPath = pathOf(contentKey(tenantId, expectedDigest));
+        const current = await readFile(contentPath).catch(fsFailure);
         if (sha256(current) !== expectedDigest) throw new ObjectStoreError('digest_mismatch');
+        await touch(contentPath);
         return { storageKey: contentKey(tenantId, expectedDigest), created: false };
       }
       const bytes = await readFile(staged).catch(fsFailure);
@@ -242,8 +255,49 @@ export async function listLocalStoreKeys(
  */
 export function createLocalStagingMaintenance(root: string): {
   listStagedOlderThan(tenantId: string, olderThanMs: number): Promise<string[]>;
+  listContent(
+    tenantId: string,
+    limit: number,
+  ): Promise<{ storageKey: string; digestSha256: string; modifiedAt: Date }[]>;
+  removeContentIfOlderThan(tenantId: string, storageKey: string, olderThanMs: number): Promise<boolean>;
 } {
+  const contentPath = (tenantId: string, storageKey: string) => {
+    assertTenant(tenantId);
+    const m = PATTERNS.content(tenantId).exec(storageKey);
+    if (!m || m[2]?.slice(0, 2) !== m[1]) throw new ObjectStoreError('path_traversal');
+    return join(root, ...storageKey.split('/'));
+  };
   return {
+    /**
+     * A5: the content files of one tenant prefix (never another tenant's), sorted by key, at most
+     * `limit`. In-flight `.partial` writes and anything not shaped like a content key are skipped.
+     */
+    async listContent(tenantId, limit) {
+      assertTenant(tenantId);
+      const out: { storageKey: string; digestSha256: string; modifiedAt: Date }[] = [];
+      for (const key of await listLocalStoreKeys(root, tenantId, 'content')) {
+        if (out.length >= limit) break;
+        const m = PATTERNS.content(tenantId).exec(key);
+        if (!m || m[2]?.slice(0, 2) !== m[1]) continue;
+        const st = await stat(join(root, ...key.split('/'))).catch(() => null);
+        if (st?.isFile()) out.push({ storageKey: key, digestSha256: m[2] as string, modifiedAt: st.mtime });
+      }
+      return out;
+    },
+    /**
+     * A5: removes one content file only if it is still older than the window (a reuse in between
+     * refreshed its modification time). Returns whether it was removed; a missing file is not.
+     */
+    async removeContentIfOlderThan(tenantId, storageKey, olderThanMs) {
+      const abs = contentPath(tenantId, storageKey);
+      const st = await stat(abs).catch((err: unknown) => {
+        if ((err as { code?: unknown }).code === 'ENOENT') return null;
+        throw new ObjectStoreError('unavailable');
+      });
+      if (!st?.isFile() || Date.now() - st.mtimeMs <= olderThanMs) return false;
+      await rm(abs, { force: true }).catch(fsFailure);
+      return true;
+    },
     async listStagedOlderThan(tenantId, olderThanMs) {
       assertTenant(tenantId);
       const dir = join(root, 'staging', tenantId);

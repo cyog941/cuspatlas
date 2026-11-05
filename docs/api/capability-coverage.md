@@ -6,7 +6,7 @@ Evidence category: **tested on synthetic data**. Coverage means a row resolves t
 
 Rows: 27 (matrix rows plus plan-defined A rows). Covered: 25. Gaps: 2. Unknown: 0. Unmapped matrix rows: 0. Scope defects: 0.
 
-MCP surface: 461 operations have an MCP tool; 34 do not.
+MCP surface: 462 operations have an MCP tool; 34 do not.
 
 | Capability row | Owners | Release | Status | Operations | Negative cases | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -21,7 +21,7 @@ MCP surface: 461 operations have an MCP tool; 34 do not.
 | Clinical documentation | C | P1 | covered | 23: `clinical.authors.context`, `clinical.authors.define`, `clinical.history.alerts`, `clinical.history.attestReview` and 19 more | `clinical-history.test.ts`, `clinical-note-templates.test.ts`, `clinical-notes.test.ts` and 3 more |  |
 | Treatment planning | C | P1 | covered | 16: `clinical.consentTemplates.register`, `clinical.estimates.accept`, `clinical.estimates.generate`, `clinical.estimates.list` and 12 more | `clinical-estimates.test.ts`, `clinical-treatment-plans.test.ts`, `mcp-parity.test.ts` and 1 more |  |
 | Procedures/encounters | C | P1 | covered | 9: `clinical.encounters.assign`, `clinical.encounters.close`, `clinical.encounters.list`, `clinical.encounters.open` and 5 more | `clinical-chart.test.ts`, `clinical-encounters.test.ts`, `clinical-history.test.ts` and 6 more |  |
-| Imaging/documents | I | P1 import/bridge; acquisition expansion P2 | covered | 60: `clinical.imageLinks.link`, `clinical.imageLinks.list`, `clinical.imageLinks.read`, `clinical.imageLinks.relink` and 56 more | `api-mcp-catalog-parity.test.ts`, `clinical-image-links.test.ts`, `imaging-association.test.ts` and 14 more | Vendor bridges and DICOM acquisition are blocked on device/vendor discovery; the bridge contract is synthetic. |
+| Imaging/documents | I | P1 import/bridge; acquisition expansion P2 | covered | 61: `clinical.imageLinks.link`, `clinical.imageLinks.list`, `clinical.imageLinks.read`, `clinical.imageLinks.relink` and 57 more | `api-mcp-catalog-parity.test.ts`, `clinical-image-links.test.ts`, `imaging-association.test.ts` and 15 more | Vendor bridges and DICOM acquisition are blocked on device/vendor discovery; the bridge contract is synthetic. |
 | Insurance | B | P1 | covered | 5: `rcm.coverages.change`, `rcm.coverages.read`, `rcm.coverages.record`, `rcm.coverages.resolve` and 1 more | `mcp-parity.test.ts`, `negative-harness.test.ts`, `rcm-eligibility.test.ts` and 1 more |  |
 | Claims/RCM | B | P1 with validated partner | covered | 29: `rcm.appeals.draft`, `rcm.appeals.review`, `rcm.claims.attach`, `rcm.claims.measures` and 25 more | `billing-export.test.ts`, `billing-negative-matrix.test.ts`, `billing-parity.test.ts` and 8 more | Clearinghouse submission, acknowledgements and ERA intake run against a synthetic adapter; a validated partner is blocked on discovery. |
 | Financial ledger | B | P1 | covered | 17: `billing.adjustments.decide`, `billing.adjustments.post`, `billing.balances.read`, `billing.charges.post` and 13 more | `billing-allocations.test.ts`, `billing-journal.test.ts`, `billing-negative-matrix.test.ts` and 6 more |  |

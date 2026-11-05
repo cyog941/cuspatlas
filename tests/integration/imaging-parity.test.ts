@@ -75,7 +75,7 @@ describe('I9 imaging parity matrix', () => {
       restOnlyDevice: matrix.filter((r) => r.surface === 'rest-only:device-audience').length,
     };
     expect(counts.operations).toBe(counts.restAndMcp + counts.restOnlyBytes + counts.restOnlyDevice);
-    expect(counts).toStrictEqual({ operations: 53, restAndMcp: 44, restOnlyBytes: 3, restOnlyDevice: 6 });
+    expect(counts).toStrictEqual({ operations: 54, restAndMcp: 45, restOnlyBytes: 3, restOnlyDevice: 6 });
   });
 
   it('every route is registered: without credentials each answers 401, never 404', async () => {

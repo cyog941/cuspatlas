@@ -4,7 +4,7 @@
 
 Result: **pass** — 0 findings.
 
-Scanned every operation descriptor (495) and every source file under `apps/`, `packages/`, `supabase/migrations/`, `scripts/` (comments stripped; test files excluded because they assert the absence) for entitlement, plan, licence or feature-key evaluation:
+Scanned every operation descriptor (496) and every source file under `apps/`, `packages/`, `supabase/migrations/`, `scripts/` (comments stripped; test files excluded because they assert the absence) for entitlement, plan, licence or feature-key evaluation:
 
 ```
 \b(entitlements?|isEntitled|featureKeys?|feature_keys?|featureGates?|feature_gates?|licen[cs]eKeys?|licen[cs]e_keys?|licen[cs]eTier|planTier|plan_tier|subscriptionTier|subscription_tier|pricingTier|paidTier|requiresPlan|hasFeature|isFeatureEnabled|tierAllows)\b

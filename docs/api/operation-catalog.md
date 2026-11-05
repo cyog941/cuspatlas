@@ -9,7 +9,7 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-495 operations.
+496 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
@@ -19,7 +19,7 @@ transport tables and are declarations, not independent proof.
 | C | 88 | 87 | 87 | 0 | 0 | 0 |
 | B | 66 | 66 | 66 | 0 | 0 | 0 |
 | E | 61 | 48 | 48 | 11 | 0 | 2 |
-| I | 55 | 47 | 44 | 0 | 6 | 1 |
+| I | 56 | 48 | 45 | 0 | 6 | 1 |
 | M | 35 | 35 | 35 | 0 | 0 | 0 |
 
 | Operation | Owner | Kind | Authorization | Scope | Principals | Transports | REST | MCP tool | Idempotency | Sensitivity | Status |
@@ -279,6 +279,7 @@ transport tables and are declarations, not independent proof.
 | `imaging.retention.setPolicy` | I | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/imaging/retention/policies` | `imaging_retention_set_policy` | required | operational | active |
 | `imaging.storage.reconcile` | I | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/imaging/storage/reconcile` | `imaging_storage_reconcile` | required | operational | active |
 | `imaging.storage.sweep` | I | command | authorize | `admin.configure` | service | worker | - | - | none | operational | active |
+| `imaging.storage.sweepOrphanBytes` | I | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/imaging/storage/orphan-bytes/sweep` | `imaging_storage_sweep_orphan_bytes` | required | operational | active |
 | `intake.forms.list` | E | query | authorize | `patients.read` | human, service | rest, mcp | GET `/v1/intake/forms` | `intake_forms_list` | none | phi | active |
 | `intake.forms.publish` | E | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/intake/forms` | `intake_forms_publish` | required | operational | active |
 | `intake.forms.retire` | E | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/intake/forms/{formRef}/retire` | `intake_forms_retire` | required | operational | active |

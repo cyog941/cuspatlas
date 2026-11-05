@@ -51,6 +51,8 @@ export async function recordCommand(
   event: OutboxPayload,
 ): Promise<void> {
   const { ctx } = tx;
+  // Schema validation only: both rows are stamped with the transaction's now(), the clock of every
+  // other stamp of the committed change, so an audit instant is comparable with them (clock audit).
   const occurredAt = new Date().toISOString();
   const auditEvent: AuditEvent = {
     eventRef: randomUUID(),
@@ -75,7 +77,7 @@ export async function recordCommand(
        operation, resource_type, resource_ref, resource_version, correlation_id, trace_id, span_id,
        occurred_at)
      VALUES ($1, $2, cuspatlas.current_tenant_id(), cuspatlas.current_actor_id(), $3, $4, $5, $6, $7,
-       $8, $9, $10, $11)`,
+       $8, $9, $10, now())`,
     [
       auditEvent.eventRef,
       AUDIT_EVENT_VERSION,
@@ -87,7 +89,6 @@ export async function recordCommand(
       auditEvent.correlationId,
       traceId,
       spanId,
-      occurredAt,
     ],
   );
   await tx.query(
@@ -95,7 +96,7 @@ export async function recordCommand(
        aggregate_type, aggregate_id, aggregate_version, correlation_id, trace_id, span_id, occurred_at,
        payload_class, payload)
      VALUES ($1, $2, cuspatlas.current_tenant_id(), cuspatlas.current_actor_id(), $3, $4, $5, $6, $7,
-       $8, $9, $10, 'field-names-only', $11::jsonb)`,
+       $8, $9, now(), 'field-names-only', $10::jsonb)`,
     [
       randomUUID(),
       OUTBOX_EVENT_VERSION,
@@ -106,7 +107,6 @@ export async function recordCommand(
       ctx.correlationId,
       traceId,
       spanId,
-      occurredAt,
       JSON.stringify({ changedFields: [...event.changedFields] }),
     ],
   );

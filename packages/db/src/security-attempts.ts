@@ -16,7 +16,9 @@ import type pg from 'pg';
 export function createSecurityAttemptSink(pool: pg.Pool): SecurityAttemptSink {
   return {
     async record(attempt: SecurityAttemptInput): Promise<SecurityAttemptEvent> {
-      const event: SecurityAttemptEvent = {
+      // occurredAt is validated here and stamped with the database clock (now()), the clock of the audit and
+      // sensitive-read rows it is listed beside (clock audit).
+      let event: SecurityAttemptEvent = {
         attemptRef: randomUUID(),
         correlationId: attempt.correlationId,
         tenantId: attempt.tenantId,
@@ -35,10 +37,13 @@ export function createSecurityAttemptSink(pool: pg.Pool): SecurityAttemptSink {
           await client.query(`SELECT set_config('cuspatlas.attempt_tenant_id', $1, true)`, [
             event.tenantId ?? '',
           ]);
+          const { rows } = await client.query<{ at: Date }>('SELECT now() AS at');
+          const stamped = rows[0]?.at;
+          if (stamped) event = { ...event, occurredAt: stamped.toISOString() };
           await client.query(
             `INSERT INTO cuspatlas.security_attempt_events
                (attempt_ref, correlation_id, tenant_id, actor_id, operation, reason_code, occurred_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+             VALUES ($1, $2, $3, $4, $5, $6, now())`,
             [
               event.attemptRef,
               event.correlationId,
@@ -46,7 +51,6 @@ export function createSecurityAttemptSink(pool: pg.Pool): SecurityAttemptSink {
               event.actorId,
               event.operation,
               event.reasonCode,
-              event.occurredAt,
             ],
           );
           await client.query('COMMIT');

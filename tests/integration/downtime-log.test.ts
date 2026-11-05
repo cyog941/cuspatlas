@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { createTenantTransactionRunner } from '@cuspatlas/db';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ctxFor, T_ALPHA, USER_A1 } from './support/fixtures';
 import { type ImagingStack, startImagingStack, type Who } from './support/imaging-fixtures';
 import { patientBody } from './support/patient-fixtures';
@@ -394,5 +394,38 @@ describe('A2 downtime negatives', () => {
     });
     expect(ended.isError).toBe(false);
     expect((ended.body.data as { state: string }).state).toBe('ended');
+  });
+});
+
+describe('A2 applied-command link at the database clock (clock audit)', () => {
+  // Audit occurred_at was stamped with the application clock and compared with the entry's
+  // database-stamped logged_at: with the host clock behind, a command applied right after the entry
+  // was logged looked older than the entry and the link was refused as not found.
+  it('links a command applied right after logging, with the app clock behind or ahead by 5 s', async () => {
+    const w = await start('owner', { scope: 'tenant', reasonCode: 'network_outage', startedAt: ago(10) });
+    expect(w.status).toBe(201);
+    const windowRef = data<{ windowRef: string }>(w).windowRef;
+    for (const skewMs of [-5_000, 5_000]) {
+      vi.useFakeTimers({ toFake: ['Date'], now: Date.now() + skewMs });
+      try {
+        const logged = await log('owner', entryBody(windowRef, { capturedAt: ago(5), paperRef: `SKEW-${skewMs}` }));
+        expect(logged.status).toBe(201);
+        const created = await s.command('owner', '/v1/patients', patientBody(`Downtime Skew ${skewMs}`));
+        expect(created.status).toBe(201);
+        const ok = await resolveEntry('owner', {
+          entryRef: data<{ entryRef: string }>(logged).entryRef,
+          expectedVersion: 1,
+          decision: 'applied',
+          appliedCommand: {
+            operation: 'patients.create',
+            resourceRef: data<{ patientRef: string }>(created).patientRef,
+            correlationId: created.json.correlationId as string,
+          },
+        });
+        expect([ok.status, reason(ok)]).toStrictEqual([200, undefined]);
+      } finally {
+        vi.useRealTimers();
+      }
+    }
   });
 });

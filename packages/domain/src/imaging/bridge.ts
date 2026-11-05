@@ -127,6 +127,13 @@ export async function loadJob(tx: TenantTransaction, ref: string, lock = ''): Pr
   return r;
 }
 
+/**
+ * Leases, backoffs and expiries are written from the transaction's now(), the clock the claim and the
+ * sweep compare them with (`lease_expires_at <= now()`): an application instant would shorten or
+ * lengthen every lease by the host clock's skew (clock audit).
+ */
+const secondsAfter = (now: Date, seconds: number) => new Date(now.getTime() + seconds * 1000);
+
 export async function bumpJob(
   tx: TenantTransaction,
   op: string,
@@ -321,7 +328,7 @@ export async function sweepBridgeJobs(
         state: 'queued',
         claim_nonce: null,
         lease_expires_at: null,
-        next_attempt_at: new Date(Date.now() + bridgeBackoffSeconds(j.attempts) * 1000),
+        next_attempt_at: secondsAfter(await transactionNow(tx), bridgeBackoffSeconds(j.attempts)),
       });
       out.requeued += 1;
     } else {
@@ -504,7 +511,7 @@ export function createBridgeOperations(base: ImagingBase, opts: BridgeOptions) {
             if (d.state === 'revoked') throw refused('device_revoked');
             const next = await bumpDevice(tx, op, d, {
               state: 'revoked',
-              revoked_at: new Date(),
+              revoked_at: await transactionNow(tx),
               revoked_by: ctx.actorId,
               revoke_reason: p.reasonCode,
             });
@@ -757,9 +764,9 @@ export function createBridgeOperations(base: ImagingBase, opts: BridgeOptions) {
               state: 'claimed',
               attempts: j.attempts + 1,
               claim_nonce: randomUUID(),
-              lease_expires_at: new Date(Date.now() + opts.leaseSeconds * 1000),
+              lease_expires_at: secondsAfter(await transactionNow(tx), opts.leaseSeconds),
             });
-            const now = new Date();
+            const now = await transactionNow(tx);
             const envelope = signCompact(
               { alg: 'EdDSA', typ: JOB_ENVELOPE_TYP, kid: serverPublic().kid },
               {
@@ -803,7 +810,8 @@ export function createBridgeOperations(base: ImagingBase, opts: BridgeOptions) {
           if (j.kind === 'probe') throw refused('job_kind_has_no_content');
           if (j.state === 'transferring') throw refused('bytes_already_received');
           if (j.state !== 'claimed') throw refused('job_not_claimed');
-          if ((j.lease_expires_at as Date).getTime() <= Date.now()) throw refused('lease_expired');
+          if ((j.lease_expires_at as Date).getTime() <= (await transactionNow(tx)).getTime())
+            throw refused('lease_expired');
           const staged = await store.stage(ctx.tenantId, body);
           const next = await bumpJob(tx, op, j, {
             state: 'transferring',
@@ -870,7 +878,7 @@ export function createBridgeOperations(base: ImagingBase, opts: BridgeOptions) {
           if (['failed', 'expired', 'denied', 'cancelled'].includes(j.state)) {
             if (j.state === 'expired' || j.state === 'failed') {
               // Surfaced for operator review (worklist), never applied.
-              await bumpJob(tx, op, j, { late_report_at: new Date() });
+              await bumpJob(tx, op, j, { late_report_at: await transactionNow(tx) });
               throw new CommitThenRefuse(refused('late_result', {}, { replayable: false }));
             }
             throw refused(j.state === 'denied' ? 'job_denied' : 'job_closed', {}, { replayable: false });
@@ -890,7 +898,9 @@ export function createBridgeOperations(base: ImagingBase, opts: BridgeOptions) {
               observed_byte_length: null,
               failure_reason: r.failureReason,
               ...(retry
-                ? { next_attempt_at: new Date(Date.now() + bridgeBackoffSeconds(j.attempts) * 1000) }
+                ? {
+                    next_attempt_at: secondsAfter(await transactionNow(tx), bridgeBackoffSeconds(j.attempts)),
+                  }
                 : {}),
             });
             return { data: { jobRef: j.id, state: next.state, objectRef: null, deduplicated: false } };

@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { TenantTransaction } from '@cuspatlas/contracts';
+import { databaseNow } from '../../clock';
 import { recordCommand } from '../../events/record-command';
 import type { ContactDigester } from '../digests';
 import {
@@ -204,13 +205,14 @@ async function moveTo(
     suppression?: string | null;
     nextAttemptAt?: Date | null;
     providerRef?: string | null;
-    reconcileAfter?: Date | null;
+    /** Seconds from the transaction's now() until reconciliation (the claim compares with now()). */
+    reconcileAfterSeconds?: number | null;
   } = {},
 ): Promise<void> {
   const { rowCount } = await tx.query(
     `UPDATE cuspatlas.outbound_messages SET state = $3, state_reason = $4, suppression_reason = $5,
        next_attempt_at = coalesce($6, next_attempt_at), provider_ref = coalesce($7, provider_ref),
-       reconcile_after = $8, leased_until = NULL, version = version + 1, updated_at = now()
+       reconcile_after = now() + make_interval(secs => $8::float8), leased_until = NULL, version = version + 1, updated_at = now()
      WHERE id = $1 AND state = 'sending' AND attempt = $2`,
     [
       m.messageRef,
@@ -220,7 +222,7 @@ async function moveTo(
       o.suppression ?? null,
       o.nextAttemptAt ?? null,
       o.providerRef ?? null,
-      o.reconcileAfter ?? null,
+      o.reconcileAfterSeconds ?? null,
     ],
   );
   if (rowCount !== 1) throw new Error('lease lost while finalizing');
@@ -240,12 +242,16 @@ export type PrepareResult =
 export async function prepareSend(
   tx: TenantTransaction,
   m: LeasedMessage,
-  sendAt: Date,
+  /** The send instant; null (production) takes it from the database clock that stamps offer expiry. */
+  sendAt: Date | null,
   minRemainingSeconds: number,
   digester: ContactDigester,
 ): Promise<PrepareResult> {
   const row = await owned(tx, m, minRemainingSeconds);
   if (!row) return { action: 'lease_lost' };
+  // Quiet hours, a reminder's past visit and an offer's expiry are judged at the database clock
+  // (expires_at is now()-derived): an application instant behind it could announce an expired offer.
+  const at = sendAt ?? (await databaseNow(tx));
   // The message's source: an S14 intent, or (E5) the thread of a staff reply, whose location zone
   // governs quiet hours.
   const intent = await tx.query<{
@@ -273,7 +279,7 @@ export async function prepareSend(
     patientRef: row.patient_id,
     intentId: row.intent_id,
     messageId: row.id,
-    sendAt,
+    sendAt: at,
     timeZone: it.time_zone,
     channelOverride: row.channel,
     digester,
@@ -382,7 +388,7 @@ export async function finalizeSend(
       await attemptRow(tx, row.id, m.attempt, 'unknown');
       await moveTo(tx, m, row.version, 'unknown', {
         reason: 'outcome_unknown',
-        reconcileAfter: new Date(Date.now() + o.reconcileAfterSeconds * 1000),
+        reconcileAfterSeconds: o.reconcileAfterSeconds,
       });
       return 'unknown';
     case 'rejected': {
@@ -428,8 +434,7 @@ export async function finalizeReconciliation(
   // An unavailable provider is asked again later; one that has no record waits for a person.
   await moveTo(tx, m, row.version, 'unknown', {
     reason: unavailable ? 'provider_lookup_unavailable' : 'provider_has_no_record',
-    reconcileAfter:
-      unavailable && m.attempt < m.maxAttempts ? new Date(Date.now() + o.reconcileAfterSeconds * 1000) : null,
+    reconcileAfterSeconds: unavailable && m.attempt < m.maxAttempts ? o.reconcileAfterSeconds : null,
   });
   return 'unknown';
 }

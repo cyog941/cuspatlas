@@ -1,7 +1,7 @@
 import { generateKeyPairSync } from 'node:crypto';
 import { createTenantTransactionRunner } from '@cuspatlas/db';
 import { signUpdateManifestForTest, verifyUpdateManifest } from '@cuspatlas/domain';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ctxFor, T_ALPHA, USER_A1 } from './support/fixtures';
 import {
   attemptReasons,
@@ -399,6 +399,33 @@ describe('I6 revocation, rotation, allowlist and paths', () => {
     );
     expect(SyntheticBridge.resolveInsideRoot('/import-root', '../../etc/passwd')).toBeNull();
   });
+});
+
+describe('I6 leases at the database clock (clock audit)', () => {
+  // The lease was the application clock plus leaseSeconds while the sweep expires it with now(): a
+  // host clock behind the database shortened every lease by the skew (ahead: lengthened it).
+  for (const skewMs of [5_000, -5_000]) {
+    it(`a claimed lease runs leaseSeconds from the database clock (app clock ${skewMs > 0 ? 'ahead' : 'behind'} 5 s)`, async () => {
+      const b = await paired();
+      expect((await enqueue({ deviceRef: b.deviceRef })).status).toBe(201);
+      vi.useFakeTimers({ toFake: ['Date'], now: Date.now() + skewMs });
+      let jobRef: string;
+      try {
+        const { job: env } = await b.claim();
+        expect(env).not.toBeNull();
+        jobRef = (env as NonNullable<typeof env>).jobRef;
+      } finally {
+        vi.useRealTimers();
+      }
+      const { rows } = await s.db.admin.query<{ s: number }>(
+        'SELECT extract(epoch FROM lease_expires_at - now())::float8 AS s FROM cuspatlas.imaging_bridge_jobs WHERE id = $1',
+        [jobRef],
+      );
+      // The default lease is 300 s; a few seconds of test time may have passed since the claim.
+      expect(rows[0]?.s).toBeGreaterThan(296);
+      expect(rows[0]?.s).toBeLessThanOrEqual(300);
+    });
+  }
 });
 
 describe('I6 device principals are never staff and staff are never devices', () => {

@@ -324,8 +324,9 @@ export function createBridgeHealthOperations(base: ImagingBase, opts: HealthOpti
                     observed_byte_length: null,
                     ingress_id: null,
                     failure_reason: null,
-                    next_attempt_at: new Date(),
-                    expires_at: new Date(Date.now() + 3_600_000),
+                    // The claim compares both with now(): stamp them from the same clock (clock audit).
+                    next_attempt_at: await nowOf(tx),
+                    expires_at: new Date((await nowOf(tx)).getTime() + 3_600_000),
                   });
             return {
               data: { jobRef: next.id, state: next.state, version: next.version },

@@ -84,6 +84,18 @@ const CONSENT_SELECT = `SELECT c.id, c.subject_patient_id, c.origin_patient_id, 
 const evidenceOf = (ref: string | null, digest: string | null): ConsentEvidence | null =>
   ref === null || digest === null ? null : { artifactRef: ref, digest };
 
+/**
+ * "Now" for a current read, from the database clock that stamps `effective_at`. The application
+ * clock can lag it (a coarse or skewed host clock), and a read stamped behind the database would
+ * show a withdrawal recorded a moment ago as not yet in force.
+ */
+async function databaseNow(tx: TenantTransaction): Promise<Date> {
+  const { rows } = await tx.query<{ at: Date }>(`SELECT date_trunc('milliseconds', clock_timestamp()) AS at`);
+  const at = rows[0]?.at;
+  if (at === undefined) throw new Error('clock_timestamp returned no row');
+  return at;
+}
+
 /** The consent as of `asOf` (a withdrawal after that instant is not yet visible). */
 function view(r: ConsentRow, asOf: number): Consent {
   const withdrawn = r.w_effective_at !== null && r.w_effective_at.getTime() <= asOf;
@@ -266,7 +278,7 @@ export function createConsentOperations(base: ClinicalBase) {
     return row;
   };
   const answer = async (tx: TenantTransaction, consentRef: string) =>
-    view(await load(tx, consentRef), Date.now());
+    view(await load(tx, consentRef), (await databaseNow(tx)).getTime());
 
   return {
     captureConsent(ctx: ActorContext, envelope: CommandEnvelope<unknown>): Promise<CommandResult<Consent>> {
@@ -458,7 +470,7 @@ export function createConsentOperations(base: ClinicalBase) {
       return base.guarded(ctx, op, async () => {
         await base.authorize(ctx, op);
         return deps.withTenantTransaction(ctx, async (tx) => {
-          const out = view(await load(tx, consentRef), Date.now());
+          const out = view(await load(tx, consentRef), (await databaseNow(tx)).getTime());
           await recordSensitiveRead(tx, {
             operation: op,
             resourceType: CONSENT_RESOURCE,
@@ -483,7 +495,7 @@ export function createConsentOperations(base: ClinicalBase) {
         return deps.withTenantTransaction(ctx, async (tx) => {
           const patient = await loadClinicalPatient(tx, patientRef, '');
           assertNotMerged(patient);
-          const asOf = query.asOf === undefined ? new Date() : new Date(query.asOf);
+          const asOf = query.asOf === undefined ? await databaseNow(tx) : new Date(query.asOf);
           const { rows } = await tx.query<ConsentRow>(
             `${CONSENT_SELECT} WHERE c.subject_patient_id = $1 AND c.effective_at <= $2
                AND ($3::uuid IS NULL OR c.plan_version_id = $3) ORDER BY c.effective_at, c.id LIMIT ${MAX_CONSENTS}`,

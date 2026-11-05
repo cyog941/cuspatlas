@@ -91,10 +91,15 @@ export function handlingAt(config: { hours: Window[]; time_zone: string }, at: D
     : 'closed';
 }
 
+/**
+ * The configuration in force at `at`. API instants carry milliseconds while `created_at` carries
+ * microseconds, so the comparison is at millisecond precision: an instant in the same millisecond as
+ * the configuration (an event recorded right after it) resolves to it rather than to its predecessor.
+ */
 async function configAt(tx: TenantTransaction, at: Date | null): Promise<ConfigRow | null> {
   const { rows } = await tx.query<ConfigRow>(
     `SELECT id, version, numbers, time_zone, hours, routing, recording_state, created_at FROM cuspatlas.telephony_configs
-     WHERE ($1::timestamptz IS NULL OR created_at <= $1) ORDER BY version DESC LIMIT 1`,
+     WHERE ($1::timestamptz IS NULL OR date_trunc('milliseconds', created_at) <= $1) ORDER BY version DESC LIMIT 1`,
     [at],
   );
   return rows[0] ?? null;

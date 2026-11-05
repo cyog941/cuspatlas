@@ -51,9 +51,22 @@ const reason = (res: { statusCode: number; json: () => { code?: string; detail?:
   res.json().code,
   res.json().detail?.reason,
 ];
-const now = () => new Date().toISOString();
-const generate = (guarantorRef: string, cutoffAt = now(), key: string = randomUUID(), who = 'a1') =>
-  h.call(who, 'POST', ST, { guarantorRef, cutoffAt, basis: 'posted_through_cutoff' }, key);
+/**
+ * "Now" from the database clock that stamps `posted_at`. The host clock can lag it (the hosted
+ * Windows runner's does), and a cutoff taken from it would exclude a posting made a moment ago.
+ */
+const now = async () =>
+  (
+    (await db.admin.query<{ at: Date }>(`SELECT clock_timestamp() AS at`)).rows[0] as { at: Date }
+  ).at.toISOString();
+const generate = async (guarantorRef: string, cutoffAt?: string, key: string = randomUUID(), who = 'a1') =>
+  h.call(
+    who,
+    'POST',
+    ST,
+    { guarantorRef, cutoffAt: cutoffAt ?? (await now()), basis: 'posted_through_cutoff' },
+    key,
+  );
 const read = async (statementRef: string, who = 'a1') =>
   h.ok<{ data: Statement }>(await h.call(who, 'GET', `${ST}/${statementRef}`)).data;
 async function cash(patientRef: string, minor: number): Promise<string> {
@@ -127,7 +140,7 @@ describe('B4 generation as an audited snapshot', () => {
     const guarantor = await createPatient(h, 'Synthetic Statement Versions');
     await postCharge(h, guarantor, 1200);
     const key = randomUUID();
-    const cutoff = now();
+    const cutoff = await now();
     const first = h.ok<Generated>(await generate(guarantor, cutoff, key), 201);
     const replay = h.ok<Generated>(await generate(guarantor, cutoff, key), 201);
     expect([replay.replayed, replay.data]).toStrictEqual([true, first.data]);
@@ -200,7 +213,7 @@ describe('B4 staleness is derived, the snapshot never restated', () => {
   it('4. a cutoff before a posting excludes it from the snapshot and the statement is stale at once', async () => {
     const guarantor = await createPatient(h, 'Synthetic Statement Cutoff');
     await postCharge(h, guarantor, 1000);
-    const cutoff = now();
+    const cutoff = await now();
     await new Promise((r) => setTimeout(r, 5));
     await postCharge(h, guarantor, 700);
     const s = await read(h.ok<Generated>(await generate(guarantor, cutoff), 201).data.statementRef);
@@ -269,10 +282,10 @@ describe('B4 refusals, isolation, parity and storage', () => {
     expect([hidden.statusCode, hidden.json().code]).toStrictEqual([404, 'not_found']);
     expect(hidden.json().detail).toStrictEqual(missing.json().detail);
     for (const body of [
-      { guarantorRef: guarantor, cutoffAt: now(), basis: 'current_balance' },
+      { guarantorRef: guarantor, cutoffAt: await now(), basis: 'current_balance' },
       { guarantorRef: guarantor, cutoffAt: MARKER, basis: 'posted_through_cutoff' },
-      { guarantorRef: MARKER, cutoffAt: now(), basis: 'posted_through_cutoff' },
-      { guarantorRef: guarantor, cutoffAt: now(), basis: 'posted_through_cutoff', tenantId: T_ALPHA },
+      { guarantorRef: MARKER, cutoffAt: await now(), basis: 'posted_through_cutoff' },
+      { guarantorRef: guarantor, cutoffAt: await now(), basis: 'posted_through_cutoff', tenantId: T_ALPHA },
     ]) {
       const r = await h.call('a1', 'POST', ST, body);
       expect(r.statusCode).toBe(400);
@@ -286,8 +299,13 @@ describe('B4 refusals, isolation, parity and storage', () => {
     expect([hiddenRead.statusCode, hiddenRead.json().detail]).toStrictEqual([404, missingRead.json().detail]);
     expect((await h.call(h.a5, 'GET', `${ST}/${g.data.statementRef}`)).statusCode).toBe(403);
     expect(
-      (await h.call('a4', 'POST', ST, { guarantorRef: own, cutoffAt: now(), basis: 'posted_through_cutoff' }))
-        .statusCode,
+      (
+        await h.call('a4', 'POST', ST, {
+          guarantorRef: own,
+          cutoffAt: await now(),
+          basis: 'posted_through_cutoff',
+        })
+      ).statusCode,
     ).toBe(403);
     expect((await h.call('a4', 'GET', `${ST}/${g.data.statementRef}`)).statusCode).toBe(200);
   });
@@ -319,7 +337,7 @@ describe('B4 refusals, isolation, parity and storage', () => {
       'billing_statements_generate',
       {
         guarantorRef: guarantor,
-        cutoffAt: now(),
+        cutoffAt: await now(),
         basis: 'posted_through_cutoff',
         idempotencyKey: randomUUID(),
       },

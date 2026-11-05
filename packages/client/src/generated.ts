@@ -611,6 +611,17 @@ export type AutomationExportGrantResult = {
   };
 };
 
+export type AutomationExportGrantRevoke = {
+  readonly "grantRef": AutomationUuid;
+};
+
+export type AutomationExportGrantRevokeResult = {
+  readonly "data": {
+    readonly "grantRef": AutomationUuid;
+    readonly "revokedAt": string;
+  };
+};
+
 export type AutomationExportList = {
   readonly "asOf": string;
   readonly "appliedFilters": { readonly [k: string]: unknown };
@@ -9826,6 +9837,16 @@ export interface Operations {
     successStatus: 200;
     idempotent: true;
   };
+  "exports.grants.revoke": {
+    method: "POST";
+    path: "/v1/exports/grants/revoke";
+    params: {  };
+    query: Record<string, never>;
+    body: AutomationExportGrantRevoke;
+    result: AutomationExportGrantRevokeResult;
+    successStatus: 200;
+    idempotent: true;
+  };
   "exports.list": {
     method: "GET";
     path: "/v1/exports";
@@ -12738,6 +12759,7 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "exports.create": { method: "POST", path: "/v1/exports", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "exports.download": { method: "POST", path: "/v1/exports/package", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "exports.grant": { method: "POST", path: "/v1/exports/grants", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "exports.grants.revoke": { method: "POST", path: "/v1/exports/grants/revoke", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "exports.list": { method: "GET", path: "/v1/exports", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "exports.read": { method: "GET", path: "/v1/exports/request", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "health.read": { method: "GET", path: "/healthz", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },

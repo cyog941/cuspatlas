@@ -9147,6 +9147,16 @@
       ]
     },
     {
+      "operation": "exports.administer",
+      "transports": [],
+      "scope": "exports.admin",
+      "principals": [
+        "human"
+      ],
+      "idempotency": "none",
+      "refusals": []
+    },
+    {
       "operation": "exports.create",
       "transports": [
         "rest",
@@ -9328,6 +9338,49 @@
       ]
     },
     {
+      "operation": "exports.grants.revoke",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "exports.create",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/exports/grants/revoke"
+      },
+      "mcpTool": "exports_grants_revoke",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "grantRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "grantRef"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
       "operation": "exports.list",
       "transports": [
         "rest",
@@ -9335,8 +9388,7 @@
       ],
       "scope": "exports.read",
       "principals": [
-        "human",
-        "service"
+        "human"
       ],
       "rest": {
         "method": "get",
@@ -9360,8 +9412,7 @@
       ],
       "scope": "exports.read",
       "principals": [
-        "human",
-        "service"
+        "human"
       ],
       "rest": {
         "method": "get",

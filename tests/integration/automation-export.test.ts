@@ -11,6 +11,8 @@ import {
   documentDigest,
   EXPORT_FORMAT,
   executeOnce,
+  filterPatientDocuments,
+  PATIENT_EXPORT_LINKAGE,
   PRACTICE_EXPORT_FORMAT,
   type PracticeExporters,
   validateScopedExport,
@@ -20,7 +22,7 @@ import { seedBillingScopes } from './support/billing-fixtures';
 import { seedClinicalScopes } from './support/clinical-fixtures';
 import { actorFor } from './support/domain-harness';
 import { seedEngagementScopes } from './support/engagement-fixtures';
-import { T_ALPHA, USER_A1, USER_B1 } from './support/fixtures';
+import { T_ALPHA, USER_A1, USER_A4, USER_B1 } from './support/fixtures';
 import { type ImagingStack, ingestVia, pngBytes, startImagingStack } from './support/imaging-fixtures';
 import { seedMigrationScopes } from './support/migration-fixtures';
 import { patientBody } from './support/patient-fixtures';
@@ -303,5 +305,150 @@ describe('A15 export surface', () => {
       purpose: 'integration',
     });
     expect(svc.status).toBe(403);
+  });
+});
+
+describe('A15 hardening: requester-bound delivery, re-authorization, linkage map, job state', () => {
+  const grantFor = async (who: Parameters<ImagingStack['command']>[0], exportRef: string) =>
+    s.command(who, '/v1/exports/grants', { exportRef });
+  const readAs = (who: Parameters<ImagingStack['inject']>[0], exportRef: string) =>
+    s.inject(who, 'GET', `/v1/exports/request?exportRef=${exportRef}`);
+
+  it('the patient filter follows the declared linkage map: a shared thread of another patient stays out', () => {
+    const [P1, P2, REL, T2, LOC] = [randomUUID(), randomUUID(), randomUUID(), randomUUID(), randomUUID()];
+    const docs = [
+      {
+        format: 'x',
+        exportedAt: '2026-11-05T00:00:00.000Z',
+        tables: {
+          patients: [{ id: P1 }, { id: P2 }],
+          patient_relationships: [{ id: REL, subject_patient_id: P1, counterparty_patient_id: P2 }],
+          message_threads: [{ id: T2, patient_id: P2 }],
+          thread_messages: [{ id: randomUUID(), thread_id: T2, via_relationship_id: REL }],
+          scheduling_locations: [{ id: LOC, default_relationship_id: REL }],
+          unlisted_table: [{ id: randomUUID(), owner_id: P1 }],
+        },
+      },
+    ];
+    const [out] = filterPatientDocuments(docs as never, P1) as unknown as Doc[];
+    expect(out?.tables.patients).toStrictEqual([{ id: P1 }]);
+    expect(out?.tables.patient_relationships?.length).toBe(1);
+    expect(out?.tables.message_threads).toStrictEqual([]);
+    expect(out?.tables.thread_messages).toStrictEqual([]);
+    expect(out?.tables.scheduling_locations).toStrictEqual([]);
+    expect(out?.tables.unlisted_table).toStrictEqual([]);
+    expect(PATIENT_EXPORT_LINKAGE.thread_messages).toBeDefined();
+  });
+
+  it('a patient export records patient-scoped reads naming the subject, not tenant-wide module reads', async () => {
+    const moduleRows = async () =>
+      Number(
+        (
+          await s.db.admin.query<{ n: string }>(
+            `SELECT count(*) AS n FROM cuspatlas.sensitive_read_events WHERE resource_type IN
+               ('schedulingExport', 'imagingExport', 'clinicalExport', 'engagementExport', 'billingExport')`,
+          )
+        ).rows[0]?.n,
+      );
+    const before = await moduleRows();
+    const req = data<Req>(await createExport({ scope: 'patient', subjectRef: p1 }));
+    expect(req.state).toBe('ready');
+    expect(await moduleRows()).toBe(before);
+    const { rows } = await s.db.admin.query<{ resource_type: string; resource_refs: string[] }>(
+      `SELECT resource_type, resource_refs FROM cuspatlas.sensitive_read_events WHERE $1 = ANY (resource_refs)`,
+      [req.exportRef],
+    );
+    expect(rows.length).toBeGreaterThan(0);
+    for (const r of rows) expect(r.resource_refs).toContain(p1);
+  });
+
+  it('only the requester reads, grants and downloads; an export administrator is recorded', async () => {
+    await setScopes(USER_A4, ['exports.create', 'exports.read', 'admin.configure']);
+    try {
+      const req = data<Req>(
+        await createExport({ scope: 'domain', domain: 'scheduling', purpose: 'integration' }),
+      );
+      expect(req.state).toBe('ready');
+      expect((await readAs('imagingReadOnly', req.exportRef)).status).toBe(404);
+      expect((await grantFor('imagingReadOnly', req.exportRef)).status).toBe(404);
+      const list = await s.inject('imagingReadOnly', 'GET', '/v1/exports');
+      expect(list.status).toBe(200);
+      expect((list.json.items as Req[]).some((x) => x.exportRef === req.exportRef)).toBe(false);
+      await setScopes(USER_A4, ['exports.admin']);
+      const g = await grantFor('imagingReadOnly', req.exportRef);
+      expect([g.status, g.body.slice(0, 200)]).toStrictEqual([200, g.body.slice(0, 200)]);
+      const d = await s.command('imagingReadOnly', '/v1/exports/package', {
+        exportRef: req.exportRef,
+        token: data<{ token: string }>(g).token,
+      });
+      expect(d.status).toBe(200);
+      const { rows } = await s.db.admin.query(
+        `SELECT 1 FROM cuspatlas.sensitive_read_events WHERE resource_type = 'exportAdminAccess'
+           AND actor_id = $1 AND $2 = ANY (resource_refs)`,
+        [USER_A4, req.exportRef],
+      );
+      expect(rows.length).toBeGreaterThan(0);
+    } finally {
+      await setScopes(USER_A4, [], ['exports.create', 'exports.read', 'exports.admin', 'admin.configure']);
+    }
+  });
+
+  it('narrowed module access blocks grant and download; a revoked grant no longer downloads', async () => {
+    const req = data<Req>(await createExport({ scope: 'patient', subjectRef: p1 }));
+    const g = data<{ token: string; grantRef: string }>(await grantFor('owner', req.exportRef));
+    await setScopes(USER_A1, [], ['admin.configure']);
+    try {
+      expect((await grantFor('owner', req.exportRef)).status).toBe(403);
+      const d = await s.command('owner', '/v1/exports/package', { exportRef: req.exportRef, token: g.token });
+      expect(d.status).toBe(403);
+    } finally {
+      await setScopes(USER_A1, ['admin.configure']);
+    }
+    const rv = await s.command('owner', '/v1/exports/grants/revoke', { grantRef: g.grantRef });
+    expect([rv.status, rv.body.slice(0, 200)]).toStrictEqual([200, rv.body.slice(0, 200)]);
+    const after = await s.command('owner', '/v1/exports/package', {
+      exportRef: req.exportRef,
+      token: g.token,
+    });
+    expect(after.status).toBe(404);
+  });
+
+  it('a replay returns the current state; a stale build fails instead of staying stuck; inline size is capped', async () => {
+    const key = randomUUID();
+    const body = {
+      scope: 'domain',
+      domain: 'imaging',
+      formatVersion: 'cuspatlas-export/1',
+      purpose: 'integration',
+    };
+    const first = await s.command('owner', '/v1/exports', body, key);
+    expect(data<Req>(first).state).toBe('ready');
+    const replay = await s.command('owner', '/v1/exports', body, key);
+    expect(data<Req>(replay)).toMatchObject({ exportRef: data<Req>(first).exportRef, state: 'ready' });
+    // A crashed build (still building past the deadline) is failed, never stuck.
+    const stuck = data<Req>(
+      await createExport({ scope: 'domain', domain: 'billing', purpose: 'integration' }),
+    );
+    await s.db.admin.query(
+      `UPDATE cuspatlas.export_requests SET state = 'building', artifact_format = NULL, package_digest = NULL,
+         created_at = now() - interval '2 hours' WHERE id = $1`,
+      [stuck.exportRef],
+    );
+    const seen = await readAs('owner', stuck.exportRef);
+    expect(data<Req>(seen)).toMatchObject({ state: 'failed', diagnostic: 'build_interrupted' });
+    // Inline delivery is capped: a package over the limit is refused with a typed reason.
+    const big = data<Req>(
+      await createExport({ scope: 'domain', domain: 'clinical', purpose: 'integration' }),
+    );
+    await s.db.admin.query('UPDATE cuspatlas.export_requests SET byte_length = $2 WHERE id = $1', [
+      big.exportRef,
+      10 ** 12,
+    ]);
+    const g = data<{ token: string }>(await grantFor('owner', big.exportRef));
+    const d = await s.command('owner', '/v1/exports/package', { exportRef: big.exportRef, token: g.token });
+    expect([d.status, (d.json.detail as { reason?: string })?.reason]).toStrictEqual([
+      409,
+      'package_exceeds_inline_limit',
+    ]);
   });
 });

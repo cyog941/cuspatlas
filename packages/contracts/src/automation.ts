@@ -34,4 +34,5 @@ export const validateExportCreate = def('ExportCreate');
 export const validateExportListQuery = def('ExportListQuery');
 export const validateExportQuery = def('ExportQuery');
 export const validateExportGrant = def('ExportGrant');
+export const validateExportGrantRevoke = def('ExportGrantRevoke');
 export const validateExportDownload = def('ExportDownload');

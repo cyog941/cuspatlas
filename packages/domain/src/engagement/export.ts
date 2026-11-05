@@ -8,7 +8,7 @@ import {
   RefusalError,
   validateEmptyQuery,
 } from '@cuspatlas/contracts';
-import { recordSensitiveRead } from '../events/record-sensitive-read';
+import { type ExportReadAudit, recordSensitiveRead } from '../events/record-sensitive-read';
 import type { EngagementBase } from './common';
 
 /**
@@ -26,7 +26,7 @@ import type { EngagementBase } from './common';
 export function createEngagementExportOperations(base: EngagementBase) {
   const { deps } = base;
   return {
-    exportEngagement(ctx: ActorContext, query: unknown): Promise<EngagementExport> {
+    exportEngagement(ctx: ActorContext, query: unknown, audit?: ExportReadAudit): Promise<EngagementExport> {
       const op = 'communications.export';
       return base.guarded(ctx, op, async () => {
         const decision = await base.authorize(ctx, op);
@@ -52,7 +52,15 @@ export function createEngagementExportOperations(base: EngagementBase) {
           // One entry per table: the table name as the only query field, the true count, and the first
           // 100 record references (identifiers only; never values).
           const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-          for (const table of ENGAGEMENT_EXPORT_TABLES) {
+          // A15 patient export: one patient-scoped entry naming the export and its subject instead.
+          if (audit)
+            await recordSensitiveRead(tx, {
+              operation: op,
+              resourceType: 'patientExport',
+              resourceRefs: [...audit.subjectRefs],
+              queryFields: [],
+            });
+          for (const table of audit ? [] : ENGAGEMENT_EXPORT_TABLES) {
             const rows = tables[table] ?? [];
             const refs = rows
               .map((r) => r.id)

@@ -15,7 +15,7 @@ docs/api/forbidden-matrix.md, proves the refusal). There is no grant API for sta
 memberships are administered outside the API, and the default role-to-scope grants remain an open
 human decision (A-D2). No default role grant is asserted here.
 
-55 staff scopes.
+56 staff scopes.
 
 | Scope | Principal kinds | Human only | Owners | Highest sensitivity | Operations |
 |---|---|---|---|---|---|
@@ -40,8 +40,9 @@ human decision (A-D2). No default role grant is asserted here.
 | `communications.write` | human, service | no | E | phi | 6 |
 | `coverage.read` | human, service | no | B | phi | 3 |
 | `coverage.write` | human, service | no | B | phi | 3 |
-| `exports.create` | human | yes | A | phiBulk | 3 |
-| `exports.read` | human, service | no | A | phi | 2 |
+| `exports.admin` | human | yes | A | phi | 1 |
+| `exports.create` | human | yes | A | phiBulk | 4 |
+| `exports.read` | human | yes | A | phi | 2 |
 | `imaging.associate` | human | yes | I | phi | 3 |
 | `imaging.delete` | human | yes | I | phi | 2 |
 | `imaging.legalHold` | human | yes | I | phi | 2 |

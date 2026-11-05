@@ -11,6 +11,8 @@ export {
   type ExportPracticePort,
   type ExportRequestView,
   filterPatientDocuments,
+  PATIENT_EXPORT_LINKAGE,
+  type PatientLink,
   type ScopedExportValidation,
   type ScopedManifest,
   type ScopedPackage,

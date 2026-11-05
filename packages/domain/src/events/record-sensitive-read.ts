@@ -47,3 +47,12 @@ export async function recordSensitiveRead(tx: TenantTransaction, read: Sensitive
     ],
   );
 }
+
+/**
+ * A15: a module export called for one patient's export. The module still reads (and authorizes) as
+ * the caller, but records one patient-scoped read naming the export and its subject instead of a
+ * tenant-wide module read.
+ */
+export interface ExportReadAudit {
+  readonly subjectRefs: readonly string[];
+}

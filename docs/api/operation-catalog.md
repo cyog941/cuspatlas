@@ -9,7 +9,7 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-449 operations.
+451 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
@@ -189,11 +189,13 @@ transport tables and are declarations, not independent proof.
 | `communications.suppression.preview` | E | query | authorize | `communications.read` | human, service | rest, mcp | GET `/v1/patients/{patientRef}/suppression-preview` | `communications_suppression_preview` | none | phi | active |
 | `communications.templates.define` | E | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/communications/templates` | `communications_templates_define` | required | operational | active |
 | `communications.templates.withdraw` | E | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/communications/templates/{templateRef}/withdraw` | `communications_templates_withdraw` | required | operational | active |
+| `exports.administer` | A | capability | capability | `exports.admin` | human | - | - | - | none | phi | active |
 | `exports.create` | A | command | authorize | `exports.create` | human | rest, mcp | POST `/v1/exports` | `exports_create` | required | phiBulk | active |
 | `exports.download` | A | command | authorize | `exports.create` | human | rest, mcp | POST `/v1/exports/package` | `exports_download` | required | phiBulk | active |
 | `exports.grant` | A | command | authorize | `exports.create` | human | rest, mcp | POST `/v1/exports/grants` | `exports_grant` | required | phi | active |
-| `exports.list` | A | query | authorize | `exports.read` | human, service | rest, mcp | GET `/v1/exports` | `exports_list` | none | phi | active |
-| `exports.read` | A | query | authorize | `exports.read` | human, service | rest, mcp | GET `/v1/exports/request` | `exports_read` | none | phi | active |
+| `exports.grants.revoke` | A | command | authorize | `exports.create` | human | rest, mcp | POST `/v1/exports/grants/revoke` | `exports_grants_revoke` | required | phi | active |
+| `exports.list` | A | query | authorize | `exports.read` | human | rest, mcp | GET `/v1/exports` | `exports_list` | none | phi | active |
+| `exports.read` | A | query | authorize | `exports.read` | human | rest, mcp | GET `/v1/exports/request` | `exports_read` | none | phi | active |
 | `health.read` | F | query | public | - | human, service, portal, device | rest | GET `/healthz` | - | none | none | active |
 | `imaging.acquisitions.request` | I | command | authorize | `imaging.write` | human, service | rest, mcp | POST `/v1/imaging/acquisitions` | `imaging_acquisitions_request` | required | phi | active |
 | `imaging.acquisitions.resolve` | I | command | authorize | `imaging.write` | human | rest, mcp | POST `/v1/imaging/acquisitions/{deferralRef}/resolve` | `imaging_acquisitions_resolve` | required | phi | active |

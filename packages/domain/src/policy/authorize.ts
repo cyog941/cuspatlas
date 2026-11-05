@@ -622,12 +622,15 @@ export const ACTION_POLICIES = {
   'webhooks.deliveries.dispatch': { scope: 'outbox.deliver', principals: ['service'] },
   // A15 export surface: the ordinary exports.create scope (no licence, plan or feature key); request,
   // grant and download are human only (agents and services never export); each composed module
-  // export re-authorizes the caller for its own action. Request metadata reads admit services.
+  // export re-authorizes the caller for its own action. Request metadata is human only and requester-bound.
   'exports.create': { scope: 'exports.create', principals: ['human'] },
-  'exports.list': { scope: 'exports.read', principals: ['human', 'service'] },
-  'exports.read': { scope: 'exports.read', principals: ['human', 'service'] },
+  'exports.list': { scope: 'exports.read', principals: ['human'] },
+  'exports.read': { scope: 'exports.read', principals: ['human'] },
   'exports.grant': { scope: 'exports.create', principals: ['human'] },
   'exports.download': { scope: 'exports.create', principals: ['human'] },
+  'exports.grants.revoke': { scope: 'exports.create', principals: ['human'] },
+  // Elevated: read, grant and download another requester's export (each access is sensitive-read logged).
+  'exports.administer': { scope: 'exports.admin', principals: ['human'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

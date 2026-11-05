@@ -554,6 +554,22 @@
       "sensitivity": "phi"
     },
     {
+      "name": "exports.admin",
+      "noun": "exports",
+      "verb": "admin",
+      "principalClasses": [
+        "human"
+      ],
+      "humanOnly": true,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "exports.administer"
+      ],
+      "sensitivity": "phi"
+    },
+    {
       "name": "exports.create",
       "noun": "exports",
       "verb": "create",
@@ -567,7 +583,8 @@
       "operations": [
         "exports.create",
         "exports.download",
-        "exports.grant"
+        "exports.grant",
+        "exports.grants.revoke"
       ],
       "sensitivity": "phiBulk"
     },
@@ -576,10 +593,9 @@
       "noun": "exports",
       "verb": "read",
       "principalClasses": [
-        "human",
-        "service"
+        "human"
       ],
-      "humanOnly": false,
+      "humanOnly": true,
       "owners": [
         "A"
       ],

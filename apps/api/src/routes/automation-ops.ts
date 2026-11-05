@@ -191,6 +191,19 @@ export const AUTOMATION_OPS: AutomationOp[] = [
   },
   {
     method: 'post',
+    path: '/v1/exports/grants/revoke',
+    operationId: 'exports.grants.revoke',
+    protected: true,
+    requestBody: A('ExportGrantRevoke'),
+    success: { status: '200', schema: A('ExportGrantRevokeResult') },
+    refusals: COMMAND,
+    tool: 'exports_grants_revoke',
+    description:
+      'A15: revoke a delivery grant before it expires; its token no longer downloads. The grant holder or an export administrator only. Human only.',
+    invoke: (svc, actor, i) => svc.revokeExportGrant(actor, env('exports.grants.revoke', i)),
+  },
+  {
+    method: 'post',
     path: '/v1/exports/package',
     operationId: 'exports.download',
     protected: true,

@@ -441,11 +441,11 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         // M1: the practice export composes the five domain exports as the same caller.
         practiceExport: {
           exporters: {
-            scheduling: (ctx) => appointments.exportScheduling(ctx),
-            imaging: (ctx) => imaging.exportImaging(ctx),
-            clinical: (ctx) => clinical.exportClinical(ctx),
-            engagement: (ctx) => engagement.exportEngagement(ctx, {}),
-            billing: (ctx) => billing.exportBilling(ctx),
+            scheduling: (ctx, a) => appointments.exportScheduling(ctx, a),
+            imaging: (ctx, a) => imaging.exportImaging(ctx, a),
+            clinical: (ctx, a) => clinical.exportClinical(ctx, a),
+            engagement: (ctx, a) => engagement.exportEngagement(ctx, {}, a),
+            billing: (ctx, a) => billing.exportBilling(ctx, a),
           },
           ...(deps.objectStore ? { objectStore: deps.objectStore } : {}),
           tokenSecret: resolveImagingTokenSecret(deps.env, deps.imagingTokenSecret),
@@ -486,11 +486,11 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         // A15: the same five module exports M1 composes, called as the caller, and M1 for the practice scope.
         exports: {
           exporters: {
-            scheduling: (ctx) => appointments.exportScheduling(ctx),
-            imaging: (ctx) => imaging.exportImaging(ctx),
-            clinical: (ctx) => clinical.exportClinical(ctx),
-            engagement: (ctx) => engagement.exportEngagement(ctx, {}),
-            billing: (ctx) => billing.exportBilling(ctx),
+            scheduling: (ctx, a) => appointments.exportScheduling(ctx, a),
+            imaging: (ctx, a) => imaging.exportImaging(ctx, a),
+            clinical: (ctx, a) => clinical.exportClinical(ctx, a),
+            engagement: (ctx, a) => engagement.exportEngagement(ctx, {}, a),
+            billing: (ctx, a) => billing.exportBilling(ctx, a),
           },
           practice: {
             create: (c, e) => migration.createPracticeExport(c, e),

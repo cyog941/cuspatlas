@@ -937,6 +937,37 @@
         }
       }
     },
+    "ExportGrantRevoke": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["grantRef"],
+      "properties": {
+        "grantRef": {
+          "$ref": "#/$defs/Uuid"
+        }
+      }
+    },
+    "ExportGrantRevokeResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["grantRef", "revokedAt"],
+          "properties": {
+            "grantRef": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "revokedAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        }
+      }
+    },
     "ExportGrantResult": {
       "type": "object",
       "additionalProperties": false,

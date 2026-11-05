@@ -65,6 +65,8 @@ export const ACTION_ALIASES: Record<string, string> = {
 
 /** Actions only ever checked as an additional capability inside another operation. */
 export const CAPABILITY_OF: Record<string, string> = {
+  // A15 hardening: the elevated export-administrator check inside the export read, grant and download.
+  'exports.administer': 'exports.download',
   'syntheticTasks.approve': 'syntheticTasks.proposals.commit',
   'patients.unmerge.reconcile': 'patients.unmerge',
   'scheduling.appointments.override': 'scheduling.appointments.book',

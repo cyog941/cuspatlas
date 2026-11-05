@@ -7,7 +7,7 @@ import {
   RefusalError,
 } from '@cuspatlas/contracts';
 import { type BillingBase, loadSettings } from '../billing/base';
-import { recordSensitiveRead } from '../events/record-sensitive-read';
+import { type ExportReadAudit, recordSensitiveRead } from '../events/record-sensitive-read';
 
 /** Every `*_minor` amount of an exported row as Money in the row's own currency (else the tenant's). */
 export function toExportRow(row: Record<string, unknown>, currency: string): Record<string, unknown> {
@@ -53,7 +53,7 @@ export const OPENING_CHAIN: Readonly<Record<string, { source: string; row: strin
 export function createBillingExportOperations(base: BillingBase) {
   const { deps } = base;
   return {
-    exportBilling(ctx: ActorContext): Promise<BillingExport> {
+    exportBilling(ctx: ActorContext, audit?: ExportReadAudit): Promise<BillingExport> {
       const op = 'billing.export';
       return base.guarded(ctx, op, async () => {
         const decision = await deps.authorize(ctx, op, { tenantId: ctx.tenantId, id: 'billing' });
@@ -75,8 +75,8 @@ export function createBillingExportOperations(base: BillingBase) {
           const now = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
           await recordSensitiveRead(tx, {
             operation: op,
-            resourceType: 'billingExport',
-            resourceRefs: [],
+            resourceType: audit ? 'patientExport' : 'billingExport',
+            resourceRefs: audit ? [...audit.subjectRefs] : [],
             queryFields: [],
           });
           return { format: BILLING_EXPORT_FORMAT, exportedAt: now.toISOString(), currency, tables };

@@ -5613,6 +5613,22 @@
     "status": "active"
   },
   {
+    "operation": "exports.administer",
+    "owner": "A",
+    "kind": "capability",
+    "authorization": "capability",
+    "action": "exports.administer",
+    "scope": "exports.admin",
+    "principals": [
+      "human"
+    ],
+    "transports": [],
+    "refusals": [],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
     "operation": "exports.create",
     "owner": "A",
     "kind": "command",
@@ -5718,6 +5734,41 @@
     "status": "active"
   },
   {
+    "operation": "exports.grants.revoke",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "exports.grants.revoke",
+    "scope": "exports.create",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/exports/grants/revoke",
+      "requestSchema": "automation:ExportGrantRevoke",
+      "successStatus": "200",
+      "successSchema": "automation:ExportGrantRevokeResult"
+    },
+    "mcpTool": "exports_grants_revoke",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
     "operation": "exports.list",
     "owner": "A",
     "kind": "query",
@@ -5725,8 +5776,7 @@
     "action": "exports.list",
     "scope": "exports.read",
     "principals": [
-      "human",
-      "service"
+      "human"
     ],
     "transports": [
       "rest",
@@ -5758,8 +5808,7 @@
     "action": "exports.read",
     "scope": "exports.read",
     "principals": [
-      "human",
-      "service"
+      "human"
     ],
     "transports": [
       "rest",

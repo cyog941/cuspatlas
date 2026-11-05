@@ -25,10 +25,11 @@ const CASES: Record<string, { tool: string; admits: Admits }> = {
   },
   'webhooks.deliveries.replay': { tool: 'webhooks_deliveries_replay', admits: 'human' },
   'exports.create': { tool: 'exports_create', admits: 'human' },
-  'exports.list': { tool: 'exports_list', admits: 'humanAndService' },
-  'exports.read': { tool: 'exports_read', admits: 'humanAndService' },
+  'exports.list': { tool: 'exports_list', admits: 'human' },
+  'exports.read': { tool: 'exports_read', admits: 'human' },
   'exports.grant': { tool: 'exports_grant', admits: 'human' },
   'exports.download': { tool: 'exports_download', admits: 'human' },
+  'exports.grants.revoke': { tool: 'exports_grants_revoke', admits: 'human' },
 };
 
 let s: AgentStack;

@@ -10,6 +10,7 @@ import {
   validateExportCreate,
   validateExportDownload,
   validateExportGrant,
+  validateExportGrantRevoke,
   validateExportListQuery,
   validateExportQuery,
 } from '@cuspatlas/contracts';
@@ -73,6 +74,12 @@ export interface ExportDeps {
   readonly practice?: ExportPracticePort;
   readonly objectStore?: ObjectStorePort;
   readonly tokenSecret?: Uint8Array | null;
+  /** Largest package a build stores (bytes); larger builds fail as export_too_large. */
+  readonly maxPackageBytes?: number;
+  /** Largest package returned inline by download (bytes); larger ones are refused, never truncated. */
+  readonly maxInlineBytes?: number;
+  /** A request still building after this many seconds is failed as build_interrupted (crash recovery). */
+  readonly buildDeadlineSeconds?: number;
 }
 
 type Doc = ComposedDocument;
@@ -101,40 +108,197 @@ const patientLinks = (r: Row): unknown[] =>
     .map(([, v]) => v);
 
 /**
- * Patient filter over the composed module documents: a row belongs to the patient when it is the
- * patient row, when one of its patient-link columns (`patient_id`, `subject_patient_id`, ...) is the
- * patient, or (rows without a patient link) when one of its `*_id` columns references a row already
- * included. Rows of another patient never enter, so a shared
- * account or relationship cannot pull a different patient's records in. Reference data (locations,
- * fee schedules, templates) that references no included row is left out by design.
+ * How a row of a module export table belongs to one patient (owner-declared; A batch 4 hardening):
+ * `patient` names the column holding the patient; `parent` names a column referencing an already
+ * included row of another table; `referencedBy` includes a row an included row of `table` references
+ * through `column`. A table with several entries is included through any of them. Tables absent from
+ * this map (reference data, configuration, payer-level or multi-patient records such as remittances,
+ * the migration workspace and call events) never contribute rows to a patient export. Derived from
+ * the foreign keys of the export tables and reviewed by hand: owning columns are the subject side
+ * (`subject_patient_id`, a merge survivor, the reassignment target, a statement guarantor).
+ */
+export type PatientLink =
+  | { readonly patient: string }
+  | { readonly parent: string; readonly column: string }
+  | { readonly referencedBy: string; readonly column: string };
+const p = (patient: string): PatientLink => ({ patient });
+const via = (parent: string, column: string): PatientLink => ({ parent, column });
+export const PATIENT_EXPORT_LINKAGE: Readonly<Record<string, readonly PatientLink[]>> = {
+  // Scheduling and patients.
+  patient_status_history: [p('patient_id')],
+  patient_relationships: [p('subject_patient_id')],
+  patient_merges: [p('survivor_patient_id')],
+  patient_merge_moves: [via('patient_merges', 'merge_id')],
+  patient_merge_reversals: [via('patient_merges', 'merge_id')],
+  appointment_requests: [p('subject_patient_id')],
+  appointment_request_transitions: [via('appointment_requests', 'request_id')],
+  appointments: [p('subject_patient_id')],
+  appointment_lifecycle_events: [via('appointments', 'appointment_id')],
+  appointment_overrides: [via('appointments', 'appointment_id')],
+  appointment_attendance_transitions: [via('appointments', 'appointment_id')],
+  visit_context_items: [via('appointments', 'appointment_id')],
+  appointment_series: [p('subject_patient_id')],
+  appointment_series_occurrences: [via('appointment_series', 'series_id')],
+  appointment_series_exceptions: [via('appointment_series', 'series_id')],
+  notification_intents: [via('suppression_decisions', 'suppression_decision_ref')],
+  waitlist_entries: [p('subject_patient_id')],
+  cancellation_recoveries: [via('appointments', 'appointment_id')],
+  waitlist_offers: [via('waitlist_entries', 'entry_id')],
+  recall_tasks: [p('subject_patient_id')],
+  scheduling_staging_entries: [
+    via('appointments', 'appointment_id'),
+    via('appointment_requests', 'request_id'),
+  ],
+  scheduling_provider_requests: [via('appointments', 'appointment_id')],
+  appointment_patient_reassignments: [p('new_patient_id')],
+  // Imaging: an object belongs to the patient through its image reference or its dedupe patient.
+  imaging_match_decisions: [p('subject_patient_id')],
+  imaging_image_refs: [via('imaging_match_decisions', 'minted_decision_id')],
+  imaging_objects: [p('dedupe_patient_id'), { referencedBy: 'imaging_image_refs', column: 'object_id' }],
+  imaging_object_provenance: [via('imaging_objects', 'object_id')],
+  imaging_mount_slots: [via('imaging_objects', 'object_id')],
+  imaging_annotations: [via('imaging_objects', 'object_id')],
+  imaging_derivations: [via('imaging_objects', 'source_object_id')],
+  imaging_deletion_requests: [via('imaging_objects', 'object_id')],
+  // Clinical record.
+  clinical_encounters: [p('subject_patient_id')],
+  clinical_encounter_assignments: [via('clinical_encounters', 'encounter_id')],
+  clinical_history_streams: [p('subject_patient_id')],
+  clinical_history_versions: [via('clinical_history_streams', 'stream_id')],
+  clinical_history_items: [via('clinical_history_streams', 'stream_id')],
+  clinical_history_changes: [via('clinical_history_items', 'item_id')],
+  clinical_history_verifications: [via('clinical_history_changes', 'change_id')],
+  clinical_history_reviews: [via('clinical_encounters', 'encounter_id')],
+  clinical_charts: [p('subject_patient_id')],
+  clinical_chart_entries: [via('clinical_charts', 'chart_id')],
+  clinical_perio_streams: [p('subject_patient_id')],
+  clinical_perio_exams: [via('clinical_perio_streams', 'stream_id')],
+  clinical_perio_measurements: [via('clinical_perio_exams', 'exam_id')],
+  clinical_perio_derivations: [via('clinical_perio_exams', 'exam_id')],
+  clinical_perio_derived_values: [via('clinical_perio_derivations', 'derivation_id')],
+  clinical_treatment_plans: [p('subject_patient_id')],
+  clinical_plan_versions: [via('clinical_treatment_plans', 'plan_id')],
+  clinical_plan_details: [via('clinical_plan_versions', 'plan_version_id')],
+  clinical_plan_items: [via('clinical_plan_details', 'detail_id')],
+  clinical_plan_detail_events: [via('clinical_plan_details', 'detail_id')],
+  clinical_plan_alternatives: [via('clinical_treatment_plans', 'plan_id')],
+  clinical_estimates: [via('clinical_plan_versions', 'plan_version_id')],
+  clinical_estimate_lines: [via('clinical_estimates', 'estimate_id')],
+  clinical_estimate_assumptions: [via('clinical_estimates', 'estimate_id')],
+  clinical_estimate_presentations: [via('clinical_estimates', 'estimate_id')],
+  clinical_plan_acceptances: [via('clinical_estimates', 'estimate_id')],
+  clinical_consents: [p('subject_patient_id')],
+  clinical_consent_withdrawals: [via('clinical_consents', 'consent_id')],
+  clinical_notes: [via('clinical_encounters', 'encounter_id')],
+  clinical_note_versions: [via('clinical_notes', 'note_id')],
+  clinical_note_cosignatures: [via('clinical_note_versions', 'note_version_id')],
+  clinical_rendered_procedures: [p('origin_patient_id')],
+  clinical_plan_item_events: [via('clinical_plan_items', 'item_id')],
+  clinical_encounter_image_links: [via('clinical_encounters', 'encounter_id')],
+  clinical_lab_cases: [p('subject_patient_id')],
+  clinical_lab_case_transitions: [via('clinical_lab_cases', 'case_id')],
+  clinical_lab_case_attachments: [via('clinical_lab_cases', 'case_id')],
+  clinical_referrals: [p('subject_patient_id')],
+  clinical_referral_selections: [via('clinical_referrals', 'referral_id')],
+  clinical_referral_shares: [via('clinical_referrals', 'referral_id')],
+  clinical_referral_events: [via('clinical_referrals', 'referral_id')],
+  clinical_referral_responses: [via('clinical_referrals', 'referral_id')],
+  // Engagement: a thread belongs to its patient; its messages only through it.
+  portal_principals: [p('person_patient_id')],
+  communication_consents: [p('patient_id')],
+  contact_verifications: [p('patient_id')],
+  suppression_decisions: [p('subject_patient_id')],
+  recall_enrollments: [p('patient_id')],
+  message_threads: [p('patient_id')],
+  thread_messages: [via('message_threads', 'thread_id')],
+  outbound_messages: [p('patient_id')],
+  delivery_attempts: [via('outbound_messages', 'message_id')],
+  message_receipts: [via('outbound_messages', 'message_id')],
+  intake_submissions: [p('patient_id')],
+  intake_submission_consents: [via('intake_submissions', 'submission_id')],
+  intake_review_items: [p('patient_id')],
+  call_links: [p('patient_id')],
+  // Billing and revenue cycle.
+  billing_charges: [p('patient_id')],
+  billing_payment_attempts: [p('patient_id')],
+  billing_payments: [p('patient_id')],
+  migration_opening_items: [p('patient_id')],
+  billing_journal_entries: [via('billing_charges', 'charge_id'), via('billing_payments', 'payment_id')],
+  billing_journal_lines: [p('patient_id')],
+  billing_payment_plans: [p('patient_id')],
+  billing_payment_plan_terms: [via('billing_payment_plans', 'plan_id')],
+  billing_payment_plan_events: [via('billing_payment_plans', 'plan_id')],
+  billing_payment_plan_attempts: [via('billing_payment_plans', 'plan_id')],
+  billing_statements: [p('guarantor_id')],
+  rcm_coverages: [p('patient_id')],
+  rcm_coverage_versions: [via('rcm_coverages', 'coverage_id')],
+  rcm_eligibility_records: [via('rcm_coverages', 'coverage_id')],
+  billing_adjustment_requests: [via('billing_charges', 'charge_id')],
+  billing_adjustment_decisions: [via('billing_adjustment_requests', 'request_id')],
+  rcm_claims: [p('patient_id')],
+  rcm_claim_versions: [via('rcm_claims', 'claim_id')],
+  rcm_claim_lines: [via('rcm_claim_versions', 'version_id')],
+  rcm_claim_attachments: [via('rcm_claim_versions', 'version_id')],
+  rcm_claim_attachment_packages: [via('rcm_claims', 'claim_id')],
+  rcm_claim_attachment_package_items: [via('rcm_claim_attachment_packages', 'package_id')],
+  rcm_claim_validations: [via('rcm_claim_versions', 'version_id')],
+  rcm_claim_submissions: [via('rcm_claims', 'claim_id')],
+  rcm_claim_events: [via('rcm_claims', 'claim_id')],
+  rcm_claim_procedure_holds: [via('rcm_claims', 'claim_id')],
+  rcm_appeals: [via('rcm_claims', 'claim_id')],
+  rcm_appeal_reviews: [via('rcm_appeals', 'appeal_id')],
+  rcm_appeal_send_resolutions: [via('rcm_appeals', 'appeal_id')],
+  rcm_secondary_claims: [via('rcm_claims', 'claim_id')],
+  rcm_remittance_line_resolutions: [via('rcm_claims', 'claim_id')],
+  rcm_remittance_resolution_decisions: [via('rcm_remittance_line_resolutions', 'resolution_id')],
+  rcm_remittance_resolution_postings: [via('rcm_remittance_line_resolutions', 'resolution_id')],
+  rcm_claim_workflows: [via('rcm_claims', 'claim_id')],
+  rcm_claim_workflow_steps: [via('rcm_claim_workflows', 'workflow_id')],
+  rcm_claim_workflow_exceptions: [via('rcm_claim_workflows', 'workflow_id')],
+  rcm_claim_workflow_exception_events: [via('rcm_claim_workflow_exceptions', 'exception_id')],
+  rcm_claim_workflow_timers: [via('rcm_claim_workflows', 'workflow_id')],
+  rcm_claim_workflow_timer_firings: [via('rcm_claim_workflow_timers', 'timer_id')],
+  rcm_claim_workflow_closures: [via('rcm_claim_workflows', 'workflow_id')],
+};
+
+/**
+ * Patient filter over the composed module documents, driven only by PATIENT_EXPORT_LINKAGE: the
+ * `patients` row of the subject, then rows linked to it (directly or through an included parent) to
+ * a fixpoint. A row of another patient, a row of an unlisted table, or a row that merely mentions an
+ * included identifier in some other column never enters.
  */
 export function filterPatientDocuments(docs: readonly Doc[], patientRef: string): Doc[] {
-  const included = new Set<string>([patientRef]);
+  const included = new Map<string, Set<string>>([['patients', new Set([patientRef])]]);
+  const ids = (t: string) => included.get(t) ?? new Set<string>();
   const taken = docs.map((d) => Object.fromEntries(Object.keys(d.tables).map((t) => [t, new Set<number>()])));
+  const rowsOf = (t: string): Row[] =>
+    docs.flatMap((d, di) =>
+      ((d.tables[t] as Row[] | undefined) ?? []).filter((_, i) => taken[di]?.[t]?.has(i)),
+    );
+  const linked = (t: string, r: Row): boolean => {
+    if (t === 'patients') return r.id === patientRef;
+    return (PATIENT_EXPORT_LINKAGE[t] ?? []).some((l) =>
+      'patient' in l
+        ? r[l.patient] === patientRef
+        : 'parent' in l
+          ? typeof r[l.column] === 'string' && ids(l.parent).has(r[l.column] as string)
+          : typeof r.id === 'string' && rowsOf(l.referencedBy).some((x) => x[l.column] === r.id),
+    );
+  };
   let changed = true;
   while (changed) {
     changed = false;
-    for (const [di, d] of docs.entries()) {
+    for (const [di, d] of docs.entries())
       for (const [t, rows] of Object.entries(d.tables)) {
+        if (t !== 'patients' && !(t in PATIENT_EXPORT_LINKAGE)) continue;
         const set = taken[di]?.[t] as Set<number>;
         for (const [i, r] of (rows as Row[]).entries()) {
-          if (set.has(i)) continue;
-          const links = patientLinks(r);
-          const ok =
-            t === 'patients'
-              ? r.id === patientRef
-              : links.length > 0
-                ? links.includes(patientRef)
-                : Object.entries(r).some(
-                    ([k, v]) => k !== 'id' && k.endsWith('_id') && typeof v === 'string' && included.has(v),
-                  );
-          if (!ok) continue;
+          if (set.has(i) || !linked(t, r)) continue;
           set.add(i);
-          if (typeof r.id === 'string') included.add(r.id);
+          if (typeof r.id === 'string') included.set(t, ids(t).add(r.id));
           changed = true;
         }
       }
-    }
   }
   return docs.map((d, di) => {
     const tables = Object.fromEntries(
@@ -192,7 +356,8 @@ export type ScopedExportRefusal =
   | 'count_mismatch'
   | 'digest_mismatch'
   | 'tenant_mismatch'
-  | 'foreign_patient';
+  | 'foreign_patient'
+  | 'unlinked_table';
 export type ScopedExportValidation =
   | { accepted: true; warnings: string[] }
   | { accepted: false; reason: ScopedExportRefusal; entity: string };
@@ -249,6 +414,10 @@ export function validateScopedExport(
     if (subject !== m.scope.subjectRef) return refuse('foreign_patient', 'scope');
     for (const doc of pkg.documents)
       for (const [t, rows] of Object.entries(doc.tables))
+        if (t !== 'patients' && !(t in PATIENT_EXPORT_LINKAGE) && (rows as Row[]).length > 0)
+          return refuse('unlinked_table', `${doc.format}:${t}`);
+    for (const doc of pkg.documents)
+      for (const [t, rows] of Object.entries(doc.tables))
         for (const r of rows as Row[])
           if (
             (t === 'patients' && r.id !== subject) ||
@@ -287,6 +456,7 @@ interface RequestRow extends Record<string, unknown> {
   version: number;
   created_at: Date;
   completed_at: Date | null;
+  created_by: string;
 }
 const present = (r: RequestRow) => ({
   exportRef: r.id,
@@ -336,6 +506,76 @@ export function createExportOperations(base: AutomationBase, ex: ExportDeps | un
     if (!rows[0]) throw notFound();
     return rows[0];
   };
+  const maxPackageBytes = ex?.maxPackageBytes ?? 256 * 1024 * 1024;
+  const maxInlineBytes = ex?.maxInlineBytes ?? 64 * 1024 * 1024;
+  const buildDeadlineSeconds = ex?.buildDeadlineSeconds ?? 900;
+
+  /** Crash recovery: a request still building past the deadline is failed, never left stuck. */
+  const failStaleBuilds = async (tx: TenantTransaction, op: string) => {
+    const { rows } = await tx.query<{ id: string; version: number }>(
+      `UPDATE cuspatlas.export_requests SET state = 'failed', diagnostic = 'build_interrupted',
+         version = version + 1, completed_at = now()
+       WHERE state = 'building' AND created_at < now() - make_interval(secs => $1) RETURNING id, version`,
+      [buildDeadlineSeconds],
+    );
+    for (const r of rows)
+      await recordCommand(
+        tx,
+        { operation: op, resourceType: 'exportRequest', resourceRef: r.id, resourceVersion: r.version },
+        { changedFields: ['state'] },
+      );
+  };
+
+  /** True when the caller holds the elevated export-administrator scope (never assumed; checked). */
+  const isExportAdmin = async (ctx: ActorContext) => {
+    try {
+      await deps.authorize(ctx, 'exports.administer', { tenantId: ctx.tenantId, id: 'exports' });
+      return true;
+    } catch (err) {
+      if (isRefusalError(err)) return false;
+      throw err;
+    }
+  };
+
+  /**
+   * An export is the requester's: anyone else (even with `exports.create`) sees it as missing, unless
+   * they hold `exports.admin`, and that access is itself recorded as a sensitive read.
+   */
+  const assertRequesterOrAdmin = async (
+    ctx: ActorContext,
+    tx: TenantTransaction,
+    row: RequestRow,
+    op: string,
+  ) => {
+    if (row.created_by === ctx.actorId) return;
+    if (!(await isExportAdmin(ctx))) throw notFound();
+    await recordSensitiveRead(tx, {
+      operation: op,
+      resourceType: 'exportAdminAccess',
+      resourceRefs: row.subject_id ? [row.id, row.subject_id] : [row.id],
+      queryFields: [],
+    });
+  };
+
+  /**
+   * The module read authorization the build ran under, re-run for whoever grants or downloads a
+   * patient or domain export now (narrowed access blocks delivery). M1 re-authorizes practice exports.
+   */
+  const MODULE_EXPORT_ACTIONS = [
+    'scheduling.export',
+    'imaging.export',
+    'clinical.export',
+    'communications.export',
+    'billing.export',
+  ] as const;
+  const reauthorizeModules = async (ctx: ActorContext, row: RequestRow) => {
+    if (row.scope === 'practice') return;
+    const actions =
+      row.scope === 'patient'
+        ? MODULE_EXPORT_ACTIONS
+        : [MODULE_EXPORT_ACTIONS[EXPORT_DOMAINS.indexOf(row.domain as ExportDomain)]];
+    for (const action of actions) if (action) await base.tenantWide(ctx, action, 'exports');
+  };
   const envOf = (
     operation: string,
     payload: unknown,
@@ -380,7 +620,9 @@ export function createExportOperations(base: AutomationBase, ex: ExportDeps | un
       docs = [await f(ctx)];
     } else {
       const all: Doc[] = [];
-      for (const f of order) all.push(await f(ctx));
+      // One patient-scoped read per module naming the export and its subject (not a tenant-wide read).
+      const audit = { subjectRefs: [row.id, row.subject_id as string] };
+      for (const f of order) all.push(await f(ctx, audit));
       docs = filterPatientDocuments(all, row.subject_id as string);
     }
     const scope: ScopedManifest['scope'] =
@@ -389,9 +631,13 @@ export function createExportOperations(base: AutomationBase, ex: ExportDeps | un
         : { kind: 'domain', domain: row.domain as ExportDomain };
     const manifest = buildScopedManifest(row.id, new Date().toISOString(), scope, docs);
     const pkg: ScopedPackage = { manifest, documents: docs };
-    const check = validateScopedExport(pkg, { tenantId: ctx.tenantId });
+    const check = validateScopedExport(pkg, {
+      tenantId: ctx.tenantId,
+      ...(row.scope === 'patient' ? { subjectRef: row.subject_id as string } : {}),
+    });
     if (!check.accepted) return { diagnostic: check.reason };
     const bytes = Buffer.from(JSON.stringify(pkg), 'utf8');
+    if (bytes.byteLength > maxPackageBytes) return { diagnostic: 'export_too_large' };
     const staged = await objectStore.stage(ctx.tenantId, bytes);
     const { storageKey } = await objectStore.promote(ctx.tenantId, staged.stagingKey, staged.digestSha256);
     return {
@@ -435,6 +681,7 @@ export function createExportOperations(base: AutomationBase, ex: ExportDeps | un
         need();
         const r = await deps.withTenantTransaction(ctx, (tx) =>
           execute(ctx, envelope, tx, async () => {
+            await failStaleBuilds(tx, op);
             if (p.subjectRef !== undefined) {
               assertRef(p.subjectRef);
               const seen = await tx.query('SELECT 1 FROM cuspatlas.patients WHERE id = $1', [p.subjectRef]);
@@ -456,7 +703,15 @@ export function createExportOperations(base: AutomationBase, ex: ExportDeps | un
             return { data: present(row), version: 1 };
           }),
         );
-        if (r.replayed || r.data.state !== 'building') return r;
+        // A replay answers with the current state of the request, never the stored building view.
+        if (r.replayed) {
+          const now = await deps.withTenantTransaction(ctx, async (tx) => {
+            await failStaleBuilds(tx, op);
+            return loadRequest(tx, r.data.exportRef);
+          });
+          return { ...r, data: present(now), version: now.version };
+        }
+        if (r.data.state !== 'building') return r;
         let outcome: Awaited<ReturnType<typeof build>> | { diagnostic: string };
         let rethrow: unknown = null;
         const start = await deps.withTenantTransaction(ctx, (tx) => loadRequest(tx, r.data.exportRef));
@@ -502,7 +757,7 @@ export function createExportOperations(base: AutomationBase, ex: ExportDeps | un
           await recordSensitiveRead(tx, {
             operation: op,
             resourceType: 'exportRequest',
-            resourceRefs: [row.id],
+            resourceRefs: row.subject_id ? [row.id, row.subject_id] : [row.id],
             queryFields: [],
           });
           return row;
@@ -512,6 +767,7 @@ export function createExportOperations(base: AutomationBase, ex: ExportDeps | un
       });
     },
 
+    /** The caller's own export requests (human only); an export administrator sees every request. */
     listExports(ctx: ActorContext, query: unknown) {
       const op = 'exports.list';
       return base.guarded(ctx, op, async () => {
@@ -519,21 +775,31 @@ export function createExportOperations(base: AutomationBase, ex: ExportDeps | un
         validate<{ limit?: number; cursor?: string; state?: string }>(validateExportListQuery, query);
         const pg = base.page(ctx, query);
         const state = query.state ?? null;
+        const mine = (await isExportAdmin(ctx)) ? null : ctx.actorId;
         return deps.withTenantTransaction(ctx, async (tx) => {
+          await failStaleBuilds(tx, op);
           const at = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+          const where = '($1::text IS NULL OR state = $1) AND ($2::uuid IS NULL OR created_by = $2)';
           const total = Number(
             (
               await tx.query<{ n: string }>(
-                'SELECT count(*) AS n FROM cuspatlas.export_requests WHERE ($1::text IS NULL OR state = $1)',
-                [state],
+                `SELECT count(*) AS n FROM cuspatlas.export_requests WHERE ${where}`,
+                [state, mine],
               )
             ).rows[0]?.n ?? 0,
           );
           const { rows } = await tx.query<RequestRow>(
-            `SELECT * FROM cuspatlas.export_requests WHERE ($1::text IS NULL OR state = $1)
-             ORDER BY created_at DESC, id DESC LIMIT $2 OFFSET $3`,
-            [state, pg.limit, pg.offset],
+            `SELECT * FROM cuspatlas.export_requests WHERE ${where}
+             ORDER BY created_at DESC, id DESC LIMIT $3 OFFSET $4`,
+            [state, mine, pg.limit, pg.offset],
           );
+          if (mine === null && rows.some((r) => r.created_by !== ctx.actorId))
+            await recordSensitiveRead(tx, {
+              operation: op,
+              resourceType: 'exportAdminAccess',
+              resourceRefs: rows.filter((r) => r.created_by !== ctx.actorId).map((r) => r.id),
+              queryFields: state === null ? [] : ['state'],
+            });
           return {
             ...listEnvelope({
               asOf: at,
@@ -556,7 +822,9 @@ export function createExportOperations(base: AutomationBase, ex: ExportDeps | un
         await base.tenantWide(ctx, op, 'exports');
         validate<{ exportRef: string }>(validateExportQuery, query);
         return deps.withTenantTransaction(ctx, async (tx) => {
+          await failStaleBuilds(tx, op);
           const row = await loadRequest(tx, query.exportRef);
+          await assertRequesterOrAdmin(ctx, tx, row, op);
           let manifest = row.manifest;
           if (manifest === null && row.practice_export_id !== null) {
             const m = await tx.query<{ manifest: Record<string, unknown> }>(
@@ -570,7 +838,11 @@ export function createExportOperations(base: AutomationBase, ex: ExportDeps | un
       });
     },
 
-    /** Mints a delivery grant (at most 300 s) bound to the caller; each call mints a new one. */
+    /**
+     * Mints a delivery grant (at most 300 s) bound to the caller; each call mints a new one. Only the
+     * requester (or a recorded export administrator) may, and the module read authorization of the
+     * export's scope is re-run for the caller now.
+     */
     grantExport(ctx: ActorContext, envelope: CommandEnvelope<unknown>) {
       const op = 'exports.grant';
       return base.guarded(ctx, op, async () => {
@@ -579,6 +851,12 @@ export function createExportOperations(base: AutomationBase, ex: ExportDeps | un
         const p = envelope.payload;
         validate<{ exportRef: string }>(validateExportGrant, p);
         const { tokenSecret } = need();
+        const pre = await deps.withTenantTransaction(ctx, async (tx) => {
+          const row = await loadRequest(tx, p.exportRef);
+          await assertRequesterOrAdmin(ctx, tx, row, op);
+          return row;
+        });
+        await reauthorizeModules(ctx, pre);
         return deps.withTenantTransaction(ctx, async (tx) => {
           const row = await loadRequest(tx, p.exportRef);
           if (row.state !== 'ready') throw conflict('export_not_ready');
@@ -607,9 +885,50 @@ export function createExportOperations(base: AutomationBase, ex: ExportDeps | un
       });
     },
 
+    /** Revokes a delivery grant before it expires (its holder, or a recorded export administrator). */
+    revokeExportGrant(ctx: ActorContext, envelope: CommandEnvelope<unknown>) {
+      const op = 'exports.grants.revoke';
+      return base.guarded(ctx, op, async () => {
+        await base.tenantWide(ctx, op, 'exports');
+        checkEnvelope(envelope, op);
+        const p = envelope.payload;
+        validate<{ grantRef: string }>(validateExportGrantRevoke, p);
+        assertRef(p.grantRef);
+        const admin = await isExportAdmin(ctx);
+        return deps.withTenantTransaction(ctx, async (tx) => {
+          const { rows } = await tx.query<{ id: string; principal_id: string; revoked_at: Date | null }>(
+            'SELECT id, principal_id, revoked_at FROM cuspatlas.export_grants WHERE id = $1 FOR UPDATE',
+            [p.grantRef],
+          );
+          const g = rows[0];
+          if (!g || (g.principal_id !== ctx.actorId && !admin)) throw notFound();
+          let revokedAt = g.revoked_at;
+          if (revokedAt === null) {
+            revokedAt =
+              (
+                await tx.query<{ revoked_at: Date }>(
+                  `UPDATE cuspatlas.export_grants SET revoked_at = now(), revoked_by = cuspatlas.current_actor_id()
+                   WHERE id = $1 RETURNING revoked_at`,
+                  [g.id],
+                )
+              ).rows[0]?.revoked_at ?? new Date();
+            await recordCommand(
+              tx,
+              { operation: op, resourceType: 'exportGrant', resourceRef: g.id, resourceVersion: 2 },
+              { changedFields: ['revokedAt'] },
+            );
+          }
+          return { data: { grantRef: g.id, revokedAt: new Date(revokedAt).toISOString() } };
+        });
+      });
+    },
+
     /**
-     * The package to the holder of a live grant (sensitive read). A practice export is read through the
-     * M1 grant and download as the same caller, so M1 re-authorizes and re-verifies its bytes.
+     * The package to the holder of a live, unrevoked grant (sensitive read) who is still the requester
+     * (or a recorded export administrator) and still passes the module read authorization of the
+     * export's scope. A practice export is read through the M1 grant and download as the same caller,
+     * so M1 re-authorizes and re-verifies its bytes. Packages over the inline limit are refused with a
+     * typed reason, never truncated.
      */
     downloadExport(ctx: ActorContext, envelope: CommandEnvelope<unknown>) {
       const op = 'exports.download';
@@ -626,19 +945,26 @@ export function createExportOperations(base: AutomationBase, ex: ExportDeps | un
           p.token,
         );
         if (!parsed) throw notFound();
-        const row = await deps.withTenantTransaction(ctx, async (tx) => {
+        const pre = await deps.withTenantTransaction(ctx, async (tx) => {
           const live = await tx.query(
             `SELECT 1 FROM cuspatlas.export_grants WHERE id = $1 AND export_id = $2
-               AND principal_id = cuspatlas.current_actor_id() AND expires_at > now()`,
+               AND principal_id = cuspatlas.current_actor_id() AND expires_at > now() AND revoked_at IS NULL`,
             [parsed.grantRef, p.exportRef],
           );
           if (live.rows.length === 0) throw notFound();
+          return loadRequest(tx, p.exportRef);
+        });
+        await reauthorizeModules(ctx, pre);
+        const row = await deps.withTenantTransaction(ctx, async (tx) => {
           const r = await loadRequest(tx, p.exportRef);
+          await assertRequesterOrAdmin(ctx, tx, r, op);
           if (r.state !== 'ready') throw conflict('export_not_ready');
+          if (r.practice_export_id === null && Number(r.byte_length) > maxInlineBytes)
+            throw conflict('package_exceeds_inline_limit');
           await recordSensitiveRead(tx, {
             operation: op,
             resourceType: 'exportRequest',
-            resourceRefs: [r.id],
+            resourceRefs: r.subject_id ? [r.id, r.subject_id] : [r.id],
             queryFields: [],
           });
           return r;

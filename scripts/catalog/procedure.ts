@@ -3,6 +3,13 @@ import { resolve } from 'node:path';
 import type { CatalogOperation } from '../../packages/contracts/src/catalog/catalog';
 import { ROOT } from './build-catalog';
 
+/** Staff reads that need no scope beyond an active membership (no tenant data: session context, A20 vocabularies). */
+export const NULL_SCOPE_OPERATIONS: readonly string[] = [
+  'session.read',
+  'vocabularies.list',
+  'vocabularies.read',
+];
+
 /**
  * A3 new-operation procedure as a CI checklist (docs/api/new-operation.md). For each catalog
  * operation it returns the missing steps; a new operation that skipped one fails CI.
@@ -45,7 +52,11 @@ export function procedureGaps(op: CatalogOperation, inp: ProcedureInputs): strin
   if (inp.catalog.filter((o) => o.operation === op.operation).length !== 1) gaps.push('catalog');
   // Step 2: a registered scope (or an explicit non-staff authorization path).
   if (op.scope !== null && !inp.registered.has(op.scope)) gaps.push('scope');
-  if (op.scope === null && op.authorization === 'authorize' && op.operation !== 'session.read') {
+  if (
+    op.scope === null &&
+    op.authorization === 'authorize' &&
+    !NULL_SCOPE_OPERATIONS.includes(op.operation)
+  ) {
     gaps.push('scope');
   }
   // Step 3: the resource policy binding (an ACTION_POLICIES row for the policy path).

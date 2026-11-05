@@ -340,13 +340,72 @@ export type BillingClaimLine = {
   readonly "allowance": (null) | (BillingMoney);
 };
 
+export type BillingClaimMeasure = {
+  readonly "key": "open_insurer_receivable" | "claims_over_30_days" | "needs_action" | "open_appeals";
+  readonly "definitionVersion": string;
+  readonly "definition": string;
+  readonly "unit": "money" | "claims" | "appeals";
+  readonly "value": (number) | (BillingMoney);
+  readonly "filters": { readonly [k: string]: unknown };
+  readonly "asOf": BillingInstant;
+};
+
+export type BillingClaimMeasuresResult = {
+  readonly "data": {
+    readonly "asOf": BillingInstant;
+    readonly "measures": readonly (BillingClaimMeasure)[];
+  };
+};
+
 export type BillingClaimPrepare = {
   readonly "patientRef": BillingPatientRef;
   readonly "coverageRef": BillingUuid;
   readonly "procedureRefs": readonly (BillingUuid)[];
 };
 
+export type BillingClaimQueueItem = {
+  readonly "subject": "claim" | "charge";
+  readonly "claimRef": (BillingUuid) | (null);
+  readonly "chargeRef": (BillingUuid) | (null);
+  readonly "patientRef": BillingUuid;
+  readonly "payerRef": string | null;
+  readonly "state": string | null;
+  readonly "queues": readonly (BillingClaimQueueName)[];
+  readonly "filingDeadline": (BillingLocalDate) | (null);
+  readonly "daysToDeadline": number | null;
+  readonly "exceptionSeverity": number;
+  readonly "createdAt": BillingInstant;
+  readonly "ageDays": number;
+};
+
+export type BillingClaimQueueName = "to_create" | "ready_to_submit" | "attachments_needed" | "awaiting_payer" | "rejected_or_denied" | "appeals" | "filing_deadline_soon" | "returned" | "paid_closed" | "all";
+
+export type BillingClaimQueueResult = {
+  readonly "data": {
+    readonly "queue": BillingClaimQueueName;
+    readonly "filingDeadlineDays": number;
+    readonly "timelyFilingDays": number;
+    readonly "counts": {
+      readonly "to_create": number;
+      readonly "ready_to_submit": number;
+      readonly "attachments_needed": number;
+      readonly "awaiting_payer": number;
+      readonly "rejected_or_denied": number;
+      readonly "appeals": number;
+      readonly "filing_deadline_soon": number;
+      readonly "returned": number;
+      readonly "paid_closed": number;
+      readonly "all": number;
+    };
+    readonly "queueCount": number;
+    readonly "items": readonly (BillingClaimQueueItem)[];
+  };
+  readonly "envelope": BillingListEnvelope;
+  readonly "vocabularies": BillingVocabularyVersions;
+};
+
 export type BillingClaimReadResult = {
+  readonly "vocabularies": BillingVocabularyVersions;
   readonly "data": BillingClaimView;
 };
 
@@ -1395,6 +1454,8 @@ export type BillingVisitPreparation = {
 export type BillingVisitPreparationResult = {
   readonly "data": BillingVisitPreparation;
 };
+
+export type BillingVocabularyVersions = { readonly [k: string]: string };
 
 export type BillingWorkItem = {
   readonly "kind": BillingWorklistKind;
@@ -3392,6 +3453,7 @@ export type EngagementContactVerify = {
 };
 
 export type EngagementDeliveryRead = {
+  readonly "vocabularies": EngagementVocabularyVersions;
   readonly "data": EngagementDeliveryReadData;
 };
 
@@ -3447,6 +3509,7 @@ export type EngagementEngagementListRead = {
 };
 
 export type EngagementEngagementRead = {
+  readonly "vocabularies"?: EngagementVocabularyVersions;
   readonly "data": { readonly [k: string]: unknown } | readonly (unknown)[];
 };
 
@@ -3663,6 +3726,7 @@ export type EngagementThreadLegalHold = {
 };
 
 export type EngagementThreadList = {
+  readonly "vocabularies": EngagementVocabularyVersions;
   readonly "data": {
     readonly "asOf": string;
     readonly "appliedFilters": { readonly [k: string]: unknown };
@@ -3690,6 +3754,8 @@ export type EngagementThreadTopic = "appointment" | "billing" | "forms" | "gener
 export type EngagementTimeZoneName = string;
 
 export type EngagementVersion = number;
+
+export type EngagementVocabularyVersions = { readonly [k: string]: string };
 
 export type EngagementWeeklyWindow = {
   readonly "weekday": number;
@@ -5486,6 +5552,7 @@ export type SchedulingAppointmentPatientReassignResult = {
 };
 
 export type SchedulingAppointmentRead = {
+  readonly "vocabularies": SchedulingVocabularyVersions;
   readonly "data": SchedulingAppointment;
 };
 
@@ -5617,6 +5684,7 @@ export type SchedulingAttendanceCommandResult = {
 export type SchedulingAttendanceKind = "confirmed_manual" | "confirmed_automated" | "arrived" | "arrived_curbside" | "waiting" | "in_care" | "late" | "left_without_treatment" | "no_show" | "cancelled" | "rescheduled";
 
 export type SchedulingAttendanceList = {
+  readonly "vocabularies": SchedulingVocabularyVersions;
   readonly "envelope": SchedulingListEnvelope;
   readonly "data": readonly (SchedulingAttendanceTransition)[];
 };
@@ -5782,6 +5850,7 @@ export type SchedulingContactConsent = "unknown" | "granted" | "declined";
 export type SchedulingCursor = string;
 
 export type SchedulingDailyWorklist = {
+  readonly "vocabularies": SchedulingVocabularyVersions;
   readonly "envelope": SchedulingListEnvelope;
   readonly "data": {
     readonly "locationRef": SchedulingLocationRef;
@@ -6828,6 +6897,7 @@ export type SchedulingVisitLabRelink = {
 export type SchedulingVisitProducerOwner = "C8" | "C10" | "C11" | "C13" | "C16";
 
 export type SchedulingVisitStatus = {
+  readonly "vocabularies": SchedulingVocabularyVersions;
   readonly "data": {
     readonly "appointmentRef": SchedulingAppointmentRef;
     readonly "booking": {
@@ -6844,6 +6914,8 @@ export type SchedulingVisitStatus = {
     readonly "billing": SchedulingOwnedPlaceholder;
   };
 };
+
+export type SchedulingVocabularyVersions = { readonly [k: string]: string };
 
 export type SchedulingWaitlistAdd = {
   readonly "patientRef": SchedulingPatientRef;
@@ -6945,6 +7017,7 @@ export type SchedulingWorkItem = {
 };
 
 export type SchedulingWorkItemList = {
+  readonly "vocabularies": SchedulingVocabularyVersions;
   readonly "envelope": SchedulingListEnvelope;
   readonly "data": {
     readonly "asOf": SchedulingInstant;
@@ -7086,6 +7159,33 @@ export type SyntheticSyntheticTaskRelabel = {
 export type SyntheticTaskRef = string;
 
 export type SyntheticVersion = number;
+
+export type SyntheticVocabulary = {
+  readonly "name": SyntheticVocabularyName;
+  readonly "module": string;
+  readonly "owner": "F" | "S" | "C" | "B" | "E" | "I" | "M";
+  readonly "version": string;
+  readonly "entries": readonly (SyntheticVocabularyEntry)[];
+};
+
+export type SyntheticVocabularyEntry = {
+  readonly "code": string;
+  readonly "shortCode": string;
+  readonly "label": string;
+  readonly "category": "lifecycle" | "presence" | "exception" | "financial" | "clinical";
+  readonly "terminal": boolean;
+};
+
+export type SyntheticVocabularyList = {
+  readonly "data": readonly (SyntheticVocabulary)[];
+  readonly "envelope": SyntheticListEnvelope;
+};
+
+export type SyntheticVocabularyName = string;
+
+export type SyntheticVocabularyRead = {
+  readonly "data": SyntheticVocabulary;
+};
 
 /** Every REST operation of the catalog with its path parameters, body and success result types. */
 export interface Operations {
@@ -9639,6 +9739,16 @@ export interface Operations {
     successStatus: 201;
     idempotent: true;
   };
+  "rcm.claims.measures": {
+    method: "GET";
+    path: "/v1/rcm/claims/measures";
+    params: {  };
+    query: Record<string, never>;
+    body: undefined;
+    result: BillingClaimMeasuresResult;
+    successStatus: 200;
+    idempotent: false;
+  };
   "rcm.claims.packageAttachments": {
     method: "POST";
     path: "/v1/rcm/claims/{claimRef}/attachment-packages";
@@ -9678,6 +9788,16 @@ export interface Operations {
     result: BillingClaimCommandResult;
     successStatus: 201;
     idempotent: true;
+  };
+  "rcm.claims.queues": {
+    method: "GET";
+    path: "/v1/rcm/claims/queues";
+    params: {  };
+    query: { readonly queue?: string; readonly filingDeadlineDays?: string; readonly limit?: string; };
+    body: undefined;
+    result: BillingClaimQueueResult;
+    successStatus: 200;
+    idempotent: false;
   };
   "rcm.claims.read": {
     method: "GET";
@@ -10859,6 +10979,26 @@ export interface Operations {
     successStatus: 200;
     idempotent: false;
   };
+  "vocabularies.list": {
+    method: "GET";
+    path: "/v1/vocabularies";
+    params: {  };
+    query: Record<string, never>;
+    body: undefined;
+    result: SyntheticVocabularyList;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "vocabularies.read": {
+    method: "GET";
+    path: "/v1/vocabularies/{name}";
+    params: { readonly name: string; };
+    query: Record<string, never>;
+    body: undefined;
+    result: SyntheticVocabularyRead;
+    successStatus: 200;
+    idempotent: false;
+  };
 }
 
 export type OperationId = keyof Operations;
@@ -11129,10 +11269,12 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "rcm.appeals.draft": { method: "POST", path: "/v1/rcm/claims/{claimRef}/appeals", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "rcm.appeals.review": { method: "POST", path: "/v1/rcm/appeals/{appealRef}/review", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "rcm.claims.attach": { method: "POST", path: "/v1/rcm/claims/{claimRef}/attachments", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "rcm.claims.measures": { method: "GET", path: "/v1/rcm/claims/measures", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "rcm.claims.packageAttachments": { method: "POST", path: "/v1/rcm/claims/{claimRef}/attachment-packages", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "rcm.claims.poll": { method: "POST", path: "/v1/rcm/claims/{claimRef}/poll", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "rcm.claims.prepare": { method: "POST", path: "/v1/rcm/claims", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "rcm.claims.prepareSecondary": { method: "POST", path: "/v1/rcm/claims/{claimRef}/secondary", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "rcm.claims.queues": { method: "GET", path: "/v1/rcm/claims/queues", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "rcm.claims.read": { method: "GET", path: "/v1/rcm/claims/{claimRef}", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "rcm.claims.replace": { method: "POST", path: "/v1/rcm/claims/{claimRef}/replacement", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "rcm.claims.submit": { method: "POST", path: "/v1/rcm/claims/{claimRef}/submissions", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
@@ -11251,4 +11393,6 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "telephony.config.define": { method: "POST", path: "/v1/telephony/config", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "telephony.config.read": { method: "GET", path: "/v1/telephony/config", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "telephony.handling.resolve": { method: "GET", path: "/v1/telephony/handling", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "vocabularies.list": { method: "GET", path: "/v1/vocabularies", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "vocabularies.read": { method: "GET", path: "/v1/vocabularies/{name}", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
 };

@@ -10,7 +10,7 @@ import { LIST_OPERATIONS } from '../../packages/contracts/src/list-operations';
  * docs/execution/api-progress.md, "A20/B11"): an operation is a **list** when its catalog kind is
  * `query` and either
  *   (a) its REST success schema's `data` is a JSON array (`type: 'array'` exactly, not a union), or
- *   (b) the final segment of its operation id is `list*`, `search`, `worklist`, `find`, `enrollments`
+ *   (b) the final segment of its operation id is `list*`, `search`, `worklist`, `queues`, `find`, `enrollments`
  *       or `daily`, or ends in `List`.
  * Every list must be registered in LIST_OPERATIONS (ordering with tie-break, limit, scope rule, rows
  * path) and its success schema must carry the canonical ListEnvelope at the registered placement.
@@ -46,7 +46,7 @@ function schemaOf(
 const deref = (defs: Record<string, Schema>, s: Schema | undefined): Schema | undefined =>
   s?.$ref?.startsWith('#/$defs/') ? deref(defs, defs[s.$ref.slice(8)]) : s;
 
-const NAME_RULE = /^(list\w*|search|worklist|find|enrollments|daily|\w+List)$/;
+const NAME_RULE = /^(list\w*|search|worklist|queues|find|enrollments|daily|\w+List)$/;
 export function isListOperation(op: CatalogOp): boolean {
   if (op.kind !== 'query') return false;
   const last = op.operation.split('.').at(-1) ?? '';

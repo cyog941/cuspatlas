@@ -15004,6 +15004,30 @@
       ]
     },
     {
+      "operation": "rcm.claims.measures",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "receivables.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/rcm/claims/measures"
+      },
+      "mcpTool": "rcm_claims_measures",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "503"
+      ]
+    },
+    {
       "operation": "rcm.claims.packageAttachments",
       "transports": [
         "rest",
@@ -15214,6 +15238,30 @@
         "404",
         "409",
         "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "rcm.claims.queues",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "openClaims.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/rcm/claims/queues"
+      },
+      "mcpTool": "rcm_claims_queues",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
         "503"
       ]
     },
@@ -22151,6 +22199,53 @@
         "401",
         "403",
         "409",
+        "503"
+      ]
+    },
+    {
+      "operation": "vocabularies.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": null,
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/vocabularies"
+      },
+      "mcpTool": "vocabularies_list",
+      "idempotency": "none",
+      "refusals": [
+        "401",
+        "403",
+        "503"
+      ]
+    },
+    {
+      "operation": "vocabularies.read",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": null,
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/vocabularies/{name}"
+      },
+      "mcpTool": "vocabularies_get",
+      "idempotency": "none",
+      "refusals": [
+        "401",
+        "403",
+        "404",
         "503"
       ]
     }

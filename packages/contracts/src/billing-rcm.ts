@@ -335,3 +335,20 @@ export const validateAttachmentPackageCreate = billingDef('AttachmentPackageCrea
 export const validateClaimWorkflowStart = billingDef('ClaimWorkflowStart');
 export const validateClaimWorkflowClose = billingDef('ClaimWorkflowClose');
 export const validateVisitPreparationQuery = billingDef('VisitPreparationQuery');
+
+/** B11 / OR-07 claim work queues (predicates over the B6/B7/B8 lifecycle, never lifecycle states). */
+export const CLAIM_QUEUES = [
+  'to_create',
+  'ready_to_submit',
+  'attachments_needed',
+  'awaiting_payer',
+  'rejected_or_denied',
+  'appeals',
+  'filing_deadline_soon',
+  'returned',
+  'paid_closed',
+  'all',
+] as const;
+export type ClaimQueueName = (typeof CLAIM_QUEUES)[number];
+export const validateClaimQueueQuery = billingDef('ClaimQueueQuery');
+export const validateClaimMeasuresQuery = billingDef('ClaimMeasuresQuery');

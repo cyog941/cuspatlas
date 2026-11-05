@@ -16,6 +16,7 @@ import {
 import {
   type ActorContext,
   attachListEnvelope,
+  attachVocabularyVersions,
   DEPRECATIONS,
   type DeprecationEntry,
   type DomainRefusal,
@@ -98,6 +99,7 @@ import {
   type ToolDeps,
   violationsOf,
 } from './tools/synthetic-tasks';
+import { VOCABULARY_TOOLS } from './tools/vocabularies';
 
 export const MCP_PATH = '/mcp';
 export const METADATA_PATH = '/.well-known/oauth-protected-resource';
@@ -186,6 +188,7 @@ interface Registered {
 
 export const TOOLS: readonly ToolDefinition[] = [
   ...SYNTHETIC_TASK_TOOLS,
+  ...VOCABULARY_TOOLS,
   ...PROPOSAL_TOOLS,
   ...PATIENT_TOOLS,
   ...SCHEDULING_TOOLS,
@@ -524,9 +527,12 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
       const ran = await runInListScope(listScope, async () =>
         registered.tool.run(toolDeps, actor, args, valid, violations),
       );
-      const result = listSpec
-        ? attachListEnvelope(listSpec, ran, { asOf, filters: args, locationRefs: listScope.locationRefs })
-        : ran;
+      const result = attachVocabularyVersions(
+        registered.tool.operationId,
+        listSpec
+          ? attachListEnvelope(listSpec, ran, { asOf, filters: args, locationRefs: listScope.locationRefs })
+          : ran,
+      );
       if (!valid) {
         // Defense in depth: an input rejected by the tool schema can never succeed.
         // Invariant for `onInvalid: 'domain'` tools (propose, approve, commit): their handler has

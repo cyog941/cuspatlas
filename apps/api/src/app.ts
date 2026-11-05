@@ -37,6 +37,7 @@ import {
   createSchedulingResourceService,
   createSyntheticPaymentProvider,
   createSyntheticTaskService,
+  createVocabularyService,
   type ImageRefResolver,
   type ImagingLimits,
   type PaymentProviderPort,
@@ -81,6 +82,7 @@ import { registerSchedulingRoutes } from './routes/scheduling';
 import { registerSchedulingOpRoutes } from './routes/scheduling-ops-routes';
 import { registerSessionRoutes } from './routes/session';
 import { registerSyntheticTaskRoutes } from './routes/synthetic-tasks';
+import { registerVocabularyRoutes } from './routes/vocabularies';
 
 export const RUNTIME_ENVIRONMENTS = ['synthetic-test', 'development', 'production'] as const;
 export type RuntimeEnvironment = (typeof RUNTIME_ENVIRONMENTS)[number];
@@ -270,6 +272,10 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     const authenticator = createAuthenticator(deps.identity, deps.membership, recording);
     const authorize = createAuthorize(deps.membership);
     registerSessionRoutes(app, { authenticator, authorize, recording });
+    registerVocabularyRoutes(app, {
+      authenticator,
+      vocabularies: createVocabularyService({ authorize, recording }),
+    });
     if (deps.tenantTransactions) {
       // Durable idempotency with the keyed payload digest of this environment (the key is required
       // outside synthetic-test even when a test injects its own executor).

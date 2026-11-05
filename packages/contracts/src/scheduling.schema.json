@@ -1813,8 +1813,9 @@
     "AppointmentRead": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data"],
+      "required": ["data", "vocabularies"],
       "properties": {
+        "vocabularies": { "$ref": "#/$defs/VocabularyVersions" },
         "data": {
           "$ref": "#/$defs/Appointment"
         }
@@ -1980,8 +1981,9 @@
     "AttendanceList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data", "envelope"],
+      "required": ["data", "envelope", "vocabularies"],
       "properties": {
+        "vocabularies": { "$ref": "#/$defs/VocabularyVersions" },
         "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": {
           "type": "array",
@@ -2055,8 +2057,9 @@
     "VisitStatus": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data"],
+      "required": ["data", "vocabularies"],
       "properties": {
+        "vocabularies": { "$ref": "#/$defs/VocabularyVersions" },
         "data": {
           "type": "object",
           "additionalProperties": false,
@@ -2138,8 +2141,9 @@
     "DailyWorklist": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data", "envelope"],
+      "required": ["data", "envelope", "vocabularies"],
       "properties": {
+        "vocabularies": { "$ref": "#/$defs/VocabularyVersions" },
         "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": {
           "type": "object",
@@ -3414,8 +3418,9 @@
     "WorkItemList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data", "envelope"],
+      "required": ["data", "envelope", "vocabularies"],
       "properties": {
+        "vocabularies": { "$ref": "#/$defs/VocabularyVersions" },
         "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": {
           "type": "object",
@@ -4962,6 +4967,15 @@
           "$ref": "#/$defs/LocalTime"
         }
       }
+    },
+    "VocabularyVersions": {
+      "type": "object",
+      "description": "OR-02: the version of each state vocabulary whose codes this response carries (GET /v1/vocabularies/{name}).",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[a-z]{1,32}-state-labels\\.[0-9]+$"
+      },
+      "maxProperties": 8
     },
     "ListScope": {
       "type": "object",

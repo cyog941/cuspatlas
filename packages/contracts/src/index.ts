@@ -20,3 +20,4 @@ export * from './ports';
 export * from './scheduling';
 export * from './synthetic-task';
 export * from './validation';
+export * from './vocabularies';

@@ -9,14 +9,14 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-385 operations.
+389 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
-| F | 12 | 10 | 8 | 0 | 0 | 1 |
+| F | 14 | 12 | 10 | 0 | 0 | 1 |
 | S | 92 | 90 | 90 | 0 | 0 | 0 |
 | C | 88 | 87 | 87 | 0 | 0 | 0 |
-| B | 64 | 64 | 64 | 0 | 0 | 0 |
+| B | 66 | 66 | 66 | 0 | 0 | 0 |
 | E | 60 | 48 | 48 | 11 | 0 | 1 |
 | I | 55 | 47 | 44 | 0 | 6 | 1 |
 | M | 14 | 14 | 14 | 0 | 0 | 0 |
@@ -284,10 +284,12 @@ transport tables and are declarations, not independent proof.
 | `rcm.appeals.draft` | B | command | authorize | `billing.write` | human | rest, mcp | POST `/v1/rcm/claims/{claimRef}/appeals` | `rcm_appeals_draft` | required | phi | active |
 | `rcm.appeals.review` | B | command | authorize | `billing.correct` | human | rest, mcp | POST `/v1/rcm/appeals/{appealRef}/review` | `rcm_appeals_review` | required | phi | active |
 | `rcm.claims.attach` | B | command | authorize | `billing.write` | human, service | rest, mcp | POST `/v1/rcm/claims/{claimRef}/attachments` | `rcm_claims_attach` | required | phi | active |
+| `rcm.claims.measures` | B | query | authorize | `receivables.read` | human, service | rest, mcp | GET `/v1/rcm/claims/measures` | `rcm_claims_measures` | none | phi | active |
 | `rcm.claims.packageAttachments` | B | command | authorize | `billing.write` | human, service | rest, mcp | POST `/v1/rcm/claims/{claimRef}/attachment-packages` | `rcm_claims_package_attachments` | required | phi | active |
 | `rcm.claims.poll` | B | command | authorize | `billing.write` | human, service | rest, mcp | POST `/v1/rcm/claims/{claimRef}/poll` | `rcm_claims_poll` | required | phi | active |
 | `rcm.claims.prepare` | B | command | authorize | `billing.write` | human, service | rest, mcp | POST `/v1/rcm/claims` | `rcm_claims_prepare` | required | phi | active |
 | `rcm.claims.prepareSecondary` | B | command | authorize | `billing.write` | human, service | rest, mcp | POST `/v1/rcm/claims/{claimRef}/secondary` | `rcm_claims_prepare_secondary` | required | phi | active |
+| `rcm.claims.queues` | B | query | authorize | `openClaims.read` | human, service | rest, mcp | GET `/v1/rcm/claims/queues` | `rcm_claims_queues` | none | phi | active |
 | `rcm.claims.read` | B | query | authorize | `openClaims.read` | human, service | rest, mcp | GET `/v1/rcm/claims/{claimRef}` | `rcm_claims_get` | none | phi | active |
 | `rcm.claims.replace` | B | command | authorize | `billing.write` | human | rest, mcp | POST `/v1/rcm/claims/{claimRef}/replacement` | `rcm_claims_replace` | required | phi | active |
 | `rcm.claims.submit` | B | command | authorize | `billing.write` | human, service | rest, mcp | POST `/v1/rcm/claims/{claimRef}/submissions` | `rcm_claims_submit` | required | phi | active |
@@ -408,3 +410,5 @@ transport tables and are declarations, not independent proof.
 | `telephony.config.define` | E | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/telephony/config` | `telephony_config_define` | required | operational | active |
 | `telephony.config.read` | E | query | authorize | `communications.read` | human, service | rest, mcp | GET `/v1/telephony/config` | `telephony_config_get` | none | phi | active |
 | `telephony.handling.resolve` | E | query | authorize | `communications.read` | human, service | rest, mcp | GET `/v1/telephony/handling` | `telephony_handling_resolve` | none | phi | active |
+| `vocabularies.list` | F | query | authorize | - | human, service | rest, mcp | GET `/v1/vocabularies` | `vocabularies_list` | none | phi | active |
+| `vocabularies.read` | F | query | authorize | - | human, service | rest, mcp | GET `/v1/vocabularies/{name}` | `vocabularies_get` | none | phi | active |

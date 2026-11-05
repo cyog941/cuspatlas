@@ -142,6 +142,32 @@ export const BILLING_OPS: BillingOp[] = [
   },
   {
     method: 'get',
+    path: '/v1/rcm/claims/queues',
+    operationId: 'rcm.claims.queues',
+    protected: true,
+    query: 'ClaimQueueQuery',
+    success: { status: '200', schema: B('ClaimQueueResult') },
+    refusals: LIST,
+    tool: 'rcm_claims_queues',
+    description:
+      'B11 (OR-07): one claims work queue (to_create, ready_to_submit, attachments_needed, awaiting_payer, rejected_or_denied, appeals, filing_deadline_soon, returned, paid_closed or all; default all) with the count of every queue in the same call. Queues are predicates over the claim lifecycle, not states. Work-priority order: filing deadline proximity, then exception severity, then age, tie-break claimRef. filingDeadlineDays defaults to 30.',
+    invoke: (svc, actor, i) => svc.claimQueues(actor, i.body),
+  },
+  {
+    method: 'get',
+    path: '/v1/rcm/claims/measures',
+    operationId: 'rcm.claims.measures',
+    protected: true,
+    query: 'ClaimMeasuresQuery',
+    success: { status: '200', schema: B('ClaimMeasuresResult') },
+    refusals: LIST,
+    tool: 'rcm_claims_measures',
+    description:
+      'B11 (OR-07): headline claim measures (open insurer receivable, claims over 30 days, needs action, open appeals), each with its declared definition text and version, unit, filters and as-of instant. Requires receivables.read and openClaims.read.',
+    invoke: (svc, actor, i) => svc.claimMeasures(actor, i.body),
+  },
+  {
+    method: 'get',
     path: '/v1/rcm/claims/{claimRef}',
     operationId: 'rcm.claims.read',
     protected: true,

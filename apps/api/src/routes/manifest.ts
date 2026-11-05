@@ -65,6 +65,23 @@ export const ROUTES: readonly RouteContract[] = [
     success: { status: '200', schema: '#/components/schemas/Session' },
     refusals: ['401', '403', '503'],
   },
+  // A20 / OR-02 state vocabularies (labels only; no tenant data).
+  {
+    method: 'get',
+    path: '/v1/vocabularies',
+    operationId: 'vocabularies.list',
+    protected: true,
+    success: { status: '200', schema: 'VocabularyList' },
+    refusals: ['401', '403', '503'],
+  },
+  {
+    method: 'get',
+    path: '/v1/vocabularies/{name}',
+    operationId: 'vocabularies.read',
+    protected: true,
+    success: { status: '200', schema: 'VocabularyRead' },
+    refusals: ['401', '403', '404', '503'],
+  },
   {
     method: 'post',
     path: '/v1/synthetic-tasks',

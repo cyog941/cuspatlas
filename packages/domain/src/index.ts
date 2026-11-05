@@ -21,4 +21,5 @@ export * from './policy/list-scope';
 export * from './policy/patient-access';
 export * from './scheduling';
 export * from './synthetic-tasks';
+export * from './vocabularies';
 export * from './work-items';

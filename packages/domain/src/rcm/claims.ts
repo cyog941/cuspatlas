@@ -4,10 +4,12 @@ import {
   type AppealDraft,
   type AppealReview,
   type AttachmentPackageCreate,
+  CLAIM_QUEUES,
   type ClaimAttach,
   type ClaimCommandData,
   type ClaimIssue,
   type ClaimPrepare,
+  type ClaimQueueName,
   type ClaimReplace,
   type ClaimSubmit,
   type ClaimVersioned,
@@ -24,7 +26,9 @@ import {
   validateAppealReview,
   validateAttachmentPackageCreate,
   validateClaimAttach,
+  validateClaimMeasuresQuery,
   validateClaimPrepare,
+  validateClaimQueueQuery,
   validateClaimReplace,
   validateClaimSubmit,
   validateClaimVersioned,
@@ -57,6 +61,19 @@ import { canonicalJson, sha256Hex } from '../commands/digest';
 import { recordCommand } from '../events/record-command';
 import { recordSensitiveRead } from '../events/record-sensitive-read';
 import type { AttachmentSourcePort } from './attachments';
+import {
+  CLAIM_MEASURE_AGE_DAYS,
+  CLAIM_QUEUE_SCAN,
+  type ClaimFacts,
+  chargesToCreate,
+  compareWorkPriority,
+  DEFAULT_FILING_DEADLINE_DAYS,
+  escalationLevels,
+  insurerReceivable,
+  MEASURE_DEFINITIONS,
+  queueItemOf,
+  TIMELY_FILING_DAYS,
+} from './claim-queues';
 import { type ClaimsPartnerPort, createFakeClearinghouse, type TransportAnswer } from './clearinghouse';
 
 export const CLAIM_RESOURCE = 'rcmClaim';
@@ -1176,6 +1193,102 @@ export function createClaimOperations(
       });
     },
 
+    /** B11 / OR-07: one queue with the per-queue counts in one call, in OR-D3 work-priority order. */
+    claimQueues(ctx: ActorContext, query: unknown) {
+      const op = 'rcm.claims.queues';
+      return base.guarded(ctx, op, async () => {
+        await base.authorize(ctx, op);
+        validate<{ queue?: ClaimQueueName; filingDeadlineDays?: string; limit?: string }>(
+          validateClaimQueueQuery,
+          query,
+        );
+        const queue = query.queue ?? 'all';
+        const windowDays =
+          query.filingDeadlineDays === undefined
+            ? DEFAULT_FILING_DEADLINE_DAYS
+            : Number.parseInt(query.filingDeadlineDays, 10);
+        const limit = Number.parseInt(query.limit ?? '50', 10);
+        return deps.withTenantTransaction(ctx, async (tx) => {
+          const { items } = await queueFacts(tx, windowDays);
+          const counts = Object.fromEntries(
+            CLAIM_QUEUES.map((q) => [q, items.filter((i) => i.queues.includes(q)).length]),
+          ) as Record<ClaimQueueName, number>;
+          const selected = items.filter((i) => i.queues.includes(queue)).sort(compareWorkPriority);
+          return {
+            data: {
+              queue,
+              filingDeadlineDays: windowDays,
+              timelyFilingDays: TIMELY_FILING_DAYS,
+              counts,
+              queueCount: selected.length,
+              items: selected.slice(0, limit),
+            },
+          };
+        });
+      });
+    },
+
+    /** B11 / OR-07 headline measures with declared definitions (A16 pattern), reconciling to the journal. */
+    claimMeasures(ctx: ActorContext, query: unknown) {
+      const op = 'rcm.claims.measures';
+      return base.guarded(ctx, op, async () => {
+        await base.authorize(ctx, op);
+        await base.authorize(ctx, 'rcm.claims.queues');
+        validate<Record<string, never>>(validateClaimMeasuresQuery, query);
+        return deps.withTenantTransaction(ctx, async (tx) => {
+          const settings = await loadSettings(tx);
+          const { rows: clock } = await tx.query<{ now: Date }>('SELECT now() AS now');
+          const now = (clock[0] as { now: Date }).now;
+          const { rows: claims } = await tx.query<ClaimRow & { created_at: Date }>(
+            'SELECT id, patient_id, coverage_id, payer_ref, version, created_at FROM cuspatlas.rcm_claims ORDER BY created_at, id',
+          );
+          let over = 0;
+          let action = 0;
+          let appeals = 0;
+          for (const c of claims) {
+            const v = await claimView(tx, c);
+            if (
+              v.state !== 'paid' &&
+              v.state !== 'replaced' &&
+              now.getTime() - c.created_at.getTime() > CLAIM_MEASURE_AGE_DAYS * 86_400_000
+            )
+              over++;
+            if ((await claimWorkItems(tx, c, now)).length > 0) action++;
+            appeals += v.appeals.filter((a) => a.state !== 'rejected').length;
+          }
+          const asOf = now.toISOString();
+          const m = (
+            key: keyof typeof MEASURE_DEFINITIONS,
+            value: unknown,
+            filters: Record<string, unknown>,
+          ) => ({
+            key,
+            ...MEASURE_DEFINITIONS[key],
+            value,
+            filters,
+            asOf,
+          });
+          return {
+            data: {
+              asOf,
+              measures: [
+                m('open_insurer_receivable', await insurerReceivable(tx, settings.currency), {
+                  account: 'insurer_receivable',
+                  currency: settings.currency,
+                }),
+                m('claims_over_30_days', over, {
+                  olderThanDays: CLAIM_MEASURE_AGE_DAYS,
+                  excludeStates: ['paid', 'replaced'],
+                }),
+                m('needs_action', action, {}),
+                m('open_appeals', appeals, { states: ['draft', 'sent', 'send_unknown'] }),
+              ],
+            },
+          };
+        });
+      });
+    },
+
     draftAppeal(
       ctx: ActorContext,
       claimRef: string,
@@ -1735,4 +1848,38 @@ export async function loadClaimRow(tx: TenantTransaction, claimRef: string): Pro
   const claim = await loadClaim(tx, claimRef);
   const v = await claimView(tx, claim);
   return { ...claim, rank: v.rank, state: v.state };
+}
+
+/** B11: the facts of every claim and to_create charge (bounded scan), each with its queues. */
+async function queueFacts(tx: TenantTransaction, windowDays: number) {
+  const { rows: clock } = await tx.query<{ now: Date }>('SELECT now() AS now');
+  const now = (clock[0] as { now: Date }).now;
+  const today = now.toISOString().slice(0, 10);
+  const { rows: claims } = await tx.query<ClaimRow & { created_at: Date }>(
+    `SELECT id, patient_id, coverage_id, payer_ref, version, created_at FROM cuspatlas.rcm_claims
+     ORDER BY created_at, id LIMIT ${CLAIM_QUEUE_SCAN + 1}`,
+  );
+  const levels = await escalationLevels(tx);
+  const facts: ClaimFacts[] = [];
+  for (const c of claims.slice(0, CLAIM_QUEUE_SCAN)) {
+    const v = await claimView(tx, c);
+    const head = v.versions[v.versions.length - 1];
+    const dates = (head?.lines ?? []).map((l) => String(l.dateOfService)).sort();
+    facts.push({
+      subject: 'claim',
+      claimRef: c.id,
+      chargeRef: null,
+      patientRef: c.patient_id,
+      payerRef: c.payer_ref,
+      state: v.state,
+      createdAt: c.created_at,
+      earliestServiceDate: dates[0] ?? null,
+      headIssueCodes:
+        head?.validation && !head.validation.valid ? head.validation.issues.map((i) => i.code) : [],
+      appealStates: v.appeals.map((a) => a.state),
+      escalationLevel: levels.get(c.id) ?? 0,
+    });
+  }
+  facts.push(...(await chargesToCreate(tx)).slice(0, CLAIM_QUEUE_SCAN));
+  return { now, items: facts.map((f) => queueItemOf(f, now, today, windowDays)) };
 }

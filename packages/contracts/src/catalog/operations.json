@@ -8705,6 +8705,38 @@
     "status": "active"
   },
   {
+    "operation": "rcm.claims.measures",
+    "owner": "B",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "rcm.claims.measures",
+    "scope": "receivables.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/rcm/claims/measures",
+      "successStatus": "200",
+      "successSchema": "billing:ClaimMeasuresResult"
+    },
+    "mcpTool": "rcm_claims_measures",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
     "operation": "rcm.claims.packageAttachments",
     "owner": "B",
     "kind": "command",
@@ -8844,6 +8876,38 @@
       "503"
     ],
     "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "rcm.claims.queues",
+    "owner": "B",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "rcm.claims.queues",
+    "scope": "openClaims.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/rcm/claims/queues",
+      "successStatus": "200",
+      "successSchema": "billing:ClaimQueueResult"
+    },
+    "mcpTool": "rcm_claims_queues",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "503"
+    ],
+    "idempotency": "none",
     "sensitivity": "phi",
     "status": "active"
   },
@@ -12900,6 +12964,69 @@
       "401",
       "403",
       "409",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "vocabularies.list",
+    "owner": "F",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "vocabularies.list",
+    "scope": null,
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/vocabularies",
+      "successStatus": "200",
+      "successSchema": "VocabularyList"
+    },
+    "mcpTool": "vocabularies_list",
+    "refusals": [
+      "401",
+      "403",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "vocabularies.read",
+    "owner": "F",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "vocabularies.read",
+    "scope": null,
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/vocabularies/{name}",
+      "successStatus": "200",
+      "successSchema": "VocabularyRead"
+    },
+    "mcpTool": "vocabularies_get",
+    "refusals": [
+      "401",
+      "403",
+      "404",
       "503"
     ],
     "idempotency": "none",

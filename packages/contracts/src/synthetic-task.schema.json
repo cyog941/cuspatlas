@@ -250,6 +250,104 @@
         }
       }
     },
+    "VocabularyName": {
+      "type": "string",
+      "pattern": "^[a-z][a-z_]{1,63}$",
+      "description": "OR-02 vocabulary name (one per registered state set)."
+    },
+    "VocabularyEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "shortCode", "label", "category", "terminal"],
+      "description": "One state code with its operator-facing plain label. Category is semantic only (no colour or layout).",
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^[A-Za-z_]{1,64}$"
+        },
+        "shortCode": {
+          "type": "string",
+          "pattern": "^[A-Z0-9]{1,6}$"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "category": {
+          "enum": ["lifecycle", "presence", "exception", "financial", "clinical"]
+        },
+        "terminal": {
+          "type": "boolean"
+        }
+      }
+    },
+    "Vocabulary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "module", "owner", "version", "entries"],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/VocabularyName"
+        },
+        "module": {
+          "type": "string",
+          "pattern": "^[a-z]{1,32}$"
+        },
+        "owner": {
+          "enum": ["F", "S", "C", "B", "E", "I", "M"]
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[a-z]{1,32}-state-labels\\.[0-9]+$",
+          "description": "The owning module registry version; responses carrying a code state it."
+        },
+        "entries": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/VocabularyEntry"
+          }
+        }
+      }
+    },
+    "VocabularyList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "envelope"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "#/$defs/Vocabulary"
+          }
+        },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
+        }
+      }
+    },
+    "VocabularyRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/Vocabulary"
+        }
+      }
+    },
+    "VocabularyPath": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/VocabularyName"
+        }
+      }
+    },
     "ListScope": {
       "type": "object",
       "additionalProperties": false,

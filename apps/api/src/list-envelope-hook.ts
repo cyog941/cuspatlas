@@ -1,41 +1,45 @@
 import {
   attachListEnvelope,
+  attachVocabularyVersions,
   type CatalogOperation,
   LIST_OPERATIONS,
   type ListOperationSpec,
+  VOCABULARY_BEARING,
 } from '@cuspatlas/contracts';
 import operations from '@cuspatlas/contracts/catalog/operations.json' with { type: 'json' };
 import { type ListScopeRecord, newListScope, runInListScope } from '@cuspatlas/domain';
 import type { FastifyInstance, FastifyReply, FastifyRequest, RouteOptions } from 'fastify';
 
 /**
- * A20 / OR-01 on REST: every catalog list route answers the shared envelope. The route's handler runs
- * inside a list scope (so `authorize` records the location restriction it applied) and the envelope is
- * attached when the 2xx body is serialized. MCP does the same in `callTool` from the same table.
+ * A20 on REST. OR-01: every catalog list route answers the shared envelope; the handler runs inside a
+ * list scope (so `authorize` records the location restriction it applied) and the envelope is attached
+ * when the 2xx body is serialized. OR-02: a response carrying a state code also carries its vocabulary
+ * version. MCP does the same in `callTool` from the same tables.
  */
-interface ListCall {
-  readonly spec: ListOperationSpec;
+interface ReadCall {
+  readonly operation: string;
+  readonly spec: ListOperationSpec | undefined;
   readonly asOf: Date;
   readonly scope: ListScopeRecord;
 }
-const CALLS = new WeakMap<FastifyRequest, ListCall>();
+const CALLS = new WeakMap<FastifyRequest, ReadCall>();
 
-const LIST_ROUTES = new Map<string, ListOperationSpec>();
+const ROUTES = new Map<string, string>();
 for (const o of operations as readonly CatalogOperation[]) {
-  const spec = LIST_OPERATIONS[o.operation];
-  if (spec && o.rest)
-    LIST_ROUTES.set(`${o.rest.method.toUpperCase()} ${o.rest.path.replace(/\{(\w+)\}/g, ':$1')}`, spec);
+  if (o.rest && (LIST_OPERATIONS[o.operation] || VOCABULARY_BEARING[o.operation]))
+    ROUTES.set(`${o.rest.method.toUpperCase()} ${o.rest.path.replace(/\{(\w+)\}/g, ':$1')}`, o.operation);
 }
 
 export function registerListEnvelope(app: FastifyInstance): void {
   app.addHook('onRoute', (r: RouteOptions) => {
     const method = [r.method].flat()[0];
-    const spec = LIST_ROUTES.get(`${String(method).toUpperCase()} ${r.url}`);
-    if (!spec) return;
+    const operation = ROUTES.get(`${String(method).toUpperCase()} ${r.url}`);
+    if (!operation) return;
+    const spec = LIST_OPERATIONS[operation];
     const handler = r.handler;
-    r.handler = function listHandler(this: FastifyInstance, request: FastifyRequest, reply: FastifyReply) {
+    r.handler = function readHandler(this: FastifyInstance, request: FastifyRequest, reply: FastifyReply) {
       const scope = newListScope();
-      CALLS.set(request, { spec, asOf: new Date(), scope });
+      CALLS.set(request, { operation, spec, asOf: new Date(), scope });
       return runInListScope(scope, () => handler.call(this, request, reply));
     };
   });
@@ -53,10 +57,13 @@ export function registerListEnvelope(app: FastifyInstance): void {
         ? (request.body as Record<string, unknown>)
         : {}),
     };
-    return attachListEnvelope(call.spec, payload, {
-      asOf: call.asOf,
-      filters,
-      locationRefs: call.scope.locationRefs,
-    });
+    const listed = call.spec
+      ? attachListEnvelope(call.spec, payload, {
+          asOf: call.asOf,
+          filters,
+          locationRefs: call.scope.locationRefs,
+        })
+      : payload;
+    return attachVocabularyVersions(call.operation, listed);
   });
 }

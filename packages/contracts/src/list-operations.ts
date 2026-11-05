@@ -327,6 +327,15 @@ export const LIST_OPERATIONS: Readonly<Record<string, ListOperationSpec>> = {
     cursor: false,
     scope: 'tenant',
   },
+  // B11 / OR-07: OR-D3 work priority (deadline proximity, exception severity, age), tie-break claimRef.
+  'rcm.claims.queues': {
+    rows: 'data.items',
+    ordering: { key: 'workPriority', direction: 'asc', tieBreak: 'claimRef' },
+    limit: { default: 50, max: 100 },
+    cursor: false,
+    scope: 'tenant',
+    total: 'data.queueCount',
+  },
   'scheduling.attendance.list': {
     rows: 'data',
     ordering: { key: 'sequence', direction: 'asc', tieBreak: 'attendanceRef' },
@@ -449,6 +458,14 @@ export const LIST_OPERATIONS: Readonly<Record<string, ListOperationSpec>> = {
     rows: 'data',
     ordering: { key: 'occurredAt', direction: 'desc', tieBreak: 'callRef' },
     limit: { default: 100, max: 100 },
+    cursor: false,
+    scope: 'tenant',
+  },
+  // The whole registry (bounded by the contracts, never truncated).
+  'vocabularies.list': {
+    rows: 'data',
+    ordering: { key: 'name', direction: 'asc', tieBreak: 'name' },
+    limit: 'parent',
     cursor: false,
     scope: 'tenant',
   },

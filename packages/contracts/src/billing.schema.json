@@ -4187,8 +4187,9 @@
     "ClaimReadResult": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data"],
+      "required": ["data", "vocabularies"],
       "properties": {
+        "vocabularies": { "$ref": "#/$defs/VocabularyVersions" },
         "data": {
           "$ref": "#/$defs/ClaimView"
         }
@@ -5284,6 +5285,305 @@
       "properties": {
         "data": {
           "$ref": "#/$defs/BillingExport"
+        }
+      }
+    },
+    "VocabularyVersions": {
+      "type": "object",
+      "description": "OR-02: the version of each state vocabulary whose codes this response carries (GET /v1/vocabularies/{name}).",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[a-z]{1,32}-state-labels\\.[0-9]+$"
+      },
+      "maxProperties": 8
+    },
+    "ClaimQueueName": {
+      "enum": [
+        "to_create",
+        "ready_to_submit",
+        "attachments_needed",
+        "awaiting_payer",
+        "rejected_or_denied",
+        "appeals",
+        "filing_deadline_soon",
+        "returned",
+        "paid_closed",
+        "all"
+      ],
+      "description": "B11 / OR-07 claim work queues: predicates over the B6/B7/B8 lifecycle, never lifecycle states. Definitions in docs/api/claims-queues.md."
+    },
+    "ClaimQueueQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "queue": {
+          "$ref": "#/$defs/ClaimQueueName"
+        },
+        "filingDeadlineDays": {
+          "type": "string",
+          "pattern": "^([1-9]|[1-9][0-9]|[1-6][0-9][0-9]|7[0-2][0-9]|730)$",
+          "description": "filing_deadline_soon window in days (default 30)."
+        },
+        "limit": {
+          "type": "string",
+          "pattern": "^([1-9]|[1-9][0-9]|100)$"
+        }
+      }
+    },
+    "ClaimQueueItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "subject",
+        "claimRef",
+        "chargeRef",
+        "patientRef",
+        "payerRef",
+        "state",
+        "queues",
+        "filingDeadline",
+        "daysToDeadline",
+        "exceptionSeverity",
+        "createdAt",
+        "ageDays"
+      ],
+      "properties": {
+        "subject": {
+          "enum": ["claim", "charge"],
+          "description": "A to_create item is a posted charge with coverage and no claim; every other item is a claim."
+        },
+        "claimRef": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "chargeRef": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "patientRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "payerRef": {
+          "type": ["string", "null"]
+        },
+        "state": {
+          "type": ["string", "null"],
+          "description": "Claim state code (vocabulary claim); null for a to_create charge."
+        },
+        "queues": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "$ref": "#/$defs/ClaimQueueName"
+          }
+        },
+        "filingDeadline": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/LocalDate"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Earliest date of service plus the timely filing limit, while the claim is not yet with the payer; null otherwise."
+        },
+        "daysToDeadline": {
+          "type": ["integer", "null"]
+        },
+        "exceptionSeverity": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 20
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "ageDays": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "ClaimQueueResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "envelope", "vocabularies"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["queue", "filingDeadlineDays", "timelyFilingDays", "counts", "queueCount", "items"],
+          "properties": {
+            "queue": {
+              "$ref": "#/$defs/ClaimQueueName"
+            },
+            "filingDeadlineDays": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "timelyFilingDays": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "counts": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "to_create",
+                "ready_to_submit",
+                "attachments_needed",
+                "awaiting_payer",
+                "rejected_or_denied",
+                "appeals",
+                "filing_deadline_soon",
+                "returned",
+                "paid_closed",
+                "all"
+              ],
+              "properties": {
+                "to_create": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "ready_to_submit": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "attachments_needed": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "awaiting_payer": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "rejected_or_denied": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "appeals": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "filing_deadline_soon": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "returned": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "paid_closed": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "all": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            },
+            "queueCount": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "items": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "$ref": "#/$defs/ClaimQueueItem"
+              }
+            }
+          }
+        },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
+        },
+        "vocabularies": {
+          "$ref": "#/$defs/VocabularyVersions"
+        }
+      }
+    },
+    "ClaimMeasuresQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {}
+    },
+    "ClaimMeasure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "definitionVersion", "definition", "unit", "value", "filters", "asOf"],
+      "properties": {
+        "key": {
+          "enum": ["open_insurer_receivable", "claims_over_30_days", "needs_action", "open_appeals"]
+        },
+        "definitionVersion": {
+          "type": "string",
+          "pattern": "^[a-z_]+\\.[0-9]+$"
+        },
+        "definition": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 600
+        },
+        "unit": {
+          "enum": ["money", "claims", "appeals"]
+        },
+        "value": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "$ref": "#/$defs/Money"
+            }
+          ]
+        },
+        "filters": {
+          "type": "object"
+        },
+        "asOf": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "ClaimMeasuresResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["asOf", "measures"],
+          "properties": {
+            "asOf": {
+              "$ref": "#/$defs/Instant"
+            },
+            "measures": {
+              "type": "array",
+              "maxItems": 10,
+              "items": {
+                "$ref": "#/$defs/ClaimMeasure"
+              }
+            }
+          }
         }
       }
     },

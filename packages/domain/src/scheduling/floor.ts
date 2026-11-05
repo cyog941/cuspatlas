@@ -23,6 +23,7 @@ import {
   validateProviderRequestCreate,
   validateProviderRequestListQuery,
   validateSchedulingEntityRef,
+  vocabularyLabel,
 } from '@cuspatlas/contracts';
 import { recordCommand } from '../events/record-command';
 import { type AuthorizationDecision, assertLocation } from '../policy/authorize';
@@ -36,19 +37,6 @@ export const PRESENCE_RESOURCE = 'schedulingStaffPresence';
 const PRESENCE_DEFAULT_MINUTES = 240;
 /** Attendance states in which a visit is on the floor (begun and not ended). */
 const ON_FLOOR = new Set(['arrived', 'waiting', 'in_care']);
-/** Operator-facing plain labels (OR-02 seam; A20 serves the versioned vocabulary). */
-const LABELS: Readonly<Record<string, string>> = {
-  scheduled: 'Scheduled',
-  confirmed: 'Confirmed',
-  late: 'Running late',
-  arrived: 'Arrived',
-  waiting: 'Waiting',
-  in_care: 'In care',
-  left_without_treatment: 'Left without treatment',
-  no_show: 'No show',
-  cancelled: 'Cancelled',
-  rescheduled: 'Rescheduled',
-};
 const BOOKING_OWNED = new Set(['cancelled', 'rescheduled']);
 
 const conflict = (reason: string) =>
@@ -253,7 +241,7 @@ export function createFloorOperations(
             const currentVisit: FloorVisit = {
               ...(projection === 'standard' ? { appointmentRef: visit.id } : {}),
               attendanceState: snap.state,
-              label: LABELS[snap.state] ?? snap.state,
+              label: vocabularyLabel('attendance', snap.state),
               since: snap.since?.toISOString() ?? null,
               elapsedMinutes: snap.since
                 ? Math.max(0, Math.floor((now - snap.since.getTime()) / 60_000))

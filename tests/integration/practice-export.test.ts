@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { seedBillingScopes } from './support/billing-fixtures';
 import { seedClinicalScopes } from './support/clinical-fixtures';
 import { seedEngagementScopes } from './support/engagement-fixtures';
+import { createPracticeAndBuild } from './support/export-jobs';
 import { T_ALPHA } from './support/fixtures';
 import { type ImagingStack, ingestVia, pngBytes, startImagingStack } from './support/imaging-fixtures';
 import {
@@ -111,7 +112,7 @@ afterAll(async () => {
 });
 
 async function createExport(s: ImagingStack) {
-  const r = await s.command('owner', '/v1/practice/exports', { purpose: 'practiceExit' });
+  const r = await createPracticeAndBuild(s, 'owner', { purpose: 'practiceExit' });
   expect([r.status, r.body.slice(0, 300)]).toStrictEqual([201, r.body.slice(0, 300)]);
   return data<{ exportRef: string; manifestDigest: string; format: string; documentCount: number }>(r);
 }

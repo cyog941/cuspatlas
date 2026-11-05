@@ -57,7 +57,8 @@ export type ExportDomain = (typeof EXPORT_DOMAINS)[number];
 const M1_PURPOSES = new Set(['practiceExit', 'verification', 'archiveCopy']);
 
 export interface ExportPracticePort {
-  create(
+  /** Closeout D2: the M1 build (migration buildPracticeExport), run only by the export build job. */
+  build(
     ctx: ActorContext,
     e: CommandEnvelope<unknown>,
   ): Promise<
@@ -470,6 +471,8 @@ export function validateScopedExport(
 interface RequestRow extends Record<string, unknown> {
   id: string;
   scope: 'practice' | 'patient' | 'domain';
+  /** Closeout D2: the operation that recorded the request (the build re-checks the requester for it). */
+  origin: 'exports.create' | 'practice.export.create';
   subject_id: string | null;
   domain: string | null;
   format_version: string;
@@ -634,9 +637,9 @@ export function createExportOperations(base: AutomationBase, ex: ExportDeps | un
     const { exporters, objectStore } = need();
     if (row.scope === 'practice') {
       if (!ex?.practice) throw unavailable();
-      const r = await ex.practice.create(
+      const r = await ex.practice.build(
         ctx,
-        envOf('practice.export.create', { purpose: row.purpose }, `exports-${row.id}`),
+        envOf('practice.export.build', { purpose: row.purpose }, `exports-${row.id}`),
       );
       return {
         artifactFormat: r.data.format,
@@ -856,8 +859,9 @@ export function createExportOperations(base: AutomationBase, ex: ExportDeps | un
       if (!requester) outcome = { diagnostic: 'requester_inactive' };
       else {
         try {
-          // Fresh policy: the requester must still hold exports.create (and each module export).
-          await base.tenantWide(requester, 'exports.create', 'exports');
+          // Fresh policy: the requester must still hold the operation that recorded the request
+          // (exports.create, or practice.export.create for a direct M1 request) and each module export.
+          await base.tenantWide(requester, claimed.origin, 'exports');
           outcome = await build(requester, claimed);
         } catch (err) {
           if (claimed.scope === 'practice' && inFlightConflict(err)) outcome = 'deferred';

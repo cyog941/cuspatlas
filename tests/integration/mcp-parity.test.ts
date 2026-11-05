@@ -425,6 +425,7 @@ const TOOL_NAMES = [
   'operations_downtime_windows_list',
   'migration_export',
   'practice_export_create',
+  'practice_export_read',
   'practice_export_grant',
   'practice_export_download',
   'practice_export_verify',

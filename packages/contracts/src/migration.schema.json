@@ -1051,49 +1051,132 @@
         }
       }
     },
-    "PracticeExportResult": {
+    "PracticeExportRequest": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data", "version", "correlationId", "replayed"],
+      "description": "Closeout D2: one M1 practice export request. `building` until the worker job builds it as the requester; `ready` names the M1 practice export (exportRef) to grant and download; `failed` carries a fixed diagnostic.",
+      "required": [
+        "requestRef",
+        "state",
+        "purpose",
+        "exportRef",
+        "format",
+        "manifestDigest",
+        "packageDigest",
+        "byteLength",
+        "documentCount",
+        "diagnostic",
+        "requestedAt",
+        "completedAt"
+      ],
       "properties": {
-        "data": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "exportRef",
-            "format",
-            "manifestDigest",
-            "packageDigest",
-            "byteLength",
-            "documentCount",
-            "exportedAt"
-          ],
-          "properties": {
-            "exportRef": {
+        "requestRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "state": {
+          "enum": ["building", "ready", "failed"]
+        },
+        "purpose": {
+          "enum": ["practiceExit", "verification", "archiveCopy"]
+        },
+        "exportRef": {
+          "oneOf": [
+            {
               "$ref": "#/$defs/ExportRef"
             },
-            "format": {
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "format": {
+          "oneOf": [
+            {
               "enum": ["cuspatlas-practice-export/1"]
             },
-            "manifestDigest": {
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "manifestDigest": {
+          "oneOf": [
+            {
               "$ref": "#/$defs/Digest"
             },
-            "packageDigest": {
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "packageDigest": {
+          "oneOf": [
+            {
               "$ref": "#/$defs/Digest"
             },
-            "byteLength": {
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "byteLength": {
+          "oneOf": [
+            {
               "type": "integer",
               "minimum": 1,
               "maximum": 9007199254740991
             },
-            "documentCount": {
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "documentCount": {
+          "oneOf": [
+            {
               "$ref": "#/$defs/Count"
             },
-            "exportedAt": {
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "diagnostic": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z_]{1,64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "requestedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "completedAt": {
+          "oneOf": [
+            {
               "type": "string",
               "format": "date-time"
+            },
+            {
+              "type": "null"
             }
-          }
+          ]
+        }
+      }
+    },
+    "PracticeExportResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Closeout D2: the recorded request (building); a same-key retry answers its current state.",
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/PracticeExportRequest"
         },
         "version": {
           "$ref": "#/$defs/Version"
@@ -1104,6 +1187,26 @@
         },
         "replayed": {
           "type": "boolean"
+        }
+      }
+    },
+    "PracticeExportRequestQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requestRef"],
+      "properties": {
+        "requestRef": {
+          "$ref": "#/$defs/Uuid"
+        }
+      }
+    },
+    "PracticeExportRequestRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/PracticeExportRequest"
         }
       }
     },

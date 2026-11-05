@@ -124,6 +124,7 @@
         "practice.export.create",
         "practice.export.download",
         "practice.export.grant",
+        "practice.export.read",
         "practice.export.verify",
         "scheduling.export",
         "scheduling.locations.changeTimeZone",

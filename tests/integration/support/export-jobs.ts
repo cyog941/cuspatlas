@@ -69,3 +69,23 @@ export async function createAndBuild(
   const { manifest: _m, ...view } = read.json.data as Record<string, unknown>;
   return { ...created, json: { ...created.json, data: view, version: view.version } };
 }
+
+/**
+ * Closeout D2: `POST /v1/practice/exports` as `who`, then (when the request was recorded) the build job
+ * and the `practice.export.read` poll the caller makes. The returned response carries the create status
+ * with the polled request view, whose `exportRef` is the M1 package to grant and download once ready.
+ */
+export async function createPracticeAndBuild(
+  s: ImagingStack,
+  who: Parameters<ImagingStack['command']>[0],
+  body: Record<string, unknown>,
+  key?: string,
+): Promise<Response> {
+  const created = await s.command(who, '/v1/practice/exports', body, key);
+  if (created.status !== 201) return created;
+  const ref = (created.json.data as { requestRef: string }).requestRef;
+  await runExportBuilds(s);
+  const read = await s.inject(who, 'GET', `/v1/practice/exports/state?requestRef=${ref}`);
+  const view = read.json.data as Record<string, unknown>;
+  return { ...created, json: { ...created.json, data: view } };
+}

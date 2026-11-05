@@ -12963,10 +12963,13 @@ paths:
     post:
       operationId: practice.export.create
       description: >-
-        M1: compose the S, I, C, E and B exports of the caller tenant into one versioned package
-        (cuspatlas-practice-export/1): a manifest with per-document digests, per-table counts, blob digests
-        and terminology refs, no tenant identifier. Refused (409 export_incomplete) when any count differs
-        from the live tenant; stored privately. Tenant-wide human administrators only.
+        M1: request one versioned package of the caller tenant (cuspatlas-practice-export/1) composing the
+        S, I, C, E and B exports: a manifest with per-document digests, per-table counts, blob digests and
+        terminology refs, no tenant identifier. Closeout D2: answers the recorded request as building; the
+        worker export build job builds it as the requester (failed with a diagnostic such as
+        export_incomplete when any count differs from the live tenant, forbidden or requester_inactive when
+        the requester lost access) and the caller polls practice.export.read for the exportRef to grant and
+        download. A same-key retry answers the current state. Tenant-wide human administrators only.
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -12993,6 +12996,37 @@ paths:
         '409':
           $ref: '#/components/responses/Refusal'
         '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/practice/exports/state:
+    get:
+      operationId: practice.export.read
+      description: >-
+        M1 (Closeout D2): the state of one practice export request recorded by practice.export.create:
+        building, ready with the exportRef of the M1 package (then practice.export.grant and
+        practice.export.download), or failed with a fixed diagnostic. Tenant-wide human administrators only;
+        an A15 exports.create request is not readable here.
+      parameters:
+        - name: requestRef
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/migration.schema.json#/$defs/Uuid'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/PracticeExportRequestRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'

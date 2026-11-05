@@ -6408,16 +6408,27 @@ export type MigrationPracticeExportPackage = {
   };
 };
 
+export type MigrationPracticeExportRequest = {
+  readonly "requestRef": MigrationUuid;
+  readonly "state": "building" | "ready" | "failed";
+  readonly "purpose": "practiceExit" | "verification" | "archiveCopy";
+  readonly "exportRef": (MigrationExportRef) | (null);
+  readonly "format": ("cuspatlas-practice-export/1") | (null);
+  readonly "manifestDigest": (MigrationDigest) | (null);
+  readonly "packageDigest": (MigrationDigest) | (null);
+  readonly "byteLength": (number) | (null);
+  readonly "documentCount": (MigrationCount) | (null);
+  readonly "diagnostic": (string) | (null);
+  readonly "requestedAt": string;
+  readonly "completedAt": (string) | (null);
+};
+
+export type MigrationPracticeExportRequestRead = {
+  readonly "data": MigrationPracticeExportRequest;
+};
+
 export type MigrationPracticeExportResult = {
-  readonly "data": {
-    readonly "exportRef": MigrationExportRef;
-    readonly "format": "cuspatlas-practice-export/1";
-    readonly "manifestDigest": MigrationDigest;
-    readonly "packageDigest": MigrationDigest;
-    readonly "byteLength": number;
-    readonly "documentCount": MigrationCount;
-    readonly "exportedAt": string;
-  };
+  readonly "data": MigrationPracticeExportRequest;
   readonly "version": MigrationVersion;
   readonly "correlationId": string;
   readonly "replayed": boolean;
@@ -12387,6 +12398,16 @@ export interface Operations {
     successStatus: 201;
     idempotent: true;
   };
+  "practice.export.read": {
+    method: "GET";
+    path: "/v1/practice/exports/state";
+    params: {  };
+    query: { readonly requestRef: string; };
+    body: undefined;
+    result: MigrationPracticeExportRequestRead;
+    successStatus: 200;
+    idempotent: false;
+  };
   "practice.export.verify": {
     method: "GET";
     path: "/v1/practice/exports/verification";
@@ -14255,6 +14276,7 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "practice.export.create": { method: "POST", path: "/v1/practice/exports", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "practice.export.download": { method: "POST", path: "/v1/practice/exports/package", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "practice.export.grant": { method: "POST", path: "/v1/practice/exports/grants", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "practice.export.read": { method: "GET", path: "/v1/practice/exports/state", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "practice.export.verify": { method: "GET", path: "/v1/practice/exports/verification", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "preferences.favourites.add": { method: "POST", path: "/v1/me/favourite-reports", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "preferences.favourites.list": { method: "GET", path: "/v1/me/favourite-reports", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },

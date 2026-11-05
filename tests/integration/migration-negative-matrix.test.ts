@@ -6,6 +6,7 @@ import { MIGRATION_EXPORT_FORMAT } from '@cuspatlas/contracts';
 import { importExports } from '@cuspatlas/db';
 import { verifyImportedNoteDigests } from '@cuspatlas/domain';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createPracticeAndBuild } from './support/export-jobs';
 import { T_ALPHA, USER_A1, USER_A4 } from './support/fixtures';
 import { type ImagingStack, startImagingStack } from './support/imaging-fixtures';
 import { MIGRATION_HARNESS_ROWS } from './support/migration-harness';
@@ -78,6 +79,11 @@ export const BATCH2_ROWS: Row[] = [
     crossTenant: 'not_found',
     call: (x) =>
       post('/v1/practice/exports/package', { exportRef: x.exportRef as string, token: x.token as string }),
+  },
+  {
+    operation: 'practice.export.read',
+    crossTenant: 'not_found',
+    call: (x) => get(`/v1/practice/exports/state?requestRef=${x.practiceRequestRef}`),
   },
   {
     operation: 'practice.export.verify',
@@ -283,9 +289,11 @@ beforeAll(async () => {
   s = await startImagingStack('migration_matrix');
   const seeded = await seedSyntheticPractice(s, 'Matrix');
   f.packageRef = seeded.packageRef;
-  f.exportRef = data<{ exportRef: string }>(
-    await s.command('owner', '/v1/practice/exports', { purpose: 'verification' }),
-  ).exportRef;
+  const practice = data<{ exportRef: string; requestRef: string }>(
+    await createPracticeAndBuild(s, 'owner', { purpose: 'verification' }),
+  );
+  f.exportRef = practice.exportRef;
+  f.practiceRequestRef = practice.requestRef;
   f.token = data<{ token: string }>(
     await s.command('owner', '/v1/practice/exports/grants', { exportRef: f.exportRef }),
   ).token;

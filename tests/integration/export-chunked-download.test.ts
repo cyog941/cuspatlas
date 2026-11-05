@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { seedBillingScopes } from './support/billing-fixtures';
 import { seedClinicalScopes } from './support/clinical-fixtures';
 import { seedEngagementScopes } from './support/engagement-fixtures';
-import { createAndBuild } from './support/export-jobs';
+import { createAndBuild, createPracticeAndBuild } from './support/export-jobs';
 import { T_ALPHA, USER_A1, USER_B1 } from './support/fixtures';
 import {
   type ImagingStack,
@@ -55,7 +55,7 @@ const practice: Target = {
   name: 'practice.export.download',
   url: '/v1/practice/exports/package',
   async build() {
-    const r = await s.command('owner', '/v1/practice/exports', { purpose: 'practiceExit' });
+    const r = await createPracticeAndBuild(s, 'owner', { purpose: 'practiceExit' });
     expect([r.status, r.body.slice(0, 300)]).toStrictEqual([201, r.body.slice(0, 300)]);
     const d = data<{ exportRef: string; packageDigest: string }>(r);
     return { exportRef: d.exportRef, digest: d.packageDigest };

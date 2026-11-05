@@ -20,7 +20,7 @@ import { seedBillingScopes } from './support/billing-fixtures';
 import { seedClinicalScopes } from './support/clinical-fixtures';
 import { actorFor } from './support/domain-harness';
 import { seedEngagementScopes } from './support/engagement-fixtures';
-import { EXPORT_WORKER, exportWorker, runExportBuilds } from './support/export-jobs';
+import { createPracticeAndBuild, EXPORT_WORKER, exportWorker, runExportBuilds } from './support/export-jobs';
 import { T_ALPHA, USER_A1, USER_A4 } from './support/fixtures';
 import { type ImagingStack, startImagingStack } from './support/imaging-fixtures';
 import { seedMigrationScopes } from './support/migration-fixtures';
@@ -319,7 +319,7 @@ describe('Closeout C: export build as a worker job', () => {
   });
 
   it('practice scope: a second attempt racing an in-flight first attempt is deferred, never failed', async () => {
-    const real = await s.command('owner', '/v1/practice/exports', { purpose: 'practiceExit' });
+    const real = await createPracticeAndBuild(s, 'owner', { purpose: 'practiceExit' });
     expect(real.status).toBe(201);
     const result = real.json.data as {
       exportRef: string;
@@ -335,7 +335,7 @@ describe('Closeout C: export build as a worker job', () => {
       release = r;
     });
     const practice: ExportPracticePort = {
-      async create() {
+      async build() {
         calls += 1;
         if (calls === 1) {
           await gate;

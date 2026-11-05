@@ -11766,6 +11766,38 @@
     "status": "active"
   },
   {
+    "operation": "practice.export.read",
+    "owner": "M",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "practice.export.read",
+    "scope": "admin.configure",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/practice/exports/state",
+      "successStatus": "200",
+      "successSchema": "migration:PracticeExportRequestRead"
+    },
+    "mcpTool": "practice_export_read",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phiBulk",
+    "status": "active"
+  },
+  {
     "operation": "practice.export.verify",
     "owner": "M",
     "kind": "query",

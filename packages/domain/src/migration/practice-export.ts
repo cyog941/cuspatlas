@@ -25,6 +25,7 @@ import {
   validatePracticeExportDownload,
   validatePracticeExportGrant,
   validatePracticeExportQuery,
+  validatePracticeExportRequestQuery,
 } from '@cuspatlas/contracts';
 import { canonicalJson } from '../commands/digest';
 import { recordCommand } from '../events/record-command';
@@ -256,6 +257,48 @@ interface ExportRow extends Record<string, unknown> {
   storage_key: string;
 }
 
+/** Closeout D2: the module exports an M1 build composes, checked at request time. */
+const MODULE_EXPORT_ACTIONS = [
+  'scheduling.export',
+  'imaging.export',
+  'clinical.export',
+  'communications.export',
+  'billing.export',
+] as const;
+const REQUEST_COLUMNS = `id, state, purpose, practice_export_id, artifact_format, manifest_digest, package_digest,
+  byte_length, document_count, diagnostic, version, created_at, completed_at`;
+interface PracticeRequestRow extends Record<string, unknown> {
+  id: string;
+  state: 'building' | 'ready' | 'failed';
+  purpose: string;
+  practice_export_id: string | null;
+  artifact_format: string | null;
+  manifest_digest: string | null;
+  package_digest: string | null;
+  byte_length: string | number | null;
+  document_count: number | null;
+  diagnostic: string | null;
+  version: number;
+  created_at: Date;
+  completed_at: Date | null;
+}
+const presentRequest = (r: PracticeRequestRow) => ({
+  requestRef: r.id,
+  state: r.state,
+  purpose: r.purpose,
+  exportRef: r.practice_export_id,
+  format: r.artifact_format,
+  manifestDigest: r.manifest_digest,
+  packageDigest: r.package_digest,
+  byteLength: r.byte_length === null ? null : Number(r.byte_length),
+  documentCount: r.document_count,
+  diagnostic: r.diagnostic,
+  requestedAt: new Date(r.created_at).toISOString(),
+  completedAt: r.completed_at === null ? null : new Date(r.completed_at).toISOString(),
+});
+/** Closeout D2: one M1 practice export request as `practice.export.create` and `.read` answer it. */
+export type PracticeExportRequestView = ReturnType<typeof presentRequest>;
+
 export function createPracticeExportOperations(base: MigrationBase) {
   const { deps, execute } = base;
   const pe = (): { exporters: PracticeExporters; objectStore: ObjectStorePort; tokenSecret: Uint8Array } => {
@@ -356,14 +399,83 @@ export function createPracticeExportOperations(base: MigrationBase) {
     });
   };
 
+  const loadRequest = async (tx: TenantTransaction, ref: string): Promise<PracticeRequestRow> => {
+    assertRef(ref);
+    const { rows } = await tx.query<PracticeRequestRow>(
+      `SELECT ${REQUEST_COLUMNS} FROM cuspatlas.export_requests WHERE id = $1 AND origin = 'practice.export.create'`,
+      [ref],
+    );
+    if (!rows[0]) throw notFound();
+    return rows[0];
+  };
+
   return {
     /**
-     * M1: composes the S, I, C, E and B exports of the caller's tenant into one versioned package,
-     * refuses it when any table's count differs from the live tenant (a partial export is never
-     * stored), stores the bytes privately (content-addressed) and records the manifest. Delivery is
-     * a separate short-lived grant. A tenant-wide human administrator only.
+     * M1 (Closeout D2): records a practice export request (`building`, origin `practice.export.create`)
+     * and returns at once; the leased worker job (`exports.build`) builds it as the requester and the
+     * caller polls `practice.export.read`. A tenant-wide human administrator only. The module exports the
+     * build composes are checked now as well, so a caller one of them refuses is refused here (nothing
+     * recorded); the build re-checks everything when it runs. A same-key retry answers the request's
+     * current state, never the stored building view.
      */
     createPracticeExport(
+      ctx: ActorContext,
+      envelope: CommandEnvelope<unknown>,
+    ): Promise<CommandResult<PracticeExportRequestView>> {
+      const op = 'practice.export.create';
+      return base.guarded(ctx, op, async () => {
+        await tenantWide(ctx, op);
+        checkEnvelope(envelope, op);
+        const payload = envelope.payload;
+        validate<{ purpose: string }>(validatePracticeExportCreate, payload);
+        pe();
+        for (const action of MODULE_EXPORT_ACTIONS)
+          await deps.authorize(ctx, action, { tenantId: ctx.tenantId, id: 'practiceExport' });
+        const r = await deps.withTenantTransaction(ctx, (tx) =>
+          execute(ctx, envelope, tx, async () => {
+            const { rows } = await tx.query<PracticeRequestRow>(
+              `INSERT INTO cuspatlas.export_requests (id, tenant_id, scope, format_version, purpose, origin, created_by)
+               VALUES ($1, cuspatlas.current_tenant_id(), 'practice', 'cuspatlas-export/1', $2, 'practice.export.create',
+                 cuspatlas.current_actor_id())
+               RETURNING ${REQUEST_COLUMNS}`,
+              [randomUUID(), payload.purpose],
+            );
+            const row = rows[0] as PracticeRequestRow;
+            await recordCommand(
+              tx,
+              { operation: op, resourceType: 'exportRequest', resourceRef: row.id, resourceVersion: 1 },
+              { changedFields: ['scope', 'state'] },
+            );
+            return { data: presentRequest(row), version: 1 };
+          }),
+        );
+        if (!r.replayed) return r;
+        const now = await deps.withTenantTransaction(ctx, (tx) => loadRequest(tx, r.data.requestRef));
+        return { ...r, data: presentRequest(now), version: now.version };
+      });
+    },
+
+    /** Closeout D2: the state of one M1 practice export request (the poll after create). */
+    readPracticeExport(ctx: ActorContext, query: unknown): Promise<{ data: PracticeExportRequestView }> {
+      const op = 'practice.export.read';
+      return base.guarded(ctx, op, async () => {
+        await tenantWide(ctx, op);
+        validate<{ requestRef: string }>(validatePracticeExportRequestQuery, query);
+        return deps.withTenantTransaction(ctx, async (tx) => ({
+          data: presentRequest(await loadRequest(tx, query.requestRef)),
+        }));
+      });
+    },
+
+    /**
+     * M1 build (not a catalog operation; Closeout D2): run only by the worker's export build job, as the
+     * requester. Composes the S, I, C, E and B exports of the caller's tenant into one versioned package,
+     * refuses it when any table's count differs from the live tenant (a partial export is never
+     * stored), stores the bytes privately (content-addressed) and records the manifest under
+     * `practice.export.create`. Keyed (`practice.export.build`), so a taken-over lease replays the
+     * committed build instead of building twice. Delivery is a separate short-lived grant.
+     */
+    buildPracticeExport(
       ctx: ActorContext,
       envelope: CommandEnvelope<unknown>,
     ): Promise<
@@ -380,7 +492,7 @@ export function createPracticeExportOperations(base: MigrationBase) {
       const op = 'practice.export.create';
       return base.guarded(ctx, op, async () => {
         await tenantWide(ctx, op);
-        checkEnvelope(envelope, op);
+        checkEnvelope(envelope, 'practice.export.build');
         const payload = envelope.payload;
         validate<{ purpose: string }>(validatePracticeExportCreate, payload);
         const purpose = payload.purpose;

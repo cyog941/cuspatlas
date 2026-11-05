@@ -48,7 +48,22 @@ export const MIGRATION_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<any>>>
   'operations.downtime.end': flat(['windowRef', 'state', 'startedAt', 'endedAt']),
   'operations.downtime.log': flat(['entryRef', 'windowRef', 'reviewState']),
   'operations.downtime.entries.resolve': flat(['entryRef', 'windowRef', 'reviewState']),
+  // Closeout D2: the M1 request (a retry re-reads its current state), and the worker's keyed M1 build.
   'practice.export.create': flat([
+    'requestRef',
+    'state',
+    'purpose',
+    'exportRef',
+    'format',
+    'manifestDigest',
+    'packageDigest',
+    'byteLength',
+    'documentCount',
+    'diagnostic',
+    'requestedAt',
+    'completedAt',
+  ]),
+  'practice.export.build': flat([
     'exportRef',
     'format',
     'manifestDigest',

@@ -9,7 +9,7 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-507 operations.
+508 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
@@ -20,7 +20,7 @@ transport tables and are declarations, not independent proof.
 | B | 68 | 68 | 68 | 0 | 0 | 0 |
 | E | 64 | 48 | 48 | 14 | 0 | 2 |
 | I | 58 | 50 | 47 | 0 | 6 | 1 |
-| M | 38 | 38 | 38 | 0 | 0 | 0 |
+| M | 39 | 39 | 39 | 0 | 0 | 0 |
 
 | Operation | Owner | Kind | Authorization | Scope | Principals | Transports | REST | MCP tool | Idempotency | Sensitivity | Status |
 |---|---|---|---|---|---|---|---|---|---|---|---|
@@ -377,6 +377,7 @@ transport tables and are declarations, not independent proof.
 | `practice.export.create` | M | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/practice/exports` | `practice_export_create` | required | phiBulk | active |
 | `practice.export.download` | M | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/practice/exports/package` | `practice_export_download` | required | phiBulk | active |
 | `practice.export.grant` | M | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/practice/exports/grants` | `practice_export_grant` | required | phiBulk | active |
+| `practice.export.read` | M | query | authorize | `admin.configure` | human | rest, mcp | GET `/v1/practice/exports/state` | `practice_export_read` | none | phiBulk | active |
 | `practice.export.verify` | M | query | authorize | `admin.configure` | human | rest, mcp | GET `/v1/practice/exports/verification` | `practice_export_verify` | none | phiBulk | active |
 | `preferences.favourites.add` | A | command | authorize | - | human | rest, mcp | POST `/v1/me/favourite-reports` | `preferences_favourites_add` | required | phi | active |
 | `preferences.favourites.list` | A | query | authorize | - | human | rest, mcp | GET `/v1/me/favourite-reports` | `preferences_favourites_list` | none | phi | active |

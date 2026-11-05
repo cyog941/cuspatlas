@@ -6,7 +6,7 @@ Evidence category: **tested on synthetic data**. Coverage means a row resolves t
 
 Rows: 27 (matrix rows plus plan-defined A rows). Covered: 25. Gaps: 2. Unknown: 0. Unmapped matrix rows: 0. Scope defects: 0.
 
-MCP surface: 469 operations have an MCP tool; 38 do not.
+MCP surface: 470 operations have an MCP tool; 38 do not.
 
 | Capability row | Owners | Release | Status | Operations | Negative cases | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -31,7 +31,7 @@ MCP surface: 469 operations have an MCP tool; 38 do not.
 | Recall and follow-up | S, E | P1 | covered | 11: `communications.recall.enroll`, `communications.recall.enrollments`, `scheduling.followUp.worklist`, `scheduling.recall.createTask` and 7 more | `cancellation-recovery.test.ts`, `engagement-negative-harness.test.ts`, `mcp-parity.test.ts` and 2 more |  |
 | Lab/referrals | C | P1 basic; advanced P2 | covered | 21: `clinical.labCases.attach`, `clinical.labCases.create`, `clinical.labCases.export`, `clinical.labCases.list` and 17 more | `clinical-lab-cases.test.ts`, `clinical-referrals.test.ts`, `mcp-parity.test.ts` and 1 more |  |
 | Analytics | A, B | P1 | covered | 3: `analytics.measures.list`, `analytics.measures.read`, `billing.reports.receivables` | `analytics.test.ts`, `billing-negative-matrix.test.ts`, `mcp-parity.test.ts` |  |
-| Administration | A | P1 | covered | 15: `admin.access.review`, `admin.access.revoke`, `admin.audit.search`, `exports.administer` and 11 more | `administration.test.ts`, `agents-negative-harness.test.ts`, `api-agent-identity.test.ts` and 10 more |  |
+| Administration | A | P1 | covered | 15: `admin.access.review`, `admin.access.revoke`, `admin.audit.search`, `exports.administer` and 11 more | `administration.test.ts`, `agents-negative-harness.test.ts`, `api-agent-identity.test.ts` and 11 more |  |
 | Integrations | A, F | P1 | covered | 45: `agents.audit.list`, `agents.budgets.read`, `agents.consents.list`, `agents.consents.record` and 41 more | `administration.test.ts`, `agent-sponsor-acceptance.test.ts`, `agent-workspace-hardening.test.ts` and 13 more | Remote MCP transport is not claimed until A-S1 closes; vendor adapters are blocked on discovery. |
 | Specialty breadth | C | P2 | gap (since 2026-11-05) | 0:  |  | P2: no specialty operations are built; separate clinical and workflow validation per specialty. |
 | International | F | P2 | gap (since 2026-11-05) | 0:  |  | P2: no country packs are built; extensibility requirements only (IANA time zones, explicit currency, numbering conversion). |

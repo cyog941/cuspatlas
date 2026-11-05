@@ -617,6 +617,7 @@ export const ACTION_POLICIES = {
   'practice.export.grant': { scope: 'admin.configure', principals: ['human'] },
   'practice.export.download': { scope: 'admin.configure', principals: ['human'] },
   'practice.export.verify': { scope: 'admin.configure', principals: ['human'] },
+  'practice.export.read': { scope: 'admin.configure', principals: ['human'] },
   // Workstream A batch 2, A8 agent principals (synthetic; A-D9 open): the lifecycle is a human
   // administrator's act under the non-delegable agents.manage scope, so no agent can create, sponsor,
   // suspend or revoke an agent. One agent record is readable by an agent (its own grants, A23 seam);

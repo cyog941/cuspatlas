@@ -499,8 +499,21 @@ export const MIGRATION_OPS: MigrationOp[] = [
     refusals: COMMAND,
     tool: 'practice_export_create',
     description:
-      'M1: compose the S, I, C, E and B exports of the caller tenant into one versioned package (cuspatlas-practice-export/1): a manifest with per-document digests, per-table counts, blob digests and terminology refs, no tenant identifier. Refused (409 export_incomplete) when any count differs from the live tenant; stored privately. Tenant-wide human administrators only.',
+      'M1: request one versioned package of the caller tenant (cuspatlas-practice-export/1) composing the S, I, C, E and B exports: a manifest with per-document digests, per-table counts, blob digests and terminology refs, no tenant identifier. Closeout D2: answers the recorded request as building; the worker export build job builds it as the requester (failed with a diagnostic such as export_incomplete when any count differs from the live tenant, forbidden or requester_inactive when the requester lost access) and the caller polls practice.export.read for the exportRef to grant and download. A same-key retry answers the current state. Tenant-wide human administrators only.',
     invoke: (svc, actor, i) => svc.createPracticeExport(actor, env('practice.export.create', i)),
+  },
+  {
+    method: 'get',
+    path: '/v1/practice/exports/state',
+    operationId: 'practice.export.read',
+    protected: true,
+    query: 'PracticeExportRequestQuery',
+    success: { status: '200', schema: M('PracticeExportRequestRead') },
+    refusals: READ,
+    tool: 'practice_export_read',
+    description:
+      'M1 (Closeout D2): the state of one practice export request recorded by practice.export.create: building, ready with the exportRef of the M1 package (then practice.export.grant and practice.export.download), or failed with a fixed diagnostic. Tenant-wide human administrators only; an A15 exports.create request is not readable here.',
+    invoke: (svc, actor, i) => svc.readPracticeExport(actor, i.body),
   },
   {
     method: 'post',

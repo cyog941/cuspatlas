@@ -132,6 +132,7 @@ export const validatePracticeExportCreate = def('PracticeExportCreate');
 export const validatePracticeExportGrant = def('PracticeExportGrant');
 export const validatePracticeExportDownload = def('PracticeExportDownload');
 export const validatePracticeExportQuery = def('PracticeExportQuery');
+export const validatePracticeExportRequestQuery = def('PracticeExportRequestQuery');
 
 export interface PracticeExportDocumentSummary {
   readonly format: string;

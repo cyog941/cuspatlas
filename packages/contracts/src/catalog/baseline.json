@@ -18926,6 +18926,30 @@
       ]
     },
     {
+      "operation": "practice.export.read",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "admin.configure",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/practice/exports/state"
+      },
+      "mcpTool": "practice_export_read",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
       "operation": "practice.export.verify",
       "transports": [
         "rest",

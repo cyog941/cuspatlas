@@ -562,7 +562,7 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
         billing: (ctx, a) => billing.exportBilling(ctx, a),
       },
       practice: {
-        create: (c, e) => migration.createPracticeExport(c, e),
+        build: (c, e) => migration.buildPracticeExport(c, e),
         grant: (c, e) => migration.grantPracticeExport(c, e),
         download: (c, e) => migration.downloadPracticeExport(c, e),
       },

@@ -12,6 +12,7 @@ import { join, resolve } from 'node:path';
 import { type RestoreConnection, type RestoreDrillReport, runRestoreDrill } from '@cuspatlas/db';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { attachTestDatabase } from './support/db';
+import { createPracticeAndBuild } from './support/export-jobs';
 import { T_ALPHA } from './support/fixtures';
 import { type ImagingStack, startImagingStack } from './support/imaging-fixtures';
 import { seedSyntheticPractice } from './support/practice-fixtures';
@@ -53,7 +54,7 @@ let exportRef: string;
 beforeAll(async () => {
   src = await startImagingStack('ops_drill_src');
   await seedSyntheticPractice(src, 'Drill');
-  const r = await src.command('owner', '/v1/practice/exports', { purpose: 'verification' });
+  const r = await createPracticeAndBuild(src, 'owner', { purpose: 'verification' });
   expect(r.status).toBe(201);
   exportRef = data<{ exportRef: string }>(r).exportRef;
 }, 240_000);

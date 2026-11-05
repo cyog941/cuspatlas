@@ -107,15 +107,24 @@ export const ELEVATED_OPERATIONS: Readonly<Record<string, ElevatedSpec>> = {
   'billing.plans.authorize': {
     pathRef: 'planRef',
     resourceType: 'paymentPlan',
-    async bind(_tx, payload) {
+    async bind(tx, payload) {
       const ref = payload.planRef;
       const version = payload.expectedVersion;
       if (typeof ref !== 'string' || !UUID.test(ref)) throw notFound();
       if (typeof version !== 'number' || !Number.isInteger(version) || version < 1) {
         throw new RefusalError({ code: 'invalid_request' });
       }
-      // The owning command checks the plan version itself (stale_version) at commit.
-      return [{ kind: 'paymentPlan', ref, version }];
+      // H3: bind the LIVE plan version (not only the payload's claim): prepare refuses a stale claim,
+      // and commit compares the live version with the one bound at prepare.
+      const row = (
+        await tx.query<{ version: number }>(
+          'SELECT version FROM cuspatlas.billing_payment_plans WHERE id = $1',
+          [ref],
+        )
+      ).rows[0];
+      if (!row) throw notFound();
+      if (row.version !== version) throw stale(row.version);
+      return [{ kind: 'paymentPlan', ref, version: row.version }];
     },
     run: (o, ctx, ref, env) =>
       need(o.billing).authorizePlan(ctx, ref, env) as Promise<CommandResult<unknown>>,
@@ -378,7 +387,25 @@ export function createActionProposals(base: AgentBase, owners: ProposalOwners) {
           if (proposerAllows(proposerM, row.proposer_kind, row.operation) !== null) {
             return close(tx, row, 'rejected', 'proposer_unauthorized');
           }
-          if (membershipAllows(approverM, 'human', 'actions.proposals.approve') !== null) {
+          // H3: the approver must still hold approval AND the proposed operation's own authority.
+          if (
+            membershipAllows(approverM, 'human', 'actions.proposals.approve') !== null ||
+            membershipAllows(approverM, 'human', row.operation) !== null
+          ) {
+            return close(tx, row, 'rejected', 'approver_unauthorized');
+          }
+          // H3: the sponsor/proposer exclusion is rechecked at commit (the sponsor may have changed
+          // since approval): neither the approver nor the committer may be the proposer or its
+          // sponsor of record or current sponsor.
+          const currentSponsor = (
+            await tx.query<{ sponsor_ref: string }>(
+              `SELECT s.sponsor_ref FROM cuspatlas.agent_principals a
+               JOIN cuspatlas.agent_sponsorships s ON s.id = a.sponsorship_ref WHERE a.principal_id = $1`,
+              [row.proposer_id],
+            )
+          ).rows[0]?.sponsor_ref;
+          const excluded = new Set([row.proposer_id, row.sponsor_id, currentSponsor].filter(Boolean));
+          if (excluded.has(row.approver_id ?? '') || ctx.actorId === row.proposer_id) {
             return close(tx, row, 'rejected', 'approver_unauthorized');
           }
           const now = await spec.bind(tx, row.payload).catch(() => null);

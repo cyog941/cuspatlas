@@ -413,6 +413,14 @@ export function createAgentGovernance(base: AgentBase) {
       // consent says (consent cannot name it); the agent is told to prepare a proposal instead.
       if (PROPOSAL_REQUIRED_FOR_AGENTS.has(operation))
         return deny(ctx, operation, new RefusalError({ code: 'forbidden', reasonCode: 'proposal_required' }));
+      // H3: a human-only operation is a policy refusal (principal kind), not a missing consent.
+      const entry = CATALOG_INDEX.get(operation);
+      if (entry && !entry.principals.includes('service'))
+        return deny(
+          ctx,
+          operation,
+          new RefusalError({ code: 'forbidden', reasonCode: 'principal_kind_denied' }),
+        );
       const outcome = await deps.withTenantTransaction(ctx, async (tx) => {
         const c = (
           await tx.query<ConsentRow>(

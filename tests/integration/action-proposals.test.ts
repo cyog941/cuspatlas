@@ -270,3 +270,52 @@ describe('A10 catalog marking', () => {
     expect([...ELEVATED_OPERATION_NAMES].sort()).toStrictEqual(marked);
   });
 });
+
+describe('H3 commit rechecks', () => {
+  async function human(handle: string): Promise<string> {
+    const id = randomUUID();
+    await s.db.admin.query(`INSERT INTO cuspatlas.principals (id, kind, handle) VALUES ($1, 'human', $2)`, [
+      id,
+      handle,
+    ]);
+    await s.db.admin.query(
+      'INSERT INTO cuspatlas.memberships (tenant_id, principal_id, scopes) VALUES ($1, $2, $3)',
+      [T_ALPHA, id, allScopes],
+    );
+    return id;
+  }
+
+  it("an approver who lost the proposed operation's authority invalidates the proposal at commit", async () => {
+    const approver2 = await human('proposal-approver-two');
+    const p = await prepareAsAgent(consentFact(await newPatient('Recheckia')));
+    expect((await approve(approver2, p)).status).toBe(200);
+    await s.db.admin.query(
+      `UPDATE cuspatlas.memberships SET scopes = array_remove(scopes, 'communications.write')
+       WHERE principal_id = $1 AND tenant_id = $2`,
+      [approver2, T_ALPHA],
+    );
+    const r = await commit(approver, p);
+    expect(r.status).toBe(409);
+    expect(r.body.code).toBe('approval_invalid');
+  });
+
+  it('an approver who became the proposing agent sponsor after approving cannot have it committed', async () => {
+    const approver3 = await human('proposal-approver-three');
+    const a = await s.createAgent(AGENT_SCOPES, 'sponsor moves to approver');
+    const prep = await s.agentTool(a, 'actions_proposals_prepare', {
+      ...consentFact(await newPatient('Sponsoria')),
+      idempotencyKey: randomUUID(),
+    });
+    const p = prep.body.data as { proposalRef: string; payloadDigest: string };
+    expect((await approve(approver3, p)).status).toBe(200);
+    const moved = await s.call('humanAll', 'POST', '/v1/agents/sponsors/change', {
+      agentRef: a.agentRef,
+      sponsorRef: approver3,
+      expectedVersion: a.version,
+    });
+    expect(moved.status).toBe(200);
+    const r = await commit(approver, p);
+    expect(r.status).toBe(409);
+    expect(r.body.code).toBe('approval_invalid');
+  });
+});

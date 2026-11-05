@@ -56,6 +56,9 @@ afterAll(async () => {
   await s?.close();
 });
 
+/** Policy refusals of a human-only call by an agent (never consent_missing: consent cannot name it). */
+const POLICY_REFUSALS = ['principal_kind_denied', 'proposal_required'];
+
 const restOf = (op: (typeof AGENT_OPS)[number]) => ({
   method: op.method === 'get' ? 'GET' : 'POST',
   url: op.path,
@@ -102,6 +105,18 @@ describe('workstream A batch 2 negative harness', () => {
       const r = await s.agentCall(client, op.tool, {});
       expect(r.isError, op.operationId).toBe(true);
       expect(r.body.code, op.operationId).toBe('forbidden');
+      // H3: the refusal is the policy's (a human-only operation), never a missing consent.
+      const why = await s.db.admin.query<{ reason_code: string }>(
+        'SELECT reason_code FROM cuspatlas.security_attempt_events WHERE actor_id = $1 AND operation = $2',
+        [agent.agentRef, op.operationId],
+      );
+      expect(why.rows.length, op.operationId).toBeGreaterThan(0);
+      const codes = why.rows.map((w) => w.reason_code);
+      expect(codes, op.operationId).not.toContain('consent_missing');
+      expect(
+        codes.some((c) => POLICY_REFUSALS.includes(c)),
+        `${op.operationId} ${codes}`,
+      ).toBe(true);
     }
   });
 

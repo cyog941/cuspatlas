@@ -58,7 +58,7 @@ Per-batch commits remain reviewable. If upstream changes arrive, fetch/reconcile
 
 Stop the affected batch on ambiguous database target, missing real database tests, failed isolation/revocation, unexplained duplicate side effects, unauditable mutation, sensitive output leakage, incompatible schema contract or new destructive host requirement. Preserve progress and report exact cause. Never skip a security test to keep the sequence moving.
 
-Do not block synthetic foundation on sensor SDK access, clearinghouse agreements, clinical chart semantics, certification purchase or UI design. These remain named follow-on gates. If a dependency genuinely changes a foundation invariant, record the issue and resolve the narrow contract rather than reopening broad Tab32 research.
+Do not block synthetic foundation on sensor SDK access, clearinghouse agreements, clinical chart semantics, certification purchase or UI design. These remain named follow-on gates. If a dependency genuinely changes a foundation invariant, record the issue and resolve the narrow contract rather than reopening broad reference PMS research.
 
 ## Definition of completion and handoff
 

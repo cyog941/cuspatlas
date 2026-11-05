@@ -1,12 +1,12 @@
-﻿# Authenticated Tab32 surface map
+﻿# Authenticated reference PMS surface map
 
 Status: first instrumented pass, 2026-11-03 evening ET. Read-only production observation. No record was created, changed, saved or exported. No patient names, identifiers, balances or notes are recorded here; only structure, labels and field inventories.
 
 ## How this was obtained
 
-A dedicated Chrome 156 profile (`~/.dsh/browser/tab32-profile`, outside iCloud) was launched with a loopback DevTools endpoint on `127.0.0.1:9222`. The user signed in normally in that window; no cookies, credentials or profile data were copied from any other browser.
+A dedicated Chrome 156 profile (a dedicated local path outside cloud sync) was launched with a loopback DevTools endpoint on `127.0.0.1:9222`. The user signed in normally in that window; no cookies, credentials or profile data were copied from any other browser.
 
-Two independent tools then attached to the **same** CDP target (`5027A82368DFBD50B40C64C393D4F241`, origin `https://treatment.tab32.com`):
+Two independent tools then attached to the **same** CDP target (`5027A82368DFBD50B40C64C393D4F241`, origin the authenticated reference PMS):
 
 | Tool | Evidence | Proves |
 |---|---|---|

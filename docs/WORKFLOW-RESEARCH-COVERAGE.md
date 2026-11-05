@@ -1,4 +1,4 @@
-﻿# Tab32 analysis coverage
+﻿# Reference PMS analysis coverage
 
 Current disposition (2026-11-03): broad incumbent research is closed by user direction. Remaining unobserved behavior is retained as a limitation, not an instruction to resume REA/Craft. Targeted clinical, vendor, device and migration qualification remains gated to the affected module or release. Closure does not mean exhaustive reverse engineering or production validation.
 
@@ -30,7 +30,7 @@ The table reflects the authenticated read-only pass of 2026-11-03 evening ET, to
 | Communications and HelloPatient | HelloPatient call/text and profile sections with a call-forwarding number, an appointment-level service selector, messaging and unread-count endpoints, and a prompt library | Dispatch behavior and templates, opt-in and opt-out handling, delivery failure and retry, survey or announcement triggers, and whether the prompt library is AI-assisted |
 | Prescribing | One DrFirst account endpoint taking a query body. No prescribing screen was opened | Partner, roles, identity proofing, prescription workflow and any controlled-substance handling. None observed |
 | Migration and export | A Migration category in the patient report catalog and a CSV export control on claims | Export completeness, format, record counts, reconciliation and whether a vendor-approved bulk export exists. No export was run |
-| Identity, security and API surface | 96 responses across 12 authenticated routes: a `{status, data}` envelope, base path `/api/tab32ac/`, the session token as a URL path segment, a client-supplied clinic id, verb overload on one path, cursor and projection hints, and a bootstrap endpoint exposing build and payment configuration | Error semantics, payload types, pagination limits, rate limits, idempotency and concurrency fields, and CSRF or origin protection. The vendor's public API and MCP claims remain vendor claims |
+| Identity, security and API surface | 96 responses across 12 authenticated routes: a `{status, data}` envelope, base path `/api/<vendor-prefix>/`, the session token as a URL path segment, a client-supplied clinic id, verb overload on one path, cursor and projection hints, and a bootstrap endpoint exposing build and payment configuration | Error semantics, payload types, pagination limits, rate limits, idempotency and concurrency fields, and CSRF or origin protection. The vendor's public API and MCP claims remain vendor claims |
 
 ## Derived requirements and their grounding
 

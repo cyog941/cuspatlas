@@ -1,4 +1,6 @@
-﻿# Tab32 HTTP surface: shapes and conventions
+﻿# Reference PMS HTTP surface: shapes and conventions
+
+Editorial convention: vendor-identifying prefixes and resource names below use angle-bracket placeholders. These are illustrative observations, not literal endpoints or a supported integration contract.
 
 Status: read-only observation, 2026-11-03 evening ET, authenticated session in a dedicated Chrome profile. Method: intercepted XHR/fetch request metadata while navigating 12 authenticated routes.
 
@@ -9,10 +11,10 @@ Of the 96 observed responses (50 API calls, 46 static SVG assets) every one was 
 ## Envelope and conventions
 
 - 46 of the 50 API responses used a two-key envelope: `{ status, data }`. Four did not: `/api/app/info` (build and configuration keys), `/loggedIn` (identity and auth keys), `scheduler/getClinicSlots` and `dashboard/getFinancialData` (no JSON object keys were observed). `status` is carried in the body even though HTTP also returned 200, so callers must check both.
-- Most business endpoints are under `/api/tab32ac/`. Session, bootstrap, communication, prompt and file-upload endpoints sit outside it: `/loggedIn`, `/api/app/info`, `/api/communication/*`, `/api/prompts/*`, `/api/fileUpload/*`.
-- **An opaque segment that behaves as the session token is a URL path segment**, and the clinic id is usually the next one: `/api/tab32ac/<resource>/{token}/{clinicId}`. The inference rests on the same opaque value appearing in that position across every `/api/tab32ac/` request in the pass; no header was inspected.
-- Verbs are inconsistent: the same path shape answers `GET`, `POST` and `PUT` for different operations (`/api/tab32ac/{token}/{clinicId}` accepts all three with different meanings).
-- Several endpoints put the token in a body field or omit the clinic id entirely, for example `POST /api/tab32ac/claims/getAppealStatus` with `{clinic_id}` and `POST /api/tab32ac/patients/findPatientsByIds` with `{patient_ids, projection}`.
+- Most business endpoints are under `/api/<vendor-prefix>/`. Session, bootstrap, communication, prompt and file-upload endpoints sit outside it: `/loggedIn`, `/api/app/info`, `/api/communication/*`, `/api/prompts/*`, `/api/fileUpload/*`.
+- **An opaque segment that behaves as the session token is a URL path segment**, and the clinic id is usually the next one: `/api/<vendor-prefix>/<resource>/{token}/{clinicId}`. The inference rests on the same opaque value appearing in that position across every `/api/<vendor-prefix>/` request in the pass; no header was inspected.
+- Verbs are inconsistent: the same path shape answers `GET`, `POST` and `PUT` for different operations (`/api/<vendor-prefix>/{token}/{clinicId}` accepts all three with different meanings).
+- Several endpoints put the token in a body field or omit the clinic id entirely, for example `POST /api/<vendor-prefix>/claims/getAppealStatus` with `{clinic_id}` and `POST /api/<vendor-prefix>/patients/findPatientsByIds` with `{patient_ids, projection}`.
 - `paginationContext` appears in the claims filter body, implying cursor-style paging rather than offset paging.
 - `projection` appears on the patient bulk-fetch, implying caller-selected field sets.
 - `subjectIds` appears in claim-detail and custom-field calls. Imaging does not use it: those bodies carry `patientIdList`.
@@ -25,78 +27,78 @@ Of the 96 observed responses (50 API calls, 46 static SVG assets) every one was 
 |---|---|---|
 | GET | `/loggedIn` | session check |
 | GET | `/api/app/info` | client bootstrap |
-| POST | `/api/tab32ac/user/{token}` | user resolution; body `userEmail, clinicIds` |
-| POST | `/api/tab32ac/security/check2faStatus/{clinicId}` | 2FA state |
-| GET | `/api/tab32ac/clinicUsers/isPinSet/{clinicId}/{email}` | per-user PIN state |
-| PUT | `/api/tab32ac/clinicUsers/getClinicUsers/{clinicId}` | staff roster |
-| GET | `/api/tab32ac/resourceAccess/{token}/{clinicId}` | access/role data |
-| POST | `/api/tab32ac/userPreferences/getUserPreferences` | body `clinic_id, userEmail` |
-| POST | `/api/tab32ac/environment` | body `keys` |
+| POST | `/api/<vendor-prefix>/user/{token}` | user resolution; body `userEmail, clinicIds` |
+| POST | `/api/<vendor-prefix>/security/check2faStatus/{clinicId}` | 2FA state |
+| GET | `/api/<vendor-prefix>/clinicUsers/isPinSet/{clinicId}/{email}` | per-user PIN state |
+| PUT | `/api/<vendor-prefix>/clinicUsers/getClinicUsers/{clinicId}` | staff roster |
+| GET | `/api/<vendor-prefix>/resourceAccess/{token}/{clinicId}` | access/role data |
+| POST | `/api/<vendor-prefix>/userPreferences/getUserPreferences` | body `clinic_id, userEmail` |
+| POST | `/api/<vendor-prefix>/environment` | body `keys` |
 
 ### Scheduling
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET, POST | `/api/tab32ac/scheduler/{token}/{clinicId}` | read and mutate scheduling state; POST body was not JSON |
-| POST | `/api/tab32ac/scheduler/getClinicSlots/{clinicId}` | slot availability; body not JSON |
-| GET | `/api/tab32ac/getAppointmentTypes/{clinicId}` | appointment type catalog |
-| GET | `/api/tab32ac/chairProviderGroups/{token}/{clinicId}` | chair/provider grouping |
-| PUT | `/api/tab32ac/dashboard/{token}/{clinicId}` | huddle data |
-| POST | `/api/tab32ac/landing/{token}` | body `date, start, end, type, countTypes, clinic_id` |
+| GET, POST | `/api/<vendor-prefix>/scheduler/{token}/{clinicId}` | read and mutate scheduling state; POST body was not JSON |
+| POST | `/api/<vendor-prefix>/scheduler/getClinicSlots/{clinicId}` | slot availability; body not JSON |
+| GET | `/api/<vendor-prefix>/getAppointmentTypes/{clinicId}` | appointment type catalog |
+| GET | `/api/<vendor-prefix>/chairProviderGroups/{token}/{clinicId}` | chair/provider grouping |
+| PUT | `/api/<vendor-prefix>/dashboard/{token}/{clinicId}` | huddle data |
+| POST | `/api/<vendor-prefix>/landing/{token}` | body `date, start, end, type, countTypes, clinic_id` |
 
 ### Patients and clinical records
 
 | Method | Path | Purpose |
 |---|---|---|
-| POST | `/api/tab32ac/patients/findPatientsByIds` | bulk fetch; body `patient_ids, projection` |
-| POST | `/api/tab32ac/customFields/{token}/{clinicId}` | body `schemaName, subjectIds` |
-| POST | `/api/tab32ac/xray/{token}/{clinicId}` | imaging; bodies `patientIdList` and `indexedXraysCount, failedXraysCount, patientCount, machine_id` |
+| POST | `/api/<vendor-prefix>/patients/findPatientsByIds` | bulk fetch; body `patient_ids, projection` |
+| POST | `/api/<vendor-prefix>/customFields/{token}/{clinicId}` | body `schemaName, subjectIds` |
+| POST | `/api/<vendor-prefix>/xray/{token}/{clinicId}` | imaging; bodies `patientIdList` and `indexedXraysCount, failedXraysCount, patientCount, machine_id` |
 | POST | `/api/templates/list/{clinicId}` | note templates; body `userEmail` |
-| GET | `/api/tab32ac/careTeam/getCareTeams/{clinicId}` | care team |
+| GET | `/api/<vendor-prefix>/careTeam/getCareTeams/{clinicId}` | care team |
 
 ### Financial
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/tab32ac/ledger/{token}/{clinicId}/all` | ledger read |
-| GET | `/api/tab32ac/billingStatus/{token}/{clinicId}` | billing status |
-| POST | `/api/tab32ac/paymentplan/{token}/{clinicId}` | body `planStatus, selectedLocationId, isOrtho` |
-| PUT | `/api/tab32ac/clinicFees/getClinicFeeTypes/{clinicId}` | fee schedule |
+| GET | `/api/<vendor-prefix>/ledger/{token}/{clinicId}/all` | ledger read |
+| GET | `/api/<vendor-prefix>/billingStatus/{token}/{clinicId}` | billing status |
+| POST | `/api/<vendor-prefix>/paymentplan/{token}/{clinicId}` | body `planStatus, selectedLocationId, isOrtho` |
+| PUT | `/api/<vendor-prefix>/clinicFees/getClinicFeeTypes/{clinicId}` | fee schedule |
 
 ### Claims
 
 | Method | Path | Purpose |
 |---|---|---|
-| POST | `/api/tab32ac/claims/{token}` | claim search; body includes `clinic_id, locationId, billing_dentist, treating_dentist, provider, agingType, claimStatusCodes, completed, startDate, endDate, paginationContext, searchStr, insuranceCarriers, claimProcessor, usersOfClaimGroups, isOrthoClaims, dateType, resourceUniqueKey` |
-| POST | `/api/tab32ac/claims/{token}/{clinicId}` | claim detail by `subjectIds` |
-| GET | `/api/tab32ac/claims/getClaimStatus/{clinicId}` | claim status catalog endpoint; returned values were not captured |
-| GET | `/api/tab32ac/claims/getDenialCodes/{clinicId}/undefined` | denial codes |
-| POST | `/api/tab32ac/claims/getAppealStatus` | appeal statuses; body `clinic_id` |
-| POST | `/api/tab32ac/insurance/{token}/{clinicId}` | insurance |
-| POST | `/api/tab32ac/bo/{token}/{clinicId}/DrFirstAccount` | prescribing/benefits integration; body `query` |
+| POST | `/api/<vendor-prefix>/claims/{token}` | claim search; body includes `clinic_id, locationId, billing_dentist, treating_dentist, provider, agingType, claimStatusCodes, completed, startDate, endDate, paginationContext, searchStr, insuranceCarriers, claimProcessor, usersOfClaimGroups, isOrthoClaims, dateType, resourceUniqueKey` |
+| POST | `/api/<vendor-prefix>/claims/{token}/{clinicId}` | claim detail by `subjectIds` |
+| GET | `/api/<vendor-prefix>/claims/getClaimStatus/{clinicId}` | claim status catalog endpoint; returned values were not captured |
+| GET | `/api/<vendor-prefix>/claims/getDenialCodes/{clinicId}/undefined` | denial codes |
+| POST | `/api/<vendor-prefix>/claims/getAppealStatus` | appeal statuses; body `clinic_id` |
+| POST | `/api/<vendor-prefix>/insurance/{token}/{clinicId}` | insurance |
+| POST | `/api/<vendor-prefix>/bo/{token}/{clinicId}/DrFirstAccount` | prescribing/benefits integration; body `query` |
 
 ### Reporting and audit
 
 | Method | Path | Purpose |
 |---|---|---|
-| POST | `/api/tab32ac/t32Report/getReports/{clinicId}` | report catalog; body `reportScope` |
-| PUT | `/api/tab32ac/customReport/getCustomReports/{clinicId}/clinic` | custom reports |
-| GET | `/api/tab32ac/audit/{token}` | audit read |
-| PUT | `/api/tab32ac/dashboard/getFinancialData/{clinicId}` | financial dashboard |
+| POST | `/api/<vendor-prefix>/<report-resource>/getReports/{clinicId}` | report catalog; body `reportScope` |
+| PUT | `/api/<vendor-prefix>/customReport/getCustomReports/{clinicId}/clinic` | custom reports |
+| GET | `/api/<vendor-prefix>/audit/{token}` | audit read |
+| PUT | `/api/<vendor-prefix>/dashboard/getFinancialData/{clinicId}` | financial dashboard |
 
 ### Collaboration and add-ons
 
 | Method | Path | Purpose |
 |---|---|---|
-| POST | `/api/tab32ac/im/{token}/{clinicId}` | instant messaging |
-| PUT | `/api/tab32ac/todoTask/{token}/{clinicId}` | tasks |
+| POST | `/api/<vendor-prefix>/im/{token}/{clinicId}` | instant messaging |
+| PUT | `/api/<vendor-prefix>/todoTask/{token}/{clinicId}` | tasks |
 | POST | `/api/communication/get_unread_count` | body `clinic_id, location_id` |
-| POST | `/api/tab32ac/hellopatient/config/{clinicId}` | HelloPatient config |
-| PUT | `/api/tab32ac/helloPatient/{token}/{clinicId}` | HelloPatient settings |
-| GET | `/api/tab32ac/sidekick/subscription/getSubscriptionInfo/{clinicId}` | add-on subscription |
+| POST | `/api/<vendor-prefix>/hellopatient/config/{clinicId}` | HelloPatient config |
+| PUT | `/api/<vendor-prefix>/helloPatient/{token}/{clinicId}` | HelloPatient settings |
+| GET | `/api/<vendor-prefix>/sidekick/subscription/getSubscriptionInfo/{clinicId}` | add-on subscription |
 | POST | `/api/prompts/list/{clinicId}`, `/api/prompts/get/{clinicId}` | prompt library; bodies `userEmail`, `prompt_ids` |
 | POST | `/api/fileUpload/getFileUploadType` | body `clinic_id, category` |
-| PUT | `/api/tab32ac/customReport/...`, `POST /api/tab32ac/color/getColorState` | misc config |
+| PUT | `/api/<vendor-prefix>/customReport/...`, `POST /api/<vendor-prefix>/color/getColorState` | misc config |
 
 ## Observations that shape our design
 
@@ -106,7 +108,7 @@ These are engineering judgements from observed shape, not claims about vendor in
 
 2. **Tenant is addressed by the client, not implied by the credential.** Every call names a clinic id, and the token is not obviously bound to one. Whether the server rejects a clinic id the token does not cover is an enforcement question we **cannot test here** — and it is exactly the negative cross-tenant test our readiness gates already require.
 
-3. **Verb overload on one path.** Using `GET`/`POST`/`PUT` on `/api/tab32ac/{token}/{clinicId}` for unrelated operations makes an API contract hard to describe, hard to scope and hard to audit. Our versioned contract should map one operation to one explicit resource path, with verbs that match intent.
+3. **Verb overload on one path.** Using `GET`/`POST`/`PUT` on `/api/<vendor-prefix>/{token}/{clinicId}` for unrelated operations makes an API contract hard to describe, hard to scope and hard to audit. Our versioned contract should map one operation to one explicit resource path, with verbs that match intent.
 
 4. **`paginationContext` implies opaque cursors.** Good choice; adopt it explicitly rather than inheriting offset paging, and document that cursors are opaque and short-lived.
 

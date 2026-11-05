@@ -35,7 +35,7 @@ Apply [CN-01–05](../../OPEN-PLATFORM-AND-ONBOARDING.md) to this workstream's p
 
 ## Research gate before executing this plan
 
-[Tab32 analysis coverage](../../WORKFLOW-RESEARCH-COVERAGE.md) records only an Imaging Studio menu label and public vendor claims. Patient matching, mount and import behavior, annotation, and actual hardware compatibility are **unobserved**. The design already states that first-release imaging is import plus a validated acquisition-software bridge, and that direct sensor acquisition is a later milestone. Nothing in this plan may promote that boundary without a hardware matrix result.
+[reference PMS analysis coverage](../../WORKFLOW-RESEARCH-COVERAGE.md) records only an Imaging Studio menu label and public vendor claims. Patient matching, mount and import behavior, annotation, and actual hardware compatibility are **unobserved**. The design already states that first-release imaging is import plus a validated acquisition-software bridge, and that direct sensor acquisition is a later milestone. Nothing in this plan may promote that boundary without a hardware matrix result.
 
 Test evidence is synthetic. A vendor's public description of DICOM support is a vendor claim, not a conformance statement, and must not be converted into a parser requirement.
 

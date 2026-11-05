@@ -32,7 +32,7 @@ Apply [CN-01–05](../../OPEN-PLATFORM-AND-ONBOARDING.md) to this workstream's p
 
 ## Research gate before executing this plan
 
-[Tab32 analysis coverage](../../WORKFLOW-RESEARCH-COVERAGE.md) records payment-plan worklists as observed and statement columns as observed; plan creation, authorization, failed installments, retries, allocation, claim submission, rejection, correction, ERA and secondary-claim lifecycles are **unobserved**. The claims surface exposes a denial-code endpoint and separate appeal navigation, but no vocabulary, transition rule or adjudication timing has been verified.
+[reference PMS analysis coverage](../../WORKFLOW-RESEARCH-COVERAGE.md) records payment-plan worklists as observed and statement columns as observed; plan creation, authorization, failed installments, retries, allocation, claim submission, rejection, correction, ERA and secondary-claim lifecycles are **unobserved**. The claims surface exposes a denial-code endpoint and separate appeal navigation, but no vocabulary, transition rule or adjudication timing has been verified.
 
 Treat the observed worklists as vocabulary input only. The plan status set, card-expiry handling and auto-pay semantics are our proposed model, derived from the visible columns, not a description of the incumbent's behaviour. Readiness requires a contracted sandbox, a synthetic end-to-end claim, and signed review by a billing reviewer before any of these states are presented as validated.
 

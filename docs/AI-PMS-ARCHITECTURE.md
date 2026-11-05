@@ -1,6 +1,6 @@
 # AI PMS architecture and delivery requirements
 
-Status: proposed product requirements incorporated at the user's direction, 2026-11-03. No features are implemented or clinically validated. These requirements extend the existing architecture; they are not claims about Tab32 internals. DSH's observed evidence remains separately attributed in the research documents.
+Status: proposed product requirements incorporated at the user's direction, 2026-11-03. No features are implemented or clinically validated. These requirements extend the existing architecture; they are not claims about reference PMS internals. DSH's observed evidence remains separately attributed in the research documents.
 
 ## Product contract
 

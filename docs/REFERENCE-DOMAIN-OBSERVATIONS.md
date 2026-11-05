@@ -1,4 +1,4 @@
-﻿# Tab32 domain model observations
+﻿# Reference PMS domain model observations
 
 Status: read-only observation, 2026-11-03 evening ET. Same authenticated session and boundaries as [REFERENCE-WORKFLOW-MAP.md](REFERENCE-WORKFLOW-MAP.md). No patient, staff or account names are recorded below; entity types, column names and control labels only.
 

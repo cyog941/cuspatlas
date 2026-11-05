@@ -54,7 +54,7 @@ Detect connector outage separately from missing clinical information. Unknown ex
 
 ## Easy migration and exit are product capabilities
 
-MG-01: support reusable, versioned source adapters and an inventory-led onboarding checklist. Tab32 remains the first qualified source; identify subsequent source systems by demand and lawful export/API availability. Do not claim universal import or require practices to hand-map every field on each run.
+MG-01: support reusable, versioned source adapters and an inventory-led onboarding checklist. The reference PMS remains the first migration target, subject to qualification; identify subsequent source systems by demand and lawful export/API availability. Do not claim universal import or require practices to hand-map every field on each run.
 
 MG-02: identify input format, propose mappings and show confidence/provenance; automatically map known validated fields, queue ambiguous identities, terminology and monetary semantics for review. Never guess patient matches, signatures, money or clinical meaning. Staff receive a concise discrepancy summary with actionable fixes; technical details remain available to the migration operator.
 

@@ -36,7 +36,7 @@ The [open-platform onboarding contract](OPEN-PLATFORM-AND-ONBOARDING.md) adds su
 
 ## Follow-up workflow requirements from authenticated observation
 
-These are original proposed acceptance requirements prompted by visible Tab32 controls, not claims about Tab32's backend implementation.
+These are original proposed acceptance requirements prompted by visible reference PMS controls, not claims about reference PMS's backend implementation.
 
 - Scheduling: appointment types can associate procedure codes; operatories and providers can be grouped. Shared/public schedule displays must suppress patient identity according to an explicit privacy policy. Survey triggers at checkout must honor consent and deduplicate repeated transitions.
 - Claims operations: distinguish unassigned work, assigned claims, assigned appeals, historical records and assignment summaries. Filter by billing entity, rendering provider, insurer/plan, service date, reviewer and review group. Reassignment retains history; staff departure must not orphan work. Appeal and claim states are separate from appointment and procedure completion.

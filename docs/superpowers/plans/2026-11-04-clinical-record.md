@@ -33,7 +33,7 @@ Consume [PT-01–06 and UX-01–03](../../PRACTICE-TIME-AND-AUTOMATION.md) in th
 
 ## Evidence gate before executing this plan
 
-Consult [Tab32 analysis coverage](../../WORKFLOW-RESEARCH-COVERAGE.md). The clinical chart, perio, notes, treatment and imaging rows are recorded there as proposed requirements, not observations: no synthetic patient chart was walked, no note was drafted or signed, and no treatment plan or consent lifecycles were inspected. The domain-model observations establish only that the incumbent audits treatment at three levels and enumerates note-template attributes including a per-template enforcement flag; they do not establish field-level cardinality, transition guards or enforcement semantics.
+Consult [reference PMS analysis coverage](../../WORKFLOW-RESEARCH-COVERAGE.md). The clinical chart, perio, notes, treatment and imaging rows are recorded there as proposed requirements, not observations: no synthetic patient chart was walked, no note was drafted or signed, and no treatment plan or consent lifecycles were inspected. The domain-model observations establish only that the incumbent audits treatment at three levels and enumerates note-template attributes including a per-template enforcement flag; they do not establish field-level cardinality, transition guards or enforcement semantics.
 
 Consequently the first four tasks are discovery spikes, and Tasks 6, 7, 9 and 10 cannot be claimed complete on engineering evidence alone. Clinical reviewers must validate chart semantics, perio calculation and correction expectations, enforcement semantics and amendment rules. Terminology rights review precedes any distribution of a licensed code set. No clinical record is created in production to test behaviour.
 

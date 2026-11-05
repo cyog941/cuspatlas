@@ -33,7 +33,7 @@ Consume [PT-01–06 and UX-01–03](../../PRACTICE-TIME-AND-AUTOMATION.md) in th
 
 ## Evidence gate before executing this plan
 
-Consult [Tab32 analysis coverage](../../WORKFLOW-RESEARCH-COVERAGE.md). Appointment entry was inspected as an empty form; saved conflict behaviour, transition guards, recurrence exceptions, rescheduling history, waitlist semantics and recall rules were not tested. The observed status vocabulary mixes lifecycle, physical presence, clinical completion, financial completion and exception into one field, which is why this plan splits them. Pseudo-operatories with state-like labels demonstrate a model that required every appointment to occupy a room; this plan removes that requirement instead of reproducing the workaround.
+Consult [reference PMS analysis coverage](../../WORKFLOW-RESEARCH-COVERAGE.md). Appointment entry was inspected as an empty form; saved conflict behaviour, transition guards, recurrence exceptions, rescheduling history, waitlist semantics and recall rules were not tested. The observed status vocabulary mixes lifecycle, physical presence, clinical completion, financial completion and exception into one field, which is why this plan splits them. Pseudo-operatories with state-like labels demonstrate a model that required every appointment to occupy a room; this plan removes that requirement instead of reproducing the workaround.
 
 Observed labels are prompts, not semantics. Before implementation, the spikes in Tasks 1-3 must replace each inferred rule with a recorded decision or an explicit unknown. Transaction behaviour is verified in a sandbox or synthetic environment only; no production appointment is created, moved or cancelled to test behaviour.
 

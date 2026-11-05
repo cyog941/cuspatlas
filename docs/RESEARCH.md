@@ -1,16 +1,18 @@
 # Research ledger and evidence limits
 
+Source labels in this public ledger are neutral descriptions. Names, URLs and vendor-identifying path segments are omitted; evidence IDs and the original observation categories remain. This editorial change does not make external observations original CuspAtlas implementations or establish integration rights.
+
 Current disposition (2026-11-03): broad incumbent research is closed by user direction. Remaining unobserved behavior is retained as a limitation, not an instruction to resume REA/Craft. Targeted clinical, vendor, device and migration qualification remains gated to the affected module or release. Closure does not mean exhaustive reverse engineering or production validation.
 
 Research date: 2026-11-03. No patient records or credentials are included here. Raw captures, both public-page and authenticated, are retained locally under ignored `.research-local/`; the repository contains original requirements and summaries only.
 
 ## Direct live observations
 
-Authenticated Tab32 via the user's in-app browser: Daily Huddle states and provider/operatory filters; labeled module navigation; empty New Appointment form; Production and Patient report catalogs. The form includes appointment details, insurance/forms/lab/history tabs, resource assignment, duration, recurrence, linked treatment and an email/text notification checkbox checked by default. Save was disabled and nothing was saved. Report catalogs were inspected without generating or exporting patient results.
+Authenticated reference PMS via the user's in-app browser: Daily Huddle states and provider/operatory filters; labeled module navigation; empty New Appointment form; Production and Patient report catalogs. The form includes appointment details, insurance/forms/lab/history tabs, resource assignment, duration, recurrence, linked treatment and an email/text notification checkbox checked by default. Save was disabled and nothing was saved. Report catalogs were inspected without generating or exporting patient results.
 
 Derived requirement: expose explicit communication policy in booking APIs; keep request, booking, attendance, procedures and money separate; make date basis and filter state visible in reporting. These are our requirements, not proof of the incumbent's backend behavior.
 
-The user also supplied a private `tab32-operations` skill with workflow references, dated 2026-10-27. It maps patient/visit identity, financial allocations, appointment requests, scheduling and reporting, with clear untested areas. It was read with explicit user authorization. Its private file paths and clinic-specific identifiers are intentionally omitted from this public repository. Historical guidance was not represented as fresh verification of clinical, claims or payment transactions.
+The user also supplied a private platform-operations skill with workflow references, dated 2026-10-27. It maps patient/visit identity, financial allocations, appointment requests, scheduling and reporting, with clear untested areas. It was read with explicit user authorization. Its private file paths and clinic-specific identifiers are intentionally omitted from this public repository. Historical guidance was not represented as fresh verification of clinical, claims or payment transactions.
 
 ## REA and Craft Anything runs
 
@@ -21,7 +23,7 @@ The user also supplied a private `tab32-operations` skill with workflow referenc
 
 Craft initially refused the walkthrough in Clean room mode. The user then authorized it; only this run used Deep mode. No global mode change, patient session transfer, private script extraction, form submission or target mutation was performed. At the time of this run the tools had no established attachment to the authenticated in-app browser: no supported CDP endpoint was exposed/discovered. That limitation is distinct from permissions and from successful public-page execution, and it was resolved later the same day by the pass recorded below.
 
-Public page observed: [Tab32 all-in-one platform](https://tab32.com/dental-practice-management-all-in-one/). It groups scheduling/engagement, clinical/imaging, billing, specialty and analytics capabilities, and advertises REST APIs and an on-demand MCP service. Those are vendor claims. This evidence informs scope and prevents claiming MCP itself as a unique advantage; it is not a parity test or contractual API-access verification.
+Public page observed: the reference PMS public product page. It groups scheduling/engagement, clinical/imaging, billing, specialty and analytics capabilities, and advertises REST APIs and an on-demand MCP service. Those are vendor claims. This evidence informs scope and prevents claiming MCP itself as a unique advantage; it is not a parity test or contractual API-access verification.
 
 ## Authenticated instrumented pass, 2026-11-03 evening ET
 
@@ -47,9 +49,9 @@ Entries elsewhere in this ledger that record direct authenticated attachment as 
 
 ## Design-reference observation, 2026-11-03 evening ET
 
-A second source was studied, not as an incumbent but as an interaction reference: `https://mntos-demo.vercel.app`, a public demo workspace with synthetic sample data and no sign-in. Read-only: structure, labels, computed styles and interaction states were read from the running page; no account was created and nothing was submitted.
+A second source was studied, not as an incumbent but as an interaction reference: a public demo workspace with synthetic sample data and no sign-in. Read-only: structure, labels, computed styles and interaction states were read from the running page; no account was created and nothing was submitted.
 
-REA evidence: `ev_0e4dd00b5accc7e2e95bbb62993264d963d35c189bf002b7b6fe6f544f815ffa` (CDP target list, origin `mntos-demo.vercel.app`).
+REA evidence: `ev_0e4dd00b5accc7e2e95bbb62993264d963d35c189bf002b7b6fe6f544f815ffa` (CDP target list, origin the public demonstration source).
 
 What it establishes: how a scheduling, floor, claims and patient-context surface can be organised, and which interaction properties make a dense clinical screen self-explanatory. What it does not establish: any backend, enforcement or clinical behaviour — it is a demo with synthetic data and no guaranteed server.
 

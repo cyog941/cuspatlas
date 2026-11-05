@@ -4,7 +4,7 @@ Date: 2026-11-03. Status: reviewable planning proposal; no implementation author
 
 ## Intent and decision ownership
 
-The user's objective is a free, open-source, secure dental PMS with end-to-end practice functionality, AI assistance, MCP connectors, and comprehensive programmatic control. Tab32 is a workflow reference. The user explicitly chose **US general dentistry first**, authorized foundation setup and investigation, and deferred UI design. Language and platform choices below are engineering recommendations made under the user's direction to proceed; they are not represented as separately approved choices.
+The user's objective is a free, open-source, secure dental PMS with end-to-end practice functionality, AI assistance, MCP connectors, and comprehensive programmatic control. An existing PMS is a workflow reference. The user explicitly chose **US general dentistry first**, authorized foundation setup and investigation, and deferred UI design. Language and platform choices below are engineering recommendations made under the user's direction to proceed; they are not represented as separately approved choices.
 
 The first customers to validate with are independent practices and small groups. Design for multiple locations from the outset, but do not pretend that solo-practice validation proves enterprise readiness. International payer rules, local prescribing, and specialty-specific workflows are later release programs.
 
@@ -16,7 +16,7 @@ Compete on dependable daily operations and switching cost, not a large feature c
 
 Before declaring product-market fit, measure time to complete a routine visit, booking/reconciliation errors, migration exceptions, hours spent on billing follow-up, staff adoption, support burden, and total cost per location. Establish baselines with consenting pilot practices before setting improvement claims.
 
-Tab32's captured public page itself advertises REST APIs and an on-demand MCP server. Therefore API/MCP availability alone is not a credible differentiation claim. The proposed distinction is unrestricted open-source access to the supported contracts, transparent policy and costs, operational reliability and verifiable portability. Actual incumbent commercial access/terms were not inspected.
+The reference PMS's captured public page itself advertises REST APIs and an on-demand MCP server. Therefore API/MCP availability alone is not a credible differentiation claim. The proposed distinction is unrestricted open-source access to the supported contracts, transparent policy and costs, operational reliability and verifiable portability. Actual incumbent commercial access/terms were not inspected.
 
 ## Goals, non-goals and anti-goals
 
@@ -24,7 +24,7 @@ Goals: one reliable patient/practice record; scheduling through follow-up and co
 
 Not now: product implementation, mockups, styling, production hosting, patient migration, autonomous diagnosis, native radiology AI, custom sensor drivers, universal offline sync, nationwide prescribing certification, or claims-network contracts.
 
-Anti-goals: a paid-only API; unreadable exports; agent superuser credentials; a mock dashboard marketed as a PMS; copying Tab32's proprietary implementation; silent clinical edits; payment success inferred from a booking; or calling a development service HIPAA-compliant.
+Anti-goals: a paid-only API; unreadable exports; agent superuser credentials; a mock dashboard marketed as a PMS; copying reference PMS's proprietary implementation; silent clinical edits; payment success inferred from a booking; or calling a development service HIPAA-compliant.
 
 ## Approaches considered
 
@@ -183,7 +183,7 @@ Derived requirements:
 
 | Observed convention | Basis | Our rule |
 |---|---|---|
-| Session token as a URL path segment | Paths of the form `/api/tab32ac/<resource>/{token}/{clinicId}` were observed across the session | Credentials travel only in the `Authorization` header. No token, session or secret appears in a path, query string, response body or document URL. Our gateway scrubs path and query credentials from logs, traces, referrers and error payloads as a fixed rule. |
+| Session token as a URL path segment | Paths of the form `/api/<vendor-prefix>/<resource>/{token}/{clinicId}` were observed across the session | Credentials travel only in the `Authorization` header. No token, session or secret appears in a path, query string, response body or document URL. Our gateway scrubs path and query credentials from logs, traces, referrers and error payloads as a fixed rule. |
 | Tenant named by the caller | Nearly every call carries a clinic id, and the token is not obviously bound to one; whether the server rejects a clinic id outside the token's scope could not be tested | Tenant and actor are derived from authenticated context. A client-supplied tenant value is at most a selection hint and is rejected when it does not match the authenticated scope. Every endpoint needs negative cross-tenant tests before acceptance. |
 | Verb overload on one path | The same path shape answers GET, POST and PUT for different operations | One operation, one explicit resource path, with a method that matches intent. No path carries several meanings. |
 | Status carried inside HTTP 200 | 46 of 50 captured API responses used a `{status, data}` body inside HTTP 200; four used a different shape, and the other 46 of the 96 records were static assets, not API calls | Use HTTP status codes honestly, plus a stable error code and correlation id in the body. A client must never parse a body field to learn that a request failed. Error behaviour was unobserved, so this is a rule about shape, not a comparison of outcomes. |
@@ -217,7 +217,7 @@ Nothing in this section rests on a transaction. No appointment, payment, stateme
 
 ## AI and full programmatic control
 
-The [AI PMS architecture contract](../../AI-PMS-ARCHITECTURE.md) extends this design with eight proposed capability families: huddle preparation, clinical draft documentation, scheduling assistance, revenue-cycle assistance, treatment follow-up, financial explanations, analytics and workflow automation. Its module dependencies, protected proposal lifecycle, provider controls and evaluation gates are requirements for follow-on plans. They are proposed CuspAtlas behavior, not verified Tab32 behavior.
+The [AI PMS architecture contract](../../AI-PMS-ARCHITECTURE.md) extends this design with eight proposed capability families: huddle preparation, clinical draft documentation, scheduling assistance, revenue-cycle assistance, treatment follow-up, financial explanations, analytics and workflow automation. Its module dependencies, protected proposal lifecycle, provider controls and evaluation gates are requirements for follow-on plans. They are proposed CuspAtlas behavior, not verified reference PMS behavior.
 
 AI orchestration, authorized retrieval, proposal storage and provider adapters remain logical boundaries within the modular service/worker architecture. Deterministic domain services own calculations and mutations. Default action progression is read, recommend, draft, approve and execute; initial AI remains read/draft only. AI outages must leave ordinary care workflows usable.
 
@@ -261,7 +261,7 @@ Direct sensor acquisition is not mandatory if the existing acquisition system an
 
 ### Migration and cutover contract
 
-First source-system target: Tab32, using practice-authorized exports or documented APIs whose rights and availability are verified. No private endpoint scraping is assumed. Planning now uses synthetic records only. Import active patient/family/consent data, future appointments, current medical history, chart/perio baselines, active treatment plans, insurance, open claims, unapplied credit and reconciled opening balances. Preserve original timestamps, source identifiers and provenance; never attribute imported signatures to a new clinician.
+First source-system target: the reference PMS, using practice-authorized exports or documented APIs whose rights and availability are verified. No private endpoint scraping is assumed. Planning now uses synthetic records only. Import active patient/family/consent data, future appointments, current medical history, chart/perio baselines, active treatment plans, insurance, open claims, unapplied credit and reconciled opening balances. Preserve original timestamps, source identifiers and provenance; never attribute imported signatures to a new clinician.
 
 Historical notes, charts, images, claims and financial detail must remain accessible in a read-only, integrity-checked archive with patient-linked references and retention controls. Do not reinterpret past financial events as newly posted ledger transactions. If exports cannot deliver required history with acceptable fidelity, the pilot does not cut over until lawful accessible archival arrangements are verified. A complete native historical transaction importer is a later option, not an unspoken requirement for the first importer.
 
@@ -284,7 +284,7 @@ Plan: validate workflows and vendor/device constraints; approve contracts/securi
 
 Sources and observation scope: [research ledger](../../RESEARCH.md).
 
-Detailed observed/untested boundaries and the remaining instrumented-analysis gate: [Tab32 analysis coverage](../../WORKFLOW-RESEARCH-COVERAGE.md). Visible payment-plan lifecycle states require separate signature, schedule, collection and closure facts in our model. Statements require a versioned balance snapshot, service-date/cutoff basis, freshness indication and distinct generation/delivery/print events. These are proposed requirements derived from UI observation, not verified Tab32 transaction semantics.
+Detailed observed/untested boundaries and the remaining instrumented-analysis gate: [reference PMS analysis coverage](../../WORKFLOW-RESEARCH-COVERAGE.md). Visible payment-plan lifecycle states require separate signature, schedule, collection and closure facts in our model. Statements require a versioned balance snapshot, service-date/cutoff basis, freshness indication and distinct generation/delivery/print events. These are proposed requirements derived from UI observation, not verified reference PMS transaction semantics.
 
 
 

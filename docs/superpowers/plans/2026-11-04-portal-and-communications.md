@@ -35,7 +35,7 @@ Apply [CN-01–05](../../OPEN-PLATFORM-AND-ONBOARDING.md) to this workstream's p
 
 ## Research gate before executing this plan
 
-[Tab32 analysis coverage](../../WORKFLOW-RESEARCH-COVERAGE.md) records appointment requests as a surface separate from appointments and a checkout-triggered survey configuration, and [RESEARCH](../../RESEARCH.md) records that the observed new-appointment form had an email/text notification control checked by default. Those observations establish that notification choice must be explicit; they do not establish consent behavior, opt-out handling, delivery semantics or portal scope.
+[reference PMS analysis coverage](../../WORKFLOW-RESEARCH-COVERAGE.md) records appointment requests as a surface separate from appointments and a checkout-triggered survey configuration, and [RESEARCH](../../RESEARCH.md) records that the observed new-appointment form had an email/text notification control checked by default. Those observations establish that notification choice must be explicit; they do not establish consent behavior, opt-out handling, delivery semantics or portal scope.
 
 The design and capability matrix already require that a booking does not send an unexpected message and that opt-out and quiet-hour policy are enforced. Treat those as our requirements. Any statement about how the incumbent enforces them remains unverified.
 

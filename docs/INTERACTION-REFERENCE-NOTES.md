@@ -1,10 +1,10 @@
-# MntOs demo: feature and function notes for our build
+# Public demo: feature and function notes for our build
 
 **Status: notes only. Nothing in this document is an adopted task, a plan item or an approved requirement.**
 
 Purpose: a notebook of what another dental product does, so we can decide what our own build should be able to do. Not a design to copy, not a rebuild target, not a UI specification. UI design remains deferred under [AGENTS.md](../AGENTS.md), which also requires us to copy workflow requirements rather than another product's code, branding, imagery or screen design.
 
-Source: `https://mntos-demo.vercel.app`, a public demo workspace, no sign-in, synthetic sample data.
+Source type: public demonstration workspace, no sign-in, synthetic sample data. The source name and URL are omitted from this public summary; this remains an external observation, not an original implementation.
 
 Every entry is tagged **observed** (seen in the running demo or its served assets), **inferred** (a reading we are putting on the observation) or **decision** (a requirement we are choosing). Nothing here is a claim about how their product behaves behind the client.
 
@@ -12,7 +12,7 @@ Every entry is tagged **observed** (seen in the running demo or its served asset
 
 | Tool | Evidence | Establishes |
 |---|---|---|
-| REA 6.8.0 | `ev_0e4dd00b5accc7e2e95bbb62993264d963d35c189bf002b7b6fe6f544f815ffa` | one page target on `mntos-demo.vercel.app` |
+| REA 6.8.0 | `ev_0e4dd00b5accc7e2e95bbb62993264d963d35c189bf002b7b6fe6f544f815ffa` | one page target on the public demonstration source |
 | REA 6.8.0 | `ev_eb3ebc259db7c3a55ec9577db72ed700c7fcce1f5026ebf1a92e112af27f3e41` | 1162 DOM nodes; **no network requests observed in a 4-second window**; one localStorage key reported (`pms-react-open-patients:v2`) |
 | REA 6.8.0 | static bundle analysis, parent `ev_b0de463e226574ff50c9dccd9a2ec7d15ce402e6affb84ec745a9752ed22f1b0` | 16 captured script sources: 15 complete, 1 unavailable, 13 gaps; **zero route patterns, zero endpoint candidates recovered** |
 | Craft 0.3.0 | `ev_979c2a26b8e65a3f2c682f57108e782d11911ff49c5d3da72694d4c99aaf41f0` | screenshot of `/react/schedule` as publicly served |

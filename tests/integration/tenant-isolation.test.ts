@@ -201,6 +201,8 @@ describe('runtime database role', () => {
       'contact_verifications',
       'delivery_attempts',
       'delivery_receipts',
+      'export_grants',
+      'export_requests',
       'imaging_acquisition_deferrals',
       'imaging_annotations',
       'imaging_bridge_jobs',

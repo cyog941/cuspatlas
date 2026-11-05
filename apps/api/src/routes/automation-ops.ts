@@ -137,6 +137,71 @@ export const AUTOMATION_OPS: AutomationOp[] = [
       'A14: re-send a delivered or dead-lettered delivery as a new delivery identity with the same event identity and bytes; each attempt is signed with a fresh timestamp. Human only (webhooks.manage).',
     invoke: (svc, actor, i) => svc.replayWebhookDelivery(actor, env('webhooks.deliveries.replay', i)),
   },
+  {
+    method: 'post',
+    path: '/v1/exports',
+    operationId: 'exports.create',
+    protected: true,
+    requestBody: A('ExportCreate'),
+    success: { status: '201', schema: A('ExportCommandResult') },
+    refusals: COMMAND,
+    tool: 'exports_create',
+    description:
+      'A15: request and build an export in the versioned machine-readable format: the whole practice (the M1 package), one patient (right of access across S, I, C, E and B) or one domain. Each module export re-authorizes the caller; the package passes its completeness check or the request fails with a diagnostic and no artifact. Granted by the ordinary exports.create scope: no licence, plan or feature key. Human only.',
+    invoke: (svc, actor, i) => svc.createExport(actor, env('exports.create', i)),
+  },
+  {
+    method: 'get',
+    path: '/v1/exports',
+    operationId: 'exports.list',
+    protected: true,
+    query: 'ExportListQuery',
+    success: { status: '200', schema: A('ExportList') },
+    refusals: READ,
+    tool: 'exports_list',
+    description:
+      'A15: export requests of the caller tenant with state, digests and diagnostics, newest first (OR-01 envelope). Never contents.',
+    invoke: (svc, actor, i) => svc.listExports(actor, i.body),
+  },
+  {
+    method: 'get',
+    path: '/v1/exports/request',
+    operationId: 'exports.read',
+    protected: true,
+    query: 'ExportQuery',
+    success: { status: '200', schema: A('ExportRead') },
+    refusals: READ,
+    tool: 'exports_read',
+    description:
+      'A15: one export request with its manifest (per-document digests and per-table counts). Hidden and missing are one 404.',
+    invoke: (svc, actor, i) => svc.readExport(actor, i.body),
+  },
+  {
+    method: 'post',
+    path: '/v1/exports/grants',
+    operationId: 'exports.grant',
+    protected: true,
+    requestBody: A('ExportGrant'),
+    success: { status: '200', schema: A('ExportGrantResult') },
+    refusals: COMMAND,
+    tool: 'exports_grant',
+    description:
+      'A15: mint a short-lived (at most 300 s) delivery grant for one ready export, bound to the caller. The token is never stored. Human only.',
+    invoke: (svc, actor, i) => svc.grantExport(actor, env('exports.grant', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/exports/package',
+    operationId: 'exports.download',
+    protected: true,
+    requestBody: A('ExportDownload'),
+    success: { status: '200', schema: A('ExportPackage') },
+    refusals: COMMAND,
+    tool: 'exports_download',
+    description:
+      'A15: the stored package to the holder of a live grant whose access still holds (sensitive-read logged). A practice export is read through the M1 grant and download as the same caller. Human only.',
+    invoke: (svc, actor, i) => svc.downloadExport(actor, env('exports.download', i)),
+  },
 ];
 
 export const AUTOMATION_OP_ROUTES = (): RouteContract[] =>

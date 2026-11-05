@@ -29,3 +29,9 @@ export const validateWebhookEventTypeListQuery = def('WebhookEventTypeListQuery'
 export const validateWebhookDeliveryListQuery = def('WebhookDeliveryListQuery');
 export const validateWebhookFailureListQuery = def('WebhookFailureListQuery');
 export const validateWebhookReplay = def('WebhookReplay');
+
+export const validateExportCreate = def('ExportCreate');
+export const validateExportListQuery = def('ExportListQuery');
+export const validateExportQuery = def('ExportQuery');
+export const validateExportGrant = def('ExportGrant');
+export const validateExportDownload = def('ExportDownload');

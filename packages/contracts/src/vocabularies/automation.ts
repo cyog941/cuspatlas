@@ -32,5 +32,14 @@ export const AUTOMATION_VOCABULARIES: ModuleVocabularies = {
         e('cancelled', 'CAN', 'Cancelled (subscription revoked)', 'lifecycle', true),
       ],
     },
+    {
+      name: 'export_request',
+      sources: ['export_requests.state', 'schema:automation:ExportState'],
+      entries: [
+        e('building', 'BLD', 'Being built', 'lifecycle', false),
+        e('ready', 'RDY', 'Ready to download', 'lifecycle', true),
+        e('failed', 'FAIL', 'Failed (no file produced)', 'exception', true),
+      ],
+    },
   ],
 };

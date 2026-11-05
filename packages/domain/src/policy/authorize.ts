@@ -620,6 +620,14 @@ export const ACTION_POLICIES = {
   'webhooks.deliveries.failures.list': { scope: 'webhooks.read', principals: ['human', 'service'] },
   'webhooks.deliveries.replay': { scope: 'webhooks.manage', principals: ['human'] },
   'webhooks.deliveries.dispatch': { scope: 'outbox.deliver', principals: ['service'] },
+  // A15 export surface: the ordinary exports.create scope (no licence, plan or feature key); request,
+  // grant and download are human only (agents and services never export); each composed module
+  // export re-authorizes the caller for its own action. Request metadata reads admit services.
+  'exports.create': { scope: 'exports.create', principals: ['human'] },
+  'exports.list': { scope: 'exports.read', principals: ['human', 'service'] },
+  'exports.read': { scope: 'exports.read', principals: ['human', 'service'] },
+  'exports.grant': { scope: 'exports.create', principals: ['human'] },
+  'exports.download': { scope: 'exports.create', principals: ['human'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

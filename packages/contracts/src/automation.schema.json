@@ -585,6 +585,405 @@
         }
       }
     },
+    "ExportFormatVersion": {
+      "type": "string",
+      "enum": ["cuspatlas-export/1"]
+    },
+    "ExportScope": {
+      "type": "string",
+      "enum": ["practice", "patient", "domain"]
+    },
+    "ExportDomain": {
+      "type": "string",
+      "enum": ["scheduling", "imaging", "clinical", "engagement", "billing"]
+    },
+    "ExportState": {
+      "type": "string",
+      "enum": ["building", "ready", "failed"]
+    },
+    "ExportPurpose": {
+      "type": "string",
+      "enum": ["practiceExit", "verification", "archiveCopy", "rightOfAccess", "integration"],
+      "description": "Why the export is taken (recorded; never free text). A practice export takes the M1 purposes only."
+    },
+    "ExportCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope", "formatVersion", "purpose"],
+      "properties": {
+        "scope": {
+          "$ref": "#/$defs/ExportScope"
+        },
+        "subjectRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "domain": {
+          "$ref": "#/$defs/ExportDomain"
+        },
+        "formatVersion": {
+          "$ref": "#/$defs/ExportFormatVersion"
+        },
+        "purpose": {
+          "$ref": "#/$defs/ExportPurpose"
+        }
+      }
+    },
+    "ExportRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "exportRef",
+        "scope",
+        "subjectRef",
+        "domain",
+        "formatVersion",
+        "purpose",
+        "state",
+        "artifactFormat",
+        "manifestDigest",
+        "packageDigest",
+        "byteLength",
+        "documentCount",
+        "diagnostic",
+        "licenceGate",
+        "version",
+        "createdAt",
+        "completedAt"
+      ],
+      "properties": {
+        "exportRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "scope": {
+          "$ref": "#/$defs/ExportScope"
+        },
+        "subjectRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "domain": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExportDomain"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "formatVersion": {
+          "$ref": "#/$defs/ExportFormatVersion"
+        },
+        "purpose": {
+          "$ref": "#/$defs/ExportPurpose"
+        },
+        "state": {
+          "$ref": "#/$defs/ExportState"
+        },
+        "artifactFormat": {
+          "type": ["string", "null"]
+        },
+        "manifestDigest": {
+          "type": ["string", "null"]
+        },
+        "packageDigest": {
+          "type": ["string", "null"]
+        },
+        "byteLength": {
+          "type": ["integer", "null"]
+        },
+        "documentCount": {
+          "type": ["integer", "null"]
+        },
+        "diagnostic": {
+          "type": ["string", "null"]
+        },
+        "licenceGate": {
+          "const": "none",
+          "description": "No licence, plan or feature key is evaluated on the export path."
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "completedAt": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "ExportCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A15 export request (a job: building, then ready or failed).",
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/ExportRequest"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ExportListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "cursor": {
+          "$ref": "#/$defs/Cursor"
+        },
+        "state": {
+          "$ref": "#/$defs/ExportState"
+        }
+      }
+    },
+    "ExportList": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A15 export requests (OR-01 envelope), newest first. Never contents.",
+      "required": [
+        "asOf",
+        "appliedFilters",
+        "scope",
+        "limit",
+        "truncated",
+        "nextCursor",
+        "ordering",
+        "count",
+        "items"
+      ],
+      "properties": {
+        "asOf": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "appliedFilters": {
+          "type": "object"
+        },
+        "scope": {
+          "$ref": "#/$defs/ListScope"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "nextCursor": {
+          "type": ["string", "null"]
+        },
+        "ordering": {
+          "$ref": "#/$defs/ListOrdering"
+        },
+        "count": {
+          "$ref": "#/$defs/ListCount"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ExportRequest"
+          }
+        }
+      }
+    },
+    "ExportQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["exportRef"],
+      "properties": {
+        "exportRef": {
+          "$ref": "#/$defs/Uuid"
+        }
+      }
+    },
+    "ExportRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "exportRef",
+            "scope",
+            "subjectRef",
+            "domain",
+            "formatVersion",
+            "purpose",
+            "state",
+            "artifactFormat",
+            "manifestDigest",
+            "packageDigest",
+            "byteLength",
+            "documentCount",
+            "diagnostic",
+            "licenceGate",
+            "version",
+            "createdAt",
+            "completedAt",
+            "manifest"
+          ],
+          "properties": {
+            "exportRef": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "scope": {
+              "$ref": "#/$defs/ExportScope"
+            },
+            "subjectRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "domain": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ExportDomain"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "formatVersion": {
+              "$ref": "#/$defs/ExportFormatVersion"
+            },
+            "purpose": {
+              "$ref": "#/$defs/ExportPurpose"
+            },
+            "state": {
+              "$ref": "#/$defs/ExportState"
+            },
+            "artifactFormat": {
+              "type": ["string", "null"]
+            },
+            "manifestDigest": {
+              "type": ["string", "null"]
+            },
+            "packageDigest": {
+              "type": ["string", "null"]
+            },
+            "byteLength": {
+              "type": ["integer", "null"]
+            },
+            "documentCount": {
+              "type": ["integer", "null"]
+            },
+            "diagnostic": {
+              "type": ["string", "null"]
+            },
+            "licenceGate": {
+              "const": "none",
+              "description": "No licence, plan or feature key is evaluated on the export path."
+            },
+            "version": {
+              "$ref": "#/$defs/Version"
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "completedAt": {
+              "type": ["string", "null"]
+            },
+            "manifest": {
+              "type": ["object", "null"],
+              "description": "The manifest (counts and digests), never contents."
+            }
+          }
+        }
+      }
+    },
+    "ExportGrant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["exportRef"],
+      "properties": {
+        "exportRef": {
+          "$ref": "#/$defs/Uuid"
+        }
+      }
+    },
+    "ExportGrantResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["grantRef", "token", "expiresAt"],
+          "properties": {
+            "grantRef": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "token": {
+              "type": "string",
+              "maxLength": 200,
+              "description": "Short-lived delivery token; never stored or logged."
+            },
+            "expiresAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        }
+      }
+    },
+    "ExportDownload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["exportRef", "token"],
+      "properties": {
+        "exportRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "token": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      }
+    },
+    "ExportPackage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "description": "The package: a cuspatlas-export/1 manifest and documents, or the M1 practice package."
+        }
+      }
+    },
     "ListScope": {
       "type": "object",
       "additionalProperties": false,

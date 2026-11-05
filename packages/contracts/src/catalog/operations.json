@@ -5613,6 +5613,177 @@
     "status": "active"
   },
   {
+    "operation": "exports.create",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "exports.create",
+    "scope": "exports.create",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/exports",
+      "requestSchema": "automation:ExportCreate",
+      "successStatus": "201",
+      "successSchema": "automation:ExportCommandResult"
+    },
+    "mcpTool": "exports_create",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phiBulk",
+    "status": "active"
+  },
+  {
+    "operation": "exports.download",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "exports.download",
+    "scope": "exports.create",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/exports/package",
+      "requestSchema": "automation:ExportDownload",
+      "successStatus": "200",
+      "successSchema": "automation:ExportPackage"
+    },
+    "mcpTool": "exports_download",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phiBulk",
+    "status": "active"
+  },
+  {
+    "operation": "exports.grant",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "exports.grant",
+    "scope": "exports.create",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/exports/grants",
+      "requestSchema": "automation:ExportGrant",
+      "successStatus": "200",
+      "successSchema": "automation:ExportGrantResult"
+    },
+    "mcpTool": "exports_grant",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "exports.list",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "exports.list",
+    "scope": "exports.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/exports",
+      "successStatus": "200",
+      "successSchema": "automation:ExportList"
+    },
+    "mcpTool": "exports_list",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "exports.read",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "exports.read",
+    "scope": "exports.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/exports/request",
+      "successStatus": "200",
+      "successSchema": "automation:ExportRead"
+    },
+    "mcpTool": "exports_read",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
     "operation": "health.read",
     "owner": "F",
     "kind": "query",

@@ -13959,6 +13959,181 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/exports:
+    post:
+      operationId: exports.create
+      description: >-
+        A15: request and build an export in the versioned machine-readable format: the whole practice (the
+        M1 package), one patient (right of access across S, I, C, E and B) or one domain. Each module export
+        re-authorizes the caller; the package passes its completeness check or the request fails with a
+        diagnostic and no artifact. Granted by the ordinary exports.create scope: no licence, plan or
+        feature key. Human only.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/automation.schema.json#/$defs/ExportCreate'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/automation.schema.json#/$defs/ExportCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: exports.list
+      description: >-
+        A15: export requests of the caller tenant with state, digests and diagnostics, newest first (OR-01
+        envelope). Never contents.
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/automation.schema.json#/$defs/ExportListQuery'
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/automation.schema.json#/$defs/Cursor'
+        - name: state
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/automation.schema.json#/$defs/ExportState'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/automation.schema.json#/$defs/ExportList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/exports/request:
+    get:
+      operationId: exports.read
+      description: >-
+        A15: one export request with its manifest (per-document digests and per-table counts). Hidden and
+        missing are one 404.
+      parameters:
+        - name: exportRef
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/automation.schema.json#/$defs/Uuid'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/automation.schema.json#/$defs/ExportRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/exports/grants:
+    post:
+      operationId: exports.grant
+      description: >-
+        A15: mint a short-lived (at most 300 s) delivery grant for one ready export, bound to the caller.
+        The token is never stored. Human only.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/automation.schema.json#/$defs/ExportGrant'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/automation.schema.json#/$defs/ExportGrantResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/exports/package:
+    post:
+      operationId: exports.download
+      description: >-
+        A15: the stored package to the holder of a live grant whose access still holds (sensitive-read
+        logged). A practice export is read through the M1 grant and download as the same caller. Human only.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/automation.schema.json#/$defs/ExportDownload'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/automation.schema.json#/$defs/ExportPackage'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   # END generated: AUTOMATION_OPS
 components:
   securitySchemes:

@@ -377,3 +377,23 @@ Workstream A batch 2 (A8-A13) on synthetic data only. Framing, recorded before a
 - Not done: a real HTTP egress adapter, a second event version (the version selection path exists but
   only version 1 is published), per-subscription rate limits, an operator allowlist configuration
   surface, an external consumer review (A-S4).
+
+### A15: export surface, complete and machine-readable without a special tier
+
+- Red: `tests/integration/automation-export.test.ts` 7 failed (exit 1); green 7/7. Negative-harness
+  rows for the five export operations added to `tests/integration/automation-negative-harness.test.ts`.
+- Operations (5): `exports.create` (human, `exports.create`), `exports.list` and `exports.read`
+  (`exports.read`), `exports.grant` and `exports.download` (human, `exports.create`). No licence, plan
+  or feature-key evaluation; `licenceGate: "none"` on every request and manifest.
+- Scopes: `practice` delegates to M1 `practice.export.create`/`grant`/`download` as the same caller (no
+  duplicate of M1); `patient` (right of access across S/I/C/E/B, patient-link filter) and `domain` use
+  `cuspatlas-export/1` with the M1 document registry and digest; completeness validator
+  `validateScopedExport` (truncated, foreign-patient, unknown-version and digest cases tested). Job
+  rows `export_requests` (`building` -> `ready`/`failed` with diagnostic, audit v1 and v2, sensitive
+  reads); grants `export_grants` (at most 300 s, caller-bound, I1 token format). Round trip: download,
+  validate, recompute digests, only the subject's rows; another tenant's patient = missing (404).
+- Migration `20261204010000_export_requests.sql`; vocabulary `export_request`; format document
+  extended in `docs/export-format.md`.
+- Not done: worker-driven resumable build, per-module patient-scoped reads (the module exports read
+  the tenant and are filtered), filtered per-patient blob bundles, A-D8 approval, external receiver
+  review (A-S4).

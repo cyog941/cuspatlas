@@ -545,6 +545,15 @@ export const LIST_OPERATIONS: Readonly<Record<string, ListOperationSpec>> = {
     cursor: false,
     scope: 'tenant',
   },
+  // Workstream A batch 4 (A15): export requests, tenant-wide, newest first.
+  'exports.list': {
+    rows: 'items',
+    ordering: { key: 'createdAt', direction: 'desc', tieBreak: 'exportRef' },
+    limit: { default: 25, max: 100 },
+    cursor: true,
+    scope: 'tenant',
+    placement: 'existing',
+  },
   // Workstream A batch 4 (A14): tenant-wide reads (location-restricted members are refused).
   'webhooks.deliveries.failures.list': {
     rows: 'items',

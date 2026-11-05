@@ -483,6 +483,23 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
           ...(deps.webhookResolveHost ? { resolveHost: deps.webhookResolveHost } : {}),
           secretKey: resolveWebhookSecretKey(deps.env, deps.webhookSecretKey),
         },
+        // A15: the same five module exports M1 composes, called as the caller, and M1 for the practice scope.
+        exports: {
+          exporters: {
+            scheduling: (ctx) => appointments.exportScheduling(ctx),
+            imaging: (ctx) => imaging.exportImaging(ctx),
+            clinical: (ctx) => clinical.exportClinical(ctx),
+            engagement: (ctx) => engagement.exportEngagement(ctx, {}),
+            billing: (ctx) => billing.exportBilling(ctx),
+          },
+          practice: {
+            create: (c, e) => migration.createPracticeExport(c, e),
+            grant: (c, e) => migration.grantPracticeExport(c, e),
+            download: (c, e) => migration.downloadPracticeExport(c, e),
+          },
+          ...(deps.objectStore ? { objectStore: deps.objectStore } : {}),
+          tokenSecret: resolveImagingTokenSecret(deps.env, deps.imagingTokenSecret),
+        },
       });
       registerAutomationOpRoutes(app, { authenticator, automation });
     }

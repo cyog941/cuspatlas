@@ -554,6 +554,42 @@
       "sensitivity": "phi"
     },
     {
+      "name": "exports.create",
+      "noun": "exports",
+      "verb": "create",
+      "principalClasses": [
+        "human"
+      ],
+      "humanOnly": true,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "exports.create",
+        "exports.download",
+        "exports.grant"
+      ],
+      "sensitivity": "phiBulk"
+    },
+    {
+      "name": "exports.read",
+      "noun": "exports",
+      "verb": "read",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "exports.list",
+        "exports.read"
+      ],
+      "sensitivity": "phi"
+    },
+    {
       "name": "imaging.associate",
       "noun": "imaging",
       "verb": "associate",

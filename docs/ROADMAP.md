@@ -23,6 +23,7 @@ Follow [AS-01 through AS-12](ASSURANCE-AND-CERTIFICATION.md): F establishes evid
 ## Implementation sequence after explicit authorization
 
 [Practice time and automation](PRACTICE-TIME-AND-AUTOMATION.md) is an acceptance requirement across B/A/S/E/C/I/M/R. Prioritize the closed-loop claims workflow and exception ownership, then cancellation recovery and treatment follow-up. Measure staff effort and resolved outcomes. This is a cross-workstream sequence, not a claim that the current synthetic foundation implements it; UI remains deferred.
+[Operational read models](superpowers/specs/2026-11-04-operational-read-models.md) (OR-01 to OR-14, [plan](superpowers/plans/2026-11-04-operational-read-models.md)) adds the composed schedule, floor, appointment-detail and work-queue read contracts the UI will consume. It is a backend prerequisite for P4, not UI design.
 
 The [foundation execution runbook](superpowers/plans/2026-11-03-foundation-execution-runbook.md) defines E0–E6 batches, environment selection, task dependencies, test/commit checkpoints and stopping conditions for workstream F. It is an execution companion, not a tenth workstream. All batches are not started.
 

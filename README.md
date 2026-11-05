@@ -8,7 +8,7 @@ CuspAtlas is a working name: a tooth's cusp + an atlas of practice operations. T
 
 ## Purpose
 
-Ease of use, staff time returned, closed-loop claims automation and practical migration are core product pillars. See [practice time and automation requirements](docs/PRACTICE-TIME-AND-AUTOMATION.md); these are requirements, not shipped features.
+Ease of use, staff time returned, closed-loop claims automation and practical migration are core product pillars. See [practice time and automation requirements](docs/PRACTICE-TIME-AND-AUTOMATION.md) and [operational read models and work queues](docs/superpowers/specs/2026-11-04-operational-read-models.md); these are requirements, not shipped features.
 
 Give dental practices ownership of their data and software, complete practice workflows, and secure programmatic access without a software-license paywall. Self-hosting is a first-class objective. Hosting, hardware, support, communications, payer connections, prescribing, and model inference still have real costs.
 

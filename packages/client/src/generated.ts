@@ -153,10 +153,12 @@ export type AgentsActionProposalList = {
   readonly "ordering": AgentsListOrdering;
   readonly "count": AgentsListCount;
   readonly "items": readonly (AgentsActionProposal)[];
+  readonly "vocabularies"?: AgentsVocabularyVersions;
 };
 
 export type AgentsActionProposalRead = {
   readonly "data": AgentsActionProposal;
+  readonly "vocabularies"?: AgentsVocabularyVersions;
 };
 
 export type AgentsActionProposalResult = {
@@ -238,10 +240,12 @@ export type AgentsAgentList = {
   readonly "ordering": AgentsListOrdering;
   readonly "count": AgentsListCount;
   readonly "items": readonly (AgentsAgent)[];
+  readonly "vocabularies"?: AgentsVocabularyVersions;
 };
 
 export type AgentsAgentRead = {
   readonly "data": AgentsAgent;
+  readonly "vocabularies"?: AgentsVocabularyVersions;
 };
 
 export type AgentsAgentRef = AgentsUuid;
@@ -322,10 +326,12 @@ export type AgentsAiDraftList = {
   readonly "ordering": AgentsListOrdering;
   readonly "count": AgentsListCount;
   readonly "items": readonly (AgentsAiDraft)[];
+  readonly "vocabularies"?: AgentsVocabularyVersions;
 };
 
 export type AgentsAiDraftRead = {
   readonly "data": AgentsAiDraft;
+  readonly "vocabularies"?: AgentsVocabularyVersions;
 };
 
 export type AgentsAiDraftReject = {
@@ -365,6 +371,7 @@ export type AgentsAiEvaluationList = {
   readonly "ordering": AgentsListOrdering;
   readonly "count": AgentsListCount;
   readonly "items": readonly (AgentsAiEvaluation)[];
+  readonly "vocabularies"?: AgentsVocabularyVersions;
 };
 
 export type AgentsAiEvaluationRun = {
@@ -407,6 +414,7 @@ export type AgentsAiUseCaseList = {
   readonly "ordering": AgentsListOrdering;
   readonly "count": AgentsListCount;
   readonly "items": readonly (AgentsAiUseCaseState)[];
+  readonly "vocabularies"?: AgentsVocabularyVersions;
 };
 
 export type AgentsAiUseCaseState = {
@@ -479,6 +487,7 @@ export type AgentsConsentList = {
   readonly "ordering": AgentsListOrdering;
   readonly "count": AgentsListCount;
   readonly "items": readonly (AgentsConsent)[];
+  readonly "vocabularies"?: AgentsVocabularyVersions;
 };
 
 export type AgentsConsentRecord = {
@@ -574,6 +583,8 @@ export type AgentsScopeName = string;
 export type AgentsUuid = string;
 
 export type AgentsVersion = number;
+
+export type AgentsVocabularyVersions = { readonly [k: string]: string };
 
 export type BillingAccount = "patient_receivable" | "insurer_receivable" | "production_revenue" | "unapplied_credit" | "undeposited_funds" | "settled_cash" | "adjustment_expense" | "insurer_clearing" | "insurer_cash" | "opening_receivable" | "opening_credit" | "opening_equity";
 

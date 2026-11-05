@@ -92,6 +92,16 @@ export const VOCABULARY_BEARING: Readonly<Record<string, readonly string[]>> = {
   'messaging.threads.read': ['message_thread'],
   'messaging.threads.list': ['message_thread'],
   'communications.deliveries.read': ['outbound_message'],
+  // H3: workstream A batch 2 reads and lists (additive; responses keep their own data/list shapes).
+  'agents.principals.read': ['agent_principal'],
+  'agents.principals.list': ['agent_principal'],
+  'agents.consents.list': ['agent_consent'],
+  'actions.proposals.read': ['operation_proposal'],
+  'actions.proposals.list': ['operation_proposal'],
+  'ai.drafts.read': ['ai_draft'],
+  'ai.drafts.list': ['ai_draft'],
+  'ai.evaluations.list': ['ai_evaluation_verdict'],
+  'ai.useCases.list': ['ai_use_case_approval', 'ai_use_case_gate'],
 };
 
 export function attachVocabularyVersions(operation: string, body: unknown): unknown {

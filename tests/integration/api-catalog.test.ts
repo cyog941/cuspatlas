@@ -61,7 +61,7 @@ const REVIEWED_ROUTE_SITES: Record<string, number> = {
   'apps/api/src/routes/migration-ops.ts: app.post': 1,
   'apps/api/src/routes/patients.ts: app.post': 8,
   'apps/api/src/routes/patients.ts: app.get': 5,
-  'apps/api/src/routes/portal-routes.ts: app.get': 1,
+  'apps/api/src/routes/portal-routes.ts: app.get': 2,
   'apps/api/src/routes/portal-routes.ts: app.post': 1,
   'apps/api/src/routes/proposals.ts: app.post': 3,
   'apps/api/src/routes/proposals.ts: app.get': 1,

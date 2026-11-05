@@ -796,6 +796,26 @@ export const PORTAL_CALLS: PortalCall[] = [
       status: 200,
     }),
   },
+  // Closeout B portal documents (release ref unknown here: credentials are refused before any lookup).
+  {
+    operation: 'portal.documents.grantRead',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/portal/v1/patients/${f.child}/documents/00000000-0000-4000-8000-0000000000f2/read-grants`,
+      body: {},
+      keyed: false,
+      status: 201,
+    }),
+  },
+  {
+    operation: 'portal.documents.content',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/portal/v1/patients/${f.child}/documents/00000000-0000-4000-8000-0000000000f2/content`,
+      keyed: false,
+      status: 200,
+    }),
+  },
   {
     operation: 'portal.requests.submit',
     rest: (f) => ({

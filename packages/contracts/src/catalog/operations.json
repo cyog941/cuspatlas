@@ -6509,7 +6509,8 @@
       "path": "/v1/exports/package",
       "requestSchema": "automation:ExportDownload",
       "successStatus": "200",
-      "successSchema": "automation:ExportPackage"
+      "successSchema": "automation:ExportPackage",
+      "ranges": "bytes"
     },
     "mcpTool": "exports_download",
     "refusals": [
@@ -11460,7 +11461,8 @@
       "path": "/v1/practice/exports/package",
       "requestSchema": "migration:PracticeExportDownload",
       "successStatus": "200",
-      "successSchema": "migration:PracticeExportPackage"
+      "successSchema": "migration:PracticeExportPackage",
+      "ranges": "bytes"
     },
     "mcpTool": "practice_export_download",
     "refusals": [

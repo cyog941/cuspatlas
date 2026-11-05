@@ -13,6 +13,8 @@ export { BACKUP_VERIFICATION_MAX_AGE_SECONDS } from './operations';
 export {
   buildPracticeManifest,
   documentDigest,
+  type PackageBytes,
+  type PackageBytesRequest,
   PRACTICE_EXPORT_DOCUMENTS,
   type PracticeExportDeps,
   type PracticeExporters,

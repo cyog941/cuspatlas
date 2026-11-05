@@ -190,6 +190,7 @@ export function buildCatalog(root = ROOT): CatalogOperation[] {
         successStatus: r.success.status,
         successSchema: r.success.schema,
         ...(r.success.media ? { successMedia: r.success.media } : {}),
+        ...(r.ranges ? { ranges: r.ranges } : {}),
       },
       ...(tool ? { mcpTool: tool.name } : {}),
       refusals: [...r.refusals],

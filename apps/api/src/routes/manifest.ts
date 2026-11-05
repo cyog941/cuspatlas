@@ -39,6 +39,12 @@ export interface RouteContract {
   };
   /** Documented refusal statuses (all use the shared Refusal schema). */
   readonly refusals: readonly string[];
+  /**
+   * Closeout A8: the success body is also available as stored bytes with single HTTP byte ranges
+   * (`Range`/`If-Range`, 206 Partial Content, 416 Range Not Satisfiable; apps/api/src/package-download.ts).
+   * 206 and 416 answer only a request that asked for a range, so they are not listed as refusals.
+   */
+  readonly ranges?: 'bytes';
 }
 
 export const SCHEMA_FILE = 'synthetic-task.schema.json';

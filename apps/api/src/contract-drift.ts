@@ -472,8 +472,12 @@ export function checkContractDrift(src: ContractSources): string[] {
         `${route.operationId}: ${route.success.status} must reference ${schemaRef(route.success.schema)}`,
       );
     }
+    // A8: a byte-range operation documents 206 and 416, answered only to a request carrying a Range.
+    const rangeStatuses = route.ranges === 'bytes' ? ['206', '416'] : [];
+    for (const s of rangeStatuses)
+      if (!isObj(responses[s])) problems.push(`${route.operationId}: ${s} must be documented (byte ranges)`);
     const refusalStatuses = Object.keys(responses)
-      .filter((s) => s !== route.success.status)
+      .filter((s) => s !== route.success.status && !rangeStatuses.includes(s))
       .sort();
     if (refusalStatuses.join(',') !== [...route.refusals].sort().join(',')) {
       problems.push(`${route.operationId}: documented refusal statuses differ from the service`);

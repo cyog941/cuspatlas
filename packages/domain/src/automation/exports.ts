@@ -23,8 +23,11 @@ import {
   type ComposedDocument,
   documentDigest,
   GRANT_SECONDS,
+  type PackageBytes,
+  type PackageBytesRequest,
   PRACTICE_EXPORT_DOCUMENTS,
   type PracticeExporters,
+  readVerifiedPackage,
 } from '../migration/practice-export';
 import {
   type AutomationBase,
@@ -67,6 +70,12 @@ export interface ExportPracticePort {
   >;
   grant(ctx: ActorContext, e: CommandEnvelope<unknown>): Promise<{ data: { token: string } }>;
   download(ctx: ActorContext, e: CommandEnvelope<unknown>): Promise<{ data: unknown }>;
+  /** A8: the M1 package bytes through the same M1 grant and download policy. */
+  downloadBytes?(
+    ctx: ActorContext,
+    e: CommandEnvelope<unknown>,
+    request?: PackageBytesRequest,
+  ): Promise<{ data: PackageBytes }>;
 }
 
 export interface ExportDeps {
@@ -652,6 +661,65 @@ export function createExportOperations(base: AutomationBase, ex: ExportDeps | un
     };
   };
 
+  /**
+   * The delivery checks shared by the JSON and byte representations of `exports.download` (run inside
+   * its guard): tenant-wide authorization, envelope, a live unrevoked grant bound to this caller and
+   * export, module re-authorization, requester or administrator, ready state, then the sensitive-read
+   * audit (a ranged read carries the `range` marker; content is never logged).
+   */
+  const authorizeDelivery = async (
+    ctx: ActorContext,
+    envelope: CommandEnvelope<unknown>,
+    ranged: boolean,
+    inline: boolean,
+  ): Promise<RequestRow> => {
+    const op = 'exports.download';
+    await base.tenantWide(ctx, op, 'exports');
+    checkEnvelope(envelope, op);
+    const p = envelope.payload;
+    validate<{ exportRef: string; token: string }>(validateExportDownload, p);
+    assertRef(p.exportRef);
+    const { tokenSecret } = need();
+    const parsed = verifyGrantToken(
+      tokenSecret,
+      { tenantId: ctx.tenantId, principalId: ctx.actorId, objectRef: p.exportRef },
+      p.token,
+    );
+    if (!parsed) throw notFound();
+    const pre = await deps.withTenantTransaction(ctx, async (tx) => {
+      const live = await tx.query(
+        `SELECT 1 FROM cuspatlas.export_grants WHERE id = $1 AND export_id = $2
+           AND principal_id = cuspatlas.current_actor_id() AND expires_at > now() AND revoked_at IS NULL`,
+        [parsed.grantRef, p.exportRef],
+      );
+      if (live.rows.length === 0) throw notFound();
+      return loadRequest(tx, p.exportRef);
+    });
+    await reauthorizeModules(ctx, pre);
+    return deps.withTenantTransaction(ctx, async (tx) => {
+      const r = await loadRequest(tx, p.exportRef);
+      await assertRequesterOrAdmin(ctx, tx, r, op);
+      if (r.state !== 'ready') throw conflict('export_not_ready');
+      if (inline && r.practice_export_id === null && Number(r.byte_length) > maxInlineBytes)
+        throw conflict('package_exceeds_inline_limit');
+      await recordSensitiveRead(tx, {
+        operation: op,
+        resourceType: 'exportRequest',
+        resourceRefs: r.subject_id ? [r.id, r.subject_id] : [r.id],
+        queryFields: ranged ? ['range'] : [],
+      });
+      return r;
+    });
+  };
+  /** Scoped package bytes verified against the digest recorded at build time (refused otherwise). */
+  const storedBytes = (ctx: ActorContext, row: RequestRow) =>
+    readVerifiedPackage(
+      need().objectStore,
+      ctx.tenantId,
+      row.storage_key as string,
+      row.package_digest as string,
+    );
+
   return {
     /**
      * Requests and builds an export (human only, `exports.create`; tenant-wide membership). The
@@ -933,42 +1001,7 @@ export function createExportOperations(base: AutomationBase, ex: ExportDeps | un
     downloadExport(ctx: ActorContext, envelope: CommandEnvelope<unknown>) {
       const op = 'exports.download';
       return base.guarded(ctx, op, async () => {
-        await base.tenantWide(ctx, op, 'exports');
-        checkEnvelope(envelope, op);
-        const p = envelope.payload;
-        validate<{ exportRef: string; token: string }>(validateExportDownload, p);
-        assertRef(p.exportRef);
-        const { tokenSecret, objectStore } = need();
-        const parsed = verifyGrantToken(
-          tokenSecret,
-          { tenantId: ctx.tenantId, principalId: ctx.actorId, objectRef: p.exportRef },
-          p.token,
-        );
-        if (!parsed) throw notFound();
-        const pre = await deps.withTenantTransaction(ctx, async (tx) => {
-          const live = await tx.query(
-            `SELECT 1 FROM cuspatlas.export_grants WHERE id = $1 AND export_id = $2
-               AND principal_id = cuspatlas.current_actor_id() AND expires_at > now() AND revoked_at IS NULL`,
-            [parsed.grantRef, p.exportRef],
-          );
-          if (live.rows.length === 0) throw notFound();
-          return loadRequest(tx, p.exportRef);
-        });
-        await reauthorizeModules(ctx, pre);
-        const row = await deps.withTenantTransaction(ctx, async (tx) => {
-          const r = await loadRequest(tx, p.exportRef);
-          await assertRequesterOrAdmin(ctx, tx, r, op);
-          if (r.state !== 'ready') throw conflict('export_not_ready');
-          if (r.practice_export_id === null && Number(r.byte_length) > maxInlineBytes)
-            throw conflict('package_exceeds_inline_limit');
-          await recordSensitiveRead(tx, {
-            operation: op,
-            resourceType: 'exportRequest',
-            resourceRefs: r.subject_id ? [r.id, r.subject_id] : [r.id],
-            queryFields: [],
-          });
-          return r;
-        });
+        const row = await authorizeDelivery(ctx, envelope, false, true);
         if (row.practice_export_id !== null) {
           if (!ex?.practice) throw unavailable();
           const g = await ex.practice.grant(
@@ -980,12 +1013,40 @@ export function createExportOperations(base: AutomationBase, ex: ExportDeps | un
             envOf('practice.export.download', { exportRef: row.practice_export_id, token: g.data.token }),
           );
         }
-        const bytes = await objectStore.read(
-          ctx.tenantId,
-          row.storage_key as string,
-          row.package_digest as string,
-        );
+        const bytes = await storedBytes(ctx, row);
         return { data: JSON.parse(Buffer.from(bytes).toString('utf8')) as ScopedPackage };
+      });
+    },
+
+    /**
+     * A8: the same delivery as `downloadExport` (same operation, policy, grant, revocation and audit) as
+     * the stored bytes and their recorded digest, for streamed or ranged REST transfer. Byte delivery is
+     * not bound by the inline JSON limit (the build cap still bounds the package). A grant serves any
+     * number of ranges until it expires or is revoked; each range is re-authorized and re-verified.
+     */
+    downloadExportBytes(
+      ctx: ActorContext,
+      envelope: CommandEnvelope<unknown>,
+      request: PackageBytesRequest = {},
+    ): Promise<{ data: PackageBytes }> {
+      const op = 'exports.download';
+      const ranged = request.ranged === true;
+      return base.guarded(ctx, op, async () => {
+        const row = await authorizeDelivery(ctx, envelope, ranged, false);
+        if (row.practice_export_id !== null) {
+          if (!ex?.practice?.downloadBytes) throw unavailable();
+          const g = await ex.practice.grant(
+            ctx,
+            envOf('practice.export.grant', { exportRef: row.practice_export_id }),
+          );
+          return ex.practice.downloadBytes(
+            ctx,
+            envOf('practice.export.download', { exportRef: row.practice_export_id, token: g.data.token }),
+            { ranged },
+          );
+        }
+        const bytes = await storedBytes(ctx, row);
+        return { data: { bytes, digestSha256: row.package_digest as string, byteLength: bytes.byteLength } };
       });
     },
   };

@@ -1,8 +1,9 @@
 import type { ActorContext, CommandEnvelope } from '@cuspatlas/contracts';
-import type { ActionName, AutomationService } from '@cuspatlas/domain';
+import type { ActionName, AutomationService, PackageBytes, PackageBytesRequest } from '@cuspatlas/domain';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { type Authenticator, authenticateOnRequest, requireActor } from '../auth';
 import { type OpsBlockSpec, renderOpsBlock } from '../migration-openapi';
+import { DEFAULT_DOWNLOAD_CHUNK_BYTES, sendPackageBytes, wantsPackageBytes } from '../package-download';
 import type { RouteContract } from './manifest';
 import type { OpInput } from './scheduling-ops';
 
@@ -21,6 +22,13 @@ export interface AutomationOp extends RouteContract {
   /** GET only: the automation.schema.json definition of the query object. */
   readonly query?: string;
   invoke(svc: AutomationService, actor: ActorContext, input: OpInput): Promise<unknown>;
+  /** A8: the byte representation of a `ranges: 'bytes'` operation (same policy, grant and audit). */
+  invokeBytes?(
+    svc: AutomationService,
+    actor: ActorContext,
+    input: OpInput,
+    request: PackageBytesRequest,
+  ): Promise<{ data: PackageBytes }>;
 }
 
 const A = (name: string) => `automation:${name}`;
@@ -214,19 +222,24 @@ export const AUTOMATION_OPS: AutomationOp[] = [
     description:
       'A15: the stored package to the holder of a live grant whose access still holds (sensitive-read logged). A practice export is read through the M1 grant and download as the same caller. Human only.',
     invoke: (svc, actor, i) => svc.downloadExport(actor, env('exports.download', i)),
+    ranges: 'bytes',
+    invokeBytes: (svc, actor, i, r) => svc.downloadExportBytes(actor, env('exports.download', i), r),
   },
 ];
 
 export const AUTOMATION_OP_ROUTES = (): RouteContract[] =>
-  AUTOMATION_OPS.map(({ method, path, operationId, protected: p, requestBody, success, refusals }) => ({
-    method,
-    path,
-    operationId,
-    protected: p,
-    ...(requestBody ? { requestBody } : {}),
-    success,
-    refusals,
-  }));
+  AUTOMATION_OPS.map(
+    ({ method, path, operationId, protected: p, requestBody, success, refusals, ranges }) => ({
+      method,
+      path,
+      operationId,
+      protected: p,
+      ...(requestBody ? { requestBody } : {}),
+      success,
+      refusals,
+      ...(ranges ? { ranges } : {}),
+    }),
+  );
 
 export const AUTOMATION_OPS_BLOCK: OpsBlockSpec = {
   begin: '  # BEGIN generated: AUTOMATION_OPS (scripts/openapi-automation.ts)',
@@ -248,7 +261,7 @@ function queryOf(raw: unknown): Record<string, unknown> {
 /** Registers every AUTOMATION_OPS route; authentication in `onRequest`, no tenant read from input. */
 export function registerAutomationOpRoutes(
   app: FastifyInstance,
-  deps: { authenticator: Authenticator; automation: AutomationService },
+  deps: { authenticator: Authenticator; automation: AutomationService; downloadChunkBytes?: number },
 ): void {
   for (const op of AUTOMATION_OPS) {
     const input = (request: FastifyRequest): OpInput => {
@@ -265,11 +278,22 @@ export function registerAutomationOpRoutes(
         op.invoke(deps.automation, requireActor(request), input(request)),
       );
     } else {
-      app.post(op.path, opts, async (request, reply) =>
-        reply
+      app.post(op.path, opts, async (request, reply) => {
+        const bytes = op.invokeBytes;
+        if (op.ranges === 'bytes' && bytes && wantsPackageBytes(request)) {
+          const actor = requireActor(request);
+          return sendPackageBytes(
+            request,
+            reply,
+            (ranged) => bytes(deps.automation, actor, input(request), { ranged }),
+            deps.downloadChunkBytes ?? DEFAULT_DOWNLOAD_CHUNK_BYTES,
+          );
+        }
+        if (op.ranges === 'bytes') reply.header('accept-ranges', 'bytes');
+        return reply
           .code(op.success.status === '201' ? 201 : 200)
-          .send(await op.invoke(deps.automation, requireActor(request), input(request))),
-      );
+          .send(await op.invoke(deps.automation, requireActor(request), input(request)));
+      });
     }
   }
 }

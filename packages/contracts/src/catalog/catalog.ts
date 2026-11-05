@@ -43,6 +43,8 @@ export interface CatalogOperation {
     readonly successSchema: string;
     /** Non-JSON success body (object bytes); default application/json. */
     readonly successMedia?: 'application/octet-stream';
+    /** Closeout A8: the success body is also served as stored bytes with single HTTP byte ranges. */
+    readonly ranges?: 'bytes';
   };
   readonly mcpTool?: string;
   /** Documented refusal statuses; every one uses the shared Refusal body. */

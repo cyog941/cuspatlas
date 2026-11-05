@@ -11,6 +11,7 @@ import {
   ENGAGEMENT_EXPORT_TABLES,
   IMAGING_EXPORT_FORMAT,
   IMAGING_EXPORT_TABLES,
+  isObjectStoreError,
   type ObjectStorePort,
   PRACTICE_EXPORT_FORMAT,
   type PracticeExportDocument,
@@ -49,6 +50,36 @@ export interface PracticeExporters {
   clinical(ctx: ActorContext, audit?: ExportReadAudit): Promise<ComposedDocument>;
   engagement(ctx: ActorContext, audit?: ExportReadAudit): Promise<ComposedDocument>;
   billing(ctx: ActorContext, audit?: ExportReadAudit): Promise<ComposedDocument>;
+}
+
+/**
+ * Closeout A8: the stored package bytes exactly as built, verified against the digest recorded at build
+ * time, for byte (streamed or HTTP Range) delivery. REST slices them; the digest is the package digest.
+ */
+export interface PackageBytes {
+  readonly bytes: Uint8Array;
+  readonly digestSha256: string;
+  readonly byteLength: number;
+}
+/** A8: how a byte delivery was asked for (a ranged read is audited with the `range` marker). */
+export interface PackageBytesRequest {
+  readonly ranged?: boolean;
+}
+
+/** A8: stored bytes that no longer match the recorded digest (or are gone) are never served. */
+export async function readVerifiedPackage(
+  store: ObjectStorePort,
+  tenantId: string,
+  storageKey: string,
+  digest: string,
+): Promise<Uint8Array> {
+  try {
+    return await store.read(tenantId, storageKey, digest);
+  } catch (err) {
+    if (isObjectStoreError(err) && (err.code === 'digest_mismatch' || err.code === 'missing'))
+      throw conflict('package_integrity_failed');
+    throw err;
+  }
 }
 
 export interface PracticeExportDeps {
@@ -227,9 +258,53 @@ export function createPracticeExportOperations(base: MigrationBase) {
     if (!row) throw notFound();
     return row;
   };
-  const readPackage = async (ctx: ActorContext, row: ExportRow): Promise<PracticeExportPackage> => {
-    const bytes = await pe().objectStore.read(ctx.tenantId, row.storage_key, row.package_digest);
-    return JSON.parse(Buffer.from(bytes).toString('utf8')) as PracticeExportPackage;
+  const readStored = (ctx: ActorContext, row: ExportRow) =>
+    readVerifiedPackage(pe().objectStore, ctx.tenantId, row.storage_key, row.package_digest);
+  const readPackage = async (ctx: ActorContext, row: ExportRow): Promise<PracticeExportPackage> =>
+    JSON.parse(Buffer.from(await readStored(ctx, row)).toString('utf8')) as PracticeExportPackage;
+  /**
+   * The delivery path shared by the JSON and byte representations: the full policy layer (tenant-wide
+   * authorization, envelope, a live grant bound to this caller and export), then the stored bytes
+   * verified against the recorded digest, then the sensitive-read audit (never the content).
+   */
+  const deliver = <T>(
+    ctx: ActorContext,
+    envelope: CommandEnvelope<unknown>,
+    ranged: boolean,
+    read: (row: ExportRow) => Promise<T>,
+  ): Promise<{ data: T }> => {
+    const op = 'practice.export.download';
+    return base.guarded(ctx, op, async () => {
+      await tenantWide(ctx, op);
+      checkEnvelope(envelope, op);
+      const payload = envelope.payload;
+      validate<{ exportRef: string; token: string }>(validatePracticeExportDownload, payload);
+      const { exportRef, token } = payload;
+      assertRef(exportRef);
+      const parsed = verifyGrantToken(
+        pe().tokenSecret,
+        { tenantId: ctx.tenantId, principalId: ctx.actorId, objectRef: exportRef },
+        token,
+      );
+      if (!parsed) throw notFound();
+      return deps.withTenantTransaction(ctx, async (tx) => {
+        const live = await tx.query(
+          `SELECT 1 FROM cuspatlas.practice_export_grants WHERE id = $1 AND export_id = $2
+             AND principal_id = cuspatlas.current_actor_id() AND expires_at > now()`,
+          [parsed.grantRef, exportRef],
+        );
+        if (live.rows.length === 0) throw notFound();
+        const row = await loadExport(tx, exportRef);
+        const out = await read(row);
+        await recordSensitiveRead(tx, {
+          operation: op,
+          resourceType: 'practiceExport',
+          resourceRefs: [row.id],
+          queryFields: ranged ? ['range'] : [],
+        });
+        return { data: out };
+      });
+    });
   };
 
   return {
@@ -371,37 +446,22 @@ export function createPracticeExportOperations(base: MigrationBase) {
 
     /** The stored package, verified against its digest, to the holder of a live grant (sensitive read). */
     downloadPracticeExport(ctx: ActorContext, envelope: CommandEnvelope<unknown>) {
-      const op = 'practice.export.download';
-      return base.guarded(ctx, op, async () => {
-        await tenantWide(ctx, op);
-        checkEnvelope(envelope, op);
-        const payload = envelope.payload;
-        validate<{ exportRef: string; token: string }>(validatePracticeExportDownload, payload);
-        const { exportRef, token } = payload;
-        assertRef(exportRef);
-        const parsed = verifyGrantToken(
-          pe().tokenSecret,
-          { tenantId: ctx.tenantId, principalId: ctx.actorId, objectRef: exportRef },
-          token,
-        );
-        if (!parsed) throw notFound();
-        return deps.withTenantTransaction(ctx, async (tx) => {
-          const live = await tx.query(
-            `SELECT 1 FROM cuspatlas.practice_export_grants WHERE id = $1 AND export_id = $2
-               AND principal_id = cuspatlas.current_actor_id() AND expires_at > now()`,
-            [parsed.grantRef, exportRef],
-          );
-          if (live.rows.length === 0) throw notFound();
-          const row = await loadExport(tx, exportRef);
-          const pkg = await readPackage(ctx, row);
-          await recordSensitiveRead(tx, {
-            operation: op,
-            resourceType: 'practiceExport',
-            resourceRefs: [row.id],
-            queryFields: [],
-          });
-          return { data: pkg };
-        });
+      return deliver(ctx, envelope, false, (row) => readPackage(ctx, row));
+    },
+
+    /**
+     * A8: the same delivery as `downloadPracticeExport` (same operation, policy, grant and audit) as the
+     * stored bytes and their recorded digest, for streamed or ranged REST transfer. A grant serves any
+     * number of ranges within its lifetime (at most 300 s); each range is re-authorized and re-verified.
+     */
+    downloadPracticeExportBytes(
+      ctx: ActorContext,
+      envelope: CommandEnvelope<unknown>,
+      request: PackageBytesRequest = {},
+    ): Promise<{ data: PackageBytes }> {
+      return deliver(ctx, envelope, request.ranged === true, async (row) => {
+        const bytes = await readStored(ctx, row);
+        return { bytes, digestSha256: row.package_digest, byteLength: bytes.byteLength };
       });
     },
 

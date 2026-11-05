@@ -119,6 +119,8 @@ export interface AppDeps {
   readonly tenantTransactions?: WithTenantTransaction;
   /** Command executor; defaults to the durable executeOnce. Tests may inject a faulting one. */
   readonly execute?: CommandExecutor;
+  /** Closeout A8: largest byte range served per export download request (default 1 MiB). */
+  readonly downloadChunkBytes?: number;
   /** A11: model adapter; synthetic-test only (default: the synthetic adapter; null: AI disabled). */
   readonly aiModel?: ModelAdapter | null;
   /** A14: webhook delivery port (honoured in synthetic-test only; absent: adapter_not_configured). */
@@ -467,7 +469,11 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
           tokenSecret: resolveImagingTokenSecret(deps.env, deps.imagingTokenSecret),
         },
       });
-      registerMigrationOpRoutes(app, { authenticator, migration });
+      registerMigrationOpRoutes(app, {
+        authenticator,
+        migration,
+        ...(deps.downloadChunkBytes ? { downloadChunkBytes: deps.downloadChunkBytes } : {}),
+      });
       // Workstream A batch 2 (A8-A13): agents, consent, proposals, AI drafts and prescribing envelope.
       const agents = createAgentService({
         cursors,
@@ -527,12 +533,17 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
             create: (c, e) => migration.createPracticeExport(c, e),
             grant: (c, e) => migration.grantPracticeExport(c, e),
             download: (c, e) => migration.downloadPracticeExport(c, e),
+            downloadBytes: (c, e, r) => migration.downloadPracticeExportBytes(c, e, r),
           },
           ...(deps.objectStore ? { objectStore: deps.objectStore } : {}),
           tokenSecret: resolveImagingTokenSecret(deps.env, deps.imagingTokenSecret),
         },
       });
-      registerAutomationOpRoutes(app, { authenticator, automation });
+      registerAutomationOpRoutes(app, {
+        authenticator,
+        automation,
+        ...(deps.downloadChunkBytes ? { downloadChunkBytes: deps.downloadChunkBytes } : {}),
+      });
     }
   }
 

@@ -1,7 +1,8 @@
 import type { ActorContext, CommandEnvelope } from '@cuspatlas/contracts';
-import type { ActionName, MigrationService } from '@cuspatlas/domain';
+import type { ActionName, MigrationService, PackageBytes, PackageBytesRequest } from '@cuspatlas/domain';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { type Authenticator, authenticateOnRequest, requireActor } from '../auth';
+import { DEFAULT_DOWNLOAD_CHUNK_BYTES, sendPackageBytes, wantsPackageBytes } from '../package-download';
 import type { RouteContract } from './manifest';
 import type { OpInput } from './scheduling-ops';
 
@@ -19,6 +20,13 @@ export interface MigrationOp extends RouteContract {
   /** GET only: the migration.schema.json definition of the query object. */
   readonly query?: string;
   invoke(svc: MigrationService, actor: ActorContext, input: OpInput): Promise<unknown>;
+  /** A8: the byte representation of a `ranges: 'bytes'` operation (same policy, grant and audit). */
+  invokeBytes?(
+    svc: MigrationService,
+    actor: ActorContext,
+    input: OpInput,
+    request: PackageBytesRequest,
+  ): Promise<{ data: PackageBytes }>;
 }
 
 const M = (name: string) => `migration:${name}`;
@@ -519,6 +527,9 @@ export const MIGRATION_OPS: MigrationOp[] = [
     description:
       'M1: the stored practice export package (manifest and documents), verified against its digest, to the holder of a live delivery grant. Imaging bytes travel as I9 blob bundles named by the manifest. Sensitive-read logged.',
     invoke: (svc, actor, i) => svc.downloadPracticeExport(actor, env('practice.export.download', i)),
+    ranges: 'bytes',
+    invokeBytes: (svc, actor, i, r) =>
+      svc.downloadPracticeExportBytes(actor, env('practice.export.download', i), r),
   },
   {
     method: 'get',
@@ -536,20 +547,23 @@ export const MIGRATION_OPS: MigrationOp[] = [
 ];
 
 export const MIGRATION_OP_ROUTES = (): RouteContract[] =>
-  MIGRATION_OPS.map(({ method, path, operationId, protected: p, requestBody, success, refusals }) => ({
-    method,
-    path,
-    operationId,
-    protected: p,
-    ...(requestBody ? { requestBody } : {}),
-    success,
-    refusals,
-  }));
+  MIGRATION_OPS.map(
+    ({ method, path, operationId, protected: p, requestBody, success, refusals, ranges }) => ({
+      method,
+      path,
+      operationId,
+      protected: p,
+      ...(requestBody ? { requestBody } : {}),
+      success,
+      refusals,
+      ...(ranges ? { ranges } : {}),
+    }),
+  );
 
 /** Registers every MIGRATION_OPS route; authentication in `onRequest`, no tenant read from input. */
 export function registerMigrationOpRoutes(
   app: FastifyInstance,
-  deps: { authenticator: Authenticator; migration: MigrationService },
+  deps: { authenticator: Authenticator; migration: MigrationService; downloadChunkBytes?: number },
 ): void {
   for (const op of MIGRATION_OPS) {
     const input = (request: FastifyRequest): OpInput => {
@@ -566,11 +580,22 @@ export function registerMigrationOpRoutes(
         op.invoke(deps.migration, requireActor(request), input(request)),
       );
     } else {
-      app.post(op.path, opts, async (request, reply) =>
-        reply
+      app.post(op.path, opts, async (request, reply) => {
+        const bytes = op.invokeBytes;
+        if (op.ranges === 'bytes' && bytes && wantsPackageBytes(request)) {
+          const actor = requireActor(request);
+          return sendPackageBytes(
+            request,
+            reply,
+            (ranged) => bytes(deps.migration, actor, input(request), { ranged }),
+            deps.downloadChunkBytes ?? DEFAULT_DOWNLOAD_CHUNK_BYTES,
+          );
+        }
+        if (op.ranges === 'bytes') reply.header('accept-ranges', 'bytes');
+        return reply
           .code(op.success.status === '201' ? 201 : 200)
-          .send(await op.invoke(deps.migration, requireActor(request), input(request))),
-      );
+          .send(await op.invoke(deps.migration, requireActor(request), input(request)));
+      });
     }
   }
 }

@@ -12885,9 +12885,31 @@ paths:
       description: >-
         M1: the stored practice export package (manifest and documents), verified against its digest, to the
         holder of a live delivery grant. Imaging bytes travel as I9 blob bundles named by the manifest.
-        Sensitive-read logged.
+        Sensitive-read logged. A8 byte delivery (REST only; MCP returns the JSON package): with Accept:
+        application/octet-stream or a Range header the stored package bytes are served exactly as built,
+        streamed, with ETag "sha256-<hex>" and Repr-Digest sha-256 equal to the package digest recorded at
+        build time (re-verified on every request; 409 package_integrity_failed otherwise). One Range
+        (bytes=a-b, a- or -n) answers 206 with Content-Range; a range wider than the per-chunk cap (default
+        1 MiB) is truncated to the cap. Multiple ranges or a start past the end answer 416 with
+        Content-Range bytes */<total>; an If-Range other than the current ETag answers the whole package
+        (200). Each request, every range included, passes the full policy layer and the live-grant check and
+        is sensitive-read logged.
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
+        - name: Range
+          in: header
+          required: false
+          description: One byte range (bytes=a-b, bytes=a- or bytes=-n); truncated to the per-chunk cap.
+          schema:
+            type: string
+            maxLength: 64
+        - name: If-Range
+          in: header
+          required: false
+          description: The strong ETag of a previous response; any other value answers the whole package.
+          schema:
+            type: string
+            maxLength: 80
       requestBody:
         required: true
         content:
@@ -12896,11 +12918,61 @@ paths:
               $ref: '../../packages/contracts/src/migration.schema.json#/$defs/PracticeExportDownload'
       responses:
         '200':
-          description: Success.
+          description: Success (JSON by default; stored bytes on request).
           content:
             application/json:
               schema:
                 $ref: '../../packages/contracts/src/migration.schema.json#/$defs/PracticeExportPackage'
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Accept-Ranges:
+              schema:
+                const: bytes
+            ETag:
+              description: The strong validator sha256-<hex> of the recorded package digest (byte responses).
+              schema:
+                type: string
+            Repr-Digest:
+              description: sha-256 of the whole package as an RFC 9530 digest (byte responses).
+              schema:
+                type: string
+        '206':
+          description: One byte range of the stored package, at most the per-chunk cap.
+          headers:
+            Accept-Ranges:
+              schema:
+                const: bytes
+            ETag:
+              description: The strong validator sha256-<hex> of the recorded package digest (byte responses).
+              schema:
+                type: string
+            Repr-Digest:
+              description: sha-256 of the whole package as an RFC 9530 digest (byte responses).
+              schema:
+                type: string
+            Content-Range:
+              schema:
+                type: string
+                pattern: ^bytes [0-9]+-[0-9]+/[0-9]+$
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '416':
+          description: Range not satisfiable (multiple ranges, or a start at or past the end).
+          headers:
+            Content-Range:
+              schema:
+                type: string
+                pattern: ^bytes [*]/[0-9]+$
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/Refusal'
         '400':
           $ref: '#/components/responses/Refusal'
         '401':
@@ -15766,8 +15838,31 @@ paths:
       description: >-
         A15: the stored package to the holder of a live grant whose access still holds (sensitive-read
         logged). A practice export is read through the M1 grant and download as the same caller. Human only.
+        A8 byte delivery (REST only; MCP returns the JSON package): with Accept: application/octet-stream or
+        a Range header the stored package bytes are served exactly as built, streamed, with ETag
+        "sha256-<hex>" and Repr-Digest sha-256 equal to the package digest recorded at build time
+        (re-verified on every request; 409 package_integrity_failed otherwise). One Range (bytes=a-b, a- or
+        -n) answers 206 with Content-Range; a range wider than the per-chunk cap (default 1 MiB) is
+        truncated to the cap. Multiple ranges or a start past the end answer 416 with Content-Range bytes
+        */<total>; an If-Range other than the current ETag answers the whole package (200). Each request,
+        every range included, passes the full policy layer and the live-grant check and is sensitive-read
+        logged.
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
+        - name: Range
+          in: header
+          required: false
+          description: One byte range (bytes=a-b, bytes=a- or bytes=-n); truncated to the per-chunk cap.
+          schema:
+            type: string
+            maxLength: 64
+        - name: If-Range
+          in: header
+          required: false
+          description: The strong ETag of a previous response; any other value answers the whole package.
+          schema:
+            type: string
+            maxLength: 80
       requestBody:
         required: true
         content:
@@ -15776,11 +15871,61 @@ paths:
               $ref: '../../packages/contracts/src/automation.schema.json#/$defs/ExportDownload'
       responses:
         '200':
-          description: Success.
+          description: Success (JSON by default; stored bytes on request).
           content:
             application/json:
               schema:
                 $ref: '../../packages/contracts/src/automation.schema.json#/$defs/ExportPackage'
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Accept-Ranges:
+              schema:
+                const: bytes
+            ETag:
+              description: The strong validator sha256-<hex> of the recorded package digest (byte responses).
+              schema:
+                type: string
+            Repr-Digest:
+              description: sha-256 of the whole package as an RFC 9530 digest (byte responses).
+              schema:
+                type: string
+        '206':
+          description: One byte range of the stored package, at most the per-chunk cap.
+          headers:
+            Accept-Ranges:
+              schema:
+                const: bytes
+            ETag:
+              description: The strong validator sha256-<hex> of the recorded package digest (byte responses).
+              schema:
+                type: string
+            Repr-Digest:
+              description: sha-256 of the whole package as an RFC 9530 digest (byte responses).
+              schema:
+                type: string
+            Content-Range:
+              schema:
+                type: string
+                pattern: ^bytes [0-9]+-[0-9]+/[0-9]+$
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '416':
+          description: Range not satisfiable (multiple ranges, or a start at or past the end).
+          headers:
+            Content-Range:
+              schema:
+                type: string
+                pattern: ^bytes [*]/[0-9]+$
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/Refusal'
         '400':
           $ref: '#/components/responses/Refusal'
         '401':

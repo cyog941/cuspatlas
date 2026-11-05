@@ -468,6 +468,21 @@ export const COMMANDS: HarnessCommand[] = [
     }),
     mcpArgs: (f) => searchBody(f),
   },
+  // S18 (OR-04): the same search with every filter; a provider preference is a resolved reference.
+  {
+    operation: 'scheduling.availability.search',
+    tool: 'availability_search',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'POST',
+      url: '/v1/availability/search',
+      body: filteredSearchBody(f),
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => filteredSearchBody(f),
+  },
   // S8 appointment requests. Writes downgrade to a scheduling-read-only member; reads to a member
   // holding no scheduling scope.
   {
@@ -3123,6 +3138,18 @@ function blockBody(f: HarnessFixture) {
     resources: [{ kind: 'operatory', resourceRef: f.alphaResource }],
   };
 }
+function filteredSearchBody(f: HarnessFixture) {
+  const { to: _to, ...rest } = searchBody(f);
+  return {
+    ...rest,
+    requirements: [{ kind: 'provider' }],
+    preferredProviderRefs: [f.alphaProvider],
+    weekdays: [1, 2],
+    timeWindows: [{ start: '08:00', end: '12:00' }],
+    next: 3,
+  };
+}
+
 function searchBody(f: HarnessFixture) {
   return {
     locationRef: f.alphaLocation,

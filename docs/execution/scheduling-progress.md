@@ -524,3 +524,16 @@ Commit "Harden S12-S17 after independent review". Each finding was written as a 
 - Series with `skipConflicts` carry `partial` (true when occurrences were skipped); still 201.
 - `grantStandingPolicy` validates that the grantee is a service principal with a live membership in this tenant (422 `notServicePrincipal` for a person, another tenant's, an unknown or a revoked principal) through `SchedulingDeps.memberships` (RLS hides other principals from the runtime role; a SECURITY DEFINER function was not introduced).
 - Nits: stored refusals keep their `reasonCode` on replay; `planSeries` takes no resource row locks. Not done: recall `sourceAgeSeconds` stays 0 (an existing test pins it; a real value needs a defined source clock), and `listWaitlist` still shows an offered entry whose hold lapsed until the next write path or reconcile reaps it.
+
+## Operational read models (S18, S20, S21, S22)
+
+Spec: `docs/superpowers/specs/2026-11-04-operational-read-models.md`; plan: `docs/superpowers/plans/2026-11-04-operational-read-models.md`. Decisions OR-D1 to OR-D6 accepted by the user on 2026-11-04. Synthetic data only; branch `codex/or-scheduling`. Status words: built and tested on synthetic data; nothing here is approved, deployed or clinically validated.
+
+**List envelope seam (A20).** A20 is not built. `ListEnvelope` (OR-01: `asOf`, `appliedFilters`, `scope`, `limit`, `truncated`, `nextCursor`, `ordering {key, direction, tieBreak}`, `count {exact} | {atLeast}`) is defined locally in `packages/contracts/src/scheduling.ts` and as `$defs/ListEnvelope` in `scheduling.schema.json`. Every list these tasks add carries it as an `envelope` property; A20 can lift the definition into the shared contract and retrofit older lists without changing these responses.
+
+### S18 availability filters (OR-04, OR-D6)
+
+- `POST /v1/availability/search` (MCP `availability_search`) gains `weekdays` (ISO 1-7), `timeWindows` (local `HH:MM` ranges in the location zone; the whole appointment must fit), `preferredProviderRefs` (tried first, in order, for a pooled provider requirement; another tenant's is 404, another location's 422), and `next` (next-N mode: the first N openings from `from`; `to` optional and defaults to the end of the maximum window; no cursor).
+- Maximum window: configurable (`SchedulingDeps.availabilityMaxWindowDays`), default 60 local days, replacing the 31-day cap. A longer range is refused `validation_failed` with `violations [/to beyondHorizon]` and `limit {name: availabilityMaxWindowDays, value}`. ADR 0009 S-S3-R3 updated to note the accepted change.
+- Response adds `envelope` and echoes the applied filters in `constraints` (`maxWindowDays`, `weekdays`, `timeWindows`, `preferredProviderRefs`, `next`). Still read-only (no executor, no write).
+- Tests: `tests/integration/availability.test.ts` (weekday set + morning window, next-3, provider preference and foreign provider, above-maximum refusal); negative-harness row for the filtered search (cross-tenant 404, revoked, downgraded, REST and MCP). Red: 5 failing before the change; green after.

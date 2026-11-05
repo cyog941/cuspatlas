@@ -409,9 +409,12 @@ describe('S9 acceptance', () => {
   });
 
   it('6. a range beyond the horizon is refused; results are paginated, never silently truncated', async () => {
-    const beyond = await search('a1', base({ from: '2030-01-01', to: '2030-02-01' }));
+    // OR-D6 (accepted 2026-11-04): the configured maximum window is 60 days, named in the refusal.
+    const beyond = await search('a1', base({ from: '2030-01-01', to: '2030-03-02' }));
     expect(beyond.statusCode).toBe(422);
     expect(beyond.json().detail.violations[0]).toStrictEqual({ pointer: '/to', rule: 'beyondHorizon' });
+    expect(beyond.json().detail.limit).toStrictEqual({ name: 'availabilityMaxWindowDays', value: 60 });
+    expect((await search('a1', base({ from: '2030-01-01', to: '2030-03-01', limit: 1 }))).statusCode).toBe(200);
     const backwards = await search('a1', base({ from: '2030-01-15', to: '2030-01-14' }));
     expect(backwards.statusCode).toBe(422);
     expect((await search('a1', base({ from: '2030-01-01', to: '2030-01-31' }))).statusCode).toBe(200);
@@ -516,5 +519,113 @@ describe('S9 failure and recovery', () => {
     });
     expect(res.json().data.coverage.excludedResources[0].reason).toBe('no_availability_configured');
     expect(logLines.join('\n')).not.toContain(MARKER);
+  });
+});
+
+describe('S18 availability filters (OR-04)', () => {
+  const local = (w: Window) => w.localStart.slice(11, 16);
+  const weekdayOf = (w: Window) => new Date(`${w.localStart.slice(0, 10)}T12:00:00Z`).getUTCDay();
+
+  it('duration-only search with a weekday set and a morning window returns only matching windows', async () => {
+    const res = await search(
+      'a1',
+      base({
+        from: '2030-01-21',
+        to: '2030-01-27',
+        requirements: [{ kind: 'operatory' }],
+        weekdays: [2, 4],
+        timeWindows: [{ start: '08:00', end: '09:30' }],
+        limit: 100,
+      }),
+    );
+    expect(res.statusCode, res.body).toBe(200);
+    const data = res.json().data;
+    expect(data.windows.length).toBeGreaterThan(0);
+    for (const w of data.windows as Window[]) {
+      expect([2, 4]).toContain(weekdayOf(w));
+      expect(local(w) >= '08:00' && w.localEnd.slice(11, 16) <= '09:30').toBe(true);
+    }
+    expect(new Set((data.windows as Window[]).map((w) => w.localStart.slice(0, 10)))).toStrictEqual(
+      new Set(['2030-01-22', '2030-01-24']),
+    );
+    expect(data.constraints.applied).toEqual(expect.arrayContaining(['weekdays', 'time_windows']));
+    expect(data.constraints.weekdays).toStrictEqual([2, 4]);
+    expect(data.envelope).toMatchObject({
+      appliedFilters: {
+        weekdays: [2, 4],
+        timeWindows: [{ start: '08:00', end: '09:30' }],
+        maxWindowDays: 60,
+      },
+      scope: { kind: 'explicit_locations', locationRefs: ['loc-north'] },
+      truncated: false,
+      nextCursor: null,
+      count: { exact: data.windows.length },
+      ordering: { key: 'startsAt', direction: 'asc', tieBreak: 'resourceRefs' },
+    });
+    expect(Date.parse(data.envelope.asOf)).not.toBeNaN();
+  });
+
+  it('next-3 mode returns the first three openings from the start date without an end date', async () => {
+    const res = await search('a1', {
+      locationRef: 'loc-north',
+      from: '2030-01-19',
+      durationMinutes: 30,
+      displayTimeZone: 'America/New_York',
+      requirements: [{ kind: 'operatory' }],
+      next: 3,
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    const data = res.json().data;
+    expect(data.windows).toHaveLength(3);
+    // Saturday 19th: nothing until the Sunday room opens at 00:30 on 2030-01-20.
+    expect((data.windows as Window[]).map(local)).toStrictEqual(['00:30', '00:45', '01:00']);
+    expect(data.windows[0].localStart.slice(0, 10)).toBe('2030-01-20');
+    expect(data.nextCursor).toBeNull();
+    expect(data.envelope.appliedFilters).toMatchObject({ next: 3, to: '2030-03-19' });
+    expect(data.envelope.count).toStrictEqual({ atLeast: 3 });
+    // Without next, an end date is required.
+    const noTo = await search('a1', { ...base(), to: undefined });
+    expect(noTo.statusCode).toBe(422);
+    expect(noTo.json().detail.violations[0]).toStrictEqual({ pointer: '/to', rule: 'required' });
+  });
+
+  it('a provider preference is tried first; another tenant or location provider is refused', async () => {
+    const second = (
+      await ok('a1', '/v1/scheduling/resources', {
+        kind: 'provider',
+        locationRef: 'loc-north',
+        displayLabel: 'Synthetic Provider B',
+        displayOrder: 5,
+      })
+    ).data.resourceRef as string;
+    await ok('a1', `/v1/scheduling/resources/${second}/availability`, {
+      effectiveFrom: '2030-01-07',
+      weekly: [1, 2, 3, 4, 5].map((weekday) => ({ weekday, start: '08:00', end: '12:00' })),
+    });
+    const plain = (await search('a1', base({ from: '2030-01-23', to: '2030-01-23', limit: 1 }))).json().data;
+    expect(plain.windows[0].resources[0].resourceRef).toBe(provider);
+    const preferred = await search(
+      'a1',
+      base({ from: '2030-01-23', to: '2030-01-23', limit: 1, preferredProviderRefs: [second] }),
+    );
+    expect(preferred.statusCode, preferred.body).toBe(200);
+    expect(preferred.json().data.windows[0].resources[0].resourceRef).toBe(second);
+    expect(preferred.json().data.constraints.applied).toContain('provider_preference');
+    const foreign = await search('a1', base({ preferredProviderRefs: [betaOperatory] }));
+    expect(foreign.statusCode).toBe(404);
+    expect(foreign.body).not.toContain(MARKER);
+  });
+
+  it('a window above the configured maximum is refused with the limit named', async () => {
+    const res = await search('a1', base({ from: '2030-01-01', to: '2030-04-30' }));
+    expect(res.statusCode).toBe(422);
+    expect(res.json().detail).toMatchObject({
+      violations: [{ pointer: '/to', rule: 'beyondHorizon' }],
+      limit: { name: 'availabilityMaxWindowDays', value: 60 },
+    });
+    const bad = await search('a1', base({ weekdays: [0] }));
+    expect(bad.statusCode).toBe(400);
+    const order = await search('a1', base({ timeWindows: [{ start: '10:00', end: '09:00' }] }));
+    expect(order.statusCode).toBe(422);
   });
 });

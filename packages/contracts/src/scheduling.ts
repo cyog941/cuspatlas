@@ -132,10 +132,36 @@ export interface AvailabilityRequirement {
   readonly kind: ResourceKind;
   readonly resourceRef?: string;
 }
+/**
+ * OR-01 list envelope. Defined here by S18-S22 until A20 lifts it into the shared contract; every
+ * list these tasks add carries it as `envelope`.
+ */
+export interface ListEnvelope {
+  readonly asOf: string;
+  readonly appliedFilters: Readonly<Record<string, unknown>>;
+  readonly scope: {
+    readonly kind: 'tenant_wide' | 'assigned_locations' | 'explicit_locations';
+    readonly locationRefs?: readonly string[];
+  };
+  readonly limit: number;
+  readonly truncated: boolean;
+  readonly nextCursor: string | null;
+  readonly ordering: { readonly key: string; readonly direction: 'asc' | 'desc'; readonly tieBreak: string };
+  readonly count: { readonly exact: number } | { readonly atLeast: number };
+}
+export interface LocalTimeWindow {
+  readonly start: string;
+  readonly end: string;
+}
 export interface AvailabilitySearch {
   readonly locationRef: string;
   readonly from: string;
-  readonly to: string;
+  /** Required unless `next` is given (S18). */
+  readonly to?: string;
+  readonly weekdays?: readonly number[];
+  readonly timeWindows?: readonly LocalTimeWindow[];
+  readonly preferredProviderRefs?: readonly string[];
+  readonly next?: number;
   readonly durationMinutes: number;
   readonly bufferMinutes?: number;
   readonly slotMinutes?: 5 | 10 | 15 | 20 | 30 | 60;
@@ -164,8 +190,14 @@ export interface AvailabilitySearchResult {
   readonly advisory: true;
   readonly windows: readonly AvailabilityWindow[];
   readonly nextCursor: string | null;
+  readonly envelope: ListEnvelope;
   readonly constraints: {
     readonly applied: readonly string[];
+    readonly maxWindowDays: number;
+    readonly weekdays?: readonly number[];
+    readonly timeWindows?: readonly LocalTimeWindow[];
+    readonly preferredProviderRefs?: readonly string[];
+    readonly next?: number;
     readonly durationMinutes: number;
     readonly bufferMinutes: number;
     readonly slotMinutes: number;

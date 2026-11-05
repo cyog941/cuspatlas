@@ -652,7 +652,7 @@ describe('B1 merge and provenance', () => {
     for (const t of new Set(tables)) {
       expect([
         t,
-        /^(billing_|patients$|patient_relationships$|audit_events$|outbox_events$|command_idempotency$|current_|sensitive_read)/.test(
+        /^(billing_|migration_opening_items$|patients$|patient_relationships$|audit_events$|outbox_events$|command_idempotency$|current_|sensitive_read)/.test(
           t,
         ),
       ]).toStrictEqual([t, true]);

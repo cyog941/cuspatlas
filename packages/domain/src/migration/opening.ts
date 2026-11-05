@@ -250,7 +250,9 @@ export async function openingReconciliation(
        i.claim_state, i.source_ref,
        (SELECT l.entry_id FROM cuspatlas.billing_journal_lines l WHERE l.opening_item_id = i.id LIMIT 1) AS entry_id,
        (SELECT sum(l.amount_minor)::text FROM cuspatlas.billing_journal_lines l
-          WHERE l.opening_item_id = i.id AND l.account IN ('opening_receivable', 'opening_credit')) AS posted
+          WHERE l.opening_item_id = i.id AND l.account IN ('opening_receivable', 'opening_credit')
+            AND EXISTS (SELECT 1 FROM cuspatlas.billing_journal_entries e
+              WHERE e.id = l.entry_id AND e.tenant_id = l.tenant_id AND e.kind = 'openingBalance')) AS posted
      FROM cuspatlas.migration_opening_items i WHERE i.package_id = $1 ORDER BY i.source_ref, i.id`,
     [pkg.id],
   );

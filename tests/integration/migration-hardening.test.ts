@@ -5,7 +5,7 @@ import {
   mergePatients,
   openAppointmentHarness,
 } from './support/appointment-fixtures';
-import { seedBillingScopes } from './support/billing-fixtures';
+import { postCharge, seedBillingScopes } from './support/billing-fixtures';
 import { openTestDatabase, type TestDatabase } from './support/db';
 import { SVC_A1, T_ALPHA, USER_A1, USER_A3 } from './support/fixtures';
 import {
@@ -561,5 +561,74 @@ describe('H2 M-8 intake hygiene', () => {
       409,
       'staged_under_other_authorisation',
     ]);
+  });
+});
+
+describe('H2 M-10 opening facts on the B seam', () => {
+  it('balances and statements include opening receivable and credit; opening credit allocates to a charge', async () => {
+    const pkg = await stage({
+      patients: `${HEAD.patients}Y001,Seam,Yara,1986-06-06,5551100001,G1\n`,
+      ledger_balances: `${HEAD.ledger_balances}YB1,G1,Y001,3000,USD,2026-10-31\n`,
+      unapplied_credits: `${HEAD.unapplied_credits}YC1,G1,Y001,1000,USD,2026-09-01\n`,
+    });
+    h.ok(await apply(pkg));
+    const patient = (await appliedPatient(pkg, 'Y001')) as string;
+    const credit = (
+      await db.admin.query(
+        `SELECT id FROM cuspatlas.migration_opening_items WHERE package_id = $1 AND kind = 'unappliedCredit'`,
+        [pkg],
+      )
+    ).rows[0]?.id as string;
+    type Balance = {
+      patientResponsibility: { minor: number };
+      unappliedCredit: { minor: number };
+      balance: { minor: number };
+    };
+    const balance = async () =>
+      h.ok<{ data: Balance }>(await h.call('a1', 'GET', `/v1/billing/patients/${patient}/balance`)).data;
+    expect(await balance()).toMatchObject({
+      patientResponsibility: { minor: 3000 },
+      unappliedCredit: { minor: 1000 },
+      balance: { minor: 2000 },
+    });
+    const statement = h.ok<{ data: { statementRef: string } }>(
+      await h.call('a1', 'POST', '/v1/billing/statements', {
+        guarantorRef: patient,
+        cutoffAt: new Date().toISOString(),
+        basis: 'posted_through_cutoff',
+      }),
+      201,
+    ).data.statementRef;
+    const read = h.ok<{ data: { total: { minor: number } } }>(
+      await h.call('a1', 'GET', `/v1/billing/statements/${statement}`),
+    ).data;
+    expect(read.total.minor).toBe(2000);
+    // Opening credit allocated through the B2 allocation command, with B2's invariants.
+    const { chargeRef } = await postCharge(h, patient, 700);
+    const allocate = (minor: number, key?: string) =>
+      h.call(
+        'a1',
+        'POST',
+        `/v1/billing/payments/${credit}/allocations`,
+        {
+          allocations: [{ chargeRef, amount: { currency: 'USD', minor } }],
+        },
+        key,
+      );
+    const over = await allocate(800);
+    expect([over.statusCode, over.json().detail?.reason]).toStrictEqual([409, 'charge_overallocated']);
+    h.ok(await allocate(600), 201);
+    const more = await allocate(500);
+    expect([more.statusCode, more.json().detail?.reason]).toStrictEqual([409, 'insufficient_funds']);
+    expect(await balance()).toMatchObject({
+      patientResponsibility: { minor: 3100 },
+      unappliedCredit: { minor: 400 },
+      balance: { minor: 2700 },
+    });
+    // The opening reconciliation still states the credit as imported (allocations are later facts).
+    const o = h.ok<{ data: { totals: { importedCredit: { minor: number } } } }>(
+      await h.call('a1', 'GET', `/v1/migration/opening-items?packageRef=${pkg}`),
+    ).data;
+    expect(o.totals.importedCredit.minor).toBe(1000);
   });
 });

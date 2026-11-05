@@ -213,3 +213,14 @@ recommended-pending-approval). Tests in `tests/integration/migration-hardening.t
   staged rows, reports and sign-offs (the workspace) stay out. The five-way round trip now seeds a
   migrated opening balance and credit, imports S, I, C, E, B and re-exports identically. Red 1/1
   failing; green. A separate M export (with its own operation) remains an option if M grows.
+- M-10 B seam (`20261128540000_opening_credit_allocation.sql`): the patient balance adds
+  `opening_receivable` to patient responsibility and `opening_credit` to unapplied credit; statements
+  state both opening accounts. `billing.payments.allocate` accepts an opening credit item reference in
+  place of a payment: same invariants (active charge of the item's merge set, never more than the item
+  holds or the charge owes, item patient then charges locked first), an `allocation` entry drawing on
+  `opening_credit` that names its charge and no payment; `billing_check_entry` now permits that and
+  refuses mixing it with payment credit or another item kind/patient/currency. The opening
+  reconciliation counts only `openingBalance` entries, so a later allocation does not read as an
+  import difference. The B1 structural test allows `migration_opening_items` as the seam table.
+  Open item: reversing an opening-credit allocation is not wired (the reversal path copies payment
+  dimensions only). Red 1/1 failing; green 14/14.

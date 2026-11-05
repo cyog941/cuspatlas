@@ -1,5 +1,6 @@
 import {
   type ActorContext,
+  addMoney,
   type BalanceQuery,
   type CommandEnvelope,
   type CommandResult,
@@ -285,9 +286,10 @@ export function createEntryOperations(base: BillingBase) {
           );
           const total = (account: LedgerAccount) =>
             moneyFromMinorText(settings.currency, rows.find((r) => r.account === account)?.s ?? '0');
-          const patientResponsibility = total('patient_receivable');
+          // H2 M-10: a migrated opening receivable and opening credit are part of the patient balance.
+          const patientResponsibility = addMoney(total('patient_receivable'), total('opening_receivable'));
           // Unapplied credit is a credit balance (negative lines); it is reported as a positive amount.
-          const unappliedCredit = negateMoney(total('unapplied_credit'));
+          const unappliedCredit = negateMoney(addMoney(total('unapplied_credit'), total('opening_credit')));
           const s = stats[0];
           await recordSensitiveRead(tx, {
             operation: op,

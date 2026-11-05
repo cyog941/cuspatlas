@@ -506,6 +506,15 @@ export interface StatementView {
 }
 
 export const validateStatementGenerate = def('StatementGenerate');
+export const validateStatementPortalRelease = def('StatementPortalRelease');
+export const validateStatementReleaseRevoke = def('StatementReleaseRevoke');
+/** Closeout C: a statement portal release (the statement goes to its guarantor's portal). */
+export interface StatementReleaseData extends Record<string, unknown> {
+  readonly releaseRef: string;
+  readonly statementRef: string;
+  readonly patientRef: string;
+  readonly state: 'released' | 'revoked';
+}
 
 // ---- B5 coverage and eligibility (recommended-pending-billing-approval; live eligibility B-S3).
 export type BenefitRank = 'primary' | 'secondary' | 'tertiary';

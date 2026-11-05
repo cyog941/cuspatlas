@@ -17,7 +17,16 @@ let db: TestDatabase;
 let h: EngagementHarness;
 let loc: { locationRef: string; provider: string; operatory: string };
 const MINOR = { known: true, value: '2016-05-05', precision: 'day' };
-const VIEWS = ['demographics', 'appointments', 'requests', 'documents', 'balances', 'messages', 'forms'];
+const VIEWS = [
+  'demographics',
+  'appointments',
+  'requests',
+  'documents',
+  'balances',
+  'statements',
+  'messages',
+  'forms',
+];
 
 let parent: string;
 let child: string;

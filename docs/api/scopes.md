@@ -34,7 +34,7 @@ human decision (A-D2). No default role grant is asserted here.
 | `analytics.read` | human, service | no | A | phi | 2 |
 | `audit.read` | human | yes | A | phi | 1 |
 | `billing.correct` | human | yes | B | phi | 12 |
-| `billing.write` | human, service | no | B | phi | 30 |
+| `billing.write` | human, service | no | B | phi | 32 |
 | `clinical.oversight` | human | yes | C | phi | 1 |
 | `clinical.read` | human, service | no | C | phiBulk | 34 |
 | `clinical.sign` | human | yes | C | phi | 3 |

@@ -13,6 +13,7 @@ import { createEntryOperations } from './entries';
 import { createFeeOperations } from './fees';
 import { createPaymentOperations } from './payments';
 import { createPlanOperations } from './plans';
+import { createStatementReleaseOperations } from './portal-statements';
 import { createProcedureConsumer } from './procedure-consumer';
 import { createStatementOperations } from './statements';
 import { createWorklistOperations } from './worklist';
@@ -35,6 +36,7 @@ export function createBillingService(deps: BillingDeps) {
     ...createPaymentOperations(base, provider),
     ...createPlanOperations(base, provider),
     ...createStatementOperations(base, (tx, patientIds) => lateSecondaryDue(tx, { patientIds })),
+    ...createStatementReleaseOperations(base),
     ...createCoverageOperations(base, deps.eligibility),
     ...createAllocationOperations(base),
     ...createWorklistOperations(base),

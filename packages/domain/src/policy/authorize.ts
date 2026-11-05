@@ -158,6 +158,10 @@ export const ACTION_POLICIES = {
   // statement with its derived freshness needs receivables.read. Delivery is E7's.
   'billing.statements.generate': { scope: 'billing.write', principals: ['human', 'service'] },
   'billing.statements.read': { scope: 'receivables.read', principals: ['human', 'service'] },
+  // Closeout C: releasing a statement to the guarantor's portal, and revoking that release, is a
+  // human decision (billing.write; never a service or agent acting alone).
+  'billing.statements.releaseToPortal': { scope: 'billing.write', principals: ['human'] },
+  'billing.statementReleases.revoke': { scope: 'billing.write', principals: ['human'] },
   // B5 coverage and eligibility (registry scopes coverage.read / coverage.write). Front desk and billing
   // record coverage and eligibility; C (estimates) and S read coverage state, never compute it.
   'rcm.coverages.record': { scope: 'coverage.write', principals: ['human', 'service'] },

@@ -6,7 +6,7 @@ Evidence category: **tested on synthetic data**. Coverage means a row resolves t
 
 Rows: 27 (matrix rows plus plan-defined A rows). Covered: 25. Gaps: 2. Unknown: 0. Unmapped matrix rows: 0. Scope defects: 0.
 
-MCP surface: 467 operations have an MCP tool; 36 do not.
+MCP surface: 469 operations have an MCP tool; 37 do not.
 
 | Capability row | Owners | Release | Status | Operations | Negative cases | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -14,7 +14,7 @@ MCP surface: 467 operations have an MCP tool; 36 do not.
 | Patient identity | S | P1 | covered | 14: `patients.access.resolve`, `patients.create`, `patients.duplicates.find`, `patients.merge` and 10 more | `action-proposals.test.ts`, `agent-workspace-hardening.test.ts`, `agent-workspace.test.ts` and 32 more |  |
 | Family and consent | S, E, C | P1 | covered | 12: `clinical.consents.capture`, `clinical.consents.list`, `clinical.consents.read`, `clinical.consents.withdraw` and 8 more | `action-proposals.test.ts`, `clinical-consents.test.ts`, `comms-parity.test.ts` and 4 more |  |
 | Scheduling | S, A | P1 | covered | 29: `schedule.view`, `scheduling.appointments.book`, `scheduling.appointments.cancel`, `scheduling.appointments.override` and 25 more | `booking-conflicts.test.ts`, `mcp-parity.test.ts`, `navigation.test.ts` and 11 more |  |
-| Intake and portal | E, S | P1 | covered | 35: `intake.forms.list`, `intake.forms.publish`, `intake.forms.retire`, `intake.reviews.read` and 31 more | `appointment-requests.test.ts`, `comms-parity.test.ts`, `engagement-negative-harness.test.ts` and 10 more |  |
+| Intake and portal | E, S | P1 | covered | 36: `intake.forms.list`, `intake.forms.publish`, `intake.forms.retire`, `intake.reviews.read` and 32 more | `appointment-requests.test.ts`, `comms-parity.test.ts`, `engagement-negative-harness.test.ts` and 11 more |  |
 | Daily workflow | S, A | P1 | covered | 22: `appointments.detail`, `huddle.read`, `scheduling.attendance.list`, `scheduling.attendance.record` and 18 more | `attendance.test.ts`, `floor-view.test.ts`, `huddle.test.ts` and 5 more |  |
 | Clinical chart | C | P1 | covered | 3: `clinical.chart.correctEntry`, `clinical.chart.read`, `clinical.chart.recordEntry` | `clinical-chart.test.ts`, `mcp-parity.test.ts`, `negative-harness.test.ts` and 1 more |  |
 | Periodontal | C | P1 | covered | 6: `clinical.perio.compare`, `clinical.perio.correctExam`, `clinical.perio.derive`, `clinical.perio.listExams` and 2 more | `clinical-perio.test.ts`, `mcp-parity.test.ts`, `negative-harness.test.ts` | Clinician validation against a synthetic paper chart is pending (domain validation gate). |
@@ -25,7 +25,7 @@ MCP surface: 467 operations have an MCP tool; 36 do not.
 | Insurance | B | P1 | covered | 5: `rcm.coverages.change`, `rcm.coverages.read`, `rcm.coverages.record`, `rcm.coverages.resolve` and 1 more | `mcp-parity.test.ts`, `negative-harness.test.ts`, `rcm-eligibility.test.ts` and 1 more |  |
 | Claims/RCM | B | P1 with validated partner | covered | 29: `rcm.appeals.draft`, `rcm.appeals.review`, `rcm.claims.attach`, `rcm.claims.measures` and 25 more | `billing-export.test.ts`, `billing-negative-matrix.test.ts`, `billing-parity.test.ts` and 8 more | Clearinghouse submission, acknowledgements and ERA intake run against a synthetic adapter; a validated partner is blocked on discovery. |
 | Financial ledger | B | P1 | covered | 17: `billing.adjustments.decide`, `billing.adjustments.post`, `billing.balances.read`, `billing.charges.post` and 13 more | `billing-allocations.test.ts`, `billing-journal.test.ts`, `billing-negative-matrix.test.ts` and 7 more |  |
-| Patient billing | B | P1 | covered | 11: `billing.plans.amend`, `billing.plans.authorize`, `billing.plans.autopay`, `billing.plans.close` and 7 more | `billing-allocations.test.ts`, `billing-payment-plans.test.ts`, `billing-statements.test.ts` and 2 more | Card tokenization and payment links need a payment provider (blocked on discovery). |
+| Patient billing | B | P1 | covered | 12: `billing.plans.amend`, `billing.plans.authorize`, `billing.plans.autopay`, `billing.plans.close` and 8 more | `billing-allocations.test.ts`, `billing-payment-plans.test.ts`, `billing-statements.test.ts` and 3 more | Card tokenization and payment links need a payment provider (blocked on discovery). |
 | Prescribing | A | Integration gate before a pilot depends on it | covered | 3: `prescriptions.cancel`, `prescriptions.drafts.create`, `prescriptions.submit` | `agents-negative-harness.test.ts`, `prescribing-envelope.test.ts` | Envelope only; the e-prescribing partner, prescriber identity proofing and controlled-substance workflow are blocked on discovery. |
 | Communications | E | P1 | covered | 33: `communications.channelPolicies.define`, `communications.channelPolicies.list`, `communications.consents.list`, `communications.consents.optOut` and 29 more | `action-proposals.test.ts`, `comms-delivery.test.ts`, `comms-parity.test.ts` and 7 more | SMS, email and telephony carriers are synthetic adapters; carrier selection is blocked on discovery. |
 | Recall and follow-up | S, E | P1 | covered | 11: `communications.recall.enroll`, `communications.recall.enrollments`, `scheduling.followUp.worklist`, `scheduling.recall.createTask` and 7 more | `cancellation-recovery.test.ts`, `engagement-negative-harness.test.ts`, `mcp-parity.test.ts` and 2 more |  |
@@ -76,6 +76,7 @@ These are portal, device, pairing, bridge, worker or public operations; the forb
 - `portal.offers.respond`
 - `portal.requests.submit`
 - `portal.session.read`
+- `portal.statements.read`
 - `portal.threads.open`
 - `portal.threads.post`
 - `portal.threads.read`

@@ -8247,6 +8247,44 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /portal/v1/patients/{patientRef}/statements/{releaseRef}:
+    get:
+      operationId: portal.statements.read
+      description: >-
+        Portal-audience operation portal.statements.read (portal principals only; never a staff or MCP
+        surface). One B4 statement a staff member released to this patient's portal (the patient as
+        guarantor, or a relationship holding financial), from the stored snapshot verified against its
+        digest; staff references are not included.
+      parameters:
+        - name: patientRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/PatientRef'
+        - name: releaseRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EntityRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   /portal/v1/patients/{patientRef}/appointment-requests:
     post:
       operationId: portal.requests.submit
@@ -11628,6 +11666,89 @@ paths:
             application/json:
               schema:
                 $ref: '../../packages/contracts/src/billing.schema.json#/$defs/WorkflowAdvanceResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/statements/{statementRef}/portal-releases:
+    post:
+      operationId: billing.statements.releaseToPortal
+      description: >-
+        Closeout C: release one generated statement to the portal of the guarantor it was generated for
+        (human only, billing.write, audited). A superseded or integrity-failed statement, a merged guarantor
+        or a statement already live on the portal is 409. The portal statements view lists it until the
+        release is revoked.
+      parameters:
+        - name: statementRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/StatementRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/StatementPortalRelease'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/StatementReleaseCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/statement-releases/{releaseRef}/revoke:
+    post:
+      operationId: billing.statementReleases.revoke
+      description: >-
+        Closeout C: revoke a statement portal release once (human only, billing.write, audited). The
+        statement leaves the portal statements view and its portal read is 404 at once; the release row is
+        kept.
+      parameters:
+        - name: releaseRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/StatementReleaseRevoke'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/StatementReleaseCommandResult'
         '400':
           $ref: '#/components/responses/Refusal'
         '401':

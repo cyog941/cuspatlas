@@ -2509,11 +2509,31 @@ export type BillingStatementLine = {
   readonly "amount": BillingMoney;
 };
 
+export type BillingStatementPortalRelease = {
+
+};
+
 export type BillingStatementRead = {
   readonly "data": BillingStatement;
 };
 
 export type BillingStatementRef = string;
+
+export type BillingStatementReleaseCommandResult = {
+  readonly "data": {
+    readonly "releaseRef": BillingUuid;
+    readonly "statementRef": BillingStatementRef;
+    readonly "patientRef": BillingPatientRef;
+    readonly "state": "released" | "revoked";
+  };
+  readonly "version": BillingVersion;
+  readonly "correlationId": string;
+  readonly "replayed": boolean;
+};
+
+export type BillingStatementReleaseRevoke = {
+
+};
 
 export type BillingSubmissionPolicyCreate = {
   readonly "maxBilled": BillingPositiveMoney;
@@ -9839,6 +9859,16 @@ export interface Operations {
     successStatus: 201;
     idempotent: true;
   };
+  "billing.statementReleases.revoke": {
+    method: "POST";
+    path: "/v1/billing/statement-releases/{releaseRef}/revoke";
+    params: { readonly releaseRef: string; };
+    query: Record<string, never>;
+    body: BillingStatementReleaseRevoke;
+    result: BillingStatementReleaseCommandResult;
+    successStatus: 200;
+    idempotent: true;
+  };
   "billing.statements.generate": {
     method: "POST";
     path: "/v1/billing/statements";
@@ -9858,6 +9888,16 @@ export interface Operations {
     result: BillingStatementRead;
     successStatus: 200;
     idempotent: false;
+  };
+  "billing.statements.releaseToPortal": {
+    method: "POST";
+    path: "/v1/billing/statements/{statementRef}/portal-releases";
+    params: { readonly statementRef: string; };
+    query: Record<string, never>;
+    body: BillingStatementPortalRelease;
+    result: BillingStatementReleaseCommandResult;
+    successStatus: 201;
+    idempotent: true;
   };
   "billing.worklist.list": {
     method: "GET";
@@ -12349,6 +12389,16 @@ export interface Operations {
     successStatus: 200;
     idempotent: false;
   };
+  "portal.statements.read": {
+    method: "GET";
+    path: "/portal/v1/patients/{patientRef}/statements/{releaseRef}";
+    params: { readonly patientRef: string; readonly releaseRef: string; };
+    query: Record<string, never>;
+    body: undefined;
+    result: EngagementEngagementRead;
+    successStatus: 200;
+    idempotent: false;
+  };
   "portal.threads.open": {
     method: "POST";
     path: "/portal/v1/patients/{patientRef}/message-threads";
@@ -14035,8 +14085,10 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "billing.procedures.consume": { method: "POST", path: "/v1/billing/procedure-events/{procedureRef}/consume", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "billing.reports.receivables": { method: "GET", path: "/v1/billing/reports/receivables", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "billing.responsibility.transfer": { method: "POST", path: "/v1/billing/charges/{chargeRef}/responsibility", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "billing.statementReleases.revoke": { method: "POST", path: "/v1/billing/statement-releases/{releaseRef}/revoke", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "billing.statements.generate": { method: "POST", path: "/v1/billing/statements", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "billing.statements.read": { method: "GET", path: "/v1/billing/statements/{statementRef}", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "billing.statements.releaseToPortal": { method: "POST", path: "/v1/billing/statements/{statementRef}/portal-releases", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "billing.worklist.list": { method: "GET", path: "/v1/billing/worklist", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "clinical.authors.context": { method: "GET", path: "/v1/clinical/author-context", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "clinical.authors.define": { method: "POST", path: "/v1/clinical/authors", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
@@ -14286,6 +14338,7 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "portal.principals.verify": { method: "POST", path: "/v1/portal/principals/{principalRef}/verify", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "portal.requests.submit": { method: "POST", path: "/portal/v1/patients/{patientRef}/appointment-requests", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "portal.session.read": { method: "GET", path: "/portal/v1/session", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "portal.statements.read": { method: "GET", path: "/portal/v1/patients/{patientRef}/statements/{releaseRef}", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "portal.threads.open": { method: "POST", path: "/portal/v1/patients/{patientRef}/message-threads", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "portal.threads.post": { method: "POST", path: "/portal/v1/patients/{patientRef}/message-threads/{threadRef}/messages", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "portal.threads.read": { method: "GET", path: "/portal/v1/patients/{patientRef}/message-threads/{threadRef}", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },

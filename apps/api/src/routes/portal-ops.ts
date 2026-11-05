@@ -67,6 +67,18 @@ export const PORTAL_OPS: readonly PortalOp[] = [
         i.params.token,
       ),
   },
+  // Closeout C: one B4 statement released to this patient's portal (financial scope).
+  {
+    method: 'get',
+    path: '/portal/v1/patients/{patientRef}/statements/{releaseRef}',
+    operationId: 'portal.statements.read',
+    protected: true,
+    query: 'EmptyQuery',
+    success: { status: '200', schema: E('EngagementRead') },
+    refusals: ['400', '401', '403', '404', '409', '503'],
+    invoke: (svc, actor, i) =>
+      data(svc.readPortalStatement(actor, i.params.patientRef ?? '', i.params.releaseRef ?? '', i.body)),
+  },
   // E3 appointment requests: S8's own create command with origin portal (never a booking).
   {
     method: 'post',

@@ -504,6 +504,39 @@ export const BILLING_OPS: BillingOp[] = [
       'CL-08 durable timer (service principals only; the outbox worker calls the same function): records the firing once, escalates an open exception one bounded level or opens the payer follow-up, then advances the workflow.',
     invoke: (svc, actor, i) => svc.fireWorkflowTimer(actor, param(i, 'timerRef')),
   },
+  // Closeout C: a generated B4 statement released to its guarantor's portal, and that release revoked.
+  {
+    method: 'post',
+    path: '/v1/billing/statements/{statementRef}/portal-releases',
+    operationId: 'billing.statements.releaseToPortal',
+    protected: true,
+    requestBody: B('StatementPortalRelease'),
+    success: { status: '201', schema: B('StatementReleaseCommandResult') },
+    refusals: COMMAND,
+    tool: 'billing_statements_release_to_portal',
+    description:
+      'Closeout C: release one generated statement to the portal of the guarantor it was generated for (human only, billing.write, audited). A superseded or integrity-failed statement, a merged guarantor or a statement already live on the portal is 409. The portal statements view lists it until the release is revoked.',
+    invoke: (svc, actor, i) =>
+      svc.releaseStatementToPortal(
+        actor,
+        param(i, 'statementRef'),
+        env('billing.statements.releaseToPortal', i),
+      ),
+  },
+  {
+    method: 'post',
+    path: '/v1/billing/statement-releases/{releaseRef}/revoke',
+    operationId: 'billing.statementReleases.revoke',
+    protected: true,
+    requestBody: B('StatementReleaseRevoke'),
+    success: { status: '200', schema: B('StatementReleaseCommandResult') },
+    refusals: COMMAND,
+    tool: 'billing_statement_releases_revoke',
+    description:
+      'Closeout C: revoke a statement portal release once (human only, billing.write, audited). The statement leaves the portal statements view and its portal read is 404 at once; the release row is kept.',
+    invoke: (svc, actor, i) =>
+      svc.revokeStatementRelease(actor, param(i, 'releaseRef'), env('billing.statementReleases.revoke', i)),
+  },
   {
     method: 'get',
     path: '/v1/billing/export',

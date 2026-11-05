@@ -211,8 +211,17 @@
       }
     },
     "PortalView": {
-      "enum": ["demographics", "appointments", "requests", "documents", "balances", "messages", "forms"],
-      "description": "E2 portal view names. Each maps to relationship scopes (appointments/requests: scheduling; balances: financial; documents: clinical_read; messages: consent; forms: demographics and consent); none is a scope itself."
+      "enum": [
+        "demographics",
+        "appointments",
+        "requests",
+        "documents",
+        "balances",
+        "statements",
+        "messages",
+        "forms"
+      ],
+      "description": "E2 portal view names. Each maps to relationship scopes (appointments/requests: scheduling; balances and statements: financial; documents: clinical_read; messages: consent; forms: demographics and consent); none is a scope itself."
     },
     "PortalViewProjection": {
       "type": "object",

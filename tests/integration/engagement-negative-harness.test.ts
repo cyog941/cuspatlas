@@ -816,6 +816,16 @@ export const PORTAL_CALLS: PortalCall[] = [
       status: 200,
     }),
   },
+  // Closeout C portal statements (release ref unknown here: credentials are refused before any lookup).
+  {
+    operation: 'portal.statements.read',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/portal/v1/patients/${f.child}/statements/00000000-0000-4000-8000-0000000000f3`,
+      keyed: false,
+      status: 200,
+    }),
+  },
   {
     operation: 'portal.requests.submit',
     rest: (f) => ({

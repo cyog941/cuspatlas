@@ -3921,6 +3921,39 @@
       ]
     },
     {
+      "operation": "billing.statementReleases.revoke",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "billing.write",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/billing/statement-releases/{releaseRef}/revoke"
+      },
+      "mcpTool": "billing_statement_releases_revoke",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {}
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
       "operation": "billing.statements.generate",
       "transports": [
         "rest",
@@ -3998,6 +4031,39 @@
         "401",
         "403",
         "404",
+        "503"
+      ]
+    },
+    {
+      "operation": "billing.statements.releaseToPortal",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "billing.write",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/billing/statements/{statementRef}/portal-releases"
+      },
+      "mcpTool": "billing_statements_release_to_portal",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {}
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
         "503"
       ]
     },
@@ -18456,6 +18522,29 @@
         "400",
         "401",
         "403",
+        "503"
+      ]
+    },
+    {
+      "operation": "portal.statements.read",
+      "transports": [
+        "portal"
+      ],
+      "scope": null,
+      "principals": [
+        "portal"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/portal/v1/patients/{patientRef}/statements/{releaseRef}"
+      },
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
         "503"
       ]
     },

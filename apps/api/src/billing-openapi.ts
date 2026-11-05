@@ -24,6 +24,8 @@ export const BILLING_PARAM_DEFS: Readonly<Record<string, string>> = {
   workflowRef: 'Uuid',
   timerRef: 'Uuid',
   patientRef: 'PatientRef',
+  statementRef: 'StatementRef',
+  releaseRef: 'Uuid',
 };
 
 type Defs = Record<string, { properties?: Record<string, { $ref?: string }>; required?: string[] }>;

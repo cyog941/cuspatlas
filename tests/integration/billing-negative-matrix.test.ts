@@ -100,6 +100,8 @@ const PARAMS: Record<string, string> = {
   workflowRef: 'workflow',
   timerRef: 'timer',
   patientRef: 'patient',
+  statementRef: 'statement',
+  releaseRef: 'statementRelease',
 };
 /** Operations whose cross-tenant attempt targets no alpha record (they act in the caller's tenant). */
 const OWN_TENANT = new Set([
@@ -284,6 +286,29 @@ beforeAll(async () => {
     }),
     201,
   ).data.requestRef;
+  // Closeout C: an alpha statement released to its guarantor's portal.
+  const stmtPatient = await createPatient(r.h, 'Synthetic Negative Statement');
+  r.h.ok(
+    await r.h.call('a1', 'POST', '/v1/billing/charges', {
+      patientRef: stmtPatient,
+      procedureRef: `syn-proc-neg-stmt-${Date.now().toString(36)}`,
+      serviceDate: today(),
+      amount: usd(1500),
+    }),
+    201,
+  );
+  const statement = r.h.ok<{ data: { statementRef: string } }>(
+    await r.h.call('a1', 'POST', '/v1/billing/statements', {
+      guarantorRef: stmtPatient,
+      cutoffAt: new Date().toISOString(),
+      basis: 'posted_through_cutoff',
+    }),
+    201,
+  ).data.statementRef;
+  const statementRelease = r.h.ok<{ data: { releaseRef: string } }>(
+    await r.h.call('a1', 'POST', `/v1/billing/statements/${statement}/portal-releases`, {}),
+    201,
+  ).data.releaseRef;
   const submissionPolicy = (
     await svc.createSubmissionPolicy(a1(), env('rcm.submissionPolicies.create', { maxBilled: usd(100000) }))
   ).data.policyRef;
@@ -323,6 +348,8 @@ beforeAll(async () => {
     submissionPolicy,
     workflow,
     timer,
+    statement,
+    statementRelease,
   };
   expect(Object.values(f).every((v) => typeof v === 'string' && v.length > 0)).toBe(true);
 });

@@ -133,6 +133,8 @@ const TOOL_NAMES = [
   // B4 statement tools.
   'billing_statements_generate',
   'billing_statements_get',
+  'billing_statements_release_to_portal',
+  'billing_statement_releases_revoke',
   // B5 coverage and eligibility tools.
   'rcm_coverages_change',
   'rcm_coverages_get',

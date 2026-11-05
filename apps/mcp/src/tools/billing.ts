@@ -30,6 +30,7 @@ export const BILLING_TRANSPORT: Readonly<Record<string, string>> = {
   resolutionRef: 'Uuid',
   workflowRef: 'Uuid',
   timerRef: 'Uuid',
+  releaseRef: 'Uuid',
 };
 
 /** Input schema = the REST body (or query) properties plus the transport-only properties. */

@@ -7,6 +7,7 @@ import {
   type TenantTransaction,
   validateEmptyQuery,
 } from '@cuspatlas/contracts';
+import { portalStatementRead, portalStatementsView } from '../../billing/portal-statements';
 import { recordSensitiveRead } from '../../events/record-sensitive-read';
 import { portalDocumentsView } from '../../imaging/portal-documents';
 import type { EngagementBase } from '../common';
@@ -29,6 +30,7 @@ export type PortalViewName =
   | 'requests'
   | 'documents'
   | 'balances'
+  | 'statements'
   | 'messages'
   | 'forms';
 
@@ -175,6 +177,33 @@ export const PORTAL_VIEWS: Readonly<Record<PortalViewName, ViewDefinition>> = {
     redactions: [],
     unavailable: { owner: 'B4', reason: 'producer_not_deployed' },
   },
+  // Closeout C: B4 statements a staff member explicitly released to the guarantor's portal.
+  statements: {
+    requiredScope: ['financial'],
+    fields: ['statements'],
+    itemFields: [
+      'releaseRef',
+      'statementVersion',
+      'cutoffAt',
+      'currency',
+      'total',
+      'amountDue',
+      'creditBalance',
+      'totalClass',
+      'superseded',
+      'releasedAt',
+    ],
+    redactions: [
+      'statementRef',
+      'unreleasedStatements',
+      'entryRefs',
+      'chargeRefs',
+      'paymentRefs',
+      'generatedBy',
+      'releasedBy',
+    ],
+    project: portalStatementsView,
+  },
   messages: {
     requiredScope: ['consent'],
     fields: ['threads'],
@@ -213,6 +242,26 @@ export function createPortalViewOperations(base: EngagementBase) {
     /** E2 documents: the bytes of one released image with a live grant (REST only). */
     readPortalDocumentContent(ctx: ActorContext, patientRef: string, releaseRef: string, token: unknown) {
       return port().content(ctx, patientRef, releaseRef, token);
+    },
+    /**
+     * Closeout C: one statement released to this patient's portal (the patient as guarantor, or a
+     * relationship holding `financial`), from the stored, digest-verified snapshot. Sensitive-read logged.
+     */
+    readPortalStatement(ctx: ActorContext, patientRef: string, releaseRef: string, query: unknown) {
+      return base.guarded(ctx, 'portal.statements.read', async () => {
+        assertValid(validateEmptyQuery, query, ENGAGEMENT_PROPERTIES);
+        return deps.withTenantTransaction(ctx, async (tx) => {
+          const access = await requirePortalAccess(tx, patientRef, ['financial']);
+          const statement = await portalStatementRead(tx, access.patientRef, releaseRef);
+          await recordSensitiveRead(tx, {
+            operation: 'portal.statements.read',
+            resourceType: 'patient',
+            resourceRefs: [access.patientRef],
+            queryFields: [],
+          });
+          return statement;
+        });
+      });
     },
     /** describePortalView: the declared allowlist, redactions and scope requirement (no data). */
     describePortalView(ctx: ActorContext, view: string, query: unknown) {

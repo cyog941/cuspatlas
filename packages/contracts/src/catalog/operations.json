@@ -2777,6 +2777,41 @@
     "status": "active"
   },
   {
+    "operation": "billing.statementReleases.revoke",
+    "owner": "B",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "billing.statementReleases.revoke",
+    "scope": "billing.write",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/billing/statement-releases/{releaseRef}/revoke",
+      "requestSchema": "billing:StatementReleaseRevoke",
+      "successStatus": "200",
+      "successSchema": "billing:StatementReleaseCommandResult"
+    },
+    "mcpTool": "billing_statement_releases_revoke",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
     "operation": "billing.statements.generate",
     "owner": "B",
     "kind": "command",
@@ -2841,6 +2876,41 @@
       "503"
     ],
     "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "billing.statements.releaseToPortal",
+    "owner": "B",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "billing.statements.releaseToPortal",
+    "scope": "billing.write",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/billing/statements/{statementRef}/portal-releases",
+      "requestSchema": "billing:StatementPortalRelease",
+      "successStatus": "201",
+      "successSchema": "billing:StatementReleaseCommandResult"
+    },
+    "mcpTool": "billing_statements_release_to_portal",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
     "sensitivity": "phi",
     "status": "active"
   },
@@ -11378,6 +11448,37 @@
       "400",
       "401",
       "403",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "portal.statements.read",
+    "owner": "E",
+    "kind": "query",
+    "authorization": "portal",
+    "action": null,
+    "scope": null,
+    "principals": [
+      "portal"
+    ],
+    "transports": [
+      "portal"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/portal/v1/patients/{patientRef}/statements/{releaseRef}",
+      "successStatus": "200",
+      "successSchema": "engagement:EngagementRead"
+    },
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
       "503"
     ],
     "idempotency": "none",

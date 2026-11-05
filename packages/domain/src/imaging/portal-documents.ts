@@ -151,7 +151,7 @@ export function createPortalDocumentOperations(base: ImagingBase) {
         return deps.withTenantTransaction(ctx, async (tx) => {
           const { rows } = await tx.query<ReleaseRow>(
             `SELECT id, patient_id, item_id, revoked_at IS NOT NULL AS revoked
-             FROM cuspatlas.portal_document_releases WHERE id = $1 FOR UPDATE`,
+             FROM cuspatlas.portal_document_releases WHERE id = $1 AND item_kind = 'imaging_object' FOR UPDATE`,
             [releaseRef],
           );
           const r = rows[0];

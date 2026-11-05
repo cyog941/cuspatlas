@@ -9,7 +9,7 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-503 operations.
+506 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
@@ -17,8 +17,8 @@ transport tables and are declarations, not independent proof.
 | A | 84 | 81 | 81 | 0 | 0 | 2 |
 | S | 92 | 90 | 90 | 0 | 0 | 0 |
 | C | 88 | 87 | 87 | 0 | 0 | 0 |
-| B | 66 | 66 | 66 | 0 | 0 | 0 |
-| E | 63 | 48 | 48 | 13 | 0 | 2 |
+| B | 68 | 68 | 68 | 0 | 0 | 0 |
+| E | 64 | 48 | 48 | 14 | 0 | 2 |
 | I | 58 | 50 | 47 | 0 | 6 | 1 |
 | M | 38 | 38 | 38 | 0 | 0 | 0 |
 
@@ -106,8 +106,10 @@ transport tables and are declarations, not independent proof.
 | `billing.procedures.consume` | B | command | authorize | `billing.write` | service | rest, mcp | POST `/v1/billing/procedure-events/{procedureRef}/consume` | `billing_procedures_consume` | required | phi | active |
 | `billing.reports.receivables` | B | query | authorize | `receivables.read` | human, service | rest, mcp | GET `/v1/billing/reports/receivables` | `billing_reports_receivables` | none | phi | active |
 | `billing.responsibility.transfer` | B | command | authorize | `billing.write` | human | rest, mcp | POST `/v1/billing/charges/{chargeRef}/responsibility` | `billing_responsibility_transfer` | required | phi | active |
+| `billing.statementReleases.revoke` | B | command | authorize | `billing.write` | human | rest, mcp | POST `/v1/billing/statement-releases/{releaseRef}/revoke` | `billing_statement_releases_revoke` | required | phi | active |
 | `billing.statements.generate` | B | command | authorize | `billing.write` | human, service | rest, mcp | POST `/v1/billing/statements` | `billing_statements_generate` | required | phi | active |
 | `billing.statements.read` | B | query | authorize | `receivables.read` | human, service | rest, mcp | GET `/v1/billing/statements/{statementRef}` | `billing_statements_get` | none | phi | active |
+| `billing.statements.releaseToPortal` | B | command | authorize | `billing.write` | human | rest, mcp | POST `/v1/billing/statements/{statementRef}/portal-releases` | `billing_statements_release_to_portal` | required | phi | active |
 | `billing.worklist.list` | B | query | authorize | `undistributedFunds.read` | human, service | rest, mcp | GET `/v1/billing/worklist` | `billing_worklist_list` | none | phi | active |
 | `clinical.authors.context` | C | query | authorize | `clinical.read` | human, service | rest, mcp | GET `/v1/clinical/author-context` | `clinical_author_context` | none | phi | active |
 | `clinical.authors.define` | C | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/clinical/authors` | `clinical_authors_define` | required | operational | active |
@@ -365,6 +367,7 @@ transport tables and are declarations, not independent proof.
 | `portal.principals.verify` | E | command | authorize | `portal.manage` | human | rest, mcp | POST `/v1/portal/principals/{principalRef}/verify` | `portal_principals_verify` | required | phi | active |
 | `portal.requests.submit` | E | command | portal | - | portal | portal | POST `/portal/v1/patients/{patientRef}/appointment-requests` | - | required | phi | active |
 | `portal.session.read` | E | query | portal | - | portal | portal | GET `/portal/v1/session` | - | none | phi | active |
+| `portal.statements.read` | E | query | portal | - | portal | portal | GET `/portal/v1/patients/{patientRef}/statements/{releaseRef}` | - | none | phi | active |
 | `portal.threads.open` | E | command | portal | - | portal | portal | POST `/portal/v1/patients/{patientRef}/message-threads` | - | required | phi | active |
 | `portal.threads.post` | E | command | portal | - | portal | portal | POST `/portal/v1/patients/{patientRef}/message-threads/{threadRef}/messages` | - | required | phi | active |
 | `portal.threads.read` | E | query | portal | - | portal | portal | GET `/portal/v1/patients/{patientRef}/message-threads/{threadRef}` | - | none | phi | active |

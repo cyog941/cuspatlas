@@ -246,6 +246,9 @@ export const BILLING_FLAT_OPERATIONS: readonly string[] = [
   'rcm.claims.packageAttachments',
   'rcm.workflows.start',
   'rcm.workflows.close',
+  // Closeout C: statement portal releases (references and the release state only).
+  'billing.statements.releaseToPortal',
+  'billing.statementReleases.revoke',
 ];
 
 /** Every billing operation that runs through executeOnce (B1 and B2). */

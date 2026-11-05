@@ -2136,6 +2136,54 @@
         }
       }
     },
+    "StatementPortalRelease": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Closeout C: release one generated statement to the portal of its guarantor (human-only, audited, revocable). The body is empty: the statement names its guarantor.",
+      "properties": {}
+    },
+    "StatementReleaseRevoke": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Closeout C: revoke a statement portal release; it leaves the portal statements view at once.",
+      "properties": {}
+    },
+    "StatementReleaseCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["releaseRef", "statementRef", "patientRef", "state"],
+          "properties": {
+            "releaseRef": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "statementRef": {
+              "$ref": "#/$defs/StatementRef"
+            },
+            "patientRef": {
+              "$ref": "#/$defs/PatientRef"
+            },
+            "state": {
+              "enum": ["released", "revoked"]
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
     "StatementLine": {
       "type": "object",
       "additionalProperties": false,

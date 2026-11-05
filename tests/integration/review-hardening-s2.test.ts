@@ -82,9 +82,23 @@ const book = async (
   l = loc,
 ) => h.call(who, 'POST', APPT, { patientRef, locationRef: l.locationRef, ...w }, key);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const nyDay = (ms: number) =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date(ms));
+/**
+ * A window starting a few seconds from now. H1 R-NIT: it stays inside one local day (the all-day
+ * availability ends at local midnight), so near midnight it starts just after the day boundary.
+ */
 const soon = (seconds: number, minutes = 5) => {
-  const s = Math.ceil((Date.now() + seconds * 1000) / 1000) * 1000;
-  return { startsAt: new Date(s).toISOString(), endsAt: new Date(s + minutes * 60_000).toISOString() };
+  let s = Math.ceil((Date.now() + seconds * 1000) / 1000) * 1000;
+  let span = minutes * 60_000;
+  // Near local midnight: shrink to the whole minutes left in the day, or (under one minute left)
+  // start in the first second of the next local day.
+  while (span > 60_000 && nyDay(s) !== nyDay(s + span)) span -= 60_000;
+  if (nyDay(s) !== nyDay(s + span)) {
+    const day = nyDay(s);
+    while (nyDay(s) === day) s += 1000;
+  }
+  return { startsAt: new Date(s).toISOString(), endsAt: new Date(s + span).toISOString() };
 };
 
 describe('SHOULD 1: window validation runs inside the idempotent handler', () => {

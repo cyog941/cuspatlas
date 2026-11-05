@@ -16,3 +16,16 @@ describe('H1 R8 claims attachment source', () => {
     expect(claims).not.toMatch(/objects: AttachmentSourcePort = createFakeAttachmentSource\(\)/);
   });
 });
+
+describe('H1 R-NIT C12 coverage status', () => {
+  it('a B5 unknown stays unknown even when an entered, fresh assumption exists', async () => {
+    const m = await import('../../packages/domain/src/clinical/estimates');
+    const fresh = [{ kind: 'coverage', sourceAsOf: new Date() }];
+    const merge = (m as Record<string, unknown>).mergeCoverageStatus as
+      | ((b5: string, s: string) => string)
+      | undefined;
+    expect(merge?.('unknown', m.coverageStatusAt(fresh, Date.now()))).toBe('unknown');
+    expect(merge?.('entered', 'entered')).toBe('entered');
+    expect(m.coverageNowOf('unknown', fresh, Date.now())).toBe('unknown');
+  });
+});

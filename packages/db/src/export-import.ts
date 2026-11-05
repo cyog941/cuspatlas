@@ -19,6 +19,7 @@ import type pg from 'pg';
 import {
   assertBillingCurrency,
   assertBillingLedger,
+  assertBillingProcedureRefs,
   assertBillingReferences,
   assertBillingTriggerInvariants,
   billingRowFromExport,
@@ -244,6 +245,7 @@ export async function importExports(
     }
     if (billing) {
       await assertBillingReferences(client, tenantId);
+      await assertBillingProcedureRefs(client, tenantId);
       await assertBillingCurrency(client, tenantId, currencies);
       await assertBillingTriggerInvariants(client, tenantId);
       counts.verifiedEntries = await assertBillingLedger(client, tenantId);

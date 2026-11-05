@@ -74,6 +74,17 @@ export function coverageStatusAt(
 }
 
 /**
+ * B5 decides inactive, stale and unknown coverage (R-NIT, H1: an entered assumption never upgrades a
+ * B5 `unknown`); otherwise the freshness of the caller-entered sources decides.
+ */
+export function mergeCoverageStatus(
+  b5: 'none' | 'entered' | 'unknown' | 'stale' | 'inactive',
+  fromSources: CoverageStatus,
+): CoverageStatus {
+  return b5 === 'inactive' || b5 === 'stale' || b5 === 'unknown' ? b5 : fromSources;
+}
+
+/**
  * The coverage status of a stored estimate now. A status B5 decided at generation (`inactive`, or a
  * `stale` eligibility record) stays; otherwise freshness of the entered sources is re-evaluated.
  */
@@ -82,7 +93,8 @@ export function coverageNowOf(
   assumptions: readonly { readonly kind: string; readonly sourceAsOf: string | Date }[],
   at: number,
 ): CoverageStatus {
-  if (stored === 'inactive' || stored === 'stale') return stored;
+  // R-NIT (H1): a B5 `unknown` stays unknown even when an entered assumption exists.
+  if (stored === 'inactive' || stored === 'stale' || stored === 'unknown') return stored;
   return coverageStatusAt(assumptions, at);
 }
 
@@ -426,8 +438,7 @@ export function createEstimateOperations(base: ClinicalBase) {
               const fromSources = coverageStatusAt(assumptions, Date.now());
               // B5 decides inactive or stale eligibility; entered coverage values stay caller-sourced.
               const b5 = await pricing.coverage(tx, patient.id, serviceDate);
-              const status: CoverageStatus =
-                b5 === 'inactive' ? 'inactive' : b5 === 'stale' ? 'stale' : fromSources;
+              const status: CoverageStatus = mergeCoverageStatus(b5, fromSources);
               const head = await currentOf(tx, planVersionRef);
               if ((head?.number ?? 0) >= MAX_ESTIMATES) throw failedAt('/', 'tooManyEstimates');
               const { rows } = await tx.query<{ id: string }>(

@@ -5,11 +5,12 @@ import {
   isMoneyColumn,
 } from '@cuspatlas/contracts';
 import type pg from 'pg';
-import { assertSyntheticDatabaseName } from './migrate';
+import { importExports } from './export-import';
 
 export { BILLING_EXPORT_FORMAT };
 
 /**
+ * The B10 checks of the privileged import (used by `importExports`, where B is the last format).
  * Re-imports a billing export (B10) into a synthetic database for one tenant, preserving every
  * identifier. Privileged (superuser) and synthetic-only: an unknown format or table, a non-synthetic
  * database or a non-superuser role is refused. The target must already hold the tenant, its principals
@@ -35,7 +36,7 @@ const quote = (name: string): string => {
 };
 
 /** Money back to its integer minor-unit column (and refuse a malformed amount). */
-function fromExportRow(
+export function billingRowFromExport(
   row: Readonly<Record<string, unknown>>,
   currencies: Set<string>,
 ): Record<string, unknown> {
@@ -53,7 +54,7 @@ function fromExportRow(
 }
 
 /** Every amount (and every currency column) of the tenant is in the tenant's one currency (ADR 0008 M-3). */
-async function assertCurrency(
+export async function assertBillingCurrency(
   client: pg.PoolClient,
   tenantId: string,
   seen: ReadonlySet<string>,
@@ -82,7 +83,7 @@ async function assertCurrency(
 }
 
 /** Trigger-enforced invariants re-checked by SQL, because `session_replication_role = replica` skips triggers. */
-async function assertTriggerInvariants(client: pg.PoolClient, tenantId: string): Promise<void> {
+export async function assertBillingTriggerInvariants(client: pg.PoolClient, tenantId: string): Promise<void> {
   const checks: [string, string][] = [
     [
       'an adjustment is decided by someone other than its requester',
@@ -125,7 +126,7 @@ async function assertTriggerInvariants(client: pg.PoolClient, tenantId: string):
   }
 }
 
-async function assertReferences(client: pg.PoolClient, tenantId: string): Promise<void> {
+export async function assertBillingReferences(client: pg.PoolClient, tenantId: string): Promise<void> {
   const { rows } = await client.query<{
     conname: string;
     child: string;
@@ -175,7 +176,7 @@ async function assertReferences(client: pg.PoolClient, tenantId: string): Promis
 }
 
 /** The database's own journal check for every imported entry (raises on any broken invariant). */
-async function assertLedger(client: pg.PoolClient, tenantId: string): Promise<number> {
+export async function assertBillingLedger(client: pg.PoolClient, tenantId: string): Promise<number> {
   const { rows } = await client.query<{ id: string }>(
     'SELECT id FROM cuspatlas.billing_journal_entries WHERE tenant_id = $1 ORDER BY posted_at, id',
     [tenantId],
@@ -190,48 +191,15 @@ async function assertLedger(client: pg.PoolClient, tenantId: string): Promise<nu
   return rows.length;
 }
 
+/**
+ * B alone (the S export it references already imported). Thin wrapper over `importExports`, which runs
+ * the same checks; prefer one `importExports` call with every document (S, I, C, E, B).
+ */
 export async function importBillingExport(
   pool: pg.Pool,
   tenantId: string,
   doc: BillingExport,
 ): Promise<Record<string, number>> {
   if (doc.format !== BILLING_EXPORT_FORMAT) throw new Error('Unsupported billing export format');
-  const known = new Set<string>(BILLING_EXPORT_TABLES);
-  for (const t of Object.keys(doc.tables)) if (!known.has(t)) throw new Error('Unknown table in export');
-  // Every amount is converted (and a malformed one refused) before anything is written.
-  const currencies = new Set<string>();
-  const prepared = BILLING_EXPORT_TABLES.map(
-    (table) => [table, (doc.tables[table] ?? []).map((row) => fromExportRow(row, currencies))] as const,
-  );
-  const client = await pool.connect();
-  try {
-    const { rows } = await client.query<{ d: string; su: boolean }>(
-      'SELECT current_database() AS d, (SELECT rolsuper FROM pg_roles WHERE rolname = current_user) AS su',
-    );
-    assertSyntheticDatabaseName(String(rows[0]?.d));
-    if (rows[0]?.su !== true) throw new Error('Billing import requires the privileged fixture role');
-    await client.query('BEGIN');
-    await client.query("SET LOCAL session_replication_role = 'replica'");
-    const counts: Record<string, number> = {};
-    for (const [table, list] of prepared) {
-      for (const row of list) {
-        await client.query(
-          `INSERT INTO cuspatlas.${quote(table)} SELECT * FROM jsonb_populate_record(NULL::cuspatlas.${quote(table)}, $1::jsonb)`,
-          [JSON.stringify({ ...row, tenant_id: tenantId })],
-        );
-      }
-      counts[table] = list.length;
-    }
-    await assertReferences(client, tenantId);
-    await assertCurrency(client, tenantId, currencies);
-    await assertTriggerInvariants(client, tenantId);
-    counts.verifiedEntries = await assertLedger(client, tenantId);
-    await client.query('COMMIT');
-    return counts;
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => undefined);
-    throw err;
-  } finally {
-    client.release();
-  }
+  return importExports(pool, tenantId, [doc]);
 }

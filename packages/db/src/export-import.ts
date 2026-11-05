@@ -1,4 +1,7 @@
 import {
+  BILLING_EXPORT_FORMAT,
+  BILLING_EXPORT_TABLES,
+  type BillingExport,
   CLINICAL_EXPORT_FORMAT,
   CLINICAL_EXPORT_TABLES,
   type ClinicalExport,
@@ -14,6 +17,13 @@ import {
 } from '@cuspatlas/contracts';
 import type pg from 'pg';
 import {
+  assertBillingCurrency,
+  assertBillingLedger,
+  assertBillingReferences,
+  assertBillingTriggerInvariants,
+  billingRowFromExport,
+} from './billing-import';
+import {
   assertClinicalForeignKeys,
   assertClinicalInvariants,
   type NoteDigestVerifier,
@@ -25,7 +35,7 @@ import { assertSyntheticDatabaseName } from './migrate';
  * one import order of the platform: S17 scheduling (patients, locations, resources, appointments),
  * then I9 imaging (objects and associations of S patients; bytes travel separately as blob bundles),
  * then C18 clinical (which references S rows and names I imageRefs), then E9 engagement (which references S patients and
- * intents). S intents reference E suppression decisions, so S and E are not self-contained either;
+ * intents), then B10 billing (which references S patients and locations and C procedures by reference). S intents reference E suppression decisions, so S and E are not self-contained either;
  * every document of one call is loaded in one transaction and every foreign key is validated after
  * all of them are loaded, so cross-document references resolve regardless of the cycle.
  */
@@ -34,14 +44,21 @@ const FORMATS: Readonly<Record<string, readonly string[]>> = {
   [IMAGING_EXPORT_FORMAT]: IMAGING_EXPORT_TABLES,
   [CLINICAL_EXPORT_FORMAT]: CLINICAL_EXPORT_TABLES,
   [ENGAGEMENT_EXPORT_FORMAT]: ENGAGEMENT_EXPORT_TABLES,
+  [BILLING_EXPORT_FORMAT]: BILLING_EXPORT_TABLES,
 };
 export const IMPORT_ORDER: readonly string[] = [
   SCHEDULING_EXPORT_FORMAT,
   IMAGING_EXPORT_FORMAT,
   CLINICAL_EXPORT_FORMAT,
   ENGAGEMENT_EXPORT_FORMAT,
+  BILLING_EXPORT_FORMAT,
 ];
-export type ExportDocument = SchedulingExport | ImagingExport | ClinicalExport | EngagementExport;
+export type ExportDocument =
+  | SchedulingExport
+  | ImagingExport
+  | ClinicalExport
+  | EngagementExport
+  | BillingExport;
 
 export interface ImportOptions {
   /** Required with a C18 document: recomputes the note version digests (the domain's own function). */
@@ -109,12 +126,12 @@ async function assertForeignKeys(
 }
 
 /**
- * Re-imports export documents (S17 scheduling, I9 imaging, C18 clinical, E9 engagement) into a synthetic database
+ * Re-imports export documents (S17 scheduling, I9 imaging, C18 clinical, E9 engagement, B10 billing) into a synthetic database
  * for one tenant, preserving every identifier. Privileged (superuser) and synthetic-only: it refuses an
  * unknown format, an unknown table, a repeated document and a database whose name is not synthetic.
  * The target must already hold the tenant and the principals and memberships the rows reference
  * (tenancy is A's, exported by none of these); I9 bytes are imported separately by
- * `importImagingBlobs`. Documents are loaded in the platform import order (S, I, C, E) whatever order they are given in, table by table in each export's foreign-key order,
+ * `importImagingBlobs`. Documents are loaded in the platform import order (S, I, C, E, B) whatever order they are given in, table by table in each export's foreign-key order,
  * inside one transaction with `session_replication_role = replica` (self-references and
  * cross-document cycles do not depend on row order and append-only guards do not refire on historical
  * rows; check and exclusion constraints stay active). Because triggers and foreign keys are off while
@@ -123,7 +140,11 @@ async function assertForeignKeys(
  *   tenant-scoped tables stay inside the tenant);
  * - every foreign key of every C table is validated with C18's stricter check (any tenant-scoped
  *   parent belongs to the importing tenant; principals are members of it), then C18's invariant query
- *   set and the note version digests (`verifyNoteDigests`, required with a C18 document).
+ *   set and the note version digests (`verifyNoteDigests`, required with a C18 document);
+ * - with a B10 document: every amount is converted back to minor units (a malformed one refused before
+ *   anything is written), then B10's checks: every billing/rcm foreign key (tenant-blind single-column
+ *   keys must name a parent of the same tenant), the tenant currency, the trigger-enforced invariants the
+ *   replica role skips, and the database's own journal check of every entry (`verifiedEntries`).
  * Any failure rolls the whole import back. This is the round-trip check, not the M1 migration import
  * (no mapping, staging, dry run or reconciliation).
  */
@@ -144,8 +165,19 @@ export async function importExports(
   const clinical = ordered.some((d) => d.format === CLINICAL_EXPORT_FORMAT);
   const verifyNoteDigests = options.verifyNoteDigests;
   if (clinical && !verifyNoteDigests) throw new Error('A clinical import requires the note digest verifier');
+  const billing = ordered.some((d) => d.format === BILLING_EXPORT_FORMAT);
+  // B amounts back to integer minor units (and a malformed amount refused) before anything is written.
+  const currencies = new Set<string>();
+  const rowsOf = (doc: ExportDocument, table: string): readonly Record<string, unknown>[] => {
+    const list = (doc.tables as Readonly<Record<string, readonly Record<string, unknown>[]>>)[table] ?? [];
+    return doc.format === BILLING_EXPORT_FORMAT ? list.map((r) => billingRowFromExport(r, currencies)) : list;
+  };
+  const prepared = ordered.map((doc) => ({
+    doc,
+    tables: (FORMATS[doc.format] ?? []).map((table) => [table, rowsOf(doc, table)] as const),
+  }));
   const plainTables = ordered
-    .filter((d) => d.format !== CLINICAL_EXPORT_FORMAT)
+    .filter((d) => d.format !== CLINICAL_EXPORT_FORMAT && d.format !== BILLING_EXPORT_FORMAT)
     .flatMap((d) => FORMATS[d.format] ?? []);
   const client = await pool.connect();
   try {
@@ -157,11 +189,16 @@ export async function importExports(
     await client.query('BEGIN');
     await client.query("SET LOCAL session_replication_role = 'replica'");
     const counts: Record<string, number> = {};
-    for (const doc of ordered) {
-      const docTables = doc.tables as Readonly<Record<string, readonly Record<string, unknown>[]>>;
-      for (const table of FORMATS[doc.format] ?? []) {
-        const list = docTables[table] ?? [];
+    for (const { doc, tables } of prepared) {
+      for (const [table, list] of tables) {
         for (const row of list) {
+          if (doc.format === BILLING_EXPORT_FORMAT) {
+            await client.query(
+              `INSERT INTO cuspatlas.${quote(table)} SELECT * FROM jsonb_populate_record(NULL::cuspatlas.${quote(table)}, $1::jsonb)`,
+              [JSON.stringify({ ...row, tenant_id: tenantId })],
+            );
+            continue;
+          }
           if (table === 'portal_principals') {
             // A portal principal's identity row is server-shaped (kind portal, handle from its id) and
             // carries no other data; it is recreated rather than exported.
@@ -204,6 +241,12 @@ export async function importExports(
     if (clinical && verifyNoteDigests) {
       await assertClinicalForeignKeys(client, tenantId);
       await assertClinicalInvariants(client, tenantId, verifyNoteDigests);
+    }
+    if (billing) {
+      await assertBillingReferences(client, tenantId);
+      await assertBillingCurrency(client, tenantId, currencies);
+      await assertBillingTriggerInvariants(client, tenantId);
+      counts.verifiedEntries = await assertBillingLedger(client, tenantId);
     }
     await client.query('COMMIT');
     return counts;

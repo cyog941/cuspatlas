@@ -11,6 +11,7 @@ import {
   type TenantTransaction,
   validateIdempotencyKey,
 } from '@cuspatlas/contracts';
+import listQueryKeys from '@cuspatlas/contracts/catalog/list-query-keys.json' with { type: 'json' };
 import catalog from '@cuspatlas/contracts/catalog/operations.json' with { type: 'json' };
 import type { ReplayCodec, StoredResult } from '../commands/execute-once';
 import type { CommandExecutor } from '../commands/executor';
@@ -41,6 +42,67 @@ const RESOURCE = {
   recent: 'userRecentPatient',
 } as const;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/**
+ * A batch 3 hardening: saved-view filter and name rules (strictest workable, recorded in
+ * docs/execution/api-progress.md). A filter key must be a documented query parameter of the target list
+ * (`list-query-keys.json`, generated from docs/api/openapi.yaml) and not a cursor, a free-text search key,
+ * a registry-identifying key or a record reference other than an operational one (location, provider,
+ * resource). A value that looks like an identifier (a UUID anywhere, four or more digits in a row, or an
+ * `<entity>Ref`-shaped token) is refused, so fixed dates are refused too. A name is only words from a
+ * fixed operational vocabulary, so it can never hold a patient name, and the rule needs no patient lookup
+ * (which would be an existence oracle for a caller without patients.read).
+ */
+const QUERY_KEYS = listQueryKeys as unknown as Readonly<Record<string, readonly string[]>>;
+const FREE_TEXT_KEYS = new Set([
+  'q',
+  'query',
+  'search',
+  'text',
+  'term',
+  'keyword',
+  'contains',
+  'prefix',
+  'name',
+]);
+const OPERATIONAL_REFS = new Set(['locationRef', 'providerRef', 'resourceRef', 'operatoryRef']);
+const UUID_ANYWHERE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+const IDENTIFIER_VALUE = (v: string) => UUID_ANYWHERE.test(v) || /\d{4,}/.test(v) || /[a-z]Ref\b/.test(v);
+export const SAVED_VIEW_WORDS: ReadonlySet<string> = new Set(
+  (
+    'my our team all the a of in by for and to with without not no ' +
+    'today tomorrow yesterday this next last week weekly month monthly morning afternoon evening day daily ' +
+    'open opened closed pending overdue due new active inactive unscheduled scheduled booked unconfirmed confirmed ' +
+    'cancelled canceled review reviewed unread read unsigned signed draft drafts failed sent unsent stale ' +
+    'requests request appointments appointment schedule claims claim denied denials appeals appeal payments payment ' +
+    'ledger balances balance statements plans plan recall recalls hygiene hygienist provider providers doctor ' +
+    'front desk office billing insurance insurer worklist queue queues messages message threads replies tasks task ' +
+    'work items item follow up treatment estimates estimates encounters notes consents imaging images lab cases ' +
+    'referrals referral eligibility coverage audit access priority urgent high low north south east west main ' +
+    'central downtown name names list lists view views report reports'
+  ).split(' '),
+);
+
+/** Throws when a saved view's name or filters could carry identity (rules above). */
+function assertViewPrivacy(p: { name: string; operation: string; filters: Record<string, unknown> }) {
+  const words = p.name
+    .toLowerCase()
+    .split(/[ ._-]+/)
+    .filter(Boolean);
+  if (words.length === 0 || words.some((w) => !SAVED_VIEW_WORDS.has(w)))
+    throw failed('name_not_in_vocabulary');
+  const list = LIST_OPERATIONS[p.operation];
+  const sensitive = new Set([...(list?.sensitiveFilters ?? []), 'cursor']);
+  const allowed = new Set(QUERY_KEYS[p.operation] ?? []);
+  for (const [k, value] of Object.entries(p.filters)) {
+    if (sensitive.has(k) || (k.endsWith('Ref') && !OPERATIONAL_REFS.has(k)))
+      throw failed('identifying_filter');
+    if (FREE_TEXT_KEYS.has(k)) throw failed('free_text_filter');
+    if (!allowed.has(k)) throw failed('unknown_filter');
+    const values = Array.isArray(value) ? value : [value];
+    if (values.some((x) => IDENTIFIER_VALUE(String(x)))) throw failed('identifying_value');
+  }
+}
 
 const v = {
   save: foundationDef('SavedViewSave'),
@@ -82,12 +144,15 @@ export function createPreferenceOperations(base: ComposerBase, deps: PreferenceD
     validate: (payload: unknown) => void,
     work: (t: TenantTransaction) => Promise<{ data: T; version: number }>,
     also?: Parameters<ComposerBase['authorize']>[1],
+    /** An action derived from the validated payload, authorized before execution (so also on replay). */
+    target?: (payload: unknown) => Parameters<ComposerBase['authorize']>[1],
   ): Promise<CommandResult<T>> {
     return base.guarded(ctx, op, async () => {
       await base.authorize(ctx, op);
       if (also) await base.authorize(ctx, also);
       check(envelope, op);
       validate(envelope.payload);
+      if (target) await base.authorize(ctx, target(envelope.payload));
       return tx(ctx, (t) => deps.execute<T>(ctx, envelope, t, () => work(t)));
     });
   }
@@ -135,8 +200,7 @@ export function createPreferenceOperations(base: ComposerBase, deps: PreferenceD
           assertValid<P>(v.save, p, SYNTHETIC_TASK_PROPERTIES);
           const list = LIST_OPERATIONS[p.operation];
           if (!list || !OPERATIONS.has(p.operation)) throw failed('not_a_list_operation');
-          const sensitive = new Set([...(list.sensitiveFilters ?? []), 'cursor']);
-          if (Object.keys(p.filters).some((k) => sensitive.has(k))) throw failed('identifying_filter');
+          assertViewPrivacy(p);
         },
         async (t) => {
           const p = envelope.payload as P;
@@ -159,6 +223,12 @@ export function createPreferenceOperations(base: ComposerBase, deps: PreferenceD
             version: r.version,
           };
         },
+        undefined,
+        // The target list's own action: a view is saved (and replayed) only by a caller who may list it.
+        (p) =>
+          (OPERATIONS.get((p as P).operation)?.action ?? (p as P).operation) as Parameters<
+            ComposerBase['authorize']
+          >[1],
       );
     },
 

@@ -11218,7 +11218,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/scheduling/appointment-requests";
     params: {  };
-    query: { readonly limit?: string; readonly cursor?: string; };
+    query: { readonly state?: string; readonly locationRef?: string; readonly limit?: string; readonly cursor?: string; };
     body: undefined;
     result: SchedulingAppointmentRequestList;
     successStatus: 200;

@@ -14,7 +14,8 @@
     "./clinical.schema.json": "./src/clinical.schema.json",
     "./engagement.schema.json": "./src/engagement.schema.json",
     "./imaging.schema.json": "./src/imaging.schema.json",
-    "./catalog/operations.json": "./src/catalog/operations.json"
+    "./catalog/operations.json": "./src/catalog/operations.json",
+    "./catalog/list-query-keys.json": "./src/catalog/list-query-keys.json"
   },
   "dependencies": {
     "ajv": "8.20.0",

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   type AppointmentHarness,
@@ -5,6 +6,7 @@ import {
   openAppointmentHarness,
 } from './support/appointment-fixtures';
 import { openTestDatabase, type TestDatabase } from './support/db';
+import { patientBody } from './support/patient-fixtures';
 import { T_ALPHA, USER_A1, USER_A3 } from './support/fixtures';
 
 /**
@@ -172,5 +174,87 @@ describe('A22 recent patients', () => {
   it('is human only: a service principal is refused', async () => {
     expect((await h.call('svcA1', 'GET', '/v1/me/recent-patients')).statusCode).toBe(403);
     expect((await h.call('a2', 'GET', '/v1/me/saved-views')).statusCode).toBe(403);
+  });
+});
+
+describe('A batch 3 hardening: saved views carry no identity and need the target right', () => {
+  it('refuses an identifier filter, free text and unknown keys', async () => {
+    const ref = await save('a1', {
+      name: 'My ledger',
+      operation: 'billing.ledger.list',
+      filters: { patientRef: patient },
+    });
+    expect([ref.statusCode, ref.json().detail?.reason]).toEqual([422, 'identifying_filter']);
+    const q = await save('a1', {
+      name: 'Open requests',
+      operation: 'scheduling.requests.list',
+      filters: { q: 'Jane Smith' },
+    });
+    expect([q.statusCode, q.json().detail?.reason]).toEqual([422, 'free_text_filter']);
+    const unknown = await save('a1', {
+      name: 'Open requests',
+      operation: 'scheduling.requests.list',
+      filters: { colour: 'red' },
+    });
+    expect([unknown.statusCode, unknown.json().detail?.reason]).toEqual([422, 'unknown_filter']);
+    for (const value of ['20000000-0000-4000-8000-0000000000a3', 'chart 12345']) {
+      const id = await save('a1', {
+        name: 'Open requests',
+        operation: 'scheduling.requests.list',
+        filters: { state: value },
+      });
+      expect([id.statusCode, id.json().detail?.reason]).toEqual([422, 'identifying_value']);
+    }
+  });
+
+  it('refuses a name outside the label vocabulary, identically whether or not a patient has it', async () => {
+    const before = await save('a1', {
+      name: 'Jane Smith',
+      operation: 'scheduling.requests.list',
+      filters: {},
+    });
+    h.ok(
+      await h.call(
+        'a1',
+        'POST',
+        '/v1/patients',
+        patientBody('Jane', { legalName: { known: true, given: 'Jane', family: 'Smith' } }),
+      ),
+      201,
+    );
+    const after = await save('a1', {
+      name: 'Jane Smith',
+      operation: 'scheduling.requests.list',
+      filters: {},
+    });
+    expect([after.statusCode, after.json().detail?.reason]).toEqual([422, 'name_not_in_vocabulary']);
+    expect([before.statusCode, before.json().detail?.reason]).toEqual([422, 'name_not_in_vocabulary']);
+  });
+
+  it('authorizes the target list operation at save and on idempotent replay', async () => {
+    const body = { name: 'Open requests', operation: 'scheduling.requests.list', filters: {} };
+    const ledger = { name: 'My ledger', operation: 'billing.ledger.list', filters: {} };
+    expect((await save('a3', ledger)).statusCode).toBe(403);
+    const key = randomUUID();
+    const first = await h.call('a1', 'POST', '/v1/me/saved-views', body, key);
+    expect(first.statusCode).toBe(201);
+    const scopes = (
+      await db.admin.query(
+        'SELECT scopes FROM cuspatlas.memberships WHERE principal_id = $1 AND tenant_id = $2',
+        [USER_A1, T_ALPHA],
+      )
+    ).rows[0].scopes as string[];
+    await db.admin.query(
+      'UPDATE cuspatlas.memberships SET scopes = $3::text[] WHERE principal_id = $1 AND tenant_id = $2',
+      [USER_A1, T_ALPHA, scopes.filter((s) => s !== 'scheduling.read')],
+    );
+    try {
+      expect((await h.call('a1', 'POST', '/v1/me/saved-views', body, key)).statusCode).toBe(403);
+    } finally {
+      await db.admin.query(
+        'UPDATE cuspatlas.memberships SET scopes = $3::text[] WHERE principal_id = $1 AND tenant_id = $2',
+        [USER_A1, T_ALPHA, scopes],
+      );
+    }
   });
 });

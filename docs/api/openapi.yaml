@@ -1090,6 +1090,16 @@ paths:
       description: >-
         Open and in-review requests by default, or one state; filters by location and patient. Location-restricted callers see only their locations. Requires scheduling.read.
       parameters:
+        - name: state
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/AppointmentRequestListQuery/properties/state'
+        - name: locationRef
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/AppointmentRequestListQuery/properties/locationRef'
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
       responses:

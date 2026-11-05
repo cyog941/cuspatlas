@@ -12,7 +12,8 @@ import {
   resolveBaseRef,
 } from './baseline';
 import { buildCatalog, ROOT, stableJson } from './build-catalog';
-import { renderClient } from './client';
+import { openApiQueryParams, renderClient } from './client';
+import { LIST_OPERATIONS } from '../../packages/contracts/src/list-operations';
 import { renderCatalogMd, renderScopesMd, renderSunsetMd } from './docs';
 import { buildScopeRegistry, registeredScopes } from './scopes';
 
@@ -45,10 +46,23 @@ export function generatedArtifacts(
     'packages/contracts/src/catalog/scopes.json': stableJson(registry),
     [BASELINE_PATH]: stableJson(baseline),
     'packages/client/src/generated.ts': renderClient(catalog),
+    'packages/contracts/src/catalog/list-query-keys.json': listQueryKeys(),
     'docs/api/operation-catalog.md': renderCatalogMd(catalog),
     'docs/api/scopes.md': renderScopesMd(registry),
     'docs/api/sunset-register.md': renderSunsetMd(DEPRECATIONS),
   };
+}
+
+/**
+ * A batch 3 hardening: the documented query parameter names of every registered list operation
+ * (docs/api/openapi.yaml), the allowlist a saved view's filter keys are checked against.
+ */
+function listQueryKeys(): string {
+  const params = openApiQueryParams();
+  const out: Record<string, string[]> = {};
+  for (const op of Object.keys(LIST_OPERATIONS).sort())
+    out[op] = [...new Set((params.get(op) ?? []).map((q) => q.name))].sort();
+  return stableJson(out);
 }
 
 const read = (p: string) => {

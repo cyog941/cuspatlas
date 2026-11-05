@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { validateCatalog } from '../../packages/contracts/src/catalog/catalog';
 import { DEPRECATIONS } from '../../packages/contracts/src/catalog/deprecation';
+import { LIST_OPERATIONS } from '../../packages/contracts/src/list-operations';
 import {
   BASELINE_PATH,
   type BaseState,
@@ -13,7 +14,6 @@ import {
 } from './baseline';
 import { buildCatalog, ROOT, stableJson } from './build-catalog';
 import { openApiQueryParams, renderClient } from './client';
-import { LIST_OPERATIONS } from '../../packages/contracts/src/list-operations';
 import { renderCatalogMd, renderScopesMd, renderSunsetMd } from './docs';
 import { buildScopeRegistry, registeredScopes } from './scopes';
 

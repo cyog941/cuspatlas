@@ -6,8 +6,8 @@ import {
   openAppointmentHarness,
 } from './support/appointment-fixtures';
 import { openTestDatabase, type TestDatabase } from './support/db';
-import { patientBody } from './support/patient-fixtures';
 import { T_ALPHA, USER_A1, USER_A3, USER_A4 } from './support/fixtures';
+import { patientBody } from './support/patient-fixtures';
 
 /**
  * A22 (OR-12, OR-D5 accepted): per-user saved views (filters only, no PHI in names), favourite reports

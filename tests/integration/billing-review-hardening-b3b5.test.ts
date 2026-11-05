@@ -10,6 +10,8 @@ import {
   type CaptureRequest,
   createAuthorize,
   createBillingService,
+  createFakeClearinghouse,
+  createSyntheticPaymentProvider,
   type EligibilityPort,
   type PaymentProviderPort,
   type ProviderAnswer,
@@ -78,6 +80,8 @@ function service(over: Partial<BillingDeps> = {}) {
     authorize: createAuthorize(createMembershipSource(db.app)),
     withTenantTransaction: createTenantTransactionRunner(db.app),
     recording: { sink: createSecurityAttemptSink(db.sink), alert: () => {} },
+    payments: createSyntheticPaymentProvider(),
+    claims: createFakeClearinghouse(),
     ...over,
   });
 }

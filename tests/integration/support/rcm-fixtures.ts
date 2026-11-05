@@ -4,7 +4,13 @@ import {
   createSecurityAttemptSink,
   createTenantTransactionRunner,
 } from '@cuspatlas/db';
-import { type BillingDeps, createAuthorize, createBillingService } from '@cuspatlas/domain';
+import {
+  type BillingDeps,
+  createAuthorize,
+  createBillingService,
+  createFakeClearinghouse,
+  createSyntheticPaymentProvider,
+} from '@cuspatlas/domain';
 import { seedLocation, T_ALPHA } from './appointment-fixtures';
 import { type BillingHarness, openBillingHarness, usd } from './billing-fixtures';
 import { seedClinicalScopes } from './clinical-fixtures';
@@ -62,6 +68,9 @@ export async function openRcmHarness(db: TestDatabase, opts: { mcp?: boolean } =
       authorize: createAuthorize(createMembershipSource(db.app)),
       withTenantTransaction: createTenantTransactionRunner(db.app),
       recording: { sink: createSecurityAttemptSink(db.sink), alert: () => {} },
+      // No implicit fakes in the domain: tests pass the synthetic adapters explicitly.
+      payments: createSyntheticPaymentProvider(),
+      claims: createFakeClearinghouse(),
       ...over,
     });
   return {

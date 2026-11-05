@@ -29,6 +29,7 @@ import {
   type AttemptRecordingDeps,
   BILLING_POST_MERGE_PROBE,
   CLINICAL_POST_MERGE_FACT_PROBES,
+  type ClaimsPartnerPort,
   type CommandExecutor,
   type CursorCodec,
   createAppointmentService,
@@ -39,6 +40,7 @@ import {
   createClinicalVisitContextProducers,
   createDurableExecutor,
   createEngagementService,
+  createFakeClearinghouse,
   createImagingAttachmentRefResolver,
   createImagingAttachmentSource,
   createImagingImageRefResolver,
@@ -46,9 +48,11 @@ import {
   createPatientService,
   createProposalService,
   createSchedulingResourceService,
+  createSyntheticPaymentProvider,
   createSyntheticTaskService,
   type ImageRefResolver,
   type ImagingLimits,
+  type PaymentProviderPort,
   readLatestCompletedProcedures,
   resolveIdempotencyDigestKey,
   resolveImagingTokenSecret,
@@ -126,6 +130,12 @@ export interface McpServerDeps {
   readonly cursors?: CursorCodec;
   /** Proposal policy version (defaults to PROPOSAL_POLICY_VERSION); tests bump it. */
   readonly proposalPolicyVersion?: string;
+  /**
+   * B2 payment processor and B6/B7 clearinghouse adapters. Absent: the synthetic fakes only under
+   * synthetic-test; elsewhere the dependent operations are a typed 503 adapter_not_configured.
+   */
+  readonly billingPayments?: PaymentProviderPort;
+  readonly billingClaims?: ClaimsPartnerPort;
   /** C15: the I3 imageRef seam (absent: I3's consumer reference read, createImagingImageRefResolver). */
   readonly imageRefResolver?: ImageRefResolver;
   readonly logger?: { readonly stream?: { write(line: string): void } };
@@ -357,12 +367,30 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     // S16 completed-procedure recall basis: the C14 read (S keeps recall policy and due computation).
     completedProcedures: readLatestCompletedProcedures,
   });
+  // External billing adapters: never a fake outside synthetic-test (operator line when absent).
+  const synthetic = deps.env === 'synthetic-test';
+  const payments = deps.billingPayments ?? (synthetic ? createSyntheticPaymentProvider() : null);
+  const claims = deps.billingClaims ?? (synthetic ? createFakeClearinghouse() : null);
+  for (const [adapter, port] of [
+    ['payment_processor', payments],
+    ['clearinghouse', claims],
+  ] as const) {
+    if (port === null)
+      write({
+        level: 'warn',
+        msg: 'billing adapter not configured',
+        alert: 'adapter_not_configured',
+        adapter,
+      });
+  }
   const billing = createBillingService({
     authorize,
     withTenantTransaction: deps.tenantTransactions,
     recording,
     execute,
     // B CL-04 -> I3 (integration): attachment digests from I3's consumer reference read.
+    ...(payments ? { payments } : {}),
+    ...(claims ? { claims } : {}),
     attachments: createImagingAttachmentSource(),
   });
   const clinical = createClinicalService({

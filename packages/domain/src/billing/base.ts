@@ -28,7 +28,7 @@ export interface BillingDeps {
   readonly execute?: CommandExecutor;
   /** Defaults to a per-process random HMAC key (cursor construction shared with scheduling). */
   readonly cursors?: SchedulingCursorCodec;
-  /** Payment provider port (B2). Defaults to the in-process synthetic provider (B-S1 open). */
+  /** Payment provider port (B2, B-S1 open). Absent: card capture, reconciliation and plan collection are a 503. */
   readonly payments?: PaymentProviderPort;
   /** Eligibility source port (B5). Defaults to the in-process fake adapter (B-S3 open). */
   readonly eligibility?: EligibilityPort;
@@ -36,7 +36,7 @@ export interface BillingDeps {
   readonly providerTimeoutMs?: number;
   /** Margin added to the timeout for the in-flight lease of a pending attempt; default 30 s. */
   readonly providerLeaseMarginMs?: number;
-  /** Claims partner port (B6/B7). Defaults to the in-process fake clearinghouse (B-S2 open). */
+  /** Claims partner port (B6/B7, B-S2 open). Absent: submit, poll, appeal review and remittance ingest are a 503. */
   readonly claims?: import('../rcm/clearinghouse').ClaimsPartnerPort;
   /** CL-04 object source (workstream I owns the bytes). Defaults to the in-process fake. */
   readonly attachments?: import('../rcm/attachments').AttachmentSourcePort;

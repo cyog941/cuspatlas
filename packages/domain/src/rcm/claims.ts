@@ -33,6 +33,7 @@ import {
   validateSubmissionPolicyCreate,
   validateSubmissionPolicyRevoke,
 } from '@cuspatlas/contracts';
+import { requireAdapter } from '../billing/adapters';
 import {
   assertRef,
   type BillingBase,
@@ -432,11 +433,12 @@ async function readiness(tx: TenantTransaction, claim: ClaimRow, head: VersionRo
  */
 export function createClaimOperations(
   base: BillingBase,
-  partner: ClaimsPartnerPort = createFakeClearinghouse(),
+  partner: ClaimsPartnerPort | null = createFakeClearinghouse(),
   objects: AttachmentSourcePort = createFakeAttachmentSource(),
 ) {
   const { deps, execute } = base;
   const timing = providerTiming(deps);
+  const ready = () => requireAdapter(partner, 'clearinghouse');
   const bump = async (tx: TenantTransaction, claimId: string) => {
     const { rows } = await tx.query<{ version: number }>(
       'UPDATE cuspatlas.rcm_claims SET version = version + 1, updated_at = now() WHERE id = $1 RETURNING version',
@@ -651,6 +653,7 @@ export function createClaimOperations(
         checkEnvelope(envelope, op);
         const p = envelope.payload;
         validate<ClaimSubmit>(validateClaimSubmit, p);
+        ready();
         const replay = { ...envelope, payload: { claimRef, ...p } };
         // CL-04/CL-05: the package of the head version is rechecked against the object source (I owns
         // the bytes) before anything is dispatched; an altered or missing object refuses the dispatch.
@@ -743,7 +746,7 @@ export function createClaimOperations(
             ? null
             : await withTimeout(
                 () =>
-                  partner.submit({
+                  ready().submit({
                     submissionKey: pending.submission.submission_key,
                     payerRef: pending.claim.payer_ref,
                     claimRef: pending.claim.id,
@@ -785,6 +788,7 @@ export function createClaimOperations(
       const op = 'rcm.claims.poll';
       return base.guarded(ctx, op, async () => {
         await base.authorize(ctx, op);
+        ready();
         const first = await deps.withTenantTransaction(ctx, async (tx) => {
           const claim = await loadClaim(tx, claimRef);
           const { rows: open } = await tx.query<{ id: string; transport: string | null }>(
@@ -812,24 +816,24 @@ export function createClaimOperations(
         }
         const looked =
           sub && lookable
-            ? await withTimeout(() => partner.lookup(sub.submission_key), timing.timeoutMs, null)
+            ? await withTimeout(() => ready().lookup(sub.submission_key), timing.timeoutMs, null)
             : null;
         const events =
           sub && (sub.outcome === 'transmitted' || looked?.outcome === 'transmitted')
-            ? await withTimeout(() => partner.poll(sub.submission_key), timing.timeoutMs, [])
+            ? await withTimeout(() => ready().poll(sub.submission_key), timing.timeoutMs, [])
             : [];
         // An appeal approved while its send was unknown: lookup by key, then (only when the partner never
         // received it) the same send with the same key. Never a second appeal.
         const appealSends: { id: string; sentRef: string; by: 'lookup' | 'resend_same_key' }[] = [];
         for (const a of first.appeals) {
           const appealKey = sha256Hex(`rcm-appeal:${ctx.tenantId}:${a.id}`);
-          const found = await withTimeout(() => partner.lookupAppeal(appealKey), timing.timeoutMs, null);
+          const found = await withTimeout(() => ready().lookupAppeal(appealKey), timing.timeoutMs, null);
           if (found && 'sentRef' in found)
             appealSends.push({ id: a.id, sentRef: found.sentRef, by: 'lookup' });
           else if (found && a.transport !== null) {
             const transportRef = a.transport;
             const sent = await withTimeout(
-              () => partner.sendAppeal({ appealKey, transportRef }),
+              () => ready().sendAppeal({ appealKey, transportRef }),
               timing.timeoutMs,
               null,
             );
@@ -1235,6 +1239,7 @@ export function createClaimOperations(
         checkEnvelope(envelope, op);
         const p = envelope.payload;
         validate<AppealReview>(validateAppealReview, p);
+        ready();
         assertRef(appealRef);
         const pre = await deps.withTenantTransaction(ctx, async (tx) => {
           const { rows } = await tx.query<{
@@ -1261,7 +1266,7 @@ export function createClaimOperations(
           p.decision === 'approve_and_send' && pre.transport !== null
             ? await withTimeout(
                 () =>
-                  partner.sendAppeal({
+                  ready().sendAppeal({
                     appealKey: sha256Hex(`rcm-appeal:${ctx.tenantId}:${pre.a.id}`),
                     transportRef: pre.transport as string,
                   }),

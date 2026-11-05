@@ -28,6 +28,7 @@ import {
 import { idempotencyKeyDigest, sha256Hex } from '../commands/digest';
 import { recordCommand } from '../events/record-command';
 import { recordSensitiveRead } from '../events/record-sensitive-read';
+import { requireAdapter } from './adapters';
 import {
   assertNotMerged,
   assertRef,
@@ -365,8 +366,9 @@ export async function committedReplay(
  */
 export function createPaymentOperations(
   base: BillingBase,
-  provider: PaymentProviderPort = createSyntheticPaymentProvider(),
+  provider: PaymentProviderPort | null = createSyntheticPaymentProvider(),
 ) {
+  const ready = () => requireAdapter(provider, 'payment_processor');
   const { deps, execute } = base;
   const timing = providerTiming(deps);
 
@@ -423,6 +425,8 @@ export function createPaymentOperations(
         const p = envelope.payload;
         validate<PaymentRecord>(validatePaymentRecord, p);
         const card = p.method === 'card_synthetic';
+        // A card capture needs the processor; refused before any attempt row is written.
+        if (card) ready();
         const prepare = async (tx: TenantTransaction, patient: PatientRow, guarantor: PatientRow | null) => {
           const settings = await loadSettings(tx);
           const amount = inTenantCurrency(settings, p.amount);
@@ -532,7 +536,7 @@ export function createPaymentOperations(
           pending === null
             ? null
             : await callProvider(
-                provider,
+                ready(),
                 { providerKey, amount: pending.amount, instrumentRef: p.instrumentRef as string },
                 timing.timeoutMs,
               );
@@ -826,6 +830,7 @@ export function createPaymentOperations(
         checkEnvelope(envelope, op);
         const p = envelope.payload;
         validate<AttemptReconcile>(validateAttemptReconcile, p);
+        ready();
         assertRef(attemptRef);
         return deps.withTenantTransaction(ctx, async (tx) => {
           const { rows } = await tx.query<{
@@ -864,7 +869,7 @@ export function createPaymentOperations(
               if (a.resolution !== null && !correcting) throw conflict('already_resolved');
               const unknown: ProviderAnswer = { outcome: 'unknown' };
               const answer = await withTimeout(
-                () => provider.lookup({ providerKey: a.provider_key, instrumentRef: a.instrument_ref }),
+                () => ready().lookup({ providerKey: a.provider_key, instrumentRef: a.instrument_ref }),
                 timing.timeoutMs,
                 unknown,
               );

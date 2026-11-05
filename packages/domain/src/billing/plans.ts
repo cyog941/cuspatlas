@@ -37,6 +37,7 @@ import {
 import { sha256Hex } from '../commands/digest';
 import { recordCommand } from '../events/record-command';
 import { recordSensitiveRead } from '../events/record-sensitive-read';
+import { requireAdapter } from './adapters';
 import {
   assertNotMerged,
   assertRef,
@@ -436,8 +437,9 @@ const closedConflict = (v: PaymentPlanView) => {
  */
 export function createPlanOperations(
   base: BillingBase,
-  provider: PaymentProviderPort = createSyntheticPaymentProvider(),
+  provider: PaymentProviderPort | null = createSyntheticPaymentProvider(),
 ) {
+  const ready = () => requireAdapter(provider, 'payment_processor');
   const { deps, execute } = base;
   const timing = providerTiming(deps);
 
@@ -727,6 +729,7 @@ export function createPlanOperations(
         checkEnvelope(envelope, op);
         const p = envelope.payload;
         validate<PlanCollect>(validatePlanCollect, p);
+        ready();
         assertRef(planRef);
         const replayEnvelope = { ...envelope, payload: { planRef, ...p } };
         const reserved = await deps.withTenantTransaction(ctx, async (tx) => {
@@ -810,7 +813,7 @@ export function createPlanOperations(
           reserved === null || reserved.paymentAttemptId === null
             ? null
             : await callProvider(
-                provider,
+                ready(),
                 {
                   providerKey: reserved.providerKey,
                   amount: reserved.amount,

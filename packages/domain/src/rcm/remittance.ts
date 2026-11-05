@@ -12,6 +12,7 @@ import {
   validateRemittanceReverse,
   validateRemittanceSettle,
 } from '@cuspatlas/contracts';
+import { requireAdapter } from '../billing/adapters';
 import {
   assertRef,
   type BillingBase,
@@ -270,8 +271,9 @@ export async function postRemittanceLine(
  */
 export function createRemittanceOperations(
   base: BillingBase,
-  partner: ClaimsPartnerPort = createFakeClearinghouse(),
+  partner: ClaimsPartnerPort | null = createFakeClearinghouse(),
 ) {
+  const ready = () => requireAdapter(partner, 'clearinghouse');
   const { deps, execute } = base;
   const timing = providerTiming(deps);
   const record = (tx: TenantTransaction, op: string, id: string, version: number, field: string) =>
@@ -311,8 +313,9 @@ export function createRemittanceOperations(
         checkEnvelope(envelope, op);
         const p = envelope.payload;
         validate<{ remittanceRef: string }>(validateRemittanceIngest, p);
+        ready();
         const advice = await withTimeout(
-          () => partner.fetchRemittance(p.remittanceRef),
+          () => ready().fetchRemittance(p.remittanceRef),
           timing.timeoutMs,
           null,
         );

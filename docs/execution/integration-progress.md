@@ -107,3 +107,9 @@ Status 8 (B seams): C12 and CL-04 are wired; the remaining items stay recorded h
 - Worker:  (C14 -> B consumer) and  are wired by tests only; the repository has no worker process entry point to wire them in.
 - E2 portal  () stays  until a patient-facing document projection is specified.
 - Nothing here is approved, deployed, compliant or clinically validated; all workstream decisions stay as their own ledgers record them.
+
+## 8.3 No implicit billing fakes (item 3)
+
+`createBillingService` no longer falls back to the fake payment processor or clearinghouse. A missing adapter disables only the dependent operations with `503 service_unavailable`, reason `adapter_not_configured`, naming the adapter, before any write. The API and MCP builders construct fakes only under `CUSPATLAS_ENV=synthetic-test` and otherwise log `alert: adapter_not_configured` at build. Test: `tests/integration/billing-adapter-config.test.ts` (red: 2 failed, a development app captured a card through a fake; green: 3 passed).
+
+Verification (orchestrator, 2026-11-05): full `corepack pnpm run ci` on the working tree, under reduced load: 126 of 127 files, 2836 of 2837 tests. The single failure (`rcm-review-hardening-b6b9`, crash-left submission reconciled after its deadline) passed 11/11 twice when run alone, so it is load timing, not this change. Earlier full runs by the worker failed only on hook timeouts while four other worktrees ran suites concurrently. The final integration run reconfirms.

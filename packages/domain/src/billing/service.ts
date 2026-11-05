@@ -1,5 +1,4 @@
 import { createClaimOperations } from '../rcm/claims';
-import { createFakeClearinghouse } from '../rcm/clearinghouse';
 import { createCoverageOperations } from '../rcm/coverage';
 import { createBillingExportOperations } from '../rcm/export';
 import { createRemittanceOperations } from '../rcm/remittance';
@@ -12,7 +11,6 @@ import { type BillingDeps, createBillingBase } from './base';
 import { createChargeOperations } from './charges';
 import { createEntryOperations } from './entries';
 import { createFeeOperations } from './fees';
-import { createSyntheticPaymentProvider } from './payment-port';
 import { createPaymentOperations } from './payments';
 import { createPlanOperations } from './plans';
 import { createProcedureConsumer } from './procedure-consumer';
@@ -27,8 +25,9 @@ import { createWorklistOperations } from './worklist';
  */
 export function createBillingService(deps: BillingDeps) {
   const base = createBillingBase(deps);
-  const provider = deps.payments ?? createSyntheticPaymentProvider();
-  const partner = deps.claims ?? createFakeClearinghouse();
+  // No implicit fakes: an absent adapter disables only its operations (typed 503 adapter_not_configured).
+  const provider = deps.payments ?? null;
+  const partner = deps.claims ?? null;
   let drivers: WorkflowDrivers | null = null;
   const service = {
     ...createChargeOperations(base),

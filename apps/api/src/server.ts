@@ -42,6 +42,13 @@ export async function startServer(env: NodeJS.ProcessEnv): Promise<FastifyInstan
     ...(env.CUSPATLAS_MATCH_KEY_PEPPER
       ? { matchKeyPepper: new Uint8Array(Buffer.from(env.CUSPATLAS_MATCH_KEY_PEPPER, 'base64')) }
       : {}),
+    // Closeout A1: list cursors shared by every instance; the previous key is a decode-only rotation grace.
+    ...(env.CUSPATLAS_CURSOR_KEY
+      ? { cursorKey: new Uint8Array(Buffer.from(env.CUSPATLAS_CURSOR_KEY, 'base64')) }
+      : {}),
+    ...(env.CUSPATLAS_CURSOR_KEY_PREVIOUS
+      ? { cursorPreviousKey: new Uint8Array(Buffer.from(env.CUSPATLAS_CURSOR_KEY_PREVIOUS, 'base64')) }
+      : {}),
     ...(env.CUSPATLAS_IDEMPOTENCY_DIGEST_KEY
       ? {
           idempotencyDigestKey: new Uint8Array(Buffer.from(env.CUSPATLAS_IDEMPOTENCY_DIGEST_KEY, 'base64')),

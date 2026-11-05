@@ -51,6 +51,7 @@ import {
   createBillingService,
   createClinicalService,
   createClinicalVisitContextProducers,
+  createCursorCodec,
   createDurableExecutor,
   createEngagementService,
   createFakeClearinghouse,
@@ -62,6 +63,7 @@ import {
   createPatientService,
   createProposalService,
   createReadSurfaceService,
+  createSchedulingCursorCodec,
   createSchedulingResourceService,
   createSyntheticPaymentProvider,
   createSyntheticTaskService,
@@ -71,6 +73,7 @@ import {
   newListScope,
   type PaymentProviderPort,
   readLatestCompletedProcedures,
+  resolveCursorKeyRing,
   resolveIdempotencyDigestKey,
   resolveImagingTokenSecret,
   resolveMatchKeyPepper,
@@ -167,6 +170,10 @@ export interface McpServerDeps {
   /** A14: AES-GCM sealing key of subscription secrets (synthetic-test has a test-only default). */
   readonly webhookSecretKey?: Uint8Array;
   readonly cursors?: CursorCodec;
+  /** CUSPATLAS_CURSOR_KEY (>= 32 bytes); optional only under synthetic-test (test-only key). */
+  readonly cursorKey?: Uint8Array;
+  /** CUSPATLAS_CURSOR_KEY_PREVIOUS: decode-only grace key during a rotation. */
+  readonly cursorPreviousKey?: Uint8Array;
   /** Proposal policy version (defaults to PROPOSAL_POLICY_VERSION); tests bump it. */
   readonly proposalPolicyVersion?: string;
   /**
@@ -380,12 +387,16 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
   // outside synthetic-test even when a test injects its own executor).
   const durable = createDurableExecutor(resolveIdempotencyDigestKey(deps.env, deps.idempotencyDigestKey));
   const execute = deps.execute ?? durable;
+  // Closeout A1: one configured key ring for every list cursor (shared across instances).
+  const cursorRing = resolveCursorKeyRing(deps.env, deps.cursorKey, deps.cursorPreviousKey);
+  const cursors = deps.cursors ?? createCursorCodec(cursorRing);
+  const schedulingCursors = createSchedulingCursorCodec(cursorRing);
   const service = createSyntheticTaskService({
     authorize,
     withTenantTransaction: deps.tenantTransactions,
     recording,
     execute,
-    ...(deps.cursors ? { cursors: deps.cursors } : {}),
+    cursors,
   });
   const proposals = createProposalService({
     authorize,
@@ -403,15 +414,17 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     withTenantTransaction: deps.tenantTransactions,
     recording,
     execute,
-    ...(deps.cursors ? { cursors: deps.cursors } : {}),
+    cursors,
   });
   const scheduling = createSchedulingResourceService({
+    cursors: schedulingCursors,
     authorize,
     withTenantTransaction: deps.tenantTransactions,
     recording,
     execute,
   });
   const appointments = createAppointmentService({
+    cursors: schedulingCursors,
     authorize,
     withTenantTransaction: deps.tenantTransactions,
     memberships: deps.membership,
@@ -439,6 +452,7 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
       });
   }
   const billing = createBillingService({
+    cursors: schedulingCursors,
     authorize,
     withTenantTransaction: deps.tenantTransactions,
     recording,
@@ -453,7 +467,7 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     withTenantTransaction: deps.tenantTransactions,
     recording,
     execute,
-    ...(deps.cursors ? { cursors: deps.cursors } : {}),
+    cursors,
     // C15 -> I3 (integration): the consumer reference read, unless a test injects a double.
     imageRefResolver: deps.imageRefResolver ?? createImagingImageRefResolver(),
     // C12 -> B9/B5 (integration): server practice fees and coverage status for estimates.
@@ -505,6 +519,7 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     },
   });
   const agents = createAgentService({
+    cursors,
     authorize,
     withTenantTransaction: deps.tenantTransactions,
     recording,
@@ -522,6 +537,7 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     },
   });
   const automation = createAutomationService({
+    cursors,
     env: deps.env,
     authorize,
     withTenantTransaction: deps.tenantTransactions,

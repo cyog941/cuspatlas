@@ -27,6 +27,7 @@ import {
   createBillingService,
   createClinicalService,
   createClinicalVisitContextProducers,
+  createCursorCodec,
   createDurableExecutor,
   createEngagementService,
   createFakeClearinghouse,
@@ -38,6 +39,7 @@ import {
   createPatientService,
   createProposalService,
   createReadSurfaceService,
+  createSchedulingCursorCodec,
   createSchedulingResourceService,
   createSyntheticPaymentProvider,
   createSyntheticTaskService,
@@ -47,6 +49,7 @@ import {
   type ModelAdapter,
   type PaymentProviderPort,
   readLatestCompletedProcedures,
+  resolveCursorKeyRing,
   resolveIdempotencyDigestKey,
   resolveImagingTokenSecret,
   resolveMatchKeyPepper,
@@ -128,6 +131,10 @@ export interface AppDeps {
   readonly webhookSecretKey?: Uint8Array;
   /** Pagination cursor codec; defaults to a per-process random HMAC key. */
   readonly cursors?: CursorCodec;
+  /** CUSPATLAS_CURSOR_KEY (>= 32 bytes); optional only under synthetic-test (test-only key). */
+  readonly cursorKey?: Uint8Array;
+  /** CUSPATLAS_CURSOR_KEY_PREVIOUS: decode-only grace key during a rotation. */
+  readonly cursorPreviousKey?: Uint8Array;
   /** Proposal policy version (defaults to PROPOSAL_POLICY_VERSION); tests bump it. */
   readonly proposalPolicyVersion?: string;
   /** Match-key pepper (CUSPATLAS_MATCH_KEY_PEPPER); optional only under synthetic-test. */
@@ -303,12 +310,16 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       // outside synthetic-test even when a test injects its own executor).
       const durable = createDurableExecutor(resolveIdempotencyDigestKey(deps.env, deps.idempotencyDigestKey));
       const execute = deps.execute ?? durable;
+      // Closeout A1: one configured key ring for every list cursor (shared across instances).
+      const cursorRing = resolveCursorKeyRing(deps.env, deps.cursorKey, deps.cursorPreviousKey);
+      const cursors = deps.cursors ?? createCursorCodec(cursorRing);
+      const schedulingCursors = createSchedulingCursorCodec(cursorRing);
       const service = createSyntheticTaskService({
         authorize,
         withTenantTransaction: deps.tenantTransactions,
         recording,
         execute,
-        ...(deps.cursors ? { cursors: deps.cursors } : {}),
+        cursors,
       });
       registerSyntheticTaskRoutes(app, { authenticator, service });
       const proposals = createProposalService({
@@ -328,10 +339,11 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         withTenantTransaction: deps.tenantTransactions,
         recording,
         execute,
-        ...(deps.cursors ? { cursors: deps.cursors } : {}),
+        cursors,
       });
       registerPatientRoutes(app, { authenticator, patients });
       const scheduling = createSchedulingResourceService({
+        cursors: schedulingCursors,
         authorize,
         withTenantTransaction: deps.tenantTransactions,
         recording,
@@ -339,6 +351,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       });
       registerSchedulingRoutes(app, { authenticator, scheduling });
       const appointments = createAppointmentService({
+        cursors: schedulingCursors,
         authorize,
         withTenantTransaction: deps.tenantTransactions,
         memberships: deps.membership,
@@ -364,6 +377,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
           app.log.warn({ alert: 'adapter_not_configured', adapter }, 'billing adapter not configured');
       }
       const billing = createBillingService({
+        cursors: schedulingCursors,
         authorize,
         withTenantTransaction: deps.tenantTransactions,
         recording,
@@ -380,7 +394,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         withTenantTransaction: deps.tenantTransactions,
         recording,
         execute,
-        ...(deps.cursors ? { cursors: deps.cursors } : {}),
+        cursors,
         // C15 -> I3 (integration): the consumer reference read, unless a test injects a double.
         imageRefResolver: deps.imageRefResolver ?? createImagingImageRefResolver(),
         // C12 -> B9/B5 (integration): server practice fees and coverage status for estimates.
@@ -456,6 +470,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       registerMigrationOpRoutes(app, { authenticator, migration });
       // Workstream A batch 2 (A8-A13): agents, consent, proposals, AI drafts and prescribing envelope.
       const agents = createAgentService({
+        cursors,
         authorize,
         withTenantTransaction: deps.tenantTransactions,
         recording,
@@ -487,6 +502,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       });
       // Workstream A batch 4: A14 webhooks and A15 exports.
       const automation = createAutomationService({
+        cursors,
         env: deps.env,
         authorize,
         withTenantTransaction: deps.tenantTransactions,

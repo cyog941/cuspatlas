@@ -1,7 +1,7 @@
-import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { RefusalError } from '@cuspatlas/contracts';
+import { type CursorKeyRing, cursorMac } from '../cursor';
 
-const MAC_BYTES = 16;
 const POSITION = /^[A-Za-z0-9:._+-]{1,200}$/;
 
 /**
@@ -15,22 +15,21 @@ export interface SchedulingCursorCodec {
   decode(tenantId: string, scope: string, cursor: string): string;
 }
 
-export function createSchedulingCursorCodec(key: Buffer = randomBytes(32)): SchedulingCursorCodec {
-  const mac = (tenantId: string, body: string) =>
-    createHmac('sha256', key).update(`${tenantId}.${body}`).digest().subarray(0, MAC_BYTES);
+export function createSchedulingCursorCodec(
+  key: Buffer | CursorKeyRing = randomBytes(32),
+): SchedulingCursorCodec {
+  const m = cursorMac(key);
   const invalid = () => new RefusalError({ code: 'invalid_request' });
   return {
     encode(tenantId, scope, after) {
       const body = Buffer.from(JSON.stringify({ v: 1, s: scope, a: after })).toString('base64url');
-      return `${body}.${mac(tenantId, body).toString('base64url')}`;
+      return `${body}.${m.sign(tenantId, body).toString('base64url')}`;
     },
     decode(tenantId, scope, cursor) {
       const parts = cursor.split('.');
       if (parts.length !== 2 || !parts[0] || !parts[1]) throw invalid();
       const [body, tag] = parts as [string, string];
-      const given = Buffer.from(tag, 'base64url');
-      const expected = mac(tenantId, body);
-      if (given.length !== expected.length || !timingSafeEqual(given, expected)) throw invalid();
+      if (!m.verify(tenantId, body, tag)) throw invalid();
       let parsed: { v?: unknown; s?: unknown; a?: unknown };
       try {
         parsed = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));

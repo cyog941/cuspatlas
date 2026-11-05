@@ -275,3 +275,9 @@ Synthetic data only. Configured and tested; not approved, deployed, compliant or
   - ci: exit 0, 182 files / 3439 tests.
 - **Hand-off:** [pre-UI backend handoff](backend-handoff.md) is the starting document for P4. Backend workstreams are complete on synthetic data, up to the stated blocked-on-discovery parts. What remains is the UI phase, which awaits the user's instruction, together with every pending human decision and discovery item listed in the hand-off.
 - Not pushed. GitHub CI has not run on these commits.
+
+## Closeout A
+
+Branch `codex/backend-integration`, from 2475167. Synthetic data only; not pushed.
+
+- **A1 cursor key.** Every HMAC list cursor (foundation codec for S patients, C, A agents, A automation and synthetic tasks; scheduling codec for S scheduling and B) now uses one configured key ring: `CUSPATLAS_CURSOR_KEY` (base64, at least 32 bytes), with `CUSPATLAS_CURSOR_KEY_PREVIOUS` accepted for decoding only during a rotation. A test-only key applies under `synthetic-test`; a missing, short or test-only key is refused elsewhere. Offset positions (agent and automation lists) now decode, which the UUID-only check had refused. E thread cursors are unsigned offsets and carry no key, so they already survive a restart. Red 5/5 (exit 1), then green 5/5 (`tests/integration/cursor-key.test.ts`).

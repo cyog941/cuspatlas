@@ -374,3 +374,19 @@ export function stageTable(
   });
   return { mapped: spec !== undefined, staged, tableReviews };
 }
+
+/**
+ * H2 M-8: one CSV cell for any downstream export of staged source values. Values are stored raw; on
+ * export a value a spreadsheet would read as a formula (leading `=`, `+`, `-`, `@`, tab or carriage
+ * return) is neutralised with a leading apostrophe, and a cell with a comma, quote or line break is
+ * quoted. Recommended-pending-approval (the export consumers are not yet defined).
+ */
+export function csvExportCell(value: string): string {
+  const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+  return /[",\r\n]/.test(safe) ? `"${safe.replaceAll('"', '""')}"` : safe;
+}
+
+/** One exported CSV row (see `csvExportCell`). */
+export function csvExportRow(values: readonly string[]): string {
+  return values.map(csvExportCell).join(',');
+}

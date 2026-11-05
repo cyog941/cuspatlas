@@ -102,7 +102,14 @@ export interface ImportApplySummary {
 /** Decides financial rows (M5); without it they stay blocked. */
 export type FinancialPlanner = (
   staged: StagedRecord,
-  ctx: { accepted: boolean; patient: PlannedEntry | undefined; currency: string; seen: Set<string> },
+  ctx: {
+    accepted: boolean;
+    patient: PlannedEntry | undefined;
+    currency: string;
+    seen: Set<string>;
+    /** Posted opening balances of the tenant: `patient|currency|day` -> staged record (H2 M-1). */
+    existing: ReadonlyMap<string, string>;
+  },
 ) => Omit<PlannedEntry, 'staged'>;
 
 export const ENTITY_ORDER = [
@@ -124,6 +131,13 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const MONTH = /^\d{4}-\d{2}$/;
 const YEAR = /^\d{4}$/;
 
+/** A real calendar day that Postgres `date` accepts (H2 M-1: `2026-02-30` passes the shape, not the cast). */
+export function realDay(v: string): boolean {
+  if (!DAY.test(v) || v < '0001-01-01') return false;
+  const d = new Date(`${v}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v;
+}
+
 /** The S4 create body of one staged patient (validated with the S4 contract), or null when invalid. */
 export function patientCreateOf(row: StagedRecord, sourceSystem: string): PatientCreate | null {
   const p = row.payload;
@@ -132,6 +146,8 @@ export function patientCreateOf(row: StagedRecord, sourceSystem: string): Patien
   const birth = (p.birth_date ?? '').trim();
   const precision = DAY.test(birth) ? 'day' : MONTH.test(birth) ? 'month' : YEAR.test(birth) ? 'year' : null;
   if (birth !== '' && precision === null) return null;
+  if (precision === 'day' && !realDay(birth)) return null;
+  if (precision === 'month' && !realDay(`${birth}-01`)) return null;
   const phone = (p.phone ?? '').trim();
   const body: PatientCreate = {
     legalName: given && family ? { known: true, given, family } : { known: false, reason: 'not_provided' },
@@ -212,6 +228,30 @@ export async function computePlan(
     }
     for (const id of i.staged_record_ids) byRecord.set(id, [...(byRecord.get(id) ?? []), i]);
   }
+  // A linked existing patient merged since the decision is followed to its survivor (H2 M-4).
+  const linked = [...new Set(items.flatMap((i) => (i.decision_patient_id ? [i.decision_patient_id] : [])))];
+  const survivorOf = new Map<string, string>();
+  if (linked.length > 0) {
+    const { rows: chain } = await tx.query<{ start: string; id: string }>(
+      `WITH RECURSIVE c (start, id, depth) AS (
+         SELECT p.id, p.id, 0 FROM cuspatlas.patients p WHERE p.id = ANY ($1::uuid[])
+         UNION ALL
+         SELECT c.start, p.merged_into, c.depth + 1 FROM c JOIN cuspatlas.patients p ON p.id = c.id
+         WHERE p.merged_into IS NOT NULL AND c.depth < 32)
+       SELECT DISTINCT ON (start) start::text, id::text FROM c ORDER BY start, depth DESC`,
+      [linked],
+    );
+    for (const r of chain) survivorOf.set(r.start, r.id);
+  }
+  const existing = new Map<string, string>();
+  if (financial) {
+    const { rows: posted } = await tx.query<{ k: string; staged_record_id: string }>(
+      `SELECT patient_id::text || '|' || currency || '|' || to_char(coalesce(as_of, '1900-01-01'::date), 'YYYY-MM-DD') AS k,
+         staged_record_id::text AS staged_record_id
+       FROM cuspatlas.migration_opening_items WHERE kind = 'balance'`,
+    );
+    for (const r of posted) existing.set(r.k, r.staged_record_id);
+  }
   const patients = new Map<string, PlannedEntry>();
   const seen = new Set<string>();
   const entries: PlannedEntry[] = [];
@@ -248,7 +288,7 @@ export async function computePlan(
           staged: s,
           kind: 'action',
           action: 'linkPatient',
-          linkPatient: identity.decision_patient_id,
+          linkPatient: survivorOf.get(identity.decision_patient_id) ?? identity.decision_patient_id,
         };
       else
         entry = patientCreateOf(s, pkg.source_system)
@@ -266,6 +306,7 @@ export async function computePlan(
                 patient: patients.get(dep.patientSource),
                 currency,
                 seen,
+                existing,
               }),
               patientSource: dep.patientSource,
             }
@@ -322,6 +363,8 @@ const REQUIRED_ACTION: Readonly<Record<string, string>> = {
   unknown_patient: 'correct_source_and_reintake',
   patient_excluded: 'none_patient_excluded',
   excluded_by_review: 'none_excluded_by_staff',
+  duplicate_opening: 'correct_source_and_reintake',
+  zero_amount: 'none_zero_amount',
   missing_source_id: 'correct_source_and_reintake',
   duplicate_source_id: 'correct_source_and_reintake',
 };
@@ -439,50 +482,59 @@ export function createImportOperations(base: MigrationBase, hooks: ApplyHooks) {
         );
         const batchSize = p.batchSize ?? 50;
         const keyer = createMatchKeyer(deps.matchKeyPepper, ctx.tenantId);
-        // Read the plan and pick the batch (no write).
-        const picked = await deps.withTenantTransaction(ctx, async (tx) => {
-          const pkg = await loadPackage(tx, p.packageRef);
-          const plan = await computePlan(tx, pkg, await hooks.currency(tx), hooks.financial);
-          if (plan.digest !== p.expectedPlanDigest) throw conflict('plan_digest_changed');
-          const applied = await loadApplied(tx, pkg.id);
-          const batch = plan.entries
-            .filter((e) => e.kind === 'action' && !applied.has(e.staged.id))
-            .slice(0, batchSize);
-          return { pkg, batch };
-        });
-        // S4 creates (each its own transaction and idempotency key). A resumed run first looks for the
-        // patient this staged record already became (its own external_record identifier key).
-        const created = new Map<string, string>();
-        for (const e of picked.batch.filter((x) => x.action === 'createPatient')) {
-          const key = keyer.key(
-            MATCH_KEY.identifier,
-            `external_record|${MIGRATION_IDENTIFIER_ISSUER}|${e.staged.id}`,
-          );
-          const found = await deps.withTenantTransaction(ctx, async (tx) => {
-            const { rows } = await tx.query<{ id: string }>(
-              'SELECT id FROM cuspatlas.patients WHERE match_keys @> ARRAY[$1]::text[] ORDER BY created_at LIMIT 1',
-              [key],
-            );
-            return rows[0]?.id ?? null;
-          });
-          if (found) {
-            created.set(e.staged.id, found);
-            continue;
-          }
-          const body = patientCreateOf(e.staged, picked.pkg.source_system);
-          if (!body) throw new Error('planned patient no longer validates');
-          const r = await deps.patients.createPatient(ctx, {
-            operation: 'patients.create',
-            idempotencyKey: `mig.${e.staged.id}`,
-            payload: body,
-          });
-          created.set(e.staged.id, r.data.patientRef);
-        }
+        // One transaction (H2 M-4): the plan digest is re-checked under the package lock, and S4 patients
+        // are created in the same transaction as their applied rows, so a refused or crashed run can
+        // never leave an orphan patient. A patient left by a run before this rule is adopted by its
+        // per-record identifier instead of being created twice.
         return deps.withTenantTransaction(ctx, async (tx) => {
           const pkg = await loadPackage(tx, p.packageRef, 'FOR UPDATE');
           const plan = await computePlan(tx, pkg, await hooks.currency(tx), hooks.financial);
           if (plan.digest !== p.expectedPlanDigest) throw conflict('plan_digest_changed');
           const before = await loadApplied(tx, pkg.id);
+          const picked = {
+            pkg,
+            batch: plan.entries
+              .filter((e) => e.kind === 'action' && !before.has(e.staged.id))
+              .slice(0, batchSize),
+          };
+          // The run row of this transaction: the database lets opening items be written only inside one.
+          if (picked.batch.length > 0)
+            await tx.query(
+              `INSERT INTO cuspatlas.migration_apply_runs (tenant_id, package_id, plan_digest, started_by)
+               VALUES (cuspatlas.current_tenant_id(), $1, $2, cuspatlas.current_actor_id())`,
+              [pkg.id, plan.digest],
+            );
+          const created = new Map<string, string>();
+          for (const e of picked.batch.filter((x) => x.action === 'createPatient')) {
+            const key = keyer.key(
+              MATCH_KEY.identifier,
+              `external_record|${MIGRATION_IDENTIFIER_ISSUER}|${e.staged.id}`,
+            );
+            const { rows: found } = await tx.query<{ id: string }>(
+              'SELECT id FROM cuspatlas.patients WHERE match_keys @> ARRAY[$1]::text[] ORDER BY created_at LIMIT 1',
+              [key],
+            );
+            if (found[0]) {
+              created.set(e.staged.id, found[0].id);
+              continue;
+            }
+            const body = patientCreateOf(e.staged, pkg.source_system);
+            if (!body) throw new Error('planned patient no longer validates');
+            const r = await deps.patients.createPatient(
+              ctx,
+              { operation: 'patients.create', idempotencyKey: `mig.${e.staged.id}`, payload: body },
+              tx,
+            );
+            created.set(e.staged.id, r.data.patientRef);
+          }
+          // A linked patient is locked against a concurrent merge; the plan already followed any merge.
+          for (const e of picked.batch.filter((x) => x.action === 'linkPatient')) {
+            const { rows: lp } = await tx.query<{ merged_into: string | null }>(
+              'SELECT merged_into FROM cuspatlas.patients WHERE id = $1 FOR SHARE',
+              [e.linkPatient],
+            );
+            if (!lp[0] || lp[0].merged_into !== null) throw conflict('plan_digest_changed');
+          }
           const patientOf = new Map<string, string>();
           for (const e of plan.entries) {
             const a = before.get(e.staged.id);

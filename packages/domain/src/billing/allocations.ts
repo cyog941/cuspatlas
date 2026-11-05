@@ -8,6 +8,7 @@ import {
   negateMoney,
   type PaymentAllocate,
   type ResponsibilityTransfer,
+  type TenantTransaction,
   validatePaymentAllocate,
   validateResponsibilityTransfer,
 } from '@cuspatlas/contracts';
@@ -56,6 +57,12 @@ export function createAllocationOperations(base: BillingBase) {
         validate<PaymentAllocate>(validatePaymentAllocate, p);
         assertRef(paymentRef);
         return deps.withTenantTransaction(ctx, async (tx) => {
+          // H2 M-10: a migrated opening credit item is allocated through the same command.
+          const { rows: opening } = await tx.query<{ id: string }>(
+            `SELECT id FROM cuspatlas.migration_opening_items WHERE id = $1 AND kind = 'unappliedCredit'`,
+            [paymentRef],
+          );
+          if (opening[0]) return allocateOpeningCredit(base, ctx, tx, opening[0].id, envelope, p);
           const payment = await loadPayment(tx, paymentRef);
           const refs = [...new Set(p.allocations.map((a) => a.chargeRef))];
           for (const ref of refs) await loadCharge(tx, ref);
@@ -233,4 +240,111 @@ export function createAllocationOperations(base: BillingBase) {
       });
     },
   };
+}
+
+/**
+ * H2 M-10: B2 allocation of a migrated opening credit (an opening item of kind unappliedCredit) onto a
+ * charge, with the same invariants as a payment allocation: the charge is active and of the item's
+ * account (merge set), the amount never exceeds what the item still holds nor what the charge still
+ * owes, and the item then the charges are locked before anything is read so concurrent allocations
+ * serialize. The entry draws on `opening_credit` (checked again by the database) and names no payment.
+ */
+async function allocateOpeningCredit(
+  base: BillingBase,
+  ctx: ActorContext,
+  tx: TenantTransaction,
+  itemId: string,
+  envelope: CommandEnvelope<unknown>,
+  p: PaymentAllocate,
+): Promise<CommandResult<AllocationCommandData>> {
+  const op = 'billing.payments.allocate';
+  const refs = [...new Set(p.allocations.map((a) => a.chargeRef))];
+  for (const ref of refs) await loadCharge(tx, ref);
+  // The item's patient row serializes concurrent allocations of one opening credit (items never update).
+  await tx.query(
+    `SELECT p.id FROM cuspatlas.patients p JOIN cuspatlas.migration_opening_items i ON i.patient_id = p.id
+     WHERE i.id = $1 FOR NO KEY UPDATE OF p`,
+    [itemId],
+  );
+  await lockAggregates(tx, { payments: [], charges: refs });
+  return base.execute<AllocationCommandData>(
+    ctx,
+    { ...envelope, payload: { paymentRef: itemId, ...p } },
+    tx,
+    async () => {
+      if (refs.length !== p.allocations.length) throw failed('duplicate_charge');
+      const settings = await loadSettings(tx);
+      const { rows } = await tx.query<{ patient_id: string; currency: string }>(
+        'SELECT patient_id, currency FROM cuspatlas.migration_opening_items WHERE id = $1',
+        [itemId],
+      );
+      const item = rows[0] as { patient_id: string; currency: string };
+      const allocationRefs: string[] = [];
+      for (const a of p.allocations) {
+        const amount = inTenantCurrency(settings, a.amount);
+        const charge = await loadCharge(tx, a.chargeRef);
+        assertChargeActive(charge);
+        const account = await mergeSet(tx, charge.patient_id);
+        if (!account.ids.includes(item.patient_id)) throw failed('patient_mismatch');
+        const held = await dimensionBalance(tx, item.currency, {
+          account: 'opening_credit',
+          charge: null,
+          payer: null,
+          payment: null,
+          patient: null,
+          opening: itemId,
+        });
+        if (-held.minor < amount.minor) throw conflict('insufficient_funds');
+        const open = await dimensionBalance(tx, item.currency, {
+          account: 'patient_receivable',
+          charge: charge.id,
+          payer: null,
+          payment: null,
+          patient: null,
+        });
+        if (open.minor < amount.minor) throw conflict('charge_overallocated');
+        try {
+          allocationRefs.push(
+            await postEntry(tx, {
+              kind: 'allocation',
+              currency: item.currency,
+              chargeId: charge.id,
+              lines: [
+                { account: 'opening_credit', amount, patientId: item.patient_id, openingItemId: itemId },
+                {
+                  account: 'patient_receivable',
+                  amount: negateMoney(amount),
+                  patientId: charge.patient_id,
+                  chargeId: charge.id,
+                },
+              ],
+            }),
+          );
+        } catch (err) {
+          if (err instanceof SignViolation)
+            throw conflict(
+              err.accounts.includes('opening_credit') ? 'insufficient_funds' : 'charge_overallocated',
+            );
+          throw err;
+        }
+      }
+      await bumpAggregates(tx, { payments: [], charges: refs });
+      const { rows: n } = await tx.query<{ v: number }>(
+        'SELECT count(DISTINCT entry_id)::int AS v FROM cuspatlas.billing_journal_lines WHERE opening_item_id = $1',
+        [itemId],
+      );
+      const version = n[0]?.v ?? 2;
+      await recordCommand(
+        tx,
+        {
+          operation: op,
+          resourceType: 'migrationOpeningItem',
+          resourceRef: itemId,
+          resourceVersion: version,
+        },
+        { changedFields: ['allocations'] },
+      );
+      return { data: { allocationRefs }, version };
+    },
+  );
 }

@@ -33,8 +33,11 @@ import {
 export const STATEMENT_RESOURCE = 'billingStatement';
 /** Upper bound of snapshot lines in one statement (synthetic default, pending approval). */
 export const MAX_STATEMENT_LINES = 2000;
-/** The patient-facing accounts a statement states: receivable less unapplied credit. */
-const PATIENT_FACING = ['patient_receivable', 'unapplied_credit'];
+/**
+ * The patient-facing accounts a statement states: receivable less unapplied credit, migrated opening
+ * receivable and opening credit included (H2 M-10).
+ */
+const PATIENT_FACING = ['patient_receivable', 'unapplied_credit', 'opening_receivable', 'opening_credit'];
 
 interface Snapshot extends Record<string, unknown> {
   readonly basis: 'posted_through_cutoff';

@@ -15,7 +15,7 @@ import {
   type PackageRow,
   validate,
 } from './base';
-import type { FinancialPlanner, PlannedEntry, StagedRecord } from './plan';
+import { type FinancialPlanner, type PlannedEntry, realDay, type StagedRecord } from './plan';
 
 /**
  * M5: opening balances, unapplied credit and open items. A positive legacy balance becomes one
@@ -27,6 +27,9 @@ import type { FinancialPlanner, PlannedEntry, StagedRecord } from './plan';
  */
 const INT = /^-?[0-9]{1,15}$/;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
+/** The `migration_opening_items.amount_minor` cap: a larger figure is excluded, never a failed apply. */
+const AMOUNT_CAP = 99_999_999_999n;
+const NO_DAY = '1900-01-01';
 
 /** Plans one financial row. `seen` is per plan: a second balance for one patient/currency/date is excluded. */
 export function financialPlanner(): FinancialPlanner {
@@ -42,6 +45,11 @@ export function financialPlanner(): FinancialPlanner {
     if (!INT.test(raw) || (p.currency ?? '') !== ctx.currency)
       return { kind: 'excluded', code: 'validation_failed' };
     const n = BigInt(raw);
+    if (n > AMOUNT_CAP || n < -AMOUNT_CAP) return { kind: 'excluded', code: 'validation_failed' };
+    // A day-shaped date that is not a real calendar day would fail the `date` cast at apply.
+    for (const f of ['as_of', 'received_on'])
+      if (DAY.test(p[f] ?? '') && !realDay(p[f] as string))
+        return { kind: 'excluded', code: 'validation_failed' };
     if (n === 0n) return { kind: 'excluded', code: 'zero_amount' };
     if (s.entity === 'open_claims') return { kind: 'action', action: 'openClaimReference' };
     if (s.entity === 'unapplied_credits')
@@ -52,8 +60,13 @@ export function financialPlanner(): FinancialPlanner {
       return ctx.accepted
         ? { kind: 'action', action: 'unappliedCredit', accepted: true }
         : { kind: 'blocked', code: 'review_open' };
-    const key = `${p.patient_id}|${p.currency}|${p.as_of ?? ''}`;
+    // The key of the unique index (patient after link decisions, currency, as-of or its stand-in day).
+    const day = DAY.test(p.as_of ?? '') ? (p.as_of as string) : NO_DAY;
+    const linked = ctx.patient?.action === 'linkPatient' ? ctx.patient.linkPatient : undefined;
+    const key = `${linked ? `pt:${linked}` : `src:${p.patient_id}`}|${p.currency}|${day}`;
     if (ctx.seen.has(key)) return { kind: 'excluded', code: 'duplicate_opening' };
+    const posted = linked ? ctx.existing.get(`${linked}|${p.currency}|${day}`) : undefined;
+    if (posted !== undefined && posted !== s.id) return { kind: 'excluded', code: 'duplicate_opening' };
     ctx.seen.add(key);
     return { kind: 'action', action: 'openingBalance' };
   };
@@ -237,7 +250,9 @@ export async function openingReconciliation(
        i.claim_state, i.source_ref,
        (SELECT l.entry_id FROM cuspatlas.billing_journal_lines l WHERE l.opening_item_id = i.id LIMIT 1) AS entry_id,
        (SELECT sum(l.amount_minor)::text FROM cuspatlas.billing_journal_lines l
-          WHERE l.opening_item_id = i.id AND l.account IN ('opening_receivable', 'opening_credit')) AS posted
+          WHERE l.opening_item_id = i.id AND l.account IN ('opening_receivable', 'opening_credit')
+            AND EXISTS (SELECT 1 FROM cuspatlas.billing_journal_entries e
+              WHERE e.id = l.entry_id AND e.tenant_id = l.tenant_id AND e.kind = 'openingBalance')) AS posted
      FROM cuspatlas.migration_opening_items i WHERE i.package_id = $1 ORDER BY i.source_ref, i.id`,
     [pkg.id],
   );

@@ -846,9 +846,14 @@ export function createMergeCommands(s: PatientServiceContext) {
       });
     },
 
+    /**
+     * `within` (internal callers only, never REST/MCP) runs in the merge transaction after the merge,
+     * so a caller's own bookkeeping commits or rolls back with it (H2 M-3); never on a replay.
+     */
     mergePatients(
       ctx: ActorContext,
       envelope: CommandEnvelope<unknown>,
+      within?: (tx: TenantTransaction) => Promise<void>,
     ): Promise<CommandResult<MergeResult>> {
       return guarded(ctx, 'patients.merge', async () => {
         await deps.authorize(ctx, 'patients.merge', { tenantId: ctx.tenantId, id: 'merge' });
@@ -950,6 +955,7 @@ export function createMergeCommands(s: PatientServiceContext) {
                 },
                 { changedFields: ['survivorRef', 'mergedRef', 'moves'] },
               );
+              if (within) await within(tx);
               return { data: { ref: mergeRef, result: await loadMerge(tx, mergeRef) }, version: 1 };
             }),
           );

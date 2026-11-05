@@ -29,6 +29,21 @@ export async function seedMigrationScopes(admin: pg.Pool): Promise<void> {
       [principal, scopes],
     );
   }
+  // H2 M-5: the administrator-assigned reviewer list (server-side configuration, not the payload).
+  // a1 and b1 may sign either role; a3 is assigned the operations role only.
+  const assign: [string, string][] = [
+    [USER_A1, 'financialReviewer'],
+    [USER_A1, 'operationsReviewer'],
+    [USER_A3, 'operationsReviewer'],
+    [USER_B1, 'financialReviewer'],
+    [USER_B1, 'operationsReviewer'],
+  ];
+  for (const [principal, role] of assign)
+    await admin.query(
+      `INSERT INTO cuspatlas.migration_reviewer_assignments (tenant_id, principal_id, role, assigned_by)
+       SELECT m.tenant_id, m.principal_id, $2, m.principal_id FROM cuspatlas.memberships m WHERE m.principal_id = $1`,
+      [principal, role],
+    );
 }
 
 export const SOURCE_SYSTEM = 'syn-legacy-pms';

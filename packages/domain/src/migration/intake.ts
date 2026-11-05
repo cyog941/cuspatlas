@@ -200,13 +200,30 @@ export function createIntakeOperations(base: MigrationBase, hooks: IntakeHooks) 
             )
               throw failed('cross_practice');
             const packageDigest = sha256Hex(canonicalJson(pkg));
-            const { rows: existing } = await tx.query<{ id: string; n: number; r: number }>(
-              `SELECT p.id, (SELECT count(*)::int FROM cuspatlas.migration_staged_records s WHERE s.package_id = p.id) AS n,
+            // H2 M-8: a NUL character cannot be stored (jsonb) and is never a legitimate source value.
+            if (Object.values(pkg.tables).some((t) => t.includes('\u0000'))) throw failed('nul_character');
+            const { rows: existing } = await tx.query<{
+              id: string;
+              n: number;
+              r: number;
+              profile_id: string;
+              authorisation_ref: string;
+            }>(
+              `SELECT p.id, p.profile_id, p.authorisation_ref, (SELECT count(*)::int FROM cuspatlas.migration_staged_records s WHERE s.package_id = p.id) AS n,
                  (SELECT count(*)::int FROM cuspatlas.migration_review_items i WHERE i.package_id = p.id) AS r
                FROM cuspatlas.migration_packages p WHERE p.package_digest = $1`,
               [packageDigest],
             );
             const prior = existing[0];
+            // H2 M-8: an already-staged package is returned only to the same profile and authorisation
+            // (both re-checked above for this request); otherwise the digest replay is refused.
+            if (
+              prior &&
+              (prior.profile_id !== profile.id || prior.authorisation_ref !== p.authorisation.reference)
+            )
+              throw conflict('staged_under_other_authorisation', [
+                { kind: MIGRATION_PACKAGE_RESOURCE, ref: prior.id },
+              ]);
             if (prior) {
               return {
                 data: {

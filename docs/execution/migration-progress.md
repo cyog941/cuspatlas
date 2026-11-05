@@ -137,3 +137,90 @@ format; a real adapter is a new format/version in `SOURCE_ADAPTERS` (MG-01).
   per-role reviewer list is a pending decision.
 - Red: 4/4 failing (exit 1). Green after two fixes (sign-off audit row used the report's resource
   version, colliding with the build audit; test expected 200 for a 201 route): 4/4.
+
+## Hardening H2
+
+Independent review findings on M2-M6, fixed on `codex/hardening-migration` (synthetic only;
+recommended-pending-approval). Tests in `tests/integration/migration-hardening.test.ts`.
+
+- M-1 apply never wedges: the planner checks the `amount_minor` cap (99,999,999,999) on every
+  financial row, real calendar days (`as_of`, `received_on`, patient birth day/month), and the
+  opening-balance key of the unique index (patient after link decisions, currency,
+  `coalesce(as_of, 1900-01-01)`) within the plan and against posted balances of other packages.
+  Offenders are `excluded` (`validation_failed`; a key collision keeps the more precise
+  `duplicate_opening`, both visible in the plan and report). Red: 1/1 failing (exit 1); green 1/1.
+- M-2 database guards (`20261128500000_migration_db_guards.sql`, all SECURITY INVOKER): an opening
+  item needs an apply-run row of the same transaction, package and actor (`migration_apply_runs`,
+  written by `applyImport`) and must repeat its staged record exactly (package, source id, currency,
+  validated amount and sign, accepted-negative review, applied patient); `cutover_state` changes only
+  by a change-sequence bump of one (reset to `reconciling`) or `reconciling -> readyForCutover` with
+  the latest report on the current change sequence, no blocking exception, no rejection and approvals
+  of both roles by two signers on that digest; a sign-off must repeat the latest report's digest on
+  the current change sequence and come from a human with a live `migration.signoff` membership.
+  Runtime-role tests: forged item (no run, changed amount, other patient), forged cutover, skipped
+  change sequence, forged digest and service signer all 42501. Red 2/3 failing; green 3/3.
+- M-3 merge and bump are atomic: S6 `mergePatients` takes an internal-only `within(tx)` callback run in
+  the merge transaction after the merge (never on a replay, never reachable from REST/MCP); the
+  migration merge bumps the change sequence and records its command there. Test: a simulated crash
+  at the bump rolls back the merge; the retry with the same key merges and bumps once; a further
+  replay bumps nothing. Red 1/1 failing (merge committed without bump); green 4/4.
+- M-4 no orphans, no stale links: `applyImport` is one transaction (package lock, plan-digest
+  re-check, S4 `createPatient` through its new internal `within` transaction parameter, applied rows,
+  apply-run row), so a refused or crashed run leaves no patient; a patient left by a pre-fix run is
+  adopted by its per-record `external_record` identifier. The plan follows a linked patient's
+  `merged_into` chain to the survivor (the digest changes, so a stale apply is refused), and the apply
+  locks each linked patient `FOR SHARE` against a concurrent merge. Red 2/3 failing (orphan left,
+  link to merged patient); the adoption test is regression coverage (passed before); green 7/7.
+- M-5 reviewer list (`20261128510000_migration_reviewer_assignments.sql`): per-tenant
+  `migration_reviewer_assignments` (principal, `financialReviewer`/`operationsReviewer`, assigned by,
+  revocable). Decision recorded (recommended-pending-approval): the default reviewer set is any holder
+  of `migration.signoff` whom an administrator assigned to the role; the list is written only by the
+  administrator/operator provisioning path (runtime role: SELECT only, so no API caller can assign
+  itself); an admin-facing assignment command is an open item. `recordSignOff` refuses a role the
+  signer is not assigned (`409 reviewer_role_not_assigned`) and the sign-off trigger refuses it again
+  (42501). Red 1/1 failing; green 8/8; tenant-isolation lists the new table.
+- M-6 opening entry once (`20261128520000_opening_entry_once.sql`): unique index on one
+  `opening_equity` line per opening item (only an opening entry touches equity, so one equity line is
+  one entry; an allocation of opening credit touches the credit side) and a BEFORE INSERT trigger
+  constraining the equity side (negative for a balance, positive for a credit, never an open claim).
+  Tests: two concurrent forged postings of one fresh item, exactly one commits (the other 23505 at
+  insert, previously 23514 only at commit); an entry of two equity lines is refused (previously
+  committed). The M5 repost test now sees 23505. Red 2/2 failing; green 10/10.
+- M-7 excluded money (`20261128530000_migration_exclusion_acknowledgement.sql`): every excluded
+  `ledger_balances`/`unapplied_credits` row with a non-zero amount is a blocking `excluded_balance`
+  exception (`acknowledge_exclusion`). Decision: the acknowledgement is part of the financial
+  reviewer's approval (`acknowledgedExclusions`, optional in `SignOffRecord`, recorded as
+  `migration_signoffs.acknowledged_exclusions` on the append-only, digest-bound sign-off; only a
+  financial approval may carry it), rather than a new operation. Approval refuses
+  `unacknowledged_exclusion`; cutover (domain and the DB guard) accepts an `excluded_balance`
+  exception only when the approved financial sign-off of that digest names it. Catalog regenerated.
+  Red 1/1 failing; green 11/11.
+- M-8 CSV hygiene: staged values stay raw; `csvExportCell`/`csvExportRow` (exported from the
+  migration module) neutralise formula-leading values (`=`, `+`, `-`, `@`, tab, CR) with a leading
+  apostrophe and quote separators for any downstream CSV export (no CSV export exists yet; consumers
+  must use it, recommended-pending-approval). Intake refuses a NUL character (`422 nul_character`)
+  before anything is read or staged, and the already-staged digest path returns the prior package
+  only to the same profile and authorisation reference (`409 staged_under_other_authorisation`);
+  authorization and the profile checks already run before that path. Red 4/4 failing; green.
+- M-9 opening balances round-trip. Decision: carry the opening chain inside the B export rather
+  than a separate M document, because the chain exists only for B's opening journal lines (their
+  `opening_item_id` foreign key), B's import already validates every foreign key and currency of its
+  tables and re-runs the journal check (which reads the opening items), and a new M export would
+  need a new operation, route, MCP tool and authorization for four tables. `BILLING_EXPORT_TABLES`
+  gains `migration_source_profiles`, `migration_packages`, `migration_staged_records` and
+  `migration_opening_items`, exported only as the chain (every opening item, the staged record it
+  repeats, its package with `raw - 'tables'`, its profile); review items, applied records, other
+  staged rows, reports and sign-offs (the workspace) stay out. The five-way round trip now seeds a
+  migrated opening balance and credit, imports S, I, C, E, B and re-exports identically. Red 1/1
+  failing; green. A separate M export (with its own operation) remains an option if M grows.
+- M-10 B seam (`20261128540000_opening_credit_allocation.sql`): the patient balance adds
+  `opening_receivable` to patient responsibility and `opening_credit` to unapplied credit; statements
+  state both opening accounts. `billing.payments.allocate` accepts an opening credit item reference in
+  place of a payment: same invariants (active charge of the item's merge set, never more than the item
+  holds or the charge owes, item patient then charges locked first), an `allocation` entry drawing on
+  `opening_credit` that names its charge and no payment; `billing_check_entry` now permits that and
+  refuses mixing it with payment credit or another item kind/patient/currency. The opening
+  reconciliation counts only `openingBalance` entries, so a later allocation does not read as an
+  import difference. The B1 structural test allows `migration_opening_items` as the seam table.
+  Open item: reversing an opening-credit allocation is not wired (the reversal path copies payment
+  dimensions only). Red 1/1 failing; green 14/14.

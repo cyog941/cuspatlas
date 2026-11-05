@@ -228,6 +228,7 @@ export const MIGRATION_STATE_SQL: readonly string[] = [
   'SELECT count(*)::int AS n FROM cuspatlas.migration_staged_records',
   'SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.migration_review_items',
   'SELECT count(*)::int AS n FROM cuspatlas.migration_applied_records',
+  'SELECT count(*)::int AS n FROM cuspatlas.migration_apply_runs',
   'SELECT count(*)::int AS n FROM cuspatlas.migration_opening_items',
   'SELECT count(*)::int AS n FROM cuspatlas.migration_reports',
   'SELECT count(*)::int AS n FROM cuspatlas.migration_signoffs',

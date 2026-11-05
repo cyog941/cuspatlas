@@ -12086,6 +12086,7 @@
               "array"
             ],
             "maxItems": 500,
+            "uniqueItems": true,
             "items": {
               "type": [
                 "string"

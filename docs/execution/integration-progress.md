@@ -275,3 +275,14 @@ Synthetic data only. Configured and tested; not approved, deployed, compliant or
   - ci: exit 0, 182 files / 3439 tests.
 - **Hand-off:** [pre-UI backend handoff](backend-handoff.md) is the starting document for P4. Backend workstreams are complete on synthetic data, up to the stated blocked-on-discovery parts. What remains is the UI phase, which awaits the user's instruction, together with every pending human decision and discovery item listed in the hand-off.
 - Not pushed. GitHub CI has not run on these commits.
+
+## Closeout B (branch `codex/closeout-b` from 2475167)
+
+Remaining internally buildable backend gaps before the UI phase, on synthetic data only. The parallel `codex/backend-integration` work (list cursors, downtime log, backup-verify, E10 sweep, imaging orphans, migration reviewer, opening-credit reversal, chunked downloads) is not touched here.
+
+- **C12 insurer portion.** New `packages/domain/src/clinical/insurer-estimate.ts`, persisted on the append-only estimate row (`20261207500000_estimate_insurer_portion.sql`) and exposed as `Estimate.insurerEstimate`.
+  - B5 eligibility benefits gain structured, provenance-carrying placeholders: `coinsurance` (insurer percent per synthetic category), `waitingPeriods` (satisfied-on date), the `deductible_remaining` limit kind, and the optional `used` count on frequencies. These can be staff-entered, or come from the fake adapter under the `syn-payer-full` prefix. They are never assumed.
+  - Line by line, in plan order, with BigInt minor units: allowed = min(fee, B9 allowance); the remaining deductible is applied first; insurer = floor(rest x percent), capped by the remaining annual maximum; patient = allowed - insurer. A line whose frequency is used up, or whose waiting period is unsatisfied, gets no insurer portion, and the patient owes its fee. Inactive coverage means the patient owes everything.
+  - If any input is unknown, stale or absent (coinsurance, deductible, maximum, frequency usage, waiting-period list, allowance, coverage status), the result is `unavailable` with the missing names, and the existing patient range is the fallback. Reads re-check each input's `freshUntil`.
+  - Every result carries its inputs (source, source ref, capture instant, freshness), `notAGuarantee: true` and method `c12-insurer-portion-v1` (**recommended-pending-billing-approval**). The existing `patientResponsibility` is unchanged.
+  - Tests: red, then green. The unit test failed with exit 1 (module missing), then passed 9/9. The cases are full benefit, deductible partly met, annual maximum exhausted, frequency limit hit, waiting period, unknown coinsurance falling back to the range, other unknowns, inactive coverage meaning full patient, and a read after aging out. There are also 3 integration seam tests (entered benefits plus allowance, unknown coinsurance or inactive coverage, the fake adapter). The seam tests were written after the wiring.

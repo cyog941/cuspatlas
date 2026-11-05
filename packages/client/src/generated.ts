@@ -1293,7 +1293,7 @@ export type BillingBenefits = {
   };
   readonly "limits"?: {
     readonly "items": readonly ({
-      readonly "kind": "annual_maximum" | "deductible" | "remaining_maximum";
+      readonly "kind": "annual_maximum" | "deductible" | "remaining_maximum" | "deductible_remaining";
       readonly "amount": BillingMoney;
     })[];
     readonly "provenance": {
@@ -1308,6 +1308,31 @@ export type BillingBenefits = {
       readonly "categoryCode": BillingSyntheticProcedureCode;
       readonly "count": number;
       readonly "periodMonths": number;
+      readonly "used"?: number;
+    })[];
+    readonly "provenance": {
+      readonly "source": "entered" | "fake_adapter";
+      readonly "capturedAt": BillingInstant;
+      readonly "recordedByRef": BillingPrincipalRef;
+      readonly "receiptRef": (string) | (null);
+    };
+  };
+  readonly "coinsurance"?: {
+    readonly "items": readonly ({
+      readonly "categoryCode": BillingSyntheticProcedureCode;
+      readonly "insurerPercent": number;
+    })[];
+    readonly "provenance": {
+      readonly "source": "entered" | "fake_adapter";
+      readonly "capturedAt": BillingInstant;
+      readonly "recordedByRef": BillingPrincipalRef;
+      readonly "receiptRef": (string) | (null);
+    };
+  };
+  readonly "waitingPeriods"?: {
+    readonly "items": readonly ({
+      readonly "categoryCode": BillingSyntheticProcedureCode;
+      readonly "satisfiedOn": BillingLocalDate;
     })[];
     readonly "provenance": {
       readonly "source": "entered" | "fake_adapter";
@@ -1785,13 +1810,22 @@ export type BillingEligibilityRef = string;
 export type BillingEnteredBenefits = {
   readonly "activeStatus"?: "active" | "inactive" | "unknown";
   readonly "limits"?: readonly ({
-    readonly "kind": "annual_maximum" | "deductible" | "remaining_maximum";
+    readonly "kind": "annual_maximum" | "deductible" | "remaining_maximum" | "deductible_remaining";
     readonly "amount": BillingMoney;
   })[];
   readonly "frequencies"?: readonly ({
     readonly "categoryCode": BillingSyntheticProcedureCode;
     readonly "count": number;
     readonly "periodMonths": number;
+    readonly "used"?: number;
+  })[];
+  readonly "coinsurance"?: readonly ({
+    readonly "categoryCode": BillingSyntheticProcedureCode;
+    readonly "insurerPercent": number;
+  })[];
+  readonly "waitingPeriods"?: readonly ({
+    readonly "categoryCode": BillingSyntheticProcedureCode;
+    readonly "satisfiedOn": BillingLocalDate;
   })[];
 };
 
@@ -3073,6 +3107,7 @@ export type ClinicalEstimate = {
   readonly "coverageStatus": ClinicalCoverageStatus;
   readonly "grossAmount": (ClinicalMoney) | (null);
   readonly "patientResponsibility": ClinicalPatientResponsibility;
+  readonly "insurerEstimate": ClinicalInsurerEstimate;
   readonly "notAGuarantee": true;
   readonly "presentation": (ClinicalEstimatePresentation) | (null);
   readonly "acceptance": (ClinicalPlanAcceptance) | (null);
@@ -3363,6 +3398,48 @@ export type ClinicalImageRef = string;
 export type ClinicalImageResolutionStatus = "current" | "association_changed" | "unavailable" | "not_found" | "resolver_unavailable";
 
 export type ClinicalInstant = string;
+
+export type ClinicalInsurerEstimate = ({
+  readonly "kind": "estimated";
+  readonly "basis": "benefits_applied" | "coverage_inactive";
+  readonly "insurerPortion": ClinicalMoney;
+  readonly "patientPortion": ClinicalMoney;
+  readonly "lines": readonly ({
+    readonly "planItemRef": string;
+    readonly "procedureCodeRef": string;
+    readonly "fee": ClinicalMoney;
+    readonly "allowed": ClinicalMoney;
+    readonly "deductibleApplied": ClinicalMoney;
+    readonly "insurerPercent": (number) | (null);
+    readonly "insurerPortion": ClinicalMoney;
+    readonly "patientPortion": ClinicalMoney;
+    readonly "limitation": "none" | "annual_maximum_reached" | "frequency_limit_reached" | "waiting_period" | "coverage_inactive";
+  })[];
+  readonly "inputs": readonly ({
+    readonly "name": "coverage_status" | "coinsurance" | "deductible_remaining" | "annual_maximum_remaining" | "frequencies" | "waiting_periods" | "allowance";
+    readonly "source": string;
+    readonly "sourceRef": (string) | (null);
+    readonly "capturedAt": string;
+    readonly "freshUntil": (string) | (null);
+  })[];
+  readonly "method": {
+    readonly "ref": "c12-insurer-portion-v1";
+    readonly "status": "recommended-pending-billing-approval";
+    readonly "description": string;
+  };
+  readonly "notAGuarantee": true;
+}) | ({
+  readonly "kind": "unavailable";
+  readonly "reason": "estimate_incomplete" | "coverage_none" | "coverage_unknown" | "coverage_stale" | "input_unknown" | "input_stale";
+  readonly "missing": readonly (string)[];
+  readonly "fallback": "patient_range";
+  readonly "method": {
+    readonly "ref": "c12-insurer-portion-v1";
+    readonly "status": "recommended-pending-billing-approval";
+    readonly "description": string;
+  };
+  readonly "notAGuarantee": true;
+});
 
 export type ClinicalLabCase = {
   readonly "labCaseRef": ClinicalLabCaseRef;

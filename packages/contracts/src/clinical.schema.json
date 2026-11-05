@@ -1072,7 +1072,9 @@
       "additionalProperties": false,
       "required": ["data", "asOf", "envelope"],
       "properties": {
-        "envelope": { "$ref": "#/$defs/ListEnvelope" },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
+        },
         "data": {
           "type": "array",
           "maxItems": 500,
@@ -1543,7 +1545,9 @@
       "additionalProperties": false,
       "required": ["data", "nextCursor", "envelope"],
       "properties": {
-        "envelope": { "$ref": "#/$defs/ListEnvelope" },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
+        },
         "data": {
           "type": "array",
           "maxItems": 100,
@@ -1666,6 +1670,7 @@
         "coverageStatus",
         "grossAmount",
         "patientResponsibility",
+        "insurerEstimate",
         "notAGuarantee",
         "presentation",
         "acceptance",
@@ -1762,6 +1767,9 @@
         },
         "patientResponsibility": {
           "$ref": "#/$defs/PatientResponsibility"
+        },
+        "insurerEstimate": {
+          "$ref": "#/$defs/InsurerEstimate"
         },
         "notAGuarantee": {
           "const": true
@@ -1931,7 +1939,14 @@
           "$ref": "#/$defs/FeeScheduleRef"
         },
         "feeScheduleVersionRef": {
-          "anyOf": [{ "$ref": "#/$defs/FeeScheduleRef" }, { "type": "null" }]
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FeeScheduleRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "fee": {
           "$ref": "#/$defs/Money"
@@ -1957,7 +1972,9 @@
       "additionalProperties": false,
       "required": ["data", "envelope"],
       "properties": {
-        "envelope": { "$ref": "#/$defs/ListEnvelope" },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
+        },
         "data": {
           "type": "array",
           "maxItems": 200,
@@ -3066,7 +3083,9 @@
       "additionalProperties": false,
       "required": ["data", "envelope"],
       "properties": {
-        "envelope": { "$ref": "#/$defs/ListEnvelope" },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
+        },
         "data": {
           "type": "array",
           "maxItems": 50,
@@ -4113,7 +4132,9 @@
       "additionalProperties": false,
       "required": ["data", "envelope"],
       "properties": {
-        "envelope": { "$ref": "#/$defs/ListEnvelope" },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
+        },
         "data": {
           "type": "array",
           "maxItems": 500,
@@ -4485,7 +4506,9 @@
       "additionalProperties": false,
       "required": ["data", "envelope"],
       "properties": {
-        "envelope": { "$ref": "#/$defs/ListEnvelope" },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
+        },
         "data": {
           "type": "array",
           "maxItems": 50,
@@ -5357,7 +5380,9 @@
       "additionalProperties": false,
       "required": ["data", "envelope"],
       "properties": {
-        "envelope": { "$ref": "#/$defs/ListEnvelope" },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
+        },
         "data": {
           "type": "object",
           "additionalProperties": false,
@@ -5939,7 +5964,9 @@
       "additionalProperties": false,
       "required": ["data", "envelope"],
       "properties": {
-        "envelope": { "$ref": "#/$defs/ListEnvelope" },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
+        },
         "data": {
           "type": "array",
           "maxItems": 200,
@@ -6205,7 +6232,9 @@
       "additionalProperties": false,
       "required": ["data", "envelope"],
       "properties": {
-        "envelope": { "$ref": "#/$defs/ListEnvelope" },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
+        },
         "data": {
           "type": "object",
           "additionalProperties": false,
@@ -6643,7 +6672,9 @@
       "additionalProperties": false,
       "required": ["data", "envelope"],
       "properties": {
-        "envelope": { "$ref": "#/$defs/ListEnvelope" },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
+        },
         "data": {
           "type": "array",
           "maxItems": 200,
@@ -7170,7 +7201,9 @@
       "additionalProperties": false,
       "required": ["data", "envelope"],
       "properties": {
-        "envelope": { "$ref": "#/$defs/ListEnvelope" },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
+        },
         "data": {
           "type": "array",
           "maxItems": 200,
@@ -7344,6 +7377,236 @@
           "$ref": "#/$defs/ListCount"
         }
       }
+    },
+    "InsurerEstimate": {
+      "description": "C12 insurer-portion estimate from B5 structured benefits and B9 allowances (method c12-insurer-portion-v1, recommended-pending-billing-approval). Unknown, stale or inactive inputs fall back to the patient range; never a guarantee of payment.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "basis",
+            "insurerPortion",
+            "patientPortion",
+            "lines",
+            "inputs",
+            "method",
+            "notAGuarantee"
+          ],
+          "properties": {
+            "kind": {
+              "const": "estimated"
+            },
+            "basis": {
+              "enum": ["benefits_applied", "coverage_inactive"]
+            },
+            "insurerPortion": {
+              "$ref": "#/$defs/Money"
+            },
+            "patientPortion": {
+              "$ref": "#/$defs/Money"
+            },
+            "lines": {
+              "type": "array",
+              "maxItems": 300,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "planItemRef",
+                  "procedureCodeRef",
+                  "fee",
+                  "allowed",
+                  "deductibleApplied",
+                  "insurerPercent",
+                  "insurerPortion",
+                  "patientPortion",
+                  "limitation"
+                ],
+                "properties": {
+                  "planItemRef": {
+                    "type": "string",
+                    "minLength": 0,
+                    "maxLength": 64
+                  },
+                  "procedureCodeRef": {
+                    "type": "string",
+                    "minLength": 0,
+                    "maxLength": 64
+                  },
+                  "fee": {
+                    "$ref": "#/$defs/Money"
+                  },
+                  "allowed": {
+                    "$ref": "#/$defs/Money"
+                  },
+                  "deductibleApplied": {
+                    "$ref": "#/$defs/Money"
+                  },
+                  "insurerPercent": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "insurerPortion": {
+                    "$ref": "#/$defs/Money"
+                  },
+                  "patientPortion": {
+                    "$ref": "#/$defs/Money"
+                  },
+                  "limitation": {
+                    "enum": [
+                      "none",
+                      "annual_maximum_reached",
+                      "frequency_limit_reached",
+                      "waiting_period",
+                      "coverage_inactive"
+                    ]
+                  }
+                }
+              }
+            },
+            "inputs": {
+              "type": "array",
+              "maxItems": 320,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name", "source", "sourceRef", "capturedAt", "freshUntil"],
+                "properties": {
+                  "name": {
+                    "enum": [
+                      "coverage_status",
+                      "coinsurance",
+                      "deductible_remaining",
+                      "annual_maximum_remaining",
+                      "frequencies",
+                      "waiting_periods",
+                      "allowance"
+                    ]
+                  },
+                  "source": {
+                    "type": "string",
+                    "minLength": 0,
+                    "maxLength": 64
+                  },
+                  "sourceRef": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 0,
+                        "maxLength": 200
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "capturedAt": {
+                    "type": "string",
+                    "minLength": 0,
+                    "maxLength": 64
+                  },
+                  "freshUntil": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 0,
+                        "maxLength": 64
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "method": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["ref", "status", "description"],
+              "properties": {
+                "ref": {
+                  "const": "c12-insurer-portion-v1"
+                },
+                "status": {
+                  "const": "recommended-pending-billing-approval"
+                },
+                "description": {
+                  "type": "string",
+                  "minLength": 0,
+                  "maxLength": 1000
+                }
+              }
+            },
+            "notAGuarantee": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "reason", "missing", "fallback", "method", "notAGuarantee"],
+          "properties": {
+            "kind": {
+              "const": "unavailable"
+            },
+            "reason": {
+              "enum": [
+                "estimate_incomplete",
+                "coverage_none",
+                "coverage_unknown",
+                "coverage_stale",
+                "input_unknown",
+                "input_stale"
+              ]
+            },
+            "missing": {
+              "type": "array",
+              "maxItems": 1000,
+              "items": {
+                "type": "string",
+                "minLength": 0,
+                "maxLength": 100
+              }
+            },
+            "fallback": {
+              "const": "patient_range"
+            },
+            "method": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["ref", "status", "description"],
+              "properties": {
+                "ref": {
+                  "const": "c12-insurer-portion-v1"
+                },
+                "status": {
+                  "const": "recommended-pending-billing-approval"
+                },
+                "description": {
+                  "type": "string",
+                  "minLength": 0,
+                  "maxLength": 1000
+                }
+              }
+            },
+            "notAGuarantee": {
+              "const": true
+            }
+          }
+        }
+      ]
     }
   }
 }

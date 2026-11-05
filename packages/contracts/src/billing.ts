@@ -531,13 +531,25 @@ export interface CoverageChangeInput extends Omit<CoverageRecordInput, 'patientR
   readonly reasonCode: string;
 }
 export interface BenefitLimit {
-  readonly kind: 'annual_maximum' | 'deductible' | 'remaining_maximum';
+  readonly kind: 'annual_maximum' | 'deductible' | 'remaining_maximum' | 'deductible_remaining';
   readonly amount: Money;
 }
 export interface BenefitFrequency {
   readonly categoryCode: string;
   readonly count: number;
   readonly periodMonths: number;
+  /** Services already used in the current period, when the source reports it. */
+  readonly used?: number;
+}
+/** C12 structured benefit placeholder: the insurer share of a category's allowed amount (whole percent). */
+export interface BenefitCoinsurance {
+  readonly categoryCode: string;
+  readonly insurerPercent: number;
+}
+/** C12 structured benefit placeholder: the date a category's waiting period is satisfied. */
+export interface BenefitWaitingPeriod {
+  readonly categoryCode: string;
+  readonly satisfiedOn: string;
 }
 export interface EligibilityInput {
   readonly source: EligibilitySource;
@@ -548,6 +560,8 @@ export interface EligibilityInput {
     readonly activeStatus?: 'active' | 'inactive' | 'unknown';
     readonly limits?: readonly BenefitLimit[];
     readonly frequencies?: readonly BenefitFrequency[];
+    readonly coinsurance?: readonly BenefitCoinsurance[];
+    readonly waitingPeriods?: readonly BenefitWaitingPeriod[];
   };
 }
 export interface CoverageQuery {
@@ -575,6 +589,14 @@ export interface Benefits {
   readonly limits?: { readonly items: readonly BenefitLimit[]; readonly provenance: BenefitProvenance };
   readonly frequencies?: {
     readonly items: readonly BenefitFrequency[];
+    readonly provenance: BenefitProvenance;
+  };
+  readonly coinsurance?: {
+    readonly items: readonly BenefitCoinsurance[];
+    readonly provenance: BenefitProvenance;
+  };
+  readonly waitingPeriods?: {
+    readonly items: readonly BenefitWaitingPeriod[];
     readonly provenance: BenefitProvenance;
   };
 }

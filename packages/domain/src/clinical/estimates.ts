@@ -29,6 +29,12 @@ import { resolveClinicalAuthor } from './authorship';
 import { type ClinicalBase, checkEnvelope, conflict, failedAt, notFound, UUID } from './base';
 import { assertNotMerged, loadClinicalPatient, requireOpenEncounter } from './encounters';
 import {
+  computeInsurerEstimate,
+  type InsurerEstimate,
+  insurerEstimateAt,
+  insurerEstimateUnavailable,
+} from './insurer-estimate';
+import {
   planById,
   projectPlan,
   recordPlanVersionAcceptance,
@@ -55,6 +61,7 @@ interface EstimateRow extends Record<string, unknown> {
   gross_minor: string | null;
   complete: boolean;
   coverage_status: CoverageStatus;
+  insurer_estimate: InsurerEstimate | null;
   created_by: string;
   created_at: Date;
   plan_id: string;
@@ -116,6 +123,14 @@ function responsibility(
   };
 }
 
+/** C12 insurer portion of a stored estimate now (input freshness re-checked at every read). */
+function insurerEstimateOf(e: EstimateRow): InsurerEstimate {
+  if (!e.complete) return insurerEstimateUnavailable('estimate_incomplete');
+  // An estimate generated before the insurer portion existed carries no inputs: unknown, never guessed.
+  if (e.insurer_estimate === null) return insurerEstimateUnavailable('coverage_unknown');
+  return insurerEstimateAt(e.insurer_estimate, Date.now());
+}
+
 /** The consent binding of an acceptance (C13 writes consents; until then it is outstanding). */
 export type ConsentBindingReader = (
   tx: TenantTransaction,
@@ -135,7 +150,7 @@ async function loadEstimate(
   if (!UUID.test(estimateId)) return null;
   const { rows } = await tx.query<EstimateRow>(
     `SELECT e.id, e.plan_version_id, e.number, e.supersedes_estimate_id, e.fee_schedule_version_ref, e.currency,
-       e.gross_minor::text AS gross_minor, e.complete, e.coverage_status, e.created_by, e.created_at, v.plan_id,
+       e.gross_minor::text AS gross_minor, e.complete, e.coverage_status, e.insurer_estimate, e.created_by, e.created_at, v.plan_id,
        p.subject_patient_id
      FROM cuspatlas.clinical_estimates e
      JOIN cuspatlas.clinical_plan_versions v ON v.id = e.plan_version_id AND v.tenant_id = e.tenant_id
@@ -228,6 +243,7 @@ async function project(tx: TenantTransaction, e: EstimateRow): Promise<Estimate>
     coverageStatus: coverageNow,
     grossAmount: gross,
     patientResponsibility: responsibility(e.complete, coverageNow, gross),
+    insurerEstimate: insurerEstimateOf(e),
     notAGuarantee: true,
     presentation: presentation
       ? {
@@ -382,8 +398,13 @@ export function createEstimateOperations(base: ClinicalBase) {
               const serviceDate = at[0]?.service_date ?? new Date().toISOString().slice(0, 10);
               const locationId = at[0]?.location_id ?? null;
               const seen = new Set<string>();
-              const priced: { planItemRef: string; fee: Money; scheduleRef: string; versionRef: string }[] =
-                [];
+              const priced: {
+                planItemRef: string;
+                procedureCodeRef: string;
+                fee: Money;
+                scheduleRef: string;
+                versionRef: string;
+              }[] = [];
               let currency: string | null = null;
               let gross = 0;
               for (const [n, line] of p.lines.entries()) {
@@ -420,7 +441,7 @@ export function createEstimateOperations(base: ClinicalBase) {
                   throw failedAt(`/lines/${n}/fee/currency`, 'mixedCurrency');
                 currency = server.fee.currency;
                 gross += server.fee.minor;
-                priced.push({ planItemRef: item.id, ...server });
+                priced.push({ planItemRef: item.id, procedureCodeRef: item.procedure_code_ref, ...server });
               }
               const missing = await itemsWithoutFee(
                 tx,
@@ -439,12 +460,30 @@ export function createEstimateOperations(base: ClinicalBase) {
               // B5 decides inactive or stale eligibility; entered coverage values stay caller-sourced.
               const b5 = await pricing.coverage(tx, patient.id, serviceDate);
               const status: CoverageStatus = mergeCoverageStatus(b5, fromSources);
+              // C12 insurer portion from B5 structured benefits and B9 allowances; unknown inputs fall back.
+              let insurer: InsurerEstimate | null = null;
+              if (complete && currency !== null) {
+                const benefits = await pricing.benefitInputs(tx, patient.id, serviceDate);
+                const lines = [];
+                for (const l of priced) {
+                  const allowance =
+                    benefits.coverageRef === null || benefits.status !== 'entered'
+                      ? null
+                      : await pricing.allowance(tx, {
+                          procedureCodeRef: l.procedureCodeRef,
+                          serviceDate,
+                          coverageRef: benefits.coverageRef,
+                        });
+                  lines.push({ ...l, allowance });
+                }
+                insurer = computeInsurerEstimate({ currency, serviceDate, inputs: benefits, lines });
+              }
               const head = await currentOf(tx, planVersionRef);
               if ((head?.number ?? 0) >= MAX_ESTIMATES) throw failedAt('/', 'tooManyEstimates');
               const { rows } = await tx.query<{ id: string }>(
                 `INSERT INTO cuspatlas.clinical_estimates (tenant_id, plan_version_id, number, supersedes_estimate_id,
-                 fee_schedule_version_ref, currency, gross_minor, complete, coverage_status, created_by)
-               VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6, $7, $8, cuspatlas.current_actor_id())
+                 fee_schedule_version_ref, currency, gross_minor, complete, coverage_status, insurer_estimate, created_by)
+               VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6, $7, $8, $9, cuspatlas.current_actor_id())
                RETURNING id`,
                 [
                   planVersionRef,
@@ -455,6 +494,7 @@ export function createEstimateOperations(base: ClinicalBase) {
                   complete ? gross : null,
                   complete,
                   status,
+                  insurer === null ? null : JSON.stringify(insurer),
                 ],
               );
               const id = rows[0]?.id;

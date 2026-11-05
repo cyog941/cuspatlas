@@ -568,7 +568,8 @@
                 "tombstoneRetained",
                 "legalHold",
                 "exportPackage",
-                "contentLocked"
+                "contentLocked",
+                "alreadyIntended"
               ],
               "properties": {
                 "withinGrace": {
@@ -594,6 +595,11 @@
                 "contentLocked": {
                   "type": "integer",
                   "minimum": 0
+                },
+                "alreadyIntended": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Closeout D review fix: candidates a concurrent real sweep had already committed a removal intent for (that intent finishes them; this run leaves them). Always 0 in a dry run."
                 }
               }
             },

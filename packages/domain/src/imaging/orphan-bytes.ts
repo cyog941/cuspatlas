@@ -23,7 +23,7 @@ const BATCH = 500;
 const DEFAULT_GRACE_HOURS = 24;
 
 type KeptReason = 'liveObject' | 'tombstoneRetained' | 'legalHold' | 'exportPackage';
-type Kept = Record<KeptReason | 'withinGrace' | 'contentLocked', number>;
+type Kept = Record<KeptReason | 'withinGrace' | 'contentLocked' | 'alreadyIntended', number>;
 
 /**
  * Why each content key is still referenced, or null when nothing references it. Storage keys are
@@ -233,6 +233,7 @@ export function createOrphanBytesOperations(base: ImagingBase) {
           legalHold: 0,
           exportPackage: 0,
           contentLocked: 0,
+          alreadyIntended: 0,
         };
         // Keys an earlier run already intends to remove are finished below, never intended twice.
         const open = new Set(
@@ -280,15 +281,29 @@ export function createOrphanBytesOperations(base: ImagingBase) {
             kept[why] += 1;
             continue;
           }
+          // Review fix S2: `open` was read before the lock. A concurrent real sweep may have committed an
+          // intent for this key since; re-read it under the lock and leave the key to that intent.
+          if (
+            !dryRun &&
+            (
+              await tx.query(
+                `SELECT 1 FROM cuspatlas.imaging_orphan_removals WHERE storage_key = $1 AND state = 'intended'`,
+                [f.storageKey],
+              )
+            ).rows.length > 0
+          ) {
+            kept.alreadyIntended += 1;
+            continue;
+          }
           orphans.push(f);
         }
         const digests = orphans.map((f) => f.digestSha256);
         const { rows } = await tx.query<{ id: string }>(
           `INSERT INTO cuspatlas.imaging_orphan_sweeps (tenant_id, actor_id, dry_run, grace_hours, scanned_count,
                  orphan_count, kept_within_grace, kept_live_object, kept_tombstone_retained, kept_legal_hold,
-                 kept_export_package, kept_content_locked, orphan_digests, removed_digests)
+                 kept_export_package, kept_content_locked, orphan_digests, removed_digests, kept_already_intended)
                VALUES (cuspatlas.current_tenant_id(), cuspatlas.current_actor_id(), $1, $2, $3, $4, $5, $6, $7, $8,
-                 $9, $10, $11, '{}') RETURNING id`,
+                 $9, $10, $11, '{}', $12) RETURNING id`,
           [
             dryRun,
             graceHours,
@@ -301,18 +316,25 @@ export function createOrphanBytesOperations(base: ImagingBase) {
             kept.exportPackage,
             kept.contentLocked,
             digests,
+            kept.alreadyIntended,
           ],
         );
         const sweepRef = rows[0]?.id as string;
         // D3: the removal intents commit with the sweep record, before any byte is touched.
-        if (!dryRun && orphans.length > 0)
-          await tx.query(
+        // Review fix S2: ON CONFLICT DO NOTHING on the one-open-intent index, so a key another sweep
+        // intended in the meantime never fails this sweep (the re-read above normally skips it first; a
+        // key skipped here is counted as alreadyIntended in the result, its digest stays on the record).
+        if (!dryRun && orphans.length > 0) {
+          const inserted = await tx.query(
             `INSERT INTO cuspatlas.imaging_orphan_removals (tenant_id, sweep_id, digest_sha256, storage_key,
                    intended_by)
                  SELECT cuspatlas.current_tenant_id(), $1, x.d, x.k, cuspatlas.current_actor_id()
-                 FROM unnest($2::text[], $3::text[]) AS x(d, k)`,
+                 FROM unnest($2::text[], $3::text[]) AS x(d, k)
+                 ON CONFLICT (tenant_id, storage_key) WHERE state = 'intended' DO NOTHING`,
             [sweepRef, digests, orphans.map((f) => f.storageKey)],
           );
+          kept.alreadyIntended += orphans.length - (inserted.rowCount ?? 0);
+        }
         await recordCommand(
           tx,
           {

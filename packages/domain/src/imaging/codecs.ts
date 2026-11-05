@@ -59,6 +59,7 @@ const KEPT = [
   'legalHold',
   'exportPackage',
   'contentLocked',
+  'alreadyIntended',
 ] as const;
 const keptKey = (k: string) => `kept${k[0]?.toUpperCase()}${k.slice(1)}`;
 
@@ -88,7 +89,8 @@ export const orphanSweepCodec: ReplayCodec<Record<string, unknown>> = {
     const flat = imagingCodec.restore(stored, payload) as Record<string, unknown>;
     const kept: Record<string, unknown> = {};
     for (const k of KEPT) {
-      kept[k] = flat[keptKey(k)];
+      // A record stored before the S2 review fix has no alreadyIntended count: it was 0.
+      kept[k] = flat[keptKey(k)] ?? 0;
       delete flat[keptKey(k)];
     }
     return { ...flat, orphans: [], removed: [], pending: 0, resumed: 0, kept };

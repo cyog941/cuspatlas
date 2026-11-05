@@ -5842,6 +5842,7 @@ export type ImagingStorageOrphanSweepResult = {
       readonly "legalHold": number;
       readonly "exportPackage": number;
       readonly "contentLocked": number;
+      readonly "alreadyIntended": number;
     };
     readonly "more": boolean;
     readonly "pending": number;

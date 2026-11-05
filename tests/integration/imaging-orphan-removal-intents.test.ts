@@ -163,6 +163,75 @@ describe('Closeout D3: durable-first orphan-bytes removal', () => {
     expect(await intent(d)).toMatchObject([{ state: 'kept', kept_reason: 'liveObject' }]);
   });
 
+  it('a sweep whose open snapshot went stale skips a key a concurrent sweep committed meanwhile', async () => {
+    // Review fix S2. Sweep B reads the open intents (none for K), then pauses just before it takes K's
+    // content lock. Sweep A runs fully and commits its intent for K (its byte removal fails, so the intent
+    // stays open). B then resumes: before the fix its INSERT hit the one-open-intent unique index (23505)
+    // and its whole sweep rolled back; now it re-reads under the lock, skips K and counts it.
+    const d = await orphan();
+    const GATE = 7_402_071;
+    const ARM = 7_402_072;
+    const original = `CREATE OR REPLACE FUNCTION cuspatlas.imaging_try_lock_content(p_tenant uuid, p_digest text)
+      RETURNS boolean LANGUAGE plpgsql AS $f$
+      BEGIN
+        IF p_digest !~ '^[0-9a-f]{64}$' THEN
+          RAISE EXCEPTION 'content lock needs a sha-256 digest' USING ERRCODE = '22023';
+        END IF;
+        RETURN pg_try_advisory_xact_lock(hashtextextended('imaging-content:' || p_tenant::text || ':' || p_digest, 0));
+      END;
+      $f$`;
+    // Test-only gate (this suite's database only): the first transaction to reach the lock function
+    // holds ARM and waits on GATE; any other transaction passes straight through.
+    const gated = original.replace(
+      'RETURN pg_try_advisory_xact_lock',
+      `IF pg_try_advisory_xact_lock(${ARM}) THEN
+          PERFORM pg_advisory_lock_shared(${GATE});
+          PERFORM pg_advisory_unlock_shared(${GATE});
+        END IF;
+        RETURN pg_try_advisory_xact_lock`,
+    );
+    const gate = await s.db.admin.connect();
+    try {
+      await gate.query('SELECT pg_advisory_lock($1)', [GATE]);
+      await s.db.admin.query(gated);
+      const b = sweep();
+      const deadline = Date.now() + 15_000;
+      for (;;) {
+        const { rows } = await s.db.admin.query(
+          `SELECT 1 FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'
+             AND wait_event = 'advisory' AND pid <> pg_backend_pid()`,
+        );
+        if (rows.length > 0) break;
+        if (Date.now() > deadline) throw new Error('sweep B never reached the content lock');
+        await new Promise((r) => setTimeout(r, 25));
+      }
+      fail = 'beforeRemove';
+      const a = await sweep();
+      fail = 'none';
+      expect(a.status, JSON.stringify(a.json)).toBe(200);
+      expect(data(a).orphans).toContain(d);
+      expect((await intent(d)).map((r) => [r.state, r.sweep_id])).toStrictEqual([
+        ['intended', data(a).sweepRef],
+      ]);
+      await gate.query('SELECT pg_advisory_unlock($1)', [GATE]);
+      const rb = await b;
+      expect(rb.status, JSON.stringify(rb.json)).toBe(200);
+      const out = rb.json.data as SweepData & { kept: Record<string, number> };
+      expect(out.orphans).not.toContain(d);
+      expect(out.kept.alreadyIntended).toBe(1);
+      // Still one open intent for K, A's; nothing was intended twice.
+      expect((await intent(d)).map((r) => r.sweep_id)).toStrictEqual([data(a).sweepRef]);
+    } finally {
+      fail = 'none';
+      await gate.query('SELECT pg_advisory_unlock_all()').catch(() => undefined);
+      gate.release();
+      await s.db.admin.query(original);
+    }
+    // A later sweep finishes A's open intent.
+    await sweep();
+    expect((await intent(d)).map((r) => r.state)).toStrictEqual(['removed']);
+  });
+
   it('intents are append-only, tenant-bound and invisible to another tenant', async () => {
     const d = await orphan();
     fail = 'beforeRemove';

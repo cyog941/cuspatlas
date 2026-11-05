@@ -12,7 +12,7 @@ import {
   validateBridgeJobReconcile,
   validateDeferralResolve,
 } from '@cuspatlas/contracts';
-import { transactionNow } from '../clock';
+import { databaseNow, transactionNow } from '../clock';
 import { recordCommand } from '../events/record-command';
 import { checkEnvelope, checkRef, failed, type ImagingBase, notFound, refused } from './base';
 import {
@@ -109,6 +109,8 @@ export const sweepBridgeStep: ReconcileStep = async (tx, _ctx, _store: ObjectSto
 export function createBridgeHealthOperations(base: ImagingBase, opts: HealthOptions) {
   const { deps } = base;
   const nowOf = async (tx: TenantTransaction) => await transactionNow(tx);
+  // Availability is a wall-clock check made after a device row lock wait (clock audit review).
+  const wallNow = async (tx: TenantTransaction) => await databaseNow(tx);
 
   /** The patient's current version (or merged state) for re-confirmation at release. */
   const patientState = async (tx: TenantTransaction, ref: string) => {
@@ -147,7 +149,7 @@ export function createBridgeHealthOperations(base: ImagingBase, opts: HealthOpti
             tx,
             async (): Promise<{ data: AcquisitionResult; version: number }> => {
               checkCapability(d, p.kind, scopePath);
-              const now = await nowOf(tx);
+              const now = await wallNow(tx);
               const availability = availabilityOf(d, now, opts.staleSeconds, opts.offlineSeconds);
               if (availability === 'available') {
                 const job = await insertJob(tx, op, {
@@ -239,7 +241,7 @@ export function createBridgeHealthOperations(base: ImagingBase, opts: HealthOpti
             }
             const d = await loadDevice(tx, def.device_id, 'FOR SHARE');
             checkCapability(d, def.kind, def.scope_path);
-            const availability = availabilityOf(d, await nowOf(tx), opts.staleSeconds, opts.offlineSeconds);
+            const availability = availabilityOf(d, await wallNow(tx), opts.staleSeconds, opts.offlineSeconds);
             if (availability !== 'available') throw refused('device_offline', {}, { replayable: false });
             if (def.intended_patient_id !== null) {
               const pt = await patientState(tx, def.intended_patient_id);
@@ -324,9 +326,10 @@ export function createBridgeHealthOperations(base: ImagingBase, opts: HealthOpti
                     observed_byte_length: null,
                     ingress_id: null,
                     failure_reason: null,
-                    // The claim compares both with now(): stamp them from the same clock (clock audit).
+                    // The claim compares both with now(): eligible from this transaction's start, and
+                    // the hour of validity runs from wall time after the lock wait and store discard.
                     next_attempt_at: await nowOf(tx),
-                    expires_at: new Date((await nowOf(tx)).getTime() + 3_600_000),
+                    expires_at: new Date((await wallNow(tx)).getTime() + 3_600_000),
                   });
             return {
               data: { jobRef: next.id, state: next.state, version: next.version },

@@ -24,7 +24,7 @@ import {
   validateDeviceRevoke,
   validatePairingCodeIssue,
 } from '@cuspatlas/contracts';
-import { transactionNow } from '../clock';
+import { databaseNow, transactionNow } from '../clock';
 import { recordCommand } from '../events/record-command';
 import { checkEnvelope, checkRef, failed, type ImagingBase, notFound, refused } from './base';
 import {
@@ -328,7 +328,9 @@ export async function sweepBridgeJobs(
         state: 'queued',
         claim_nonce: null,
         lease_expires_at: null,
-        next_attempt_at: secondsAfter(await transactionNow(tx), bridgeBackoffSeconds(j.attempts)),
+        // Wall time, not the transaction start: the sweep runs late in long transactions (the storage
+        // reconcile digest-verifies objects first), where now() + backoff can already be past at commit.
+        next_attempt_at: secondsAfter(await databaseNow(tx), bridgeBackoffSeconds(j.attempts)),
       });
       out.requeued += 1;
     } else {
@@ -760,13 +762,14 @@ export function createBridgeOperations(base: ImagingBase, opts: BridgeOptions) {
               });
               continue;
             }
+            // The lease runs from the claim's wall time (after any lock wait), never from the start.
+            const now = await databaseNow(tx);
             const claimed = await bumpJob(tx, op, j, {
               state: 'claimed',
               attempts: j.attempts + 1,
               claim_nonce: randomUUID(),
-              lease_expires_at: secondsAfter(await transactionNow(tx), opts.leaseSeconds),
+              lease_expires_at: secondsAfter(now, opts.leaseSeconds),
             });
-            const now = await transactionNow(tx);
             const envelope = signCompact(
               { alg: 'EdDSA', typ: JOB_ENVELOPE_TYP, kid: serverPublic().kid },
               {
@@ -810,7 +813,8 @@ export function createBridgeOperations(base: ImagingBase, opts: BridgeOptions) {
           if (j.kind === 'probe') throw refused('job_kind_has_no_content');
           if (j.state === 'transferring') throw refused('bytes_already_received');
           if (j.state !== 'claimed') throw refused('job_not_claimed');
-          if ((j.lease_expires_at as Date).getTime() <= (await transactionNow(tx)).getTime())
+          // Wall time after the FOR UPDATE wait: a lease that ran out while this waited is expired.
+          if ((j.lease_expires_at as Date).getTime() <= (await databaseNow(tx)).getTime())
             throw refused('lease_expired');
           const staged = await store.stage(ctx.tenantId, body);
           const next = await bumpJob(tx, op, j, {
@@ -899,7 +903,7 @@ export function createBridgeOperations(base: ImagingBase, opts: BridgeOptions) {
               failure_reason: r.failureReason,
               ...(retry
                 ? {
-                    next_attempt_at: secondsAfter(await transactionNow(tx), bridgeBackoffSeconds(j.attempts)),
+                    next_attempt_at: secondsAfter(await databaseNow(tx), bridgeBackoffSeconds(j.attempts)),
                   }
                 : {}),
             });

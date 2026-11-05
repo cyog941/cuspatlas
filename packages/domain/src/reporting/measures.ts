@@ -270,7 +270,8 @@ const FINANCIAL: MeasureDefinition[] = [
   unit: unit as 'money' | 'count',
   dateBasis: 'as published by B11',
   filters: [],
-  requires: [],
+  // The owning B11 actions, checked by the measure read itself (not only by the port).
+  requires: ['rcm.claims.measures', 'rcm.claims.queues'] as ActionName[],
   suppression: suppression as 'contributors' | 'count',
   source: 'B11' as const,
 }));

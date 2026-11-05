@@ -202,3 +202,34 @@ describe('A batch 3 hardening: aligned windows', () => {
     expect(month.json().data.appliedFilters.granularity).toBe('month');
   });
 });
+
+describe('A batch 3 hardening: financial measures check their owning action themselves', () => {
+  it('refuses a financial measure without the B11 scopes even when the port would answer', async () => {
+    const membership = createMembershipSource(db.app);
+    const reads = createReadSurfaceService({
+      authorize: createAuthorize(membership),
+      withTenantTransaction: createTenantTransactionRunner(db.app),
+      recording: { sink: createSecurityAttemptSink(db.sink), alert: () => undefined },
+      // A port that does not authorize: the measure read itself must.
+      financialMeasures: async () => ({
+        data: {
+          asOf: new Date().toISOString(),
+          measures: [
+            { key: 'claims_over_30_days', definitionVersion: 'x.1', definition: 'synthetic', value: 40 },
+          ],
+        },
+      }),
+    });
+    const ctx = {
+      tenantId: T_ALPHA,
+      actorId: USER_A3,
+      principal: 'human' as const,
+      sessionId: 'synthetic-session',
+      scopes: (await membership.load(USER_A3, T_ALPHA))?.scopes ?? [],
+      correlationId: '00000000-0000-4000-8000-0000000000c3',
+    };
+    await expect(reads.readMeasure(ctx, 'financial.claims_over_30_days', {})).rejects.toMatchObject({
+      code: 'forbidden',
+    });
+  });
+});

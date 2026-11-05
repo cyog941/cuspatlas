@@ -66,9 +66,9 @@ jobs:
           retention-days: 14
 
   windows-smoke:
-    name: windows-smoke (install, typecheck, unit)
+    name: windows-smoke (install, typecheck, unit, integration)
     runs-on: windows-2022
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -81,20 +81,18 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm test -- --project unit
-      # Embedded PostgreSQL does not yet initialise on hosted Windows runners (cause under investigation;
-      # see the execution ledger). Real-database evidence comes from the Linux verify job and the local
-      # Windows host. These non-blocking steps capture initdb/postgres stdout and stderr to files and
-      # print them, so the run log shows the real cause (the earlier step printed nothing).
+      # Embedded PostgreSQL refuses to run postgres.exe under the runner's administrator account, so the
+      # integration global setup starts the server through the bundled pg_ctl on Windows (restricted
+      # token). The diagnostic below stays as a non-blocking record of the raw binaries.
       - name: embedded PostgreSQL binaries diagnostic (non-blocking)
         continue-on-error: true
         shell: bash
         run: node scripts/pg-diagnostic.mjs "$RUNNER_TEMP/pg-diagnostic.log"
-      - name: embedded PostgreSQL integration diagnostic (non-blocking)
-        continue-on-error: true
+      - name: integration tests against embedded PostgreSQL via pg_ctl (synthetic only)
         shell: bash
         env:
           CUSPATLAS_PG_DIAG_FILE: ${{ runner.temp }}/pg-global-setup.log
-        run: pnpm test:integration -- service-boundary 2>&1 | tee "$RUNNER_TEMP/pg-integration.log"
+        run: pnpm test -- --project integration 2>&1 | tee "$RUNNER_TEMP/pg-integration.log"; exit "${PIPESTATUS[0]}"
       - name: print embedded PostgreSQL diagnostics
         if: always()
         continue-on-error: true

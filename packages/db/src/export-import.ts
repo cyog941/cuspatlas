@@ -245,7 +245,8 @@ export async function importExports(
     }
     if (billing) {
       await assertBillingReferences(client, tenantId);
-      await assertBillingProcedureRefs(client, tenantId);
+      // R-NIT: with a C document in the same import, every C14 charge must name an imported procedure.
+      if (clinical) await assertBillingProcedureRefs(client, tenantId);
       await assertBillingCurrency(client, tenantId, currencies);
       await assertBillingTriggerInvariants(client, tenantId);
       counts.verifiedEntries = await assertBillingLedger(client, tenantId);

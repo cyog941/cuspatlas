@@ -524,7 +524,9 @@ describe('B2 payment facts, provider outcomes and settlement', () => {
       'conflict',
       'responsibility_exceeded',
     ]);
-    h.ok(await h.call('svcA1', 'POST', url, body('to_patient', 1000)), 201);
+    // A-D4: moving money responsibility is human only; a service principal is refused.
+    expect((await h.call('svcA1', 'POST', url, body('to_patient', 1000))).statusCode).toBe(403);
+    h.ok(await h.call('a1', 'POST', url, body('to_patient', 1000)), 201);
     const bal = await balanceOf(h, patient);
     expect([bal.patientResponsibility, bal.insurerResponsibility, bal.balance]).toStrictEqual([
       usd(7000),

@@ -211,6 +211,6 @@ The episode is keyed on the first portal message after the last staff message; d
 
 - Floor: redundant ternary removed with the anonymized `requestRef` drop (10.5).
 - Estimate pricing: `20261128010000_estimate_coverage_check_by_name.sql` verifies by name (and by column, not LIKE) that exactly one coverage_status CHECK exists per table and it is `<table>_coverage_status`; the applied `20261125040000` is unchanged.
-- Five-way import: `assertBillingProcedureRefs` refuses a `clinical_procedure` charge whose `procedure_ref` names no C14 rendered procedure of the tenant (red: the orphan import resolved; then rolled back with the whole import).
+- Five-way import (when a C document is in the same import; a B-only import keeps its own checks): `assertBillingProcedureRefs` refuses a `clinical_procedure` charge whose `procedure_ref` names no C14 rendered procedure of the tenant (red: the orphan import resolved; then rolled back with the whole import).
 - C12: `mergeCoverageStatus`/`coverageNowOf` keep a B5 `unknown` unknown even with an entered assumption (red then green).
 - `review-hardening-s2` `soon()` keeps the window inside one America/New_York day (shrinks near midnight; under one minute left it starts after midnight). Test-only.

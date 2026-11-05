@@ -38,10 +38,13 @@ describe('Closeout D5: agent memory default-deny', () => {
   it('refuses by default: free text and an undeclared kind are refused even when nothing looks like PHI', async () => {
     await setPolicy(false);
     const a = await s.createAgent(WS, 'deny by default');
-    refused(await write(a, { key: 'note.plain', value: 'Prefer the morning recall batch.' }), 'no kind');
-    refused(await write(a, { key: 'note.text', value: 'Prefer the morning batch.', kind: 'text' }), 'text');
+    refused(await write(a, { key: 'pref.recall', value: 'Prefer the morning recall batch.' }), 'no kind');
     refused(
-      await write(a, { key: 'note.ref', value: 'ok', kind: 'text', classification: 'reference' }),
+      await write(a, { key: 'pref.reminder', value: 'Prefer the morning batch.', kind: 'text' }),
+      'text',
+    );
+    refused(
+      await write(a, { key: 'pref.summary', value: 'ok', kind: 'text', classification: 'reference' }),
       'text as reference',
     );
     const rows = await s.db.admin.query('SELECT 1 FROM cuspatlas.agent_memory_entries WHERE agent_ref = $1', [
@@ -53,25 +56,31 @@ describe('Closeout D5: agent memory default-deny', () => {
   it('accepts each allowlisted structured kind whose value matches its grammar, and refuses a mismatch', async () => {
     const a = await s.createAgent(WS, 'structured kinds');
     const ok: [string, string][] = [
-      ['code', 'recall.batch.morning'],
+      ['code', 'morning'],
       ['counter', '42'],
       ['flag', 'true'],
-      ['instant', '2026-11-05T09:30:00Z'],
+      ['instant', new Date().toISOString()],
       ['duration', 'PT15M'],
       ['operation', 'syntheticTasks.list'],
       ['reference', randomUUID()],
     ];
     for (const [kind, value] of ok) {
-      const r = await write(a, { key: `k.${kind}`, value, kind });
+      const r = await write(a, {
+        key: `state.${kind === 'counter' ? 'summary' : kind === 'code' ? 'recall' : randomUUID()}`,
+        value,
+        kind,
+      });
       expect(r.isError, `${kind}: ${JSON.stringify(r.body)}`).toBe(false);
       expect(r.body.data, kind).toMatchObject({ kind, classification: 'operational' });
     }
-    const read = await s.agentTool(a, 'agents_memory_get', { key: 'k.counter' });
+    const read = await s.agentTool(a, 'agents_memory_get', { key: 'state.summary' });
     expect(read.body.data).toMatchObject({ value: '42', kind: 'counter' });
     const bad: [string, string][] = [
       ['code', 'Recall Batch'],
       ['counter', '12a'],
       ['counter', '12345678'],
+      ['counter', '12345'],
+      ['code', 'recall.batch.morning'],
       ['flag', 'yes'],
       ['instant', 'next tuesday'],
       ['duration', 'fifteen minutes'],
@@ -79,34 +88,36 @@ describe('Closeout D5: agent memory default-deny', () => {
       ['reference', 'see the chart'],
     ];
     for (const [kind, value] of bad)
-      refused(await write(a, { key: `k.bad.${kind}`, value, kind }), `${kind} ${value}`);
+      refused(await write(a, { key: 'state.review', value, kind }), `${kind} ${value}`);
   });
 
-  it('keeps the heuristic as an extra layer: a structured value naming a patient or a patient ref is refused', async () => {
+  it('keeps the heuristic as an extra layer: a registered value or key suffix naming a patient, or a patient ref, is refused', async () => {
     const a = await s.createAgent([...WS, 'patients.write'], 'extra layer');
+    // A surname that coincides with a registered code: the allowlist admits the code, the heuristic refuses it.
     const created = await s.agentTool(a, 'patients_create', {
-      ...patientBody('Ilsa', { legalName: { known: true, given: 'Ilsa', family: 'Vantrell' } }),
+      ...patientBody('Ilsa', { legalName: { known: true, given: 'Ilsa', family: 'Low' } }),
       idempotencyKey: key(),
     });
     expect(created.isError, JSON.stringify(created.body)).toBe(false);
     const patientRef = (created.body.data as { patientRef: string }).patientRef;
-    refused(await write(a, { key: 'k.surname', value: 'vantrell.followup', kind: 'code' }), 'surname code');
-    refused(await write(a, { key: 'vantrell.flag', value: 'true', kind: 'flag' }), 'surname key');
-    refused(await write(a, { key: 'k.patient', value: patientRef, kind: 'reference' }), 'patient ref');
-    expect((await write(a, { key: 'k.other', value: 'bridge.followup', kind: 'code' })).isError).toBe(false);
+    refused(await write(a, { key: 'pref.recall', value: 'low', kind: 'code' }), 'surname code');
+    refused(await write(a, { key: 'pref.low', value: 'true', kind: 'flag' }), 'surname key');
+    refused(await write(a, { key: 'task.batch', value: patientRef, kind: 'reference' }), 'patient ref');
+    refused(await write(a, { key: `task.${patientRef}`, value: 'true', kind: 'flag' }), 'patient ref key');
+    expect((await write(a, { key: 'pref.window', value: 'high', kind: 'code' })).isError).toBe(false);
   });
 
   it('free text is accepted only classified phi under the explicit tenant PHI policy', async () => {
     const a = await s.createAgent(WS, 'policy path');
     await setPolicy(false);
     refused(
-      await write(a, { key: 'k.free', value: 'Prefer mornings.', classification: 'phi' }),
+      await write(a, { key: 'pref.followup', value: 'Prefer mornings.', classification: 'phi' }),
       'policy off',
     );
     await setPolicy(true);
     try {
-      refused(await write(a, { key: 'k.free', value: 'Prefer mornings.' }), 'unlabelled free text');
-      const ok = await write(a, { key: 'k.free', value: 'Prefer mornings.', classification: 'phi' });
+      refused(await write(a, { key: 'pref.followup', value: 'Prefer mornings.' }), 'unlabelled free text');
+      const ok = await write(a, { key: 'pref.followup', value: 'Prefer mornings.', classification: 'phi' });
       expect(ok.isError, JSON.stringify(ok.body)).toBe(false);
       expect(ok.body.data).toMatchObject({ classification: 'phi', kind: 'text' });
     } finally {
@@ -126,7 +137,7 @@ describe('Closeout D5: agent memory default-deny', () => {
         s.db.admin.query(
           `INSERT INTO cuspatlas.agent_memory_entries (tenant_id, agent_ref, key, value, value_kind, classification,
              expires_at)
-           VALUES ($1, $2, 'k.db', $3, $4, 'operational', now() + interval '1 day')`,
+           VALUES ($1, $2, 'pref.recall', $3, $4, 'operational', now() + interval '1 day')`,
           [T_ALPHA, a.agentRef, value, kind],
         ),
         `${kind} ${value}`,
@@ -134,7 +145,7 @@ describe('Closeout D5: agent memory default-deny', () => {
     await s.db.admin.query(
       `INSERT INTO cuspatlas.agent_memory_entries (tenant_id, agent_ref, key, value, value_kind, classification,
          expires_at)
-       VALUES ($1, $2, 'k.db', 'recall.batch', 'code', 'operational', now() + interval '1 day')`,
+       VALUES ($1, $2, 'pref.recall', 'morning', 'code', 'operational', now() + interval '1 day')`,
       [T_ALPHA, a.agentRef],
     );
   });

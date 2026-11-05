@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { memoryRegistryRows } from '@cuspatlas/contracts';
 import type pg from 'pg';
 
 const FILE_PATTERN = /^(\d{14})_([a-z0-9_]+)\.sql$/;
@@ -74,8 +75,42 @@ export async function migrate(client: pg.ClientBase, opts: { dir: string }): Pro
       }
       applied.push(`${f.version}_${f.name}`);
     }
+    await syncAgentMemoryRegistry(client);
     return { applied };
   } finally {
     await client.query('SELECT pg_advisory_unlock(7402061)');
+  }
+}
+
+/**
+ * Closeout D review fixes: seeds cuspatlas.agent_memory_registry (registered memory key prefixes, codes
+ * and catalog operation ids) from @cuspatlas/contracts after every run, so the database allowlist matches
+ * the code deployed with it. One transaction: rows no longer registered are removed, new ones added. A
+ * no-op before the registry migration has been applied.
+ */
+export async function syncAgentMemoryRegistry(client: pg.ClientBase): Promise<void> {
+  const { rows } = await client.query<{ present: boolean }>(
+    "SELECT to_regclass('cuspatlas.agent_memory_registry') IS NOT NULL AS present",
+  );
+  if (rows[0]?.present !== true) return;
+  const reg = memoryRegistryRows();
+  const kinds = reg.map((r) => r.kind);
+  const values = reg.map((r) => r.value);
+  await client.query('BEGIN');
+  try {
+    await client.query(
+      `DELETE FROM cuspatlas.agent_memory_registry r WHERE NOT EXISTS (
+         SELECT 1 FROM unnest($1::text[], $2::text[]) AS x(kind, value) WHERE x.kind = r.kind AND x.value = r.value)`,
+      [kinds, values],
+    );
+    await client.query(
+      `INSERT INTO cuspatlas.agent_memory_registry (kind, value)
+       SELECT x.kind, x.value FROM unnest($1::text[], $2::text[]) AS x(kind, value) ON CONFLICT DO NOTHING`,
+      [kinds, values],
+    );
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
   }
 }

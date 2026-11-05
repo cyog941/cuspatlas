@@ -1,4 +1,5 @@
 export * from './action-proposal';
+export * from './agent-memory';
 export * from './agents';
 export * from './automation';
 export * from './billing';

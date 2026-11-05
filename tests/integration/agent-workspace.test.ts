@@ -150,14 +150,14 @@ describe('A23 sessions', () => {
 describe('A23 scoped memory', () => {
   it('an agent writes and reads its own note; both are audited in the agent stream and charged', async () => {
     const a = await s.createAgent(WS, 'memory basics');
-    const w = await write(a, 'recall.window', 'morning.batch');
+    const w = await write(a, 'pref.window', 'morning');
     expect(w.isError, JSON.stringify(w.body)).toBe(false);
-    expect(w.body.data).toMatchObject({ key: 'recall.window', classification: 'operational' });
+    expect(w.body.data).toMatchObject({ key: 'pref.window', classification: 'operational' });
     const exp = Date.parse((w.body.data as { expiresAt: string }).expiresAt);
     expect(Math.round((exp - Date.now()) / 86_400_000)).toBe(30);
-    const r = await s.agentTool(a, 'agents_memory_get', { key: 'recall.window' });
+    const r = await s.agentTool(a, 'agents_memory_get', { key: 'pref.window' });
     expect(r.isError, JSON.stringify(r.body)).toBe(false);
-    expect((r.body.data as { value: string }).value).toBe('morning.batch');
+    expect((r.body.data as { value: string }).value).toBe('morning');
     const audit = await s.db.admin.query<{ operation: string }>(
       `SELECT operation FROM cuspatlas.agent_audit_events WHERE agent_ref = $1 AND operation LIKE 'agents.memory.%'
        ORDER BY occurred_at`,
@@ -174,7 +174,7 @@ describe('A23 scoped memory', () => {
       envelope: { count: { exact: 1 } },
       phiPolicy: { phiAllowed: false },
     });
-    expect(JSON.stringify(listed.body.data)).not.toContain('morning.batch');
+    expect(JSON.stringify(listed.body.data)).not.toContain('morning');
   });
 
   it('PHI is refused (one uniform refusal): a phi classification, contacts, DOB phrases, patient refs and names', async () => {
@@ -185,7 +185,7 @@ describe('A23 scoped memory', () => {
     });
     expect(created.isError, JSON.stringify(created.body)).toBe(false);
     const patientRef = (created.body.data as { patientRef: string }).patientRef;
-    const phi = await write(a, 'k.phi', 'anything', 'phi');
+    const phi = await write(a, 'pref.summary', 'anything', 'phi');
     expect(phi.body.code).toBe('validation_failed');
     expect(reason(phi)).toBe('memory_value_refused');
     const legal = patientBody('Quillon').legalName as { given: string; family: string };
@@ -196,18 +196,18 @@ describe('A23 scoped memory', () => {
       `About patient ${patientRef}`,
       `Follow up with ${legal.given} ${legal.family} next week`,
     ]) {
-      const r = await write(a, 'k.detect', value);
+      const r = await write(a, 'pref.summary', value);
       expect(r.body.code, value).toBe('validation_failed');
       expect(reason(r), value).toBe('memory_value_refused');
     }
     // An explicit per-tenant policy admits PHI only when classified as phi.
     const set = await s.call('humanAll', 'POST', '/v1/agents/memory/policy', { phiAllowed: true });
     expect(set.status, JSON.stringify(set.body)).toBe(200);
-    const unlabelled = await write(a, 'k.name', `Follow up with ${legal.given} ${legal.family}`);
+    const unlabelled = await write(a, 'pref.followup', `Follow up with ${legal.given} ${legal.family}`);
     expect(reason(unlabelled)).toBe('memory_value_refused');
-    const labelled = await write(a, 'k.name', `Follow up with ${legal.given} ${legal.family}`, 'phi');
+    const labelled = await write(a, 'pref.followup', `Follow up with ${legal.given} ${legal.family}`, 'phi');
     expect(labelled.isError, JSON.stringify(labelled.body)).toBe(false);
-    const read = await s.agentTool(a, 'agents_memory_get', { key: 'k.name' });
+    const read = await s.agentTool(a, 'agents_memory_get', { key: 'pref.followup' });
     expect(read.isError).toBe(false);
     const charged = await s.db.admin.query<{ phi_fields: number }>(
       `SELECT phi_fields FROM cuspatlas.agent_tool_calls WHERE agent_ref = $1 AND operation = 'agents.memory.read'`,
@@ -230,18 +230,18 @@ describe('A23 scoped memory', () => {
   it('other agents, non-sponsors, another tenant and a display principal cannot reach the memory', async () => {
     const a = await s.createAgent(WS, 'memory owner');
     const b = await s.createAgent(WS, 'memory other');
-    await write(a, 'private.note', 'owner.only');
+    await write(a, 'pref.reminder', 'enabled');
     expect(
-      (await s.agentTool(b, 'agents_memory_get', { agentRef: a.agentRef, key: 'private.note' })).body.code,
+      (await s.agentTool(b, 'agents_memory_get', { agentRef: a.agentRef, key: 'pref.reminder' })).body.code,
     ).toBe('not_found');
     expect((await s.agentTool(b, 'agents_memory_list', { agentRef: a.agentRef })).body.code).toBe(
       'not_found',
     );
     expect(((await s.agentTool(b, 'agents_memory_list', {})).body.data as unknown[]).length).toBe(0);
-    const q = `/v1/agents/memory/entry?agentRef=${a.agentRef}&key=private.note`;
+    const q = `/v1/agents/memory/entry?agentRef=${a.agentRef}&key=pref.reminder`;
     const sponsor = await s.call('humanAll', 'GET', q);
     expect(sponsor.status).toBe(200);
-    expect((sponsor.body.data as { value: string }).value).toBe('owner.only');
+    expect((sponsor.body.data as { value: string }).value).toBe('enabled');
     const stranger = await principal('human', ['agentWorkspace.read']);
     expect((await s.call(stranger, 'GET', q)).status).toBe(404);
     expect((await s.call('humanBeta', 'GET', q)).status).toBe(404);
@@ -257,23 +257,23 @@ describe('A23 scoped memory', () => {
 
   it('the sponsor or an agent manager deletes a note; an agent and a stranger cannot; expired notes vanish', async () => {
     const a = await s.createAgent(WS, 'memory delete');
-    await write(a, 'to.delete', 'short.lived');
-    await write(a, 'to.expire', 'expires');
-    const del = { agentRef: a.agentRef, key: 'to.delete' };
+    await write(a, 'task.done', 'pending');
+    await write(a, 'task.expired', 'expired');
+    const del = { agentRef: a.agentRef, key: 'task.done' };
     const stranger = await principal('human', ['agentWorkspace.read']);
     expect((await s.call(stranger, 'POST', '/v1/agents/memory/delete', del)).status).toBe(404);
     const viaAgent = await s.agentTool(a, 'agents_memory_delete', { ...del, idempotencyKey: key() });
     expect(viaAgent.body.code).toBe('forbidden');
     const ok = await s.call('humanAll', 'POST', '/v1/agents/memory/delete', del);
     expect(ok.status, JSON.stringify(ok.body)).toBe(200);
-    expect((await s.agentTool(a, 'agents_memory_get', { key: 'to.delete' })).body.code).toBe('not_found');
+    expect((await s.agentTool(a, 'agents_memory_get', { key: 'task.done' })).body.code).toBe('not_found');
     await s.db.admin.query(
       `UPDATE cuspatlas.agent_memory_entries SET created_at = now() - interval '20 days',
          updated_at = now() - interval '20 days', expires_at = now() - interval '1 minute'
-       WHERE agent_ref = $1 AND key = 'to.expire'`,
+       WHERE agent_ref = $1 AND key = 'task.expired'`,
       [a.agentRef],
     );
-    expect((await s.agentTool(a, 'agents_memory_get', { key: 'to.expire' })).body.code).toBe('not_found');
+    expect((await s.agentTool(a, 'agents_memory_get', { key: 'task.expired' })).body.code).toBe('not_found');
     await s.agentTool(a, 'agents_memory_list', {});
     const left = await s.db.admin.query('SELECT 1 FROM cuspatlas.agent_memory_entries WHERE agent_ref = $1', [
       a.agentRef,
@@ -289,10 +289,10 @@ describe('A23 scoped memory', () => {
   it('memory reads count toward the record budget', async () => {
     const a = await s.createAgent(WS, 'memory budget', undefined, { consent: false });
     await s.consent(a, ['agents.memory.write', 'agents.memory.read'], { recordsPerPeriod: 3 });
-    await write(a, 'b.one', 'one');
-    expect((await s.agentTool(a, 'agents_memory_get', { key: 'b.one' })).isError).toBe(false);
-    expect((await s.agentTool(a, 'agents_memory_get', { key: 'b.one' })).isError).toBe(false);
-    const third = await s.agentTool(a, 'agents_memory_get', { key: 'b.one' });
+    await write(a, 'state.batch', 'done');
+    expect((await s.agentTool(a, 'agents_memory_get', { key: 'state.batch' })).isError).toBe(false);
+    expect((await s.agentTool(a, 'agents_memory_get', { key: 'state.batch' })).isError).toBe(false);
+    const third = await s.agentTool(a, 'agents_memory_get', { key: 'state.batch' });
     expect(third.body.code).toBe('rate_limited');
   });
 });
@@ -415,7 +415,7 @@ describe('A23 scheduled tasks', () => {
     const t = taskOf(
       await schedule(a, policyOf(await policy(a, ['syntheticTasks.list'])), 'syntheticTasks.list'),
     );
-    await write(a, 'purge.me', 'old');
+    await write(a, 'task.expired', 'stale');
     await s.db.admin.query(
       `UPDATE cuspatlas.agent_memory_entries SET created_at = now() - interval '20 days',
          updated_at = now() - interval '20 days', expires_at = now() - interval '1 minute' WHERE agent_ref = $1`,

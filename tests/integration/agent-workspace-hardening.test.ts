@@ -79,9 +79,9 @@ describe('A23 hardening: the PHI policy flip', () => {
   it('turning PHI off removes every phi note in the same transaction; the sponsor then reads no value', async () => {
     const a = await s.createAgent(WS, 'flip removes');
     await setPolicy(true);
-    const w = await write(a, 'flip.note', 'A phi note held while allowed.', 'phi');
+    const w = await write(a, 'pref.recall', 'A phi note held while allowed.', 'phi');
     expect(w.isError, JSON.stringify(w.body)).toBe(false);
-    const q = `/v1/agents/memory/entry?agentRef=${a.agentRef}&key=flip.note`;
+    const q = `/v1/agents/memory/entry?agentRef=${a.agentRef}&key=pref.recall`;
     expect((await s.call('humanAll', 'GET', q)).status).toBe(200);
     await setPolicy(false);
     expect(await phiRows(a.agentRef)).toBe(0);
@@ -103,7 +103,7 @@ describe('A23 hardening: the PHI policy flip', () => {
     const c1 = await s.db.admin.connect();
     try {
       await c1.query('BEGIN');
-      await insert(c1, 'race.one');
+      await insert(c1, 'state.pending');
       const flip = s.db.admin.query(
         'UPDATE cuspatlas.agent_memory_policies SET phi_allowed = false WHERE tenant_id = $1',
         [T_ALPHA],
@@ -123,7 +123,7 @@ describe('A23 hardening: the PHI policy flip', () => {
       await c2.query('UPDATE cuspatlas.agent_memory_policies SET phi_allowed = false WHERE tenant_id = $1', [
         T_ALPHA,
       ]);
-      const late = insert(s.db.admin, 'race.two').then(
+      const late = insert(s.db.admin, 'state.active').then(
         () => 'committed',
         (e: Error) => e.message,
       );
@@ -139,7 +139,7 @@ describe('A23 hardening: the PHI policy flip', () => {
   it('reads re-check the policy: a stranded phi note is a typed refusal to the agent and the sponsor, audited', async () => {
     const a = await s.createAgent(WS, 'flip read');
     await setPolicy(true);
-    expect((await write(a, 'stranded', 'Stranded phi value.', 'phi')).isError).toBe(false);
+    expect((await write(a, 'state.stale', 'Stranded phi value.', 'phi')).isError).toBe(false);
     // Strand the row: flip the policy with triggers disabled (a bypass the read path must still catch).
     const c = await s.db.admin.connect();
     try {
@@ -152,7 +152,7 @@ describe('A23 hardening: the PHI policy flip', () => {
     } finally {
       c.release();
     }
-    const r = await s.agentTool(a, 'agents_memory_get', { key: 'stranded' });
+    const r = await s.agentTool(a, 'agents_memory_get', { key: 'state.stale' });
     expect(r.isError).toBe(true);
     expect(r.body.code).toBe('forbidden');
     expect(reason(r)).toBe('phi_not_permitted');
@@ -164,14 +164,14 @@ describe('A23 hardening: the PHI policy flip', () => {
     );
     expect(audit.rowCount).toBe(1);
     const count = await s.db.admin.query<{ read_count: number }>(
-      "SELECT read_count FROM cuspatlas.agent_memory_entries WHERE agent_ref = $1 AND key = 'stranded'",
+      "SELECT read_count FROM cuspatlas.agent_memory_entries WHERE agent_ref = $1 AND key = 'state.stale'",
       [a.agentRef],
     );
     expect(count.rows[0]?.read_count).toBe(0);
     const human = await s.call(
       'humanAll',
       'GET',
-      `/v1/agents/memory/entry?agentRef=${a.agentRef}&key=stranded`,
+      `/v1/agents/memory/entry?agentRef=${a.agentRef}&key=state.stale`,
     );
     expect(human.status).toBe(403);
     expect(JSON.stringify(human.body)).not.toContain('Stranded phi value');
@@ -198,15 +198,15 @@ describe('A23 hardening: best-effort screening and the database backstop', () =>
       ['Write to some​one@example.test', 'reference'],
       ['DOB: 1980-02-03', 'operational'],
     ] as const) {
-      const r = await write(a, 'k.screen', value, cls);
+      const r = await write(a, 'pref.summary', value, cls);
       expect(r.body.code, value).toBe('validation_failed');
       expect(reason(r), value).toBe('memory_value_refused');
       expect(JSON.stringify(r.body), value).not.toMatch(/phi_detected|phi_not_permitted/);
     }
-    // Closeout D5: behind the default-deny allowlist, the heuristic matches every token of a structured
-    // value, so a lower-case surname in a code is refused too; other codes pass.
-    expect(reason(await write(a, 'k.lower', 'brannock.bridge'))).toBe('memory_value_refused');
-    expect((await write(a, 'k.lower', 'bridge.note')).isError).toBe(false);
+    // Closeout D5 and its review fixes: an unregistered code (here a surname-shaped one) is refused by
+    // the allowlist itself; a registered code passes.
+    expect(reason(await write(a, 'pref.batch', 'brannock.bridge'))).toBe('memory_value_refused');
+    expect((await write(a, 'pref.batch', 'pending')).isError).toBe(false);
   });
 
   it('the database refuses a contact or DOB pattern in a non-phi note, whoever writes it', async () => {
@@ -227,7 +227,7 @@ describe('A23 hardening: best-effort screening and the database backstop', () =>
 describe('A23 hardening: database reach rule', () => {
   it('RLS limits workspace rows to the agent, its current sponsor and agent managers', async () => {
     const a = await s.createAgent(WS, 'rls reach');
-    expect((await write(a, 'rls.note', 'reach.checked')).isError).toBe(false);
+    expect((await write(a, 'pref.reminder', 'done')).isError).toBe(false);
     const stranger = await principal('human', ['agentWorkspace.read']);
     const manager = await principal('human', ['agentWorkspace.read', 'agents.manage']);
     for (const table of ['agent_memory_entries', 'agent_sessions']) {

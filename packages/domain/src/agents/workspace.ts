@@ -5,6 +5,10 @@ import {
   type CommandEnvelope,
   type CommandResult,
   listEnvelope,
+  MEMORY_STRUCTURED_KINDS,
+  memoryInstantFloorOk,
+  memoryValueMatches,
+  parseMemoryKey,
   RefusalError,
   type TenantTransaction,
   validateAgentMemoryDelete,
@@ -34,9 +38,12 @@ import { presentSession, SESSION_SELECT, type SessionRow } from './sessions';
 /**
  * A23 / OR-13 agent workspace: sessions (history = references to agent_tool_calls and the agent-audit
  * stream), scoped memory (per agent, tenant-bound, classified; a phi classification needs the tenant
- * policy, enforced in the database; Closeout D5: any other note is default-deny, accepted only as a
- * structured kind matching its grammar, in the domain and in the database, with the best-effort PHI
- * heuristic and the contact/DOB regex backstop as extra refusal layers; 30-day retention,
+ * policy, enforced in the database; Closeout D5 and its review fixes: any other note is accepted only
+ * from a positive allowlist (a namespaced key from registered prefixes and suffixes; a value of a
+ * structured kind from registered codes, catalog operations or bounded grammars), in the domain and in
+ * the database, with the best-effort PHI heuristic and the contact/DOB regex backstop as extra refusal
+ * layers. Not guaranteed: a short counter, a UUID or an instant can still carry a deliberately encoded
+ * identifier (see packages/contracts/src/agent-memory.ts); 30-day retention,
  * deletion by the sponsor or an agent manager, every agent read and write in the agent-audit stream and
  * metered by the MCP budget gate) and scheduled tasks under a human-owned standing policy, rechecked by
  * the worker at execution. An agent reaches only its own workspace; a human reaches an agent's workspace
@@ -56,27 +63,17 @@ const forbidden = (reasonCode: 'principal_kind_denied') =>
 const refusedValue = () => failed('memory_value_refused', '/value');
 
 /**
- * Closeout D5: the positive allowlist of structured, non-PHI memory value kinds and their grammars (the
- * same as the database constraint agent_memory_entries_value_structured). `text` is not here: free
- * text is accepted only classified phi under the tenant PHI policy.
+ * Closeout D5 and the Closeout D review fixes: the positive allowlist of structured, non-PHI memory value
+ * kinds, registered codes and catalog operations, and the namespaced key grammar, all from
+ * @cuspatlas/contracts (agent-memory.ts) and enforced again by the database (the value_structured and
+ * key_namespaced constraints and the agent_memory_registry_guard trigger). `text` is not a structured
+ * kind: free text is accepted only classified phi under the tenant PHI policy. The lookup is a Map, so an
+ * inherited name (`constructor`, `__proto__`) is never a kind.
  */
-const STRUCTURED_KINDS: Readonly<Record<string, (v: string) => boolean>> = {
-  code: (v) => v.length <= 64 && /^[a-z][a-z0-9]*([._:-][a-z0-9]+){0,7}$/.test(v),
-  // At most 7 digits: 8 or more read as a phone-like run to the screens.
-  counter: (v) => /^-?[0-9]{1,7}$/.test(v),
-  flag: (v) => v === 'true' || v === 'false',
-  instant: (v) =>
-    /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,6})?Z$/.test(v) &&
-    !Number.isNaN(Date.parse(v)),
-  duration: (v) =>
-    /^P([0-9]{1,4}D)?(T([0-9]{1,4}H)?([0-9]{1,4}M)?([0-9]{1,4}S)?)?$/.test(v) &&
-    !/^PT?$/.test(v) &&
-    !v.endsWith('T'),
-  // A catalog operation name (never free text), checked against the catalog itself.
-  operation: (v) => /^[a-z][A-Za-z]*(\.[a-z][A-Za-z]*){1,5}$/.test(v) && CATALOG_INDEX.has(v),
-  reference: (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(v),
-};
-export const MEMORY_VALUE_KINDS = [...Object.keys(STRUCTURED_KINDS), 'text'] as const;
+export function structuredMemoryValueAccepted(kind: string, value: string): boolean {
+  return memoryValueMatches(kind, value);
+}
+export const MEMORY_VALUE_KINDS = [...MEMORY_STRUCTURED_KINDS, 'text'] as const;
 const MRN_LIKE =
   /\b(?:mrn|medical\s+record(?:\s+(?:number|no\.?))?|chart\s*(?:number|no\.?|#))\s*[:#.-]?\s*[A-Za-z0-9-]*\d/i;
 
@@ -513,17 +510,35 @@ export function createAgentWorkspace(base: AgentBase) {
           // positive allowlist classification (a structured kind whose grammar the value matches), and the
           // PHI heuristic stays as an extra refusal layer over the key and the value.
           const kind = p.kind ?? (p.classification === 'phi' ? 'text' : null);
+          // Review fix S1: every key (phi included, since keys are listed without values) is a registered
+          // prefix plus a registered suffix, and the suffix is screened like a value of its kind.
+          const parts = parseMemoryKey(p.key);
+          if (parts === null) throw refusedValue();
+          if (
+            await carriesPhi(tx, ctx, parts.suffix, {
+              allTokens: true,
+              strictGrammar: parts.suffixKind === 'reference',
+            })
+          )
+            throw refusedValue();
           if (p.classification === 'phi') {
             if (!policy?.phi_allowed) throw refusedValue();
           } else {
-            const grammar = kind === null ? undefined : STRUCTURED_KINDS[kind];
-            if (!grammar?.(p.value)) throw refusedValue();
+            if (kind === null || !memoryValueMatches(kind, p.value)) throw refusedValue();
+            // An instant is not earlier than the tenant's creation, so a birth date before it is refused.
+            if (kind === 'instant') {
+              const t = (
+                await tx.query<{ created_at: Date }>(
+                  'SELECT created_at FROM cuspatlas.tenants WHERE id = cuspatlas.current_tenant_id()',
+                )
+              ).rows[0];
+              if (!t || !memoryInstantFloorOk(p.value, t.created_at)) throw refusedValue();
+            }
             if (
-              (await carriesPhi(tx, ctx, p.key.replace(/[._-]/g, ' '), { allTokens: true })) ||
-              (await carriesPhi(tx, ctx, p.value, {
+              await carriesPhi(tx, ctx, p.value, {
                 allTokens: true,
                 strictGrammar: kind === 'instant' || kind === 'reference',
-              }))
+              })
             )
               throw refusedValue();
           }

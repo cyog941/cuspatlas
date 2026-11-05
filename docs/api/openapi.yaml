@@ -13880,12 +13880,16 @@ paths:
     post:
       operationId: agents.memory.write
       description: >-
-        A23 / Closeout D5: the calling agent stores a classified note under a key (replacing an earlier
-        value), kept 30 days by default. Default-deny: a non-phi note must declare a structured kind (code,
-        counter, flag, instant, duration, operation or reference) whose grammar the value matches; free text
-        is accepted only classified phi while the tenant PHI policy allows it. Contacts, DOB-like phrases,
-        patient references and patient names or birth dates (S4 match keys) are also refused. Every refusal
-        is memory_value_refused. Audited in the agent-audit stream. Agents only.
+        A23 / Closeout D5 and its review fixes: the calling agent stores a classified note under a
+        namespaced key (a registered prefix pref, task, cursor, op or state, then a registered code, a
+        catalog operation id or a UUID reference), replacing an earlier value, kept 30 days by default.
+        Positive allowlist: a non-phi note must declare a structured kind whose value is registered or
+        matches a bounded grammar (code: a registered code; counter: -9999 to 9999; flag; instant: not
+        earlier than the tenant creation; duration; operation: a catalog operation id; reference: a UUID);
+        free text is accepted only classified phi while the tenant PHI policy allows it. A short counter, a
+        reference or an instant can still carry a deliberately encoded identifier. Contacts, DOB-like
+        phrases, patient references and patient names or birth dates (S4 match keys) are also refused. Every
+        refusal is memory_value_refused. Audited in the agent-audit stream. Agents only.
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:

@@ -108,6 +108,7 @@ describe('runtime database role', () => {
       'agent_lifecycle_events',
       'agent_memory_entries',
       'agent_memory_policies',
+      'agent_memory_registry',
       'agent_principals',
       'agent_scheduled_tasks',
       'agent_sessions',

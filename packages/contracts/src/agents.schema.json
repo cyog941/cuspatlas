@@ -683,15 +683,16 @@
     },
     "MemoryKey": {
       "type": "string",
-      "pattern": "^[a-z][a-z0-9._-]{0,63}$",
-      "description": "A23: agent memory key (no free text)."
+      "maxLength": 64,
+      "pattern": "^[a-z]{1,16}\\.[A-Za-z0-9._:-]{1,63}$",
+      "description": "A23 / Closeout D review fixes: a namespaced agent memory key, <prefix>.<suffix>. The prefix is a registered namespace (pref, task, cursor, op, state) and the suffix a registered code, a catalog operation id or a UUID reference (no free text). Checked in the domain and in the database."
     },
     "MemoryClassification": {
       "enum": ["operational", "reference", "phi"]
     },
     "MemoryValueKind": {
       "enum": ["code", "counter", "flag", "instant", "duration", "operation", "reference", "text"],
-      "description": "Closeout D5: what a memory value is. A non-phi note must be one of the structured kinds and match its grammar (code: lower-case dotted identifier; counter: integer up to 7 digits; flag: true or false; instant: UTC date-time; duration: ISO 8601 days to seconds; operation: a catalog operation name; reference: an opaque UUID). text (free text) is accepted only classified phi under the tenant PHI policy."
+      "description": "Closeout D5: what a memory value is. A non-phi note must be one of the structured kinds and match its grammar (code: a registered code, from the state vocabularies or the declared memory codes; counter: integer from -9999 to 9999; flag: true or false; instant: UTC date-time not earlier than the tenant's creation; duration: ISO 8601 days to seconds; operation: a catalog operation id; reference: an opaque UUID). text (free text) is accepted only classified phi under the tenant PHI policy. A short counter, a reference or an instant can still carry a deliberately encoded identifier; the PHI heuristic is an extra refusal layer, not a guarantee."
     },
     "SessionListQuery": {
       "type": "object",

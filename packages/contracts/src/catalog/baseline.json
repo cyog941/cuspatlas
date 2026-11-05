@@ -712,7 +712,8 @@
             "type": [
               "string"
             ],
-            "pattern": "^[a-z][a-z0-9._-]{0,63}$"
+            "maxLength": 64,
+            "pattern": "^[a-z]{1,16}\\.[A-Za-z0-9._:-]{1,63}$"
           }
         },
         "required": [
@@ -855,7 +856,8 @@
             "type": [
               "string"
             ],
-            "pattern": "^[a-z][a-z0-9._-]{0,63}$"
+            "maxLength": 64,
+            "pattern": "^[a-z]{1,16}\\.[A-Za-z0-9._:-]{1,63}$"
           },
           "kind": {
             "enum": [

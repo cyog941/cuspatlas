@@ -132,7 +132,7 @@ describe('A17 audit search', () => {
         [T_ALPHA, USER_A1],
       );
       // Other members' memberships stay unreadable; the attempt log has no runtime-role SELECT at all.
-      // (audit_events and sensitive_read_events keep their earlier tenant SELECT policies, unchanged.)
+      // (audit_events and sensitive_read_events: no runtime SELECT since 20261202500000, tested below.)
       expect((await c.query('SELECT principal_id FROM cuspatlas.memberships')).rows).toEqual([
         { principal_id: USER_A1 },
       ]);
@@ -231,5 +231,37 @@ describe('A17 access review and revocation', () => {
         ])
       ).rows[0].revoked_at,
     ).toBeNull();
+  });
+});
+
+describe('A batch 3 hardening: audit and sensitive-read rows only through the definer search', () => {
+  it('the runtime role holds no SELECT on audit_events or sensitive_read_events and cannot read them', async () => {
+    const grants = await db.admin.query(
+      `SELECT has_table_privilege('cuspatlas_app', 'cuspatlas.audit_events', 'SELECT') AS audit,
+              has_table_privilege('cuspatlas_app', 'cuspatlas.sensitive_read_events', 'SELECT') AS reads,
+              has_table_privilege('cuspatlas_app', 'cuspatlas.audit_events', 'INSERT') AS audit_insert`,
+    );
+    expect(grants.rows[0]).toEqual({ audit: false, reads: false, audit_insert: true });
+    const c = await db.app.connect();
+    try {
+      for (const table of ['audit_events', 'sensitive_read_events']) {
+        await c.query('BEGIN');
+        await c.query(
+          `SELECT set_config('cuspatlas.tenant_id', $1, true), set_config('cuspatlas.actor_id', $2, true)`,
+          [T_ALPHA, USER_A1],
+        );
+        const err = await c.query(`SELECT * FROM cuspatlas.${table}`).then(
+          () => null,
+          (e: { code?: string }) => e.code,
+        );
+        expect(err).toBe('42501');
+        await c.query('ROLLBACK');
+      }
+    } finally {
+      await c.query('ROLLBACK').catch(() => undefined);
+      c.release();
+    }
+    // The audit search (definer, scope rechecked) still serves them.
+    expect((await h.call('a1', 'GET', '/v1/admin/audit?source=committed_change')).statusCode).toBe(200);
   });
 });

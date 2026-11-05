@@ -427,8 +427,12 @@ describe('runtime database role', () => {
       'clinical_note_versions',
       'clinical_note_cosignatures',
     ]) {
-      const { rows } = await db.app.query(`SELECT count(*)::int AS n FROM cuspatlas.${t}`);
-      expect([t, rows[0].n]).toStrictEqual([t, 0]);
+      // audit_events and sensitive_read_events hold no runtime SELECT at all (A batch 3 hardening).
+      const n = await db.app.query(`SELECT count(*)::int AS n FROM cuspatlas.${t}`).then(
+        (r) => r.rows[0].n as number,
+        (e: { code?: string }) => (e.code === '42501' ? 0 : -1),
+      );
+      expect([t, n]).toStrictEqual([t, 0]);
     }
   });
 

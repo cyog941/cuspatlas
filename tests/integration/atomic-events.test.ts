@@ -332,13 +332,18 @@ describe('protected access to audit and outbox (runtime role)', () => {
     const app = await appWith();
     await post(app, '/v1/synthetic-tasks', tokens.a1, { label: 'alpha change' });
     await post(app, '/v1/synthetic-tasks', tokens.b1, { label: 'beta change' });
-    const seen = await asRuntime(T_BETA, USER_B1, async (c) => ({
-      audit: (await c.query('SELECT DISTINCT tenant_id FROM cuspatlas.audit_events')).rows,
-      outbox: (await c.query('SELECT DISTINCT tenant_id FROM cuspatlas.outbox_events')).rows,
-    }));
-    expect(seen).toStrictEqual({ audit: [{ tenant_id: T_BETA }], outbox: [{ tenant_id: T_BETA }] });
-    const none = await db.app.query('SELECT count(*)::int AS n FROM cuspatlas.audit_events');
-    expect(none.rows[0].n).toBe(0);
+    // A batch 3 hardening: the runtime role reads no audit row at all (only the definer audit search does).
+    const seen = await asRuntime(T_BETA, USER_B1, async (c) => {
+      const outbox = (await c.query('SELECT DISTINCT tenant_id FROM cuspatlas.outbox_events')).rows;
+      return {
+        audit: await sqlState(c.query('SELECT DISTINCT tenant_id FROM cuspatlas.audit_events')),
+        outbox,
+      };
+    });
+    expect(seen).toStrictEqual({ audit: '42501', outbox: [{ tenant_id: T_BETA }] });
+    expect(await sqlState(db.app.query('SELECT count(*)::int AS n FROM cuspatlas.audit_events'))).toBe(
+      '42501',
+    );
 
     const forge = (tenant: string, actor: string) =>
       asRuntime(T_BETA, USER_B1, (c) =>

@@ -41,7 +41,7 @@ Register [BY/CN/ON requirements](../../OPEN-PLATFORM-AND-ONBOARDING.md). Verify 
 
 ## Evidence gate before executing this plan
 
-No gate in this plan is currently met, and none of the measurements it requires exists. There is no pilot practice, no staff panel, no penetration-test engagement, no clinical reviewer sign-off, no rehearsal run, no operator agreement and no authorization to handle patient data. [Analysis coverage](../../TAB32-ANALYSIS-COVERAGE.md) records the observation boundary this project still operates within, and nothing in this plan should be read as having moved past it.
+No gate in this plan is currently met, and none of the measurements it requires exists. There is no pilot practice, no staff panel, no penetration-test engagement, no clinical reviewer sign-off, no rehearsal run, no operator agreement and no authorization to handle patient data. [Analysis coverage](../../WORKFLOW-RESEARCH-COVERAGE.md) records the observation boundary this project still operates within, and nothing in this plan should be read as having moved past it.
 
 Three consequences follow, and they decide what can start:
 

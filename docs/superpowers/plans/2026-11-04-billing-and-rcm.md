@@ -8,7 +8,7 @@
 
 **Tech Stack:** Inherits the platform foundation: supported Node LTS, TypeScript, Fastify, PostgreSQL/Supabase, JSON Schema/OpenAPI, Vitest and SQL integration tests. All money uses the shared `Money` contract; no floating-point value appears in any financial path. Pin versions and lockfiles in the foundation plan; this plan adds no runtime dependency of its own.
 
-**Spec:** [Product design](../specs/2026-11-03-dental-pms-design.md), [capability matrix](../../CAPABILITIES.md), [API contract](../../API-AND-MCP.md), [security gates](../../SECURITY-AND-READINESS.md), [observed payment-plan and statement surfaces](../../TAB32-DOMAIN-MODEL.md).
+**Spec:** [Product design](../specs/2026-11-03-dental-pms-design.md), [capability matrix](../../CAPABILITIES.md), [API contract](../../API-AND-MCP.md), [security gates](../../SECURITY-AND-READINESS.md), [observed payment-plan and statement surfaces](../../REFERENCE-DOMAIN-OBSERVATIONS.md).
 
 **Task numbering:** this plan's prefix is `B`. Implementation tasks are `B1`–`B10`, discovery spikes are `B-S1`–`B-S4`, and open decisions are `B-D1`–`B-D8`. A cross-workstream reference names the fully qualified task: `F` is [platform foundation](2026-11-03-platform-foundation.md), `S` is [patients and scheduling](2026-11-04-scheduling-and-patients.md), `C` is [clinical record](2026-11-04-clinical-record.md), `I` imaging, `E` portal, `M` migration. Spikes have owners, sit in the dependency graph and can block a task. `Blocks` is derived from `Dependencies` and is never maintained as a second list.
 
@@ -32,7 +32,7 @@ Apply [CN-01–05](../../OPEN-PLATFORM-AND-ONBOARDING.md) to this workstream's p
 
 ## Research gate before executing this plan
 
-[Tab32 analysis coverage](../../TAB32-ANALYSIS-COVERAGE.md) records payment-plan worklists as observed and statement columns as observed; plan creation, authorization, failed installments, retries, allocation, claim submission, rejection, correction, ERA and secondary-claim lifecycles are **unobserved**. The claims surface exposes a denial-code endpoint and separate appeal navigation, but no vocabulary, transition rule or adjudication timing has been verified.
+[Tab32 analysis coverage](../../WORKFLOW-RESEARCH-COVERAGE.md) records payment-plan worklists as observed and statement columns as observed; plan creation, authorization, failed installments, retries, allocation, claim submission, rejection, correction, ERA and secondary-claim lifecycles are **unobserved**. The claims surface exposes a denial-code endpoint and separate appeal navigation, but no vocabulary, transition rule or adjudication timing has been verified.
 
 Treat the observed worklists as vocabulary input only. The plan status set, card-expiry handling and auto-pay semantics are our proposed model, derived from the visible columns, not a description of the incumbent's behaviour. Readiness requires a contracted sandbox, a synthetic end-to-end claim, and signed review by a billing reviewer before any of these states are presented as validated.
 

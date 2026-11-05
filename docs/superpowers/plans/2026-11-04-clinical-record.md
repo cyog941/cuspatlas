@@ -8,7 +8,7 @@
 
 **Tech Stack:** The foundation stack only: supported Node LTS, TypeScript, Fastify, PostgreSQL/Supabase, JSON Schema/OpenAPI, Vitest with SQL integration tests. No imaging, DICOM, e-signature, lab or referral SDK is added by this plan.
 
-**Spec:** [Product design](../specs/2026-11-03-dental-pms-design.md), [capability matrix](../../CAPABILITIES.md), [API and MCP contract](../../API-AND-MCP.md), [domain-model observations](../../TAB32-DOMAIN-MODEL.md), [security and readiness](../../SECURITY-AND-READINESS.md).
+**Spec:** [Product design](../specs/2026-11-03-dental-pms-design.md), [capability matrix](../../CAPABILITIES.md), [API and MCP contract](../../API-AND-MCP.md), [domain-model observations](../../REFERENCE-DOMAIN-OBSERVATIONS.md), [security and readiness](../../SECURITY-AND-READINESS.md).
 
 **Depends on:** [platform foundation](2026-11-03-platform-foundation.md) Tasks 1-8; [patients and scheduling](2026-11-04-scheduling-and-patients.md) Tasks 4, 5, 10, 11 and 12 for identity, guardian authority, the encounter's appointment and the visit context container.
 
@@ -33,7 +33,7 @@ Consume [PT-01–06 and UX-01–03](../../PRACTICE-TIME-AND-AUTOMATION.md) in th
 
 ## Evidence gate before executing this plan
 
-Consult [Tab32 analysis coverage](../../TAB32-ANALYSIS-COVERAGE.md). The clinical chart, perio, notes, treatment and imaging rows are recorded there as proposed requirements, not observations: no synthetic patient chart was walked, no note was drafted or signed, and no treatment plan or consent lifecycles were inspected. The domain-model observations establish only that the incumbent audits treatment at three levels and enumerates note-template attributes including a per-template enforcement flag; they do not establish field-level cardinality, transition guards or enforcement semantics.
+Consult [Tab32 analysis coverage](../../WORKFLOW-RESEARCH-COVERAGE.md). The clinical chart, perio, notes, treatment and imaging rows are recorded there as proposed requirements, not observations: no synthetic patient chart was walked, no note was drafted or signed, and no treatment plan or consent lifecycles were inspected. The domain-model observations establish only that the incumbent audits treatment at three levels and enumerates note-template attributes including a per-template enforcement flag; they do not establish field-level cardinality, transition guards or enforcement semantics.
 
 Consequently the first four tasks are discovery spikes, and Tasks 6, 7, 9 and 10 cannot be claimed complete on engineering evidence alone. Clinical reviewers must validate chart semantics, perio calculation and correction expectations, enforcement semantics and amendment rules. Terminology rights review precedes any distribution of a licensed code set. No clinical record is created in production to test behaviour.
 

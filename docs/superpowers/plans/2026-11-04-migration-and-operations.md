@@ -27,7 +27,7 @@
 
 ## Research gate before executing this plan
 
-[Tab32 analysis coverage](../../TAB32-ANALYSIS-COVERAGE.md) records migration and export as **proposed requirements with no vendor-approved export sample**. The design commits to authorised exports or documented APIs whose rights and availability are verified, and explicitly rejects assuming private endpoint access.
+[Tab32 analysis coverage](../../WORKFLOW-RESEARCH-COVERAGE.md) records migration and export as **proposed requirements with no vendor-approved export sample**. The design commits to authorised exports or documented APIs whose rights and availability are verified, and explicitly rejects assuming private endpoint access.
 
 No incumbent export has been obtained, sampled or characterised. The shape, completeness, cost and contractual permissibility of an export are unknown. Therefore M2 is blocked-on-discovery, and every downstream task that consumes a real export is gated. Synthetic packages validate our machinery only; they prove nothing about an incumbent's output.
 

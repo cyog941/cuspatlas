@@ -94,7 +94,7 @@ Recommended SQL boundary: private domain schemas; Data API exposure disabled for
 
 ## Domain model informed by the incumbent
 
-The authenticated observation pass produced requirements, not a description of the incumbent's internals. Everything below is a derived requirement: the observation is stated as the basis, and the decision that follows from it is ours. Observations come from [the authenticated surface map](../../TAB32-AUTHENTICATED-MAP.md), [the HTTP surface](../../TAB32-API-SURFACE.md), [the domain model](../../TAB32-DOMAIN-MODEL.md) and [the status vocabularies](../../TAB32-STATUS-VOCABULARIES.md). Where an observation is silent, this section says so rather than filling the gap from plausibility.
+The authenticated observation pass produced requirements, not a description of the incumbent's internals. Everything below is a derived requirement: the observation is stated as the basis, and the decision that follows from it is ours. Observations come from [the authenticated surface map](../../REFERENCE-WORKFLOW-MAP.md), [the HTTP surface](../../REFERENCE-API-OBSERVATIONS.md), [the domain model](../../REFERENCE-DOMAIN-OBSERVATIONS.md) and [the status vocabularies](../../REFERENCE-STATE-VOCABULARIES.md). Where an observation is silent, this section says so rather than filling the gap from plausibility.
 
 Observation was read-only. No transaction was executed, and no record was created, edited, saved, submitted, posted or exported while producing it. Transition guards, role enforcement and error semantics are therefore unobserved here and are listed as such at the end of this section.
 
@@ -284,7 +284,7 @@ Plan: validate workflows and vendor/device constraints; approve contracts/securi
 
 Sources and observation scope: [research ledger](../../RESEARCH.md).
 
-Detailed observed/untested boundaries and the remaining instrumented-analysis gate: [Tab32 analysis coverage](../../TAB32-ANALYSIS-COVERAGE.md). Visible payment-plan lifecycle states require separate signature, schedule, collection and closure facts in our model. Statements require a versioned balance snapshot, service-date/cutoff basis, freshness indication and distinct generation/delivery/print events. These are proposed requirements derived from UI observation, not verified Tab32 transaction semantics.
+Detailed observed/untested boundaries and the remaining instrumented-analysis gate: [Tab32 analysis coverage](../../WORKFLOW-RESEARCH-COVERAGE.md). Visible payment-plan lifecycle states require separate signature, schedule, collection and closure facts in our model. Statements require a versioned balance snapshot, service-date/cutoff basis, freshness indication and distinct generation/delivery/print events. These are proposed requirements derived from UI observation, not verified Tab32 transaction semantics.
 
 
 

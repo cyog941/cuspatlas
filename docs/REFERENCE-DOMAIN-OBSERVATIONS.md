@@ -1,6 +1,6 @@
 ﻿# Tab32 domain model observations
 
-Status: read-only observation, 2026-11-03 evening ET. Same authenticated session and boundaries as [TAB32-AUTHENTICATED-MAP.md](TAB32-AUTHENTICATED-MAP.md). No patient, staff or account names are recorded below; entity types, column names and control labels only.
+Status: read-only observation, 2026-11-03 evening ET. Same authenticated session and boundaries as [REFERENCE-WORKFLOW-MAP.md](REFERENCE-WORKFLOW-MAP.md). No patient, staff or account names are recorded below; entity types, column names and control labels only.
 
 ## Auditable entity taxonomy
 
@@ -60,7 +60,7 @@ Two of these matter disproportionately:
 ## Boundaries
 
 - Entity names are observed configuration labels. They indicate what the vendor audits; they do not establish field-level schema, cardinality or referential rules.
-- No lifecycle transition was executed. Payment-plan worklist labels were seen in an earlier pass but the status vocabulary was not enumerated; the claim status vocabulary was not enumerated. Both remain gaps. The appointment status vocabulary is enumerated separately in [TAB32-STATUS-VOCABULARIES.md](TAB32-STATUS-VOCABULARIES.md).
+- No lifecycle transition was executed. Payment-plan worklist labels were seen in an earlier pass but the status vocabulary was not enumerated; the claim status vocabulary was not enumerated. Both remain gaps. The appointment status vocabulary is enumerated separately in [REFERENCE-STATE-VOCABULARIES.md](REFERENCE-STATE-VOCABULARIES.md).
 - Role and permission enforcement remains untested; the actor selector observed is a user list, not a role matrix.
 
 

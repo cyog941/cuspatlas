@@ -2,7 +2,7 @@
 
 Status: planning artifact, 2026-11-03. No vendor has been contacted, no contract exists, no sandbox has been accessed and no integration is available or agreed. Every row is a qualification requirement with an accountable role and an unresolved gate. This document does not select vendors, does not record prices and is not a security or compliance certification.
 
-Companion documents: [capability matrix](CAPABILITIES.md), [security and readiness](SECURITY-AND-READINESS.md), [roadmap](ROADMAP.md), [research ledger](RESEARCH.md), [analysis coverage](TAB32-ANALYSIS-COVERAGE.md), [product design](superpowers/specs/2026-11-03-dental-pms-design.md). The handoff requiring this matrix is [DEEPSEEK-HANDOFF](DEEPSEEK-HANDOFF.md), item 6.
+Companion documents: [capability matrix](CAPABILITIES.md), [security and readiness](SECURITY-AND-READINESS.md), [roadmap](ROADMAP.md), [research ledger](RESEARCH.md), [analysis coverage](WORKFLOW-RESEARCH-COVERAGE.md), [product design](superpowers/specs/2026-11-03-dental-pms-design.md). The handoff requiring this matrix is [DEEPSEEK-HANDOFF](DEEPSEEK-HANDOFF.md), item 6.
 
 ## 1. How to read this document
 
@@ -51,7 +51,7 @@ Each table holds one integration class. Columns match the handoff requirement ex
 
 ### 3.1 Clearinghouse: claim submission, status, ERA/EOB
 
-Basis: the incumbent exposes claim management, assigned appeals, claim history, EOB and documents actions, a CSV export, denial-code and appeal-status endpoints, and separate claim and appeal navigation ([analysis coverage](TAB32-ANALYSIS-COVERAGE.md), [authenticated map](TAB32-AUTHENTICATED-MAP.md)). Those observations establish that claims are a distinct lifecycle with worklists. They establish nothing about what a clearinghouse or payer requires of us. No claim was submitted, rejected, corrected or reconciled. Spikes: billing plan D2; Tasks 6, 7.
+Basis: the incumbent exposes claim management, assigned appeals, claim history, EOB and documents actions, a CSV export, denial-code and appeal-status endpoints, and separate claim and appeal navigation ([analysis coverage](WORKFLOW-RESEARCH-COVERAGE.md), [authenticated map](REFERENCE-WORKFLOW-MAP.md)). Those observations establish that claims are a distinct lifecycle with worklists. They establish nothing about what a clearinghouse or payer requires of us. No claim was submitted, rejected, corrected or reconciled. Spikes: billing plan D2; Tasks 6, 7.
 
 | Requirement | Interface type | What we must obtain | Sandbox or test availability | Cost model | Contractual and data-processing constraints | Accountable owner | Fallback if unavailable | Pilot necessity | Gate status |
 |---|---|---|---|---|---|---|---|---|---|
@@ -63,7 +63,7 @@ Basis: the incumbent exposes claim management, assigned appeals, claim history, 
 
 ### 3.2 Eligibility and real-time benefit verification
 
-Basis: the derived requirements from the authenticated surface map record eligibility as a distinct action, and insurance as carrier, plan and patient coverage ([authenticated map](TAB32-AUTHENTICATED-MAP.md), [domain model](TAB32-DOMAIN-MODEL.md)). The capability matrix requires recorded eligibility provenance and forbids presenting coverage as a guarantee. Spike: billing plan D3; Task 5. Decision dependency: clinical plan D7.
+Basis: the derived requirements from the authenticated surface map record eligibility as a distinct action, and insurance as carrier, plan and patient coverage ([authenticated map](REFERENCE-WORKFLOW-MAP.md), [domain model](REFERENCE-DOMAIN-OBSERVATIONS.md)). The capability matrix requires recorded eligibility provenance and forbids presenting coverage as a guarantee. Spike: billing plan D3; Task 5. Decision dependency: clinical plan D7.
 
 | Requirement | Interface type | What we must obtain | Sandbox or test availability | Cost model | Contractual and data-processing constraints | Accountable owner | Fallback if unavailable | Pilot necessity | Gate status |
 |---|---|---|---|---|---|---|---|---|---|
@@ -74,7 +74,7 @@ Basis: the derived requirements from the authenticated surface map record eligib
 
 ### 3.3 E-prescribing, including controlled substances (EPCS)
 
-Basis: the incumbent exposes a prescribing-and-benefits account endpoint whose path carries a named third-party account ([API surface](TAB32-API-SURFACE.md)). No prescribing screen was opened, no partner, role, identity-proofing or controlled-substance behavior was observed ([analysis coverage](TAB32-ANALYSIS-COVERAGE.md)). The design states that e-prescribing and EPCS are integration-dependent but a hard cutover blocker where the pilot's workflow requires them, and must never be silently omitted ([design](superpowers/specs/2026-11-03-dental-pms-design.md)).
+Basis: the incumbent exposes a prescribing-and-benefits account endpoint whose path carries a named third-party account ([API surface](REFERENCE-API-OBSERVATIONS.md)). No prescribing screen was opened, no partner, role, identity-proofing or controlled-substance behavior was observed ([analysis coverage](WORKFLOW-RESEARCH-COVERAGE.md)). The design states that e-prescribing and EPCS are integration-dependent but a hard cutover blocker where the pilot's workflow requires them, and must never be silently omitted ([design](superpowers/specs/2026-11-03-dental-pms-design.md)).
 
 An EPCS verification identity was observed in the incumbent's user list during the authenticated session. That is a reported live observation from the project owner: the exact label, the authority it represents, its permissions, and whether it implies an active EPCS enrollment for the practice were not captured, and the observation is not yet recorded in the research ledger. It is motivation and a probe target, not evidence that any partner, identity-proofing step or workflow exists for us. No credential, token or personal identifier is recorded here. Gate ERX-04 exists to record it properly.
 
@@ -90,7 +90,7 @@ No discovery spike in the six implementation plans covers prescribing or EPCS. T
 
 ### 3.4 Payments: card-not-present, card-on-file, payment plans and auto-pay
 
-Basis: payment-plan management was observed with plan columns including authorization, installment, balance, overdue, card expiry, status and auto-pay, plus status worklists and summary tiles ([domain model](TAB32-DOMAIN-MODEL.md), [analysis coverage](TAB32-ANALYSIS-COVERAGE.md)). A payment gateway configuration entry exists in clinic setup. Card expiry is visible as a first-class column, which makes an expired card an operational work queue rather than an exception. Whether card data is stored or tokenized was not observed, and nothing was posted. Spike: billing plan D1; Tasks 2, 3, 7, 9.
+Basis: payment-plan management was observed with plan columns including authorization, installment, balance, overdue, card expiry, status and auto-pay, plus status worklists and summary tiles ([domain model](REFERENCE-DOMAIN-OBSERVATIONS.md), [analysis coverage](WORKFLOW-RESEARCH-COVERAGE.md)). A payment gateway configuration entry exists in clinic setup. Card expiry is visible as a first-class column, which makes an expired card an operational work queue rather than an exception. Whether card data is stored or tokenized was not observed, and nothing was posted. Spike: billing plan D1; Tasks 2, 3, 7, 9.
 
 | Requirement | Interface type | What we must obtain | Sandbox or test availability | Cost model | Contractual and data-processing constraints | Accountable owner | Fallback if unavailable | Pilot necessity | Gate status |
 |---|---|---|---|---|---|---|---|---|---|
@@ -104,7 +104,7 @@ Basis: payment-plan management was observed with plan columns including authoriz
 
 ### 3.5 Patient messaging: SMS, email, telephony and call forwarding
 
-Basis: the incumbent exposes a call-and-text profile section with a call-forwarding number field, an appointment-level service selector and unread-count and messaging endpoints, and the observed new-appointment form opened with an email-or-text notification control checked by default ([authenticated map](TAB32-AUTHENTICATED-MAP.md), [research ledger](RESEARCH.md)). Dispatch, consent, opt-out, delivery and retry behavior are unobserved. Spikes: portal plan D1 and D2; scheduling plan D5 and Task 2.
+Basis: the incumbent exposes a call-and-text profile section with a call-forwarding number field, an appointment-level service selector and unread-count and messaging endpoints, and the observed new-appointment form opened with an email-or-text notification control checked by default ([authenticated map](REFERENCE-WORKFLOW-MAP.md), [research ledger](RESEARCH.md)). Dispatch, consent, opt-out, delivery and retry behavior are unobserved. Spikes: portal plan D1 and D2; scheduling plan D5 and Task 2.
 
 | Requirement | Interface type | What we must obtain | Sandbox or test availability | Cost model | Contractual and data-processing constraints | Accountable owner | Fallback if unavailable | Pilot necessity | Gate status |
 |---|---|---|---|---|---|---|---|---|---|
@@ -116,7 +116,7 @@ Basis: the incumbent exposes a call-and-text profile section with a call-forward
 
 ### 3.6 Imaging hardware and device bridges
 
-Basis: only an Imaging Studio menu label, an imaging endpoint carrying patient identifiers with indexed and failed counts and a machine identifier, and an audited x-ray entity were observed. Patient matching, mounts, import, annotation, acquisition and hardware compatibility are unobserved ([analysis coverage](TAB32-ANALYSIS-COVERAGE.md)). The design permits import plus a validated acquisition-software bridge and does not require direct sensor acquisition. Spikes: imaging plan D1, D2, D3; Task 6.
+Basis: only an Imaging Studio menu label, an imaging endpoint carrying patient identifiers with indexed and failed counts and a machine identifier, and an audited x-ray entity were observed. Patient matching, mounts, import, annotation, acquisition and hardware compatibility are unobserved ([analysis coverage](WORKFLOW-RESEARCH-COVERAGE.md)). The design permits import plus a validated acquisition-software bridge and does not require direct sensor acquisition. Spikes: imaging plan D1, D2, D3; Task 6.
 
 | Requirement | Interface type | What we must obtain | Sandbox or test availability | Cost model | Contractual and data-processing constraints | Accountable owner | Fallback if unavailable | Pilot necessity | Gate status |
 |---|---|---|---|---|---|---|---|---|---|
@@ -139,7 +139,7 @@ Basis: a Lab Slip pane exists inside the appointment dialog, a lab section exist
 
 ### 3.8 Referral exchange with external providers
 
-Basis: referral source and specialty referral overlays exist as menu entries with no URL, plus a patient referral report. No referral package, transmission or return was observed ([authenticated map](TAB32-AUTHENTICATED-MAP.md)). Spike: clinical plan D10 and Task 4; Task 17.
+Basis: referral source and specialty referral overlays exist as menu entries with no URL, plus a patient referral report. No referral package, transmission or return was observed ([authenticated map](REFERENCE-WORKFLOW-MAP.md)). Spike: clinical plan D10 and Task 4; Task 17.
 
 | Requirement | Interface type | What we must obtain | Sandbox or test availability | Cost model | Contractual and data-processing constraints | Accountable owner | Fallback if unavailable | Pilot necessity | Gate status |
 |---|---|---|---|---|---|---|---|---|---|
@@ -161,7 +161,7 @@ Basis: note templates carry CDT code associations and the incumbent treats a cod
 
 ### 3.10 Migration and export from an incumbent
 
-Basis: a Migration category exists in the patient report catalog and a CSV export control exists on claims. No export was run and no vendor-approved bulk export is known ([analysis coverage](TAB32-ANALYSIS-COVERAGE.md)). The design requires practice-authorized exports or documented APIs with verified rights, a reconciled active-record import, and a read-only integrity-checked archive for history that will not export. Spikes: migration plan D1, D2, D3; Tasks 2, 7, 8.
+Basis: a Migration category exists in the patient report catalog and a CSV export control exists on claims. No export was run and no vendor-approved bulk export is known ([analysis coverage](WORKFLOW-RESEARCH-COVERAGE.md)). The design requires practice-authorized exports or documented APIs with verified rights, a reconciled active-record import, and a read-only integrity-checked archive for history that will not export. Spikes: migration plan D1, D2, D3; Tasks 2, 7, 8.
 
 | Requirement | Interface type | What we must obtain | Sandbox or test availability | Cost model | Contractual and data-processing constraints | Accountable owner | Fallback if unavailable | Pilot necessity | Gate status |
 |---|---|---|---|---|---|---|---|---|---|
@@ -249,7 +249,7 @@ Do not label a messaging, hosting or network vendor a mere conduit, and do not l
 
 ### 5.5 Places PHI leaks without anyone deciding to disclose it
 
-URLs, object paths, file names, log fields, error text, message bodies, notification previews, calendar and email subjects, support screenshots, browser history and test fixtures. Each adapter needs a stated redaction rule and a test that the rule is enforced. The observed incumbent convention of carrying a session token in the URL path is exactly the pattern our own API must not repeat ([API surface](TAB32-API-SURFACE.md)).
+URLs, object paths, file names, log fields, error text, message bodies, notification previews, calendar and email subjects, support screenshots, browser history and test fixtures. Each adapter needs a stated redaction rule and a test that the rule is enforced. The observed incumbent convention of carrying a session token in the URL path is exactly the pattern our own API must not repeat ([API surface](REFERENCE-API-OBSERVATIONS.md)).
 
 ### 5.6 Vendor support access
 

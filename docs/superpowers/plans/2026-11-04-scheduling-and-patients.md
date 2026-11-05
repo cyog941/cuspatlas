@@ -8,7 +8,7 @@
 
 **Tech Stack:** The foundation stack only: supported Node LTS, TypeScript, Fastify, PostgreSQL/Supabase, JSON Schema/OpenAPI, Vitest with SQL integration tests. This plan introduces no additional runtime, queue vendor or messaging vendor.
 
-**Spec:** [Product design](../specs/2026-11-03-dental-pms-design.md), [capability matrix](../../CAPABILITIES.md), [API and MCP contract](../../API-AND-MCP.md), [status vocabularies](../../TAB32-STATUS-VOCABULARIES.md), [domain-model observations](../../TAB32-DOMAIN-MODEL.md).
+**Spec:** [Product design](../specs/2026-11-03-dental-pms-design.md), [capability matrix](../../CAPABILITIES.md), [API and MCP contract](../../API-AND-MCP.md), [status vocabularies](../../REFERENCE-STATE-VOCABULARIES.md), [domain-model observations](../../REFERENCE-DOMAIN-OBSERVATIONS.md).
 
 **Depends on:** [platform foundation](2026-11-03-platform-foundation.md) Tasks 1-8, especially transactional policy (2), versioned contracts (3), atomic audit and outbox (4), idempotency (5) and the durable worker with fresh authorization (6).
 
@@ -33,7 +33,7 @@ Consume [PT-01–06 and UX-01–03](../../PRACTICE-TIME-AND-AUTOMATION.md) in th
 
 ## Evidence gate before executing this plan
 
-Consult [Tab32 analysis coverage](../../TAB32-ANALYSIS-COVERAGE.md). Appointment entry was inspected as an empty form; saved conflict behaviour, transition guards, recurrence exceptions, rescheduling history, waitlist semantics and recall rules were not tested. The observed status vocabulary mixes lifecycle, physical presence, clinical completion, financial completion and exception into one field, which is why this plan splits them. Pseudo-operatories with state-like labels demonstrate a model that required every appointment to occupy a room; this plan removes that requirement instead of reproducing the workaround.
+Consult [Tab32 analysis coverage](../../WORKFLOW-RESEARCH-COVERAGE.md). Appointment entry was inspected as an empty form; saved conflict behaviour, transition guards, recurrence exceptions, rescheduling history, waitlist semantics and recall rules were not tested. The observed status vocabulary mixes lifecycle, physical presence, clinical completion, financial completion and exception into one field, which is why this plan splits them. Pseudo-operatories with state-like labels demonstrate a model that required every appointment to occupy a room; this plan removes that requirement instead of reproducing the workaround.
 
 Observed labels are prompts, not semantics. Before implementation, the spikes in Tasks 1-3 must replace each inferred rule with a recorded decision or an explicit unknown. Transaction behaviour is verified in a sandbox or synthetic environment only; no production appointment is created, moved or cancelled to test behaviour.
 

@@ -2,7 +2,7 @@
 
 Status: planning artifact, 2026-11-03. Derived from the read-only authenticated observation of the incumbent on 2026-11-03 evening ET, plus proposals owned by the workstream plans. Nothing here is implemented, tested or authorized. No patient, staff, provider, carrier or location names, balances, tokens or record values appear; entity, state and control labels only.
 
-This is the consolidated matrix the handoff's "Required final package" asks for. No existing document provides it: [CAPABILITIES.md](CAPABILITIES.md) defines scope, [TAB32-ANALYSIS-COVERAGE.md](TAB32-ANALYSIS-COVERAGE.md) defines evidence, [ROADMAP.md](ROADMAP.md) defines sequence and the plans define tasks, but nothing joins a workflow to its owner, its states and its permission defaults. This file does that and does not change any of them.
+This is the consolidated matrix the handoff's "Required final package" asks for. No existing document provides it: [CAPABILITIES.md](CAPABILITIES.md) defines scope, [WORKFLOW-RESEARCH-COVERAGE.md](WORKFLOW-RESEARCH-COVERAGE.md) defines evidence, [ROADMAP.md](ROADMAP.md) defines sequence and the plans define tasks, but nothing joins a workflow to its owner, its states and its permission defaults. This file does that and does not change any of them.
 
 ## How to read this document
 
@@ -33,7 +33,7 @@ Every state transition set in Part 2 is designed. Part 2's Source column records
 | portal | [portal and communications](superpowers/plans/2026-11-04-portal-and-communications.md) |
 | migration | [migration and operations](superpowers/plans/2026-11-04-migration-and-operations.md) |
 
-The evidence base for every status below is [TAB32-ANALYSIS-COVERAGE.md](TAB32-ANALYSIS-COVERAGE.md), [TAB32-AUTHENTICATED-MAP.md](TAB32-AUTHENTICATED-MAP.md), [TAB32-DOMAIN-MODEL.md](TAB32-DOMAIN-MODEL.md), [TAB32-STATUS-VOCABULARIES.md](TAB32-STATUS-VOCABULARIES.md) and [TAB32-API-SURFACE.md](TAB32-API-SURFACE.md). A status here never upgrades the coverage ledger's claim.
+The evidence base for every status below is [WORKFLOW-RESEARCH-COVERAGE.md](WORKFLOW-RESEARCH-COVERAGE.md), [REFERENCE-WORKFLOW-MAP.md](REFERENCE-WORKFLOW-MAP.md), [REFERENCE-DOMAIN-OBSERVATIONS.md](REFERENCE-DOMAIN-OBSERVATIONS.md), [REFERENCE-STATE-VOCABULARIES.md](REFERENCE-STATE-VOCABULARIES.md) and [REFERENCE-API-OBSERVATIONS.md](REFERENCE-API-OBSERVATIONS.md). A status here never upgrades the coverage ledger's claim.
 
 ---
 

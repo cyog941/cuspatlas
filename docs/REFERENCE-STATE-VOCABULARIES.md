@@ -1,6 +1,6 @@
 ﻿# Tab32 state vocabularies and appointment form
 
-Status: read-only observation, 2026-11-03 evening ET. Same session and boundaries as [TAB32-AUTHENTICATED-MAP.md](TAB32-AUTHENTICATED-MAP.md). Configuration vocabularies only; no patient, staff or provider names are recorded.
+Status: read-only observation, 2026-11-03 evening ET. Same session and boundaries as [REFERENCE-WORKFLOW-MAP.md](REFERENCE-WORKFLOW-MAP.md). Configuration vocabularies only; no patient, staff or provider names are recorded.
 
 ## Appointment status vocabulary
 

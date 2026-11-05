@@ -8,7 +8,7 @@
 
 **Tech Stack:** Inherits the platform foundation: supported Node LTS, TypeScript, Fastify, PostgreSQL/Supabase, JSON Schema/OpenAPI, Vitest and SQL integration tests. Messaging and telephony providers sit behind adapter ports with synthetic implementations; no provider SDK client lands before its spike closes. No PHI appears in a channel notification payload.
 
-**Spec:** [Product design](../specs/2026-11-03-dental-pms-design.md), [capability matrix](../../CAPABILITIES.md), [API contract](../../API-AND-MCP.md), [security gates](../../SECURITY-AND-READINESS.md), [observed request and notification surfaces](../../TAB32-STATUS-VOCABULARIES.md).
+**Spec:** [Product design](../specs/2026-11-03-dental-pms-design.md), [capability matrix](../../CAPABILITIES.md), [API contract](../../API-AND-MCP.md), [security gates](../../SECURITY-AND-READINESS.md), [observed request and notification surfaces](../../REFERENCE-STATE-VOCABULARIES.md).
 
 **Task numbering:** this plan's prefix is `E`. Implementation tasks are `E1`–`E9`, discovery spikes are `E-S1`–`E-S3`, and open decisions are `E-D1`–`E-D8`. A cross-workstream reference names the fully qualified task: `F` is [platform foundation](2026-11-03-platform-foundation.md), `S` is [patients and scheduling](2026-11-04-scheduling-and-patients.md), `C` is [clinical record](2026-11-04-clinical-record.md), `B` billing, `I` imaging, `M` migration. Spikes have owners, sit in the dependency graph and can block a task. `Blocks` is derived from `Dependencies` and is never maintained as a second list.
 
@@ -35,7 +35,7 @@ Apply [CN-01–05](../../OPEN-PLATFORM-AND-ONBOARDING.md) to this workstream's p
 
 ## Research gate before executing this plan
 
-[Tab32 analysis coverage](../../TAB32-ANALYSIS-COVERAGE.md) records appointment requests as a surface separate from appointments and a checkout-triggered survey configuration, and [RESEARCH](../../RESEARCH.md) records that the observed new-appointment form had an email/text notification control checked by default. Those observations establish that notification choice must be explicit; they do not establish consent behavior, opt-out handling, delivery semantics or portal scope.
+[Tab32 analysis coverage](../../WORKFLOW-RESEARCH-COVERAGE.md) records appointment requests as a surface separate from appointments and a checkout-triggered survey configuration, and [RESEARCH](../../RESEARCH.md) records that the observed new-appointment form had an email/text notification control checked by default. Those observations establish that notification choice must be explicit; they do not establish consent behavior, opt-out handling, delivery semantics or portal scope.
 
 The design and capability matrix already require that a booking does not send an unexpected message and that opt-out and quiet-hour policy are enforced. Treat those as our requirements. Any statement about how the incumbent enforces them remains unverified.
 

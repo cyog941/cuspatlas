@@ -8,6 +8,7 @@ export * from './communications/suppression';
 export * from './digests';
 export * from './export';
 export * from './intake/forms';
+export * from './messaging/reply-due';
 export * from './messaging/threads';
 export * from './portal/access';
 export * from './portal/offers';

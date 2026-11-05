@@ -9,6 +9,7 @@ export * from './clinical-notes';
 export * from './context';
 export * from './engagement';
 export * from './imaging';
+export * from './list-envelope';
 export * from './money';
 export * from './patient';
 export * from './ports';

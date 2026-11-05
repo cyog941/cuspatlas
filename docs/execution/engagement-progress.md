@@ -292,6 +292,26 @@ Blocked: E-S1 (real messaging provider, receipts semantics, webhook signing, SMS
 
 Honest status: workstream E backend is implemented and tested on synthetic data only, against fakes, on one Windows host. It is not reviewed by legal, compliance, clinical, privacy or security owners, not deployed, not compliant and not clinically validated, and it is not production-ready.
 
+## E10 (needs-reply messaging queue, OR-08)
+
+Status: implemented and tested on synthetic data. Decision OR-D4 is accepted by the user (default reply-due 1 business day for portal messages, configurable per staff queue). Not clinically validated; no UI.
+
+Files: `supabase/migrations/20261127100000_needs_reply_queue.sql`, `packages/domain/src/engagement/messaging/threads.ts` (list, policy, escalation, read receipts), `packages/domain/src/engagement/messaging/reply-due.ts` (+ unit test), `packages/contracts/src/list-envelope.ts`, E10 definitions in `engagement.schema.json` (`ThreadListQuery`, `ThreadList`, `ReplyPolicySet`, `ListScope`, `ListOrdering`, `ListCount`), two operations (`messaging.threads.list`, `messaging.replyPolicy.set`), `tests/integration/needs-reply-queue.test.ts` (7 tests) and two rows in the engagement negative harness.
+
+Design.
+
+- `needs_reply` is the existing E5 predicate (thread open and awaiting the practice). The `message_awaiting_reply` work item and the list read the same rows, so there is no second mechanism and no new lifecycle state. The worklist now takes its due time from the queue policy.
+- Reply-due time: `last_message_at` plus the queue's business days (`messaging_reply_policies`; no row means 1). A business day is Monday to Friday in the thread location's IANA zone, wall-clock time preserved across DST; a Saturday message is due Monday at the same local time. The scheduling module has no location holiday or closure calendar yet, so there is none to consult; when one exists it replaces the weekday test in `reply-due.ts` only.
+- Escalation (chosen: derived at read, fact recorded idempotently, no worker): every list or worklist read first inserts one `thread_reply_escalations` row per overdue visible thread, keyed by (thread, unanswered portal message) with `ON CONFLICT DO NOTHING`, then audits the insert. Exactly one per unanswered episode however many readers; a reply and a later portal message start a new episode. An escalated item moves to the `practice_manager` queue in the work item and is flagged `escalatedAt` in the list. Consequence to note: an unread queue is escalated only when somebody (or an agent) reads it; a worker that polls the worklist would add timeliness without changing the semantics. A location-restricted reader escalates only its own locations.
+- Unread: a `thread_read_receipts` fact per (thread, staff principal) holding the creation time of the newest message read; unread means a portal message newer than the reader's receipt. Opening a thread (`messaging.threads.read`) and posting a reply mark it read for that principal only. RLS lets the app role see and write only its own receipts. No content is stored.
+- List: `GET /v1/messaging/threads?filter=all|unread|needs_reply&queue=&assigneeRef=&limit=&cursor=` (MCP `messaging_threads_list`). Default filter `all`, limit 50 (max 100), opaque offset cursor. Ordering: `needs_reply` oldest first (`lastMessageAt` asc), others newest first, tie-break `threadRef`. Counts per filter (`all`, `unread`, `needs_reply`) follow the same scope and queue/assignee filters. Assignment is the existing E5 `messaging.threads.assign`. Scope: a location-restricted member sees, counts and escalates only its locations.
+- Policy: `POST /v1/messaging/reply-policies` (MCP `messaging_reply_policy_set`), `admin.configure`, human only, 1 to 30 business days.
+- `ListEnvelope` (OR-01) did not exist, so it is defined in `packages/contracts/src/list-envelope.ts` exactly per OR-01 (`asOf`, `appliedFilters`, `scope`, `limit`, `truncated`, `nextCursor`, `ordering`, `count` as `{exact}`/`{atLeast}`). A20 adopts it as the shared contract (move it into the shared schema and add the catalog-wide conformance test). `messaging.threads.worklist` still returns the S work-item list and is not yet on the envelope (A20 owns that conformance).
+
+Tests: portal message creates one item with a due time that matches the work item; staff reply clears it; overdue escalates once (repeat reads, worklist and MCP) and a new episode escalates again; per-queue policy changes the due time; unread counts isolated per staff member; location-restricted scope for list, counts and escalation; envelope for empty, truncated and cursor pages; marker hygiene across the new tables, audit, outbox, attempts, idempotency, sensitive-read events and logs.
+
+Open items: practice confirmation of the weekday definition and of escalation to the practice manager queue; no holiday calendar; the escalation depends on a reader or worker polling; unread filter counts closed threads with unread portal messages.
+
 ## Pending decisions
 
 | Decision | Recommendation implemented (pending approval) | Settles it |
@@ -315,7 +335,7 @@ Honest status: workstream E backend is implemented and tested on synthetic data 
 | Stale and closed subjects at send | a reminder whose visit has started is `subject_past`; a decided or expired offer is `offer_closed` | compliance review |
 | E4 intake content and import | synthetic forms `pending_clinical_review`; preferred name, pronouns and language proposable; applied through S4 by staff review | clinical reviewer and privacy reviewer |
 | E4 medical history | held by payload reference for C8, never written by E | C8 owner and clinical reviewer |
-| E5 messaging policy | queues by topic; 24 h reply target; thread bodies readable by human staff only (service principals denied by default; a per-tenant agent-access policy is NOT implemented) | practice policy and security owner |
+| E5 messaging policy | queues by topic; reply target per queue policy (E10, default 1 business day); thread bodies readable by human staff only (service principals denied by default; a per-tenant agent-access policy is NOT implemented) | practice policy and security owner |
 | E-D5 message retention | policy data with no period (never eligible); legal-hold placeholder; nothing deletes | legal review |
 | E8 telephony | synthetic 555-01xx numbers; recording off and refused; caller kept as digest plus last four; links by person only | E-S2, legal (recording consent) and privacy review |
 | E9 export | full E content (including message bodies and answers) for a tenant-wide human administrator who also holds `messaging.read`, `patients.read` and `communications.read`; one sensitive-read entry per table with count and refs | M1 export contract and privacy review |

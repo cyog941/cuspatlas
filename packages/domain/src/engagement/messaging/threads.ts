@@ -1,15 +1,19 @@
+import { randomUUID } from 'node:crypto';
 import {
   type ActorContext,
   assertValid,
   type CommandEnvelope,
   ENGAGEMENT_PROPERTIES,
+  listEnvelope,
   RefusalError,
   type TenantTransaction,
   validateEmptyQuery,
   validateMessagePost,
+  validateReplyPolicySet,
   validateThreadAssign,
   validateThreadClose,
   validateThreadLegalHold,
+  validateThreadListQuery,
   validateThreadOpen,
 } from '@cuspatlas/contracts';
 import { executeOnce } from '../../commands/execute-once';
@@ -30,6 +34,7 @@ import {
 import { decideSuppression } from '../communications/suppression';
 import { requirePortalAccess } from '../portal/access';
 import { boundMessages, boundThreads, lockForBounds, recordLimited } from '../portal/bounds';
+import { addBusinessDays } from './reply-due';
 
 /**
  * E5 secure messaging. Threads belong to one patient and one location and are worked by a staff
@@ -66,8 +71,145 @@ const WORK_QUEUE = {
   billing: 'practice_manager',
   clinical_team: 'practice_manager',
 } as const;
-/** Proposed reply target while a thread awaits the practice (pending practice policy). */
-const REPLY_HOURS = 24;
+/**
+ * E10 / OR-D4: the reply-due time of a thread awaiting the practice is a per-queue policy in business
+ * days (messaging_reply_policies); a queue with no row uses this default.
+ */
+export const DEFAULT_REPLY_DUE_BUSINESS_DAYS = 1;
+type ThreadQueue = 'front_desk' | 'billing' | 'clinical_team';
+const THREAD_QUEUES: readonly ThreadQueue[] = ['front_desk', 'billing', 'clinical_team'];
+const PAGE_DEFAULT = 50;
+const ESCALATION_QUEUE = 'practice_manager';
+
+type PolicyMap = Readonly<
+  Record<ThreadQueue, { replyDueBusinessDays: number; source: 'default' | 'configured' }>
+>;
+
+async function loadPolicies(tx: TenantTransaction): Promise<PolicyMap> {
+  const { rows } = await tx.query<{ queue: ThreadQueue; reply_due_business_days: number }>(
+    'SELECT queue, reply_due_business_days FROM cuspatlas.messaging_reply_policies',
+  );
+  const out = Object.fromEntries(
+    THREAD_QUEUES.map((q) => [
+      q,
+      { replyDueBusinessDays: DEFAULT_REPLY_DUE_BUSINESS_DAYS, source: 'default' as const },
+    ]),
+  ) as Record<ThreadQueue, { replyDueBusinessDays: number; source: 'default' | 'configured' }>;
+  for (const r of rows)
+    out[r.queue] = { replyDueBusinessDays: r.reply_due_business_days, source: 'configured' };
+  return out;
+}
+
+const replyDueAt = (lastMessageAt: Date, queue: ThreadQueue, zone: string, policies: PolicyMap) =>
+  addBusinessDays(lastMessageAt, policies[queue].replyDueBusinessDays, zone);
+
+/**
+ * The staff reader's read receipt (a fact per thread and staff principal, no content): the newest
+ * message of the thread is now read. Idempotent and monotonic.
+ */
+async function markRead(tx: TenantTransaction, threadId: string): Promise<void> {
+  await tx.query(
+    `INSERT INTO cuspatlas.thread_read_receipts (tenant_id, thread_id, principal_id, last_read_at)
+     SELECT cuspatlas.current_tenant_id(), $1::uuid, cuspatlas.current_actor_id(), max(created_at)
+     FROM cuspatlas.thread_messages WHERE thread_id = $1::uuid HAVING count(*) > 0
+     ON CONFLICT (thread_id, principal_id)
+     DO UPDATE SET last_read_at = greatest(cuspatlas.thread_read_receipts.last_read_at, EXCLUDED.last_read_at),
+       updated_at = clock_timestamp()`,
+    [threadId],
+  );
+}
+
+/**
+ * Overdue escalation, derived at read. Every read of the queue (list, worklist) first records, for each
+ * visible thread whose reply is overdue, one escalation fact keyed by (thread, unanswered portal
+ * message) with ON CONFLICT DO NOTHING, so the escalation happens exactly once per unanswered episode
+ * however many readers or retries there are, with no worker required. A reply and a later portal
+ * message start a new episode (a new key). The escalation moves the work item to the practice manager
+ * queue; it never changes the thread.
+ */
+async function escalateOverdue(
+  tx: TenantTransaction,
+  decision: AuthorizationDecision,
+  policies: PolicyMap,
+  now: Date,
+): Promise<void> {
+  const { rows } = await tx.query<{
+    id: string;
+    queue: ThreadQueue;
+    version: number;
+    last_message_at: Date;
+    time_zone: string;
+    trigger_id: string;
+  }>(
+    `SELECT t.id, t.queue, t.version, t.last_message_at, l.time_zone, lp.id AS trigger_id
+     FROM cuspatlas.message_threads t
+     JOIN cuspatlas.scheduling_locations l ON l.id = t.location_id AND l.tenant_id = t.tenant_id
+     JOIN LATERAL (SELECT m.id FROM cuspatlas.thread_messages m
+       WHERE m.thread_id = t.id AND m.author_kind = 'portal' ORDER BY m.created_at DESC, m.id DESC LIMIT 1) lp ON true
+     WHERE t.state = 'open' AND t.awaiting = 'practice' AND t.last_message_at < $2::timestamptz - interval '23 hours'
+       AND ($1::text[] IS NULL OR l.location_ref = ANY ($1::text[]))
+       AND NOT EXISTS (SELECT 1 FROM cuspatlas.thread_reply_escalations e
+         WHERE e.thread_id = t.id AND e.trigger_message_id = lp.id)
+     ORDER BY t.last_message_at, t.id LIMIT 500`,
+    [decision.locationRefs, now],
+  );
+  for (const t of rows) {
+    const due = replyDueAt(t.last_message_at, t.queue, t.time_zone, policies);
+    if (due.getTime() > now.getTime()) continue;
+    const ins = await tx.query<{ id: string }>(
+      `INSERT INTO cuspatlas.thread_reply_escalations (tenant_id, thread_id, trigger_message_id, due_at, escalated_to_queue)
+       VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4)
+       ON CONFLICT (thread_id, trigger_message_id) DO NOTHING RETURNING id`,
+      [t.id, t.trigger_id, due, ESCALATION_QUEUE],
+    );
+    if (ins.rows[0]) {
+      await recordCommand(
+        tx,
+        {
+          operation: 'messaging.threads.escalate',
+          resourceType: 'messageThread',
+          resourceRef: t.id,
+          resourceVersion: t.version,
+        },
+        { changedFields: ['escalation'] },
+      );
+    }
+  }
+}
+
+interface QueueRow extends ThreadRow {
+  time_zone: string;
+  unread: boolean;
+  needs_reply: boolean;
+  escalated_at: Date | null;
+}
+
+/** The thread set the queue reads: E5 threads plus the caller's receipt and the escalation of the episode. */
+const QUEUE_BASE = `WITH base AS (
+  SELECT t.id, t.patient_id, l.location_ref, l.time_zone, t.topic, t.queue, t.state, t.awaiting, t.assigned_to,
+    t.retention_class, t.legal_hold, t.legal_hold_reason, t.opened_via, t.close_reason, t.last_message_at, t.version,
+    t.created_at,
+    coalesce(lp.created_at > coalesce(r.last_read_at, '-infinity'::timestamptz), false) AS unread,
+    (t.state = 'open' AND t.awaiting = 'practice') AS needs_reply,
+    e.escalated_at
+  FROM cuspatlas.message_threads t
+  JOIN cuspatlas.scheduling_locations l ON l.id = t.location_id AND l.tenant_id = t.tenant_id
+  LEFT JOIN LATERAL (SELECT m.id, m.created_at FROM cuspatlas.thread_messages m
+    WHERE m.thread_id = t.id AND m.author_kind = 'portal' ORDER BY m.created_at DESC, m.id DESC LIMIT 1) lp ON true
+  LEFT JOIN cuspatlas.thread_read_receipts r
+    ON r.thread_id = t.id AND r.principal_id = cuspatlas.current_actor_id()
+  LEFT JOIN cuspatlas.thread_reply_escalations e ON e.thread_id = t.id AND e.trigger_message_id = lp.id
+  WHERE ($1::text[] IS NULL OR l.location_ref = ANY ($1::text[]))
+    AND ($2::text IS NULL OR t.queue = $2::text)
+    AND ($3::uuid IS NULL OR t.assigned_to = $3::uuid))`;
+
+function offsetOf(cursor: string | undefined): number {
+  if (cursor === undefined) return 0;
+  const m = /^o:(\d{1,6})$/.exec(Buffer.from(cursor, 'base64url').toString('utf8'));
+  if (!m) throw failedAt('/cursor', 'invalid');
+  return Number(m[1]);
+}
+const cursorOf = (offset: number) => Buffer.from(`o:${offset}`, 'utf8').toString('base64url');
 
 interface ThreadRow extends Record<string, unknown> {
   id: string;
@@ -373,6 +515,7 @@ export function createMessagingOperations(base: EngagementBase) {
               attachments: p.attachments ?? [],
             });
             const version = await touchThread(tx, op, t, { awaiting: 'patient' });
+            await markRead(tx, t.id);
             return {
               data: {
                 threadRef: t.id,
@@ -394,6 +537,7 @@ export function createMessagingOperations(base: EngagementBase) {
         return deps.withTenantTransaction(ctx, async (tx) => {
           const t = await loadThread(tx, threadRef, decision);
           const messages = await messagesOf(tx, t.id);
+          await markRead(tx, t.id);
           // Access audit of every read (who read which thread of which patient, never the content).
           await recordSensitiveRead(tx, {
             operation: op,
@@ -423,13 +567,14 @@ export function createMessagingOperations(base: EngagementBase) {
         const decision = await base.authorize(ctx, op);
         assertValid(validateEmptyQuery, query, ENGAGEMENT_PROPERTIES);
         return deps.withTenantTransaction(ctx, async (tx) => {
-          const { rows } = await tx.query<ThreadRow>(
-            `${THREAD_SELECT} WHERE t.state = 'open' AND t.awaiting = 'practice'
-               AND ($1::text[] IS NULL OR l.location_ref = ANY ($1::text[]))
-             ORDER BY t.last_message_at, t.id LIMIT 500`,
-            [decision.locationRefs],
-          );
           const now = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+          const policies = await loadPolicies(tx);
+          await escalateOverdue(tx, decision, policies, now);
+          // The needs-reply queue (E10) and this work item share one predicate: open and awaiting the practice.
+          const { rows } = await tx.query<QueueRow>(
+            `${QUEUE_BASE} SELECT * FROM base WHERE needs_reply ORDER BY last_message_at, id LIMIT 500`,
+            [decision.locationRefs, null, null],
+          );
           return workList(
             now,
             AVAILABLE,
@@ -444,15 +589,130 @@ export function createMessagingOperations(base: EngagementBase) {
                   { kind: 'messageThread', ref: t.id },
                   { kind: 'patient', ref: t.patient_id },
                 ],
-                owner: { queue: WORK_QUEUE[t.queue], principalRef: t.assigned_to },
-                dueAt: new Date(t.last_message_at.getTime() + REPLY_HOURS * 3_600_000).toISOString(),
+                owner: {
+                  queue: t.escalated_at === null ? WORK_QUEUE[t.queue] : ESCALATION_QUEUE,
+                  principalRef: t.assigned_to,
+                },
+                dueAt: replyDueAt(t.last_message_at, t.queue, t.time_zone, policies).toISOString(),
                 suggestedNextAction: t.assigned_to === null ? 'assign_then_reply' : 'reply',
                 blockingDependencies: [],
-                priorityRationale: 'reply_target_pending_practice_policy',
+                priorityRationale:
+                  t.escalated_at === null ? 'reply_due_by_queue_policy' : 'reply_overdue_escalated',
               }),
             ),
           );
         });
+      });
+    },
+
+    /**
+     * E10 / OR-08 thread list with the all, unread and needs_reply filters, counts per filter, the
+     * per-queue reply-due policy and the OR-01 envelope. Reads no message body.
+     */
+    listThreads(ctx: ActorContext, query: unknown) {
+      const op = 'messaging.threads.list';
+      return base.guarded(ctx, op, async () => {
+        const decision = await base.authorize(ctx, op);
+        assertValid(validateThreadListQuery, query, ENGAGEMENT_PROPERTIES);
+        const q = query as {
+          filter?: 'all' | 'unread' | 'needs_reply';
+          queue?: ThreadQueue;
+          assigneeRef?: string;
+          limit?: string;
+          cursor?: string;
+        };
+        const filter = q.filter ?? 'all';
+        const limit = q.limit === undefined ? PAGE_DEFAULT : Number(q.limit);
+        const offset = offsetOf(q.cursor);
+        return deps.withTenantTransaction(ctx, async (tx) => {
+          const now = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+          const policies = await loadPolicies(tx);
+          await escalateOverdue(tx, decision, policies, now);
+          const args = [decision.locationRefs, q.queue ?? null, q.assigneeRef ?? null];
+          const counts = (
+            await tx.query<{ all: string; unread: string; needs_reply: string }>(
+              `${QUEUE_BASE} SELECT count(*) AS "all", count(*) FILTER (WHERE unread) AS unread,
+                 count(*) FILTER (WHERE needs_reply) AS needs_reply FROM base`,
+              args,
+            )
+          ).rows[0];
+          const total = Number(counts?.[filter] ?? 0);
+          // needs_reply works the oldest unanswered first; the other filters show the newest activity first.
+          const direction = filter === 'needs_reply' ? 'asc' : 'desc';
+          const { rows } = await tx.query<QueueRow>(
+            `${QUEUE_BASE} SELECT * FROM base
+             WHERE ($4::text = 'all' OR ($4::text = 'unread' AND unread) OR ($4::text = 'needs_reply' AND needs_reply))
+             ORDER BY last_message_at ${direction}, id ${direction} LIMIT $5 OFFSET $6`,
+            [...args, filter, limit, offset],
+          );
+          const next = offset + rows.length < total ? cursorOf(offset + rows.length) : null;
+          return {
+            ...listEnvelope({
+              asOf: now,
+              appliedFilters: { filter, queue: q.queue ?? null, assigneeRef: q.assigneeRef ?? null },
+              locationRefs: decision.locationRefs,
+              limit,
+              nextCursor: next,
+              ordering: { key: 'lastMessageAt', direction, tieBreak: 'threadRef' },
+              total,
+            }),
+            counts: {
+              all: Number(counts?.all ?? 0),
+              unread: Number(counts?.unread ?? 0),
+              needs_reply: Number(counts?.needs_reply ?? 0),
+            },
+            policies,
+            items: rows.map((t) => {
+              const due = t.needs_reply
+                ? replyDueAt(t.last_message_at, t.queue, t.time_zone, policies)
+                : null;
+              return {
+                ...threadOut(t),
+                unread: t.unread,
+                needsReply: t.needs_reply,
+                replyDueAt: due?.toISOString() ?? null,
+                overdue: due !== null && due.getTime() <= now.getTime(),
+                escalatedAt: t.needs_reply ? (t.escalated_at?.toISOString() ?? null) : null,
+              };
+            }),
+          };
+        });
+      });
+    },
+
+    /** E10 / OR-D4: set a staff queue's reply-due time in business days. Administration. */
+    setReplyPolicy(ctx: ActorContext, envelope: CommandEnvelope<unknown>) {
+      const op = 'messaging.replyPolicy.set';
+      return base.guarded(ctx, op, async () => {
+        await base.authorize(ctx, op);
+        checkEnvelope(envelope, op);
+        assertValid(validateReplyPolicySet, envelope.payload, ENGAGEMENT_PROPERTIES);
+        const p = envelope.payload as { queue: ThreadQueue; replyDueBusinessDays: number };
+        return deps.withTenantTransaction(ctx, (tx) =>
+          execute(ctx, envelope, tx, async () => {
+            const { rows } = await tx.query<{ version: number }>(
+              `INSERT INTO cuspatlas.messaging_reply_policies (tenant_id, queue, reply_due_business_days, updated_by)
+               VALUES (cuspatlas.current_tenant_id(), $1, $2, cuspatlas.current_actor_id())
+               ON CONFLICT (tenant_id, queue) DO UPDATE SET reply_due_business_days = EXCLUDED.reply_due_business_days,
+                 version = cuspatlas.messaging_reply_policies.version + 1, updated_by = EXCLUDED.updated_by,
+                 updated_at = clock_timestamp()
+               RETURNING version`,
+              [p.queue, p.replyDueBusinessDays],
+            );
+            const version = rows[0]?.version as number;
+            await recordCommand(
+              tx,
+              {
+                operation: op,
+                resourceType: 'messagingReplyPolicy',
+                resourceRef: randomUUID(),
+                resourceVersion: version,
+              },
+              { changedFields: ['replyDue'] },
+            );
+            return { data: { queue: p.queue, replyDueBusinessDays: p.replyDueBusinessDays }, version };
+          }),
+        );
       });
     },
 

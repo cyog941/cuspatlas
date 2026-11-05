@@ -30,6 +30,7 @@ const E_OPERATIONS = [
   'messaging.threads.close',
   'messaging.threads.assign',
   'messaging.threads.hold',
+  'messaging.replyPolicy.set',
   'portal.threads.open',
   'portal.threads.post',
   'telephony.config.define',

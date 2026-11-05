@@ -445,6 +445,33 @@ export const ENGAGEMENT_OPS: readonly EngagementOp[] = [
     invoke: (svc, actor, i) =>
       svc.openStaffThread(actor, param(i, 'patientRef'), env('messaging.threads.open', i)),
   },
+  // E10 needs-reply queue (OR-08): thread list filters, counts, per-queue reply-due policy, OR-01 envelope.
+  {
+    method: 'get',
+    path: '/v1/messaging/threads',
+    operationId: 'messaging.threads.list',
+    protected: true,
+    query: 'ThreadListQuery',
+    success: { status: '200', schema: E('ThreadList') },
+    refusals: ['400', '401', '403', '503'],
+    tool: 'messaging_threads_list',
+    description:
+      'Secure-message threads filtered all, unread (per staff reader) or needs_reply (open and awaiting the practice), with counts per filter, the reply-due time and overdue escalation of each needs-reply item, queue and assignee filters, and the shared list envelope. Never returns a message body.',
+    invoke: (svc, actor, i) => data(svc.listThreads(actor, i.body)),
+  },
+  {
+    method: 'post',
+    path: '/v1/messaging/reply-policies',
+    operationId: 'messaging.replyPolicy.set',
+    protected: true,
+    requestBody: E('ReplyPolicySet'),
+    success: { status: '200', schema: E('EngagementCommandResult') },
+    refusals: COMMAND,
+    tool: 'messaging_reply_policy_set',
+    description:
+      'Set the reply-due time, in business days (Monday to Friday in the thread location zone), of one staff queue. Default is one business day. Administration; human staff only.',
+    invoke: (svc, actor, i) => svc.setReplyPolicy(actor, env('messaging.replyPolicy.set', i)),
+  },
   {
     method: 'get',
     path: '/v1/messaging/threads/worklist',

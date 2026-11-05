@@ -159,3 +159,6 @@ export interface EngagementExport {
   readonly exportedAt: string;
   readonly tables: Readonly<Record<string, readonly Record<string, unknown>[]>>;
 }
+// E10 needs-reply queue (OR-08).
+export const validateThreadListQuery = def('ThreadListQuery');
+export const validateReplyPolicySet = def('ReplyPolicySet');

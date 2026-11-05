@@ -17,7 +17,7 @@ import {
   sha256,
   tableContent,
 } from './backup';
-import { assertSyntheticDatabaseName, listMigrations, migrate } from './migrate';
+import { assertSyntheticDatabaseName, listMigrations, migrate, syncAgentMemoryRegistry } from './migrate';
 
 /**
  * Restore of a logical backup into a SEPARATE, NEW, disposable database (F Task 8, runbook E0 item 7).
@@ -317,7 +317,8 @@ export async function restoreBackup(conn: RestoreConnection, opts: RestoreOption
   try {
     await assertBypassesRls(client, 'Restore');
     // Schema, roles' grants, RLS and policies come from the reviewed migrations, not from the dump.
-    await migrate(client, { dir: opts.migrationsDir });
+    // The agent memory registry is restored from the backup like any table (not seeded here).
+    await migrate(client, { dir: opts.migrationsDir, seedRegistry: false });
 
     const schemaTables = await listSchemaTables(client);
     const backed = new Map(manifest.tables.map((t) => [t.name, t]));
@@ -350,6 +351,8 @@ export async function restoreBackup(conn: RestoreConnection, opts: RestoreOption
 
     const failures = await verifyRestoredDatabase(client, manifest);
     if (failures.length > 0) throw new RestoreVerificationError(target, failures);
+    // A backup taken before the registry existed has no rows for it: seed it from the deployed contracts.
+    if (!backed.has('agent_memory_registry')) await syncAgentMemoryRegistry(client);
     return {
       target,
       tables: manifest.tables.map((t) => ({ name: t.name, rows: t.rows })),

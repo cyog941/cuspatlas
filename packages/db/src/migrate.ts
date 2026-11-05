@@ -36,7 +36,10 @@ export function assertSyntheticDatabaseName(name: string): void {
  * Applies pending migrations in version order, each in its own transaction, under an advisory lock.
  * An already-applied migration whose file changed is an error, never silently re-applied.
  */
-export async function migrate(client: pg.ClientBase, opts: { dir: string }): Promise<{ applied: string[] }> {
+export async function migrate(
+  client: pg.ClientBase,
+  opts: { dir: string; readonly seedRegistry?: boolean },
+): Promise<{ applied: string[] }> {
   const { rows: dbRows } = await client.query<{ db: string }>('SELECT current_database() AS db');
   assertSyntheticDatabaseName(dbRows[0]?.db ?? '');
 
@@ -75,7 +78,8 @@ export async function migrate(client: pg.ClientBase, opts: { dir: string }): Pro
       }
       applied.push(`${f.version}_${f.name}`);
     }
-    await syncAgentMemoryRegistry(client);
+    // A restore loads the registry rows from its backup instead (and syncs only when the backup has none).
+    if (opts.seedRegistry !== false) await syncAgentMemoryRegistry(client);
     return { applied };
   } finally {
     await client.query('SELECT pg_advisory_unlock(7402061)');

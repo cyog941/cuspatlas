@@ -151,7 +151,10 @@ describe('Closeout D review S1: agent memory positive allowlist', () => {
       'SELECT kind, value FROM cuspatlas.agent_memory_registry ORDER BY kind COLLATE "C", value COLLATE "C"',
     );
     expect(rows).toStrictEqual(memoryRegistryRows());
-    // The runtime role reads the registry but cannot change it.
+    // The runtime role neither reads nor changes the registry (only the guard and the migrator do).
+    await expect(s.db.app.query('SELECT 1 FROM cuspatlas.agent_memory_registry')).rejects.toThrow(
+      /permission denied/,
+    );
     await expect(
       s.db.app.query("INSERT INTO cuspatlas.agent_memory_registry (kind, value) VALUES ('code', 'jane')"),
     ).rejects.toThrow(/permission denied/);

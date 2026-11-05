@@ -5310,7 +5310,7 @@
         "paid_closed",
         "all"
       ],
-      "description": "B11 / OR-07 claim work queues: predicates over the B6/B7/B8 lifecycle, never lifecycle states. Definitions in docs/api/claims-queues.md."
+      "description": "B11 / OR-07 claim work queues: predicates over the B6/B7/B8 lifecycle, never lifecycle states. to_create: posted clinical-procedure charges with coverage on no claim; ready_to_submit: state validated; attachments_needed: prepared or replaced with an attachment_* validation issue; awaiting_payer: transmitted or payer_acknowledged; returned: transport_rejected; rejected_or_denied: payer_rejected or denied; appeals: an appeal in draft, sent or send_unknown; filing_deadline_soon: not yet with the payer and the filing deadline (earliest date of service + 365 days, proposed) within filingDeadlineDays; paid_closed: paid; all: every claim."
     },
     "ClaimQueueQuery": {
       "type": "object",
@@ -5420,6 +5420,7 @@
     },
     "ClaimQueueResult": {
       "type": "object",
+      "description": "B11 / OR-07. Items are in the OR-D3 work-priority order (one global order): fewest days to the filing deadline first (no deadline last), then exceptionSeverity descending (2 for a rejected, denied or unknown-outcome claim, 1 for validation issues, 0 otherwise, plus the highest open B8 escalation level), then createdAt ascending (oldest first), then claimRef ascending as the tie-break (chargeRef for a to_create charge).",
       "additionalProperties": false,
       "required": ["data", "envelope", "vocabularies"],
       "properties": {

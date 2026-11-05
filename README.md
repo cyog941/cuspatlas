@@ -42,6 +42,10 @@ Read-only observation of Tab32 through an authenticated session. Structure and v
 - [Domain model observations](docs/TAB32-DOMAIN-MODEL.md) — auditable entity taxonomy, payment plans, scheduler
 - [State vocabularies and access control](docs/TAB32-STATUS-VOCABULARIES.md) — appointment statuses, form fields, permission matrix
 
+### Reference implementations studied
+
+- [MntOs schedule demo: interaction patterns](docs/MNTOS-PATTERN-REVIEW.md) — public demo, read-only. Patterns we want (dense appointment blocks, queue-based claim triage, persistent patient context, self-stating freshness) and the ones to adapt rather than copy. Requirements only; no screen design and no code reuse.
+
 ### Implementation plans
 
 Start execution planning with the [synthetic foundation runbook](docs/superpowers/plans/2026-11-03-foundation-execution-runbook.md), which sequences F without adding a new workstream.

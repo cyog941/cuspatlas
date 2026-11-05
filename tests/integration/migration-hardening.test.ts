@@ -522,3 +522,44 @@ describe('H2 M-7 excluded money blocks cutover until acknowledged', () => {
     );
   });
 });
+
+describe('H2 M-8 intake hygiene', () => {
+  it('refuses a NUL character with a typed 422 and stores a formula-leading value raw', async () => {
+    const nul = await h.call(
+      'a1',
+      'POST',
+      '/v1/migration/packages',
+      intakeBody(
+        profileRef,
+        legacyPackage({ patients: `${HEAD.patients}N001,Nul\u0000,Ivy,1984-04-04,5550900001,G1\n` }),
+      ),
+    );
+    expect([nul.statusCode, nul.json().detail?.reason]).toStrictEqual([422, 'nul_character']);
+    const pkg = await stage({
+      patients: `${HEAD.patients}F001,=HYPERLINK("syn"),Ivy,1984-04-04,5550900002,G1\n`,
+    });
+    const { rows } = await db.admin.query(
+      `SELECT payload->>'last_name' AS v FROM cuspatlas.migration_staged_records WHERE package_id = $1`,
+      [pkg],
+    );
+    expect(rows[0]?.v).toBe('=HYPERLINK("syn")');
+  });
+
+  it('returns an already-staged package only to the same profile and authorisation', async () => {
+    const tables = { patients: `${HEAD.patients}R001,Replay,Jo,1985-05-05,5550900003,G1\n` };
+    const first = await stage(tables);
+    const same = h.ok<{ data: { packageRef: string; alreadyStaged: boolean } }>(
+      await h.call('a1', 'POST', '/v1/migration/packages', intakeBody(profileRef, legacyPackage(tables))),
+      201,
+    ).data;
+    expect(same).toMatchObject({ packageRef: first, alreadyStaged: true });
+    const other = await h.call('a1', 'POST', '/v1/migration/packages', {
+      ...intakeBody(profileRef, legacyPackage(tables)),
+      authorisation: { reference: 'syn-auth-other-2026', practiceRef: PRACTICE },
+    });
+    expect([other.statusCode, other.json().detail?.reason]).toStrictEqual([
+      409,
+      'staged_under_other_authorisation',
+    ]);
+  });
+});

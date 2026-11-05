@@ -195,3 +195,10 @@ recommended-pending-approval). Tests in `tests/integration/migration-hardening.t
   `unacknowledged_exclusion`; cutover (domain and the DB guard) accepts an `excluded_balance`
   exception only when the approved financial sign-off of that digest names it. Catalog regenerated.
   Red 1/1 failing; green 11/11.
+- M-8 CSV hygiene: staged values stay raw; `csvExportCell`/`csvExportRow` (exported from the
+  migration module) neutralise formula-leading values (`=`, `+`, `-`, `@`, tab, CR) with a leading
+  apostrophe and quote separators for any downstream CSV export (no CSV export exists yet; consumers
+  must use it, recommended-pending-approval). Intake refuses a NUL character (`422 nul_character`)
+  before anything is read or staged, and the already-staged digest path returns the prior package
+  only to the same profile and authorisation reference (`409 staged_under_other_authorisation`);
+  authorization and the profile checks already run before that path. Red 4/4 failing; green.

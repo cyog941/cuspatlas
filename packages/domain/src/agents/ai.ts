@@ -14,6 +14,7 @@ import {
   validateAiUseCaseConfigure,
   validateAiUseCaseListQuery,
 } from '@cuspatlas/contracts';
+import { transactionNow } from '../clock';
 import { recordCommand } from '../events/record-command';
 import {
   AI_USE_CASE_REGISTRY,
@@ -426,7 +427,7 @@ export function createAiPipeline(base: AgentBase, ai: AiDeps) {
         const where = `WHERE ($1::text IS NULL OR use_case = $1) AND ($2::text IS NULL OR state = $2)
           AND ($3::uuid IS NULL OR created_by = $3)`;
         const { at, candidates } = await deps.withTenantTransaction(ctx, async (tx) => ({
-          at: (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date(),
+          at: await transactionNow(tx),
           candidates: (
             await tx.query<DraftRow>(
               `SELECT * FROM cuspatlas.ai_drafts ${where} ORDER BY created_at DESC, id DESC LIMIT $4`,
@@ -601,7 +602,7 @@ export function createAiPipeline(base: AgentBase, ai: AiDeps) {
         const decision = await base.authorize(ctx, op);
         validate<{ limit?: number; cursor?: string }>(validateAiUseCaseListQuery, query);
         return deps.withTenantTransaction(ctx, async (tx) => {
-          const at = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+          const at = await transactionNow(tx);
           const settings = new Map(
             (
               await tx.query<{ use_case: string; enabled: boolean }>(

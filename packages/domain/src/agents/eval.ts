@@ -8,6 +8,7 @@ import {
   validateAiEvaluationListQuery,
   validateAiEvaluationRun,
 } from '@cuspatlas/contracts';
+import { transactionNow } from '../clock';
 import { recordCommand } from '../events/record-command';
 import {
   AI_USE_CASE_REGISTRY,
@@ -361,7 +362,7 @@ export function createAiEvaluations(base: AgentBase, model: ModelAdapter | null)
         const pg = base.page(ctx, query);
         const useCase = query.useCase ?? null;
         return deps.withTenantTransaction(ctx, async (tx) => {
-          const at = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+          const at = await transactionNow(tx);
           const total = Number(
             (
               await tx.query<{ n: string }>(

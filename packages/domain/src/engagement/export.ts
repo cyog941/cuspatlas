@@ -8,6 +8,7 @@ import {
   RefusalError,
   validateEmptyQuery,
 } from '@cuspatlas/contracts';
+import { transactionNow } from '../clock';
 import { type ExportReadAudit, recordSensitiveRead } from '../events/record-sensitive-read';
 import type { EngagementBase } from './common';
 
@@ -48,7 +49,7 @@ export function createEngagementExportOperations(base: EngagementBase) {
             );
             tables[table] = rows[0]?.rows ?? [];
           }
-          const now = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+          const now = await transactionNow(tx);
           // One entry per table: the table name as the only query field, the true count, and the first
           // 100 record references (identifiers only; never values).
           const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;

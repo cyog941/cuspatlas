@@ -6,6 +6,7 @@ import {
   RefusalError,
   validateOperationsEmptyQuery,
 } from '@cuspatlas/contracts';
+import { transactionNow } from '../clock';
 import { recordSensitiveRead } from '../events/record-sensitive-read';
 import { OPENING_CHAIN } from '../rcm/export';
 import { failed, type MigrationBase, validate } from './base';
@@ -44,7 +45,7 @@ export function createMigrationExportOperations(base: MigrationBase) {
             );
             tables[table] = rows[0]?.rows ?? [];
           }
-          const at = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+          const at = await transactionNow(tx);
           await recordSensitiveRead(tx, {
             operation: op,
             resourceType: 'migrationExport',

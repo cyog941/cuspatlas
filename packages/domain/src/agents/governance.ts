@@ -13,6 +13,7 @@ import {
   validateAgentConsentRecord,
   validateAgentConsentRevoke,
 } from '@cuspatlas/contracts';
+import { transactionNow } from '../clock';
 import { recordDenial } from '../commands/boundary';
 import { recordCommand } from '../events/record-command';
 import { PROPOSAL_REQUIRED_FOR_AGENTS } from '../policy/authorize';
@@ -345,7 +346,7 @@ export function createAgentGovernance(base: AgentBase) {
         );
         const pg = base.page(ctx, query);
         return deps.withTenantTransaction(ctx, async (tx) => {
-          const at = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+          const at = await transactionNow(tx);
           const agent = query.agentRef ?? null;
           const total = Number(
             (

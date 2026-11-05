@@ -8,6 +8,7 @@ import {
   RefusalError,
   validateImagingExportBlobsQuery,
 } from '@cuspatlas/contracts';
+import { transactionNow } from '../clock';
 import { type ExportReadAudit, recordSensitiveRead } from '../events/record-sensitive-read';
 import { failed, type ImagingBase } from './base';
 
@@ -58,7 +59,7 @@ export function createExportOperations(base: ImagingBase) {
             `SELECT DISTINCT digest_sha256, byte_length FROM cuspatlas.imaging_objects WHERE state = 'available'
              ORDER BY digest_sha256`,
           );
-          const now = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+          const now = await transactionNow(tx);
           await recordSensitiveRead(tx, {
             operation: op,
             resourceType: audit ? 'patientExport' : 'imagingExport',

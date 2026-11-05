@@ -7,6 +7,7 @@ import {
   RefusalError,
 } from '@cuspatlas/contracts';
 import { type BillingBase, loadSettings } from '../billing/base';
+import { transactionNow } from '../clock';
 import { type ExportReadAudit, recordSensitiveRead } from '../events/record-sensitive-read';
 
 /** Every `*_minor` amount of an exported row as Money in the row's own currency (else the tenant's). */
@@ -72,7 +73,7 @@ export function createBillingExportOperations(base: BillingBase) {
             );
             tables[table] = (rows[0]?.rows ?? []).map((row) => toExportRow(row, currency));
           }
-          const now = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+          const now = await transactionNow(tx);
           await recordSensitiveRead(tx, {
             operation: op,
             resourceType: audit ? 'patientExport' : 'billingExport',

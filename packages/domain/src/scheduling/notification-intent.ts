@@ -11,6 +11,7 @@ import {
   validateSchedulingEntityRef,
   type WorkItemListData,
 } from '@cuspatlas/contracts';
+import { transactionNow } from '../clock';
 import {
   decideForIntent,
   describeDecision,
@@ -238,7 +239,7 @@ export function createNotificationOperations(base: AppointmentBase) {
              ORDER BY i.due_at NULLS LAST, i.id LIMIT 500`,
             [decision.locationRefs, q.locationRef ?? null],
           );
-          const now = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+          const now = await transactionNow(tx);
           return workList(
             now,
             AVAILABLE,

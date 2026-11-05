@@ -11,6 +11,7 @@ import {
   validateFormSubmissionInput,
   validateIntakeReviewResolve,
 } from '@cuspatlas/contracts';
+import { transactionNow } from '../../clock';
 import { executeOnce } from '../../commands/execute-once';
 import { recordCommand } from '../../events/record-command';
 import { recordSensitiveRead } from '../../events/record-sensitive-read';
@@ -672,7 +673,7 @@ export function createIntakeOperations(base: EngagementBase) {
             `SELECT id, kind, submission_id, patient_id, created_at FROM cuspatlas.intake_review_items
              WHERE state = 'open' ORDER BY created_at, id LIMIT 500`,
           );
-          const now = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+          const now = await transactionNow(tx);
           return workList(
             now,
             AVAILABLE,

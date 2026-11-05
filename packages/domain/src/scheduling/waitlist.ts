@@ -31,6 +31,7 @@ import {
   type WaitlistState,
   type WorkItemListData,
 } from '@cuspatlas/contracts';
+import { transactionNow } from '../clock';
 import { recordCommand } from '../events/record-command';
 import { assertPatientSchedulable } from '../patients/identity';
 import { type AuthorizationDecision, assertLocation } from '../policy/authorize';
@@ -994,7 +995,7 @@ export function createWaitlistOperations(base: AppointmentBase) {
              ORDER BY r.starts_at, r.id LIMIT 500`,
             [decision.locationRefs, q.locationRef ?? null],
           );
-          const now = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+          const now = await transactionNow(tx);
           return workList(
             now,
             AVAILABLE,

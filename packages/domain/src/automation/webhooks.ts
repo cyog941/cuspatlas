@@ -14,6 +14,7 @@ import {
   validateWebhookSubscriptionRevoke,
   validateWebhookSubscriptionRotate,
 } from '@cuspatlas/contracts';
+import { transactionNow } from '../clock';
 import type { ReplayCodec, StoredResult } from '../commands/execute-once';
 import { recordCommand } from '../events/record-command';
 import {
@@ -242,8 +243,7 @@ export function createWebhookOperations(base: AutomationBase, wh: WebhookDeps = 
     if (!key) throw unavailable();
     return key;
   };
-  const now = async (tx: TenantTransaction) =>
-    (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+  const now = async (tx: TenantTransaction) => await transactionNow(tx);
 
   const loadSubscription = async (tx: TenantTransaction, ref: string) => {
     assertRef(ref);

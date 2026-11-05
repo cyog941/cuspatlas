@@ -7,6 +7,7 @@ import {
   validateOperationsEmptyQuery,
   validateOperatorProfileRecord,
 } from '@cuspatlas/contracts';
+import { transactionNow } from '../clock';
 import { recordCommand } from '../events/record-command';
 import { checkEnvelope, failed, type MigrationBase, validate } from './base';
 
@@ -100,7 +101,7 @@ async function evaluate(tx: TenantTransaction) {
     unmet.push('sla_not_demonstrated');
     evidence.sla_not_demonstrated = { kind: 'backupVerification', ref: latest.id };
   }
-  const at = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+  const at = await transactionNow(tx);
   return { unmet, evidence, at };
 }
 

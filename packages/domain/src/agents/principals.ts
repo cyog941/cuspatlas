@@ -18,6 +18,7 @@ import {
   validateAgentSponsorOfferListQuery,
   validateAgentTransition,
 } from '@cuspatlas/contracts';
+import { transactionNow } from '../clock';
 import { recordCommand } from '../events/record-command';
 import type { ActionName } from '../policy/authorize';
 import {
@@ -95,7 +96,7 @@ function present(r: AgentRow) {
 type TransitionAction = 'suspend' | 'resume' | 'revoke' | 'rotate';
 
 async function now(tx: TenantTransaction): Promise<Date> {
-  return (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+  return await transactionNow(tx);
 }
 
 function mapTransitionError(err: unknown): unknown {

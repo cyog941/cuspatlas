@@ -12,6 +12,7 @@ import {
   validateAssociationCorrect,
   validateImageRefQuery,
 } from '@cuspatlas/contracts';
+import { transactionNow } from '../clock';
 import { recordCommand } from '../events/record-command';
 import { recordSensitiveRead } from '../events/record-sensitive-read';
 import { createMatchKeyer, MATCH_KEY, type MatchKeyer, normalizeText, phoneKey } from '../patients/model';
@@ -492,7 +493,7 @@ export function createAssociationOperations(
       return base.guarded(ctx, op, async () => {
         await base.authorize(ctx, op);
         return deps.withTenantTransaction(ctx, async (tx) => {
-          const now = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+          const now = await transactionNow(tx);
           const where = `o.kind = 'original' AND o.state = 'available' AND NOT EXISTS (
             SELECT 1 FROM cuspatlas.imaging_match_decisions d WHERE d.object_id = o.id AND d.superseded_by_id IS NULL)`;
           const { rows } = await tx.query<{ id: string; received_at: Date }>(

@@ -5,6 +5,7 @@ import {
   type ClinicalExport,
   RefusalError,
 } from '@cuspatlas/contracts';
+import { transactionNow } from '../clock';
 import { type ExportReadAudit, recordSensitiveRead } from '../events/record-sensitive-read';
 import type { ClinicalBase } from './base';
 
@@ -35,7 +36,7 @@ export function createClinicalExportOperations(base: ClinicalBase) {
             );
             tables[table] = rows[0]?.rows ?? [];
           }
-          const now = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+          const now = await transactionNow(tx);
           await recordSensitiveRead(tx, {
             operation: op,
             resourceType: audit ? 'patientExport' : 'clinicalExport',

@@ -27,6 +27,7 @@ import {
   validateAgentTaskRunListQuery,
   validateAgentTaskSchedule,
 } from '@cuspatlas/contracts';
+import { transactionNow } from '../clock';
 import { recordCommand } from '../events/record-command';
 import { recordSensitiveRead } from '../events/record-sensitive-read';
 import { createMatchKeyer, MATCH_KEY, normalizeText } from '../patients/model';
@@ -243,8 +244,7 @@ export function createAgentWorkspace(base: AgentBase) {
   const requireAgent = (ctx: ActorContext) => {
     if (!ctx.agent) throw forbidden('principal_kind_denied');
   };
-  const at = async (tx: TenantTransaction) =>
-    (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+  const at = async (tx: TenantTransaction) => await transactionNow(tx);
 
   /** Paged list of one agent's rows (OR-01 envelope). */
   async function pageOf<R extends Record<string, unknown>, T>(

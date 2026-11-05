@@ -27,6 +27,7 @@ import {
   validatePracticeExportQuery,
   validatePracticeExportRequestQuery,
 } from '@cuspatlas/contracts';
+import { transactionNow } from '../clock';
 import { canonicalJson } from '../commands/digest';
 import { recordCommand } from '../events/record-command';
 import type { ExportReadAudit } from '../events/record-sensitive-read';
@@ -522,7 +523,7 @@ export function createPracticeExportOperations(base: MigrationBase) {
                 gaps.slice(0, 20).map((g) => ({ kind: 'exportEntity', ref: g.entity })),
               );
             const exportRef = randomUUID();
-            const at = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+            const at = await transactionNow(tx);
             const manifest = buildPracticeManifest(exportRef, at.toISOString(), docs);
             const pkg: PracticeExportPackage = { manifest, documents: docs };
             const check = validatePracticeExport(pkg, { tenantId: ctx.tenantId });

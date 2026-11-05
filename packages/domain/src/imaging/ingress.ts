@@ -18,6 +18,7 @@ import {
   validateIngressBegin,
   validateIngressComplete,
 } from '@cuspatlas/contracts';
+import { transactionNow } from '../clock';
 import { recordCommand } from '../events/record-command';
 import { hintKeys, tenantKeyer } from './association';
 import {
@@ -508,7 +509,7 @@ export function createIngressOperations(base: ImagingBase) {
       return base.guarded(ctx, op, async () => {
         await base.authorize(ctx, op);
         return deps.withTenantTransaction(ctx, async (tx) => {
-          const now = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+          const now = await transactionNow(tx);
           const { rows } = await tx.query<SessionRow>(
             `SELECT ${SESSION_COLUMNS} FROM cuspatlas.imaging_ingress_sessions
              WHERE state = 'quarantined' OR (state = 'staged' AND scan_verdict = 'unknown')

@@ -9,6 +9,7 @@ import {
   validateEmptyQuery,
   validateReceiptInput,
 } from '@cuspatlas/contracts';
+import { transactionNow } from '../../clock';
 import { executeOnce } from '../../commands/execute-once';
 import { recordCommand } from '../../events/record-command';
 import { AVAILABLE, workItem, workList } from '../../work-items';
@@ -64,7 +65,7 @@ export function createDeliveryOperations(base: EngagementBase) {
              ORDER BY m.updated_at, m.id LIMIT 500`,
             [decision.locationRefs],
           );
-          const now = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+          const now = await transactionNow(tx);
           return workList(
             now,
             AVAILABLE,

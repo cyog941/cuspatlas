@@ -24,6 +24,7 @@ import {
   validateDeviceRevoke,
   validatePairingCodeIssue,
 } from '@cuspatlas/contracts';
+import { transactionNow } from '../clock';
 import { recordCommand } from '../events/record-command';
 import { checkEnvelope, checkRef, failed, type ImagingBase, notFound, refused } from './base';
 import {
@@ -592,7 +593,7 @@ export function createBridgeOperations(base: ImagingBase, opts: BridgeOptions) {
       return base.guarded(ctx, op, async () => {
         await base.authorize(ctx, op);
         return deps.withTenantTransaction(ctx, async (tx) => {
-          const now = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+          const now = await transactionNow(tx);
           const { rows } = await tx.query<DeviceRow>(
             `SELECT ${DEVICE_COLUMNS} FROM cuspatlas.imaging_devices ORDER BY created_at DESC, id LIMIT 100`,
           );
@@ -607,7 +608,7 @@ export function createBridgeOperations(base: ImagingBase, opts: BridgeOptions) {
         await base.authorize(ctx, op);
         checkRef(deviceRef);
         return deps.withTenantTransaction(ctx, async (tx) => {
-          const now = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+          const now = await transactionNow(tx);
           return deviceView(await loadDevice(tx, deviceRef), now, health);
         });
       });

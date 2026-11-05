@@ -12,6 +12,7 @@ import {
   portalStatementsView,
   STATEMENT_RELEASE_RESOURCE,
 } from '../../billing/portal-statements';
+import { transactionNow } from '../../clock';
 import { recordSensitiveRead } from '../../events/record-sensitive-read';
 import { portalDocumentsView } from '../../imaging/portal-documents';
 import type { EngagementBase } from '../common';
@@ -291,7 +292,7 @@ export function createPortalViewOperations(base: EngagementBase) {
         const v = viewOf(view);
         return deps.withTenantTransaction(ctx, async (tx) => {
           const access = await requirePortalAccess(tx, patientRef, v.requiredScope);
-          const generatedAt = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+          const generatedAt = await transactionNow(tx);
           if (v.unavailable || !v.project) {
             return {
               view,

@@ -16,6 +16,7 @@ import {
   validateActionQuery,
 } from '@cuspatlas/contracts';
 import type { BillingService } from '../billing/service';
+import { transactionNow } from '../clock';
 import { payloadDigest } from '../commands/digest';
 import type { EngagementService } from '../engagement/service';
 import { recordCommand } from '../events/record-command';
@@ -544,7 +545,7 @@ export function createActionProposals(base: AgentBase, owners: ProposalOwners) {
         const mine = ctx.agent ? ctx.actorId : null;
         const state = query.state ?? null;
         return deps.withTenantTransaction(ctx, async (tx) => {
-          const at = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+          const at = await transactionNow(tx);
           const where = `WHERE ($1::text IS NULL OR state = $1) AND ($2::uuid IS NULL OR proposer_id = $2)`;
           const total = Number(
             (

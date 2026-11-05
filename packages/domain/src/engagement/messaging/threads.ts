@@ -16,6 +16,7 @@ import {
   validateThreadListQuery,
   validateThreadOpen,
 } from '@cuspatlas/contracts';
+import { transactionNow } from '../../clock';
 import { executeOnce } from '../../commands/execute-once';
 import { recordCommand } from '../../events/record-command';
 import { recordSensitiveRead } from '../../events/record-sensitive-read';
@@ -599,7 +600,7 @@ export function createMessagingOperations(base: EngagementBase) {
         assertValid(validateEmptyQuery, query, ENGAGEMENT_PROPERTIES);
         const mayEscalate = ctx.principal === 'human' && (await base.can(ctx, 'messaging.messages.post'));
         return deps.withTenantTransaction(ctx, async (tx) => {
-          const now = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+          const now = await transactionNow(tx);
           const policies = await loadPolicies(tx);
           // R7: only staff who may reply record the escalation fact; other readers see it derived.
           if (mayEscalate) await escalateOverdue(tx, decision, policies, now);
@@ -661,7 +662,7 @@ export function createMessagingOperations(base: EngagementBase) {
         const offset = offsetOf(q.cursor);
         const mayEscalate = ctx.principal === 'human' && (await base.can(ctx, 'messaging.messages.post'));
         return deps.withTenantTransaction(ctx, async (tx) => {
-          const now = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+          const now = await transactionNow(tx);
           const policies = await loadPolicies(tx);
           // R7: only staff who may reply record the escalation fact; other readers see it derived.
           if (mayEscalate) await escalateOverdue(tx, decision, policies, now);
@@ -734,7 +735,7 @@ export function createMessagingOperations(base: EngagementBase) {
         checkEnvelope(envelope, op);
         assertValid(validateEmptyQuery, envelope.payload, ENGAGEMENT_PROPERTIES);
         return deps.withTenantTransaction(ctx, async (tx) => {
-          const now = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+          const now = await transactionNow(tx);
           const policies = await loadPolicies(tx);
           return { escalated: await escalateOverdue(tx, decision, policies, now) };
         });

@@ -5,6 +5,7 @@ import {
   SCHEDULING_EXPORT_TABLES,
   type SchedulingExport,
 } from '@cuspatlas/contracts';
+import { transactionNow } from '../clock';
 import { type ExportReadAudit, recordSensitiveRead } from '../events/record-sensitive-read';
 import type { AppointmentBase } from './appointment-base';
 
@@ -34,7 +35,7 @@ export function createExportOperations(base: AppointmentBase) {
             );
             tables[table] = rows[0]?.rows ?? [];
           }
-          const now = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+          const now = await transactionNow(tx);
           await recordSensitiveRead(tx, {
             operation: op,
             resourceType: audit ? 'patientExport' : 'schedulingExport',

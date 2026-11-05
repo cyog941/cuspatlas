@@ -20,6 +20,7 @@ import {
   validateConsentTemplateRegister,
   validateConsentWithdraw,
 } from '@cuspatlas/contracts';
+import { databaseNow } from '../clock';
 import { recordCommand } from '../events/record-command';
 import { recordSensitiveRead } from '../events/record-sensitive-read';
 import type { PostMergeFactProbe } from '../patients/merge';
@@ -83,18 +84,6 @@ const CONSENT_SELECT = `SELECT c.id, c.subject_patient_id, c.origin_patient_id, 
 
 const evidenceOf = (ref: string | null, digest: string | null): ConsentEvidence | null =>
   ref === null || digest === null ? null : { artifactRef: ref, digest };
-
-/**
- * "Now" for a current read, from the database clock that stamps `effective_at`. The application
- * clock can lag it (a coarse or skewed host clock), and a read stamped behind the database would
- * show a withdrawal recorded a moment ago as not yet in force.
- */
-async function databaseNow(tx: TenantTransaction): Promise<Date> {
-  const { rows } = await tx.query<{ at: Date }>(`SELECT date_trunc('milliseconds', clock_timestamp()) AS at`);
-  const at = rows[0]?.at;
-  if (at === undefined) throw new Error('clock_timestamp returned no row');
-  return at;
-}
 
 /** The consent as of `asOf` (a withdrawal after that instant is not yet visible). */
 function view(r: ConsentRow, asOf: number): Consent {

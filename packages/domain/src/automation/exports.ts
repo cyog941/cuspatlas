@@ -15,6 +15,7 @@ import {
   validateExportListQuery,
   validateExportQuery,
 } from '@cuspatlas/contracts';
+import { transactionNow } from '../clock';
 import { canonicalJson } from '../commands/digest';
 import type { ReplayCodec, StoredResult } from '../commands/execute-once';
 import { recordCommand } from '../events/record-command';
@@ -1057,7 +1058,7 @@ export function createExportOperations(base: AutomationBase, ex: ExportDeps | un
         const mine = (await isExportAdmin(ctx)) ? null : ctx.actorId;
         return deps.withTenantTransaction(ctx, async (tx) => {
           await failStaleBuilds(tx, op);
-          const at = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+          const at = await transactionNow(tx);
           const where = '($1::text IS NULL OR state = $1) AND ($2::uuid IS NULL OR created_by = $2)';
           const total = Number(
             (

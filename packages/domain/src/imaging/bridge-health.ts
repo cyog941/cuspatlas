@@ -12,6 +12,7 @@ import {
   validateBridgeJobReconcile,
   validateDeferralResolve,
 } from '@cuspatlas/contracts';
+import { transactionNow } from '../clock';
 import { recordCommand } from '../events/record-command';
 import { checkEnvelope, checkRef, failed, type ImagingBase, notFound, refused } from './base';
 import {
@@ -107,8 +108,7 @@ export const sweepBridgeStep: ReconcileStep = async (tx, _ctx, _store: ObjectSto
 /** I7: heartbeat-derived availability, deferred acquisitions, job reconciliation and the bridge worklist. */
 export function createBridgeHealthOperations(base: ImagingBase, opts: HealthOptions) {
   const { deps } = base;
-  const nowOf = async (tx: TenantTransaction) =>
-    (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+  const nowOf = async (tx: TenantTransaction) => await transactionNow(tx);
 
   /** The patient's current version (or merged state) for re-confirmation at release. */
   const patientState = async (tx: TenantTransaction, ref: string) => {

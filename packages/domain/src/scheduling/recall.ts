@@ -20,6 +20,7 @@ import {
   type WorkItem,
   type WorkItemListData,
 } from '@cuspatlas/contracts';
+import { transactionNow } from '../clock';
 import { recordCommand } from '../events/record-command';
 import { type AuthorizationDecision, assertLocation } from '../policy/authorize';
 import { AVAILABLE, workItem, workList } from '../work-items';
@@ -250,7 +251,7 @@ async function computeDue(
       openTaskRef: openTask.get(p.id) ?? null,
     });
   }
-  const now = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+  const now = await transactionNow(tx);
   return {
     asOf: new Date(asOf).toISOString(),
     policy: policyRecord(policy),
@@ -746,7 +747,7 @@ export function createRecallOperations(base: AppointmentBase) {
               }),
             );
           }
-          const now = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+          const now = await transactionNow(tx);
           return { ...workList(now, AVAILABLE, items), notCovered: NOT_COVERED };
         });
       });

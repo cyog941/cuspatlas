@@ -129,4 +129,5 @@ export const IMAGING_OPERATIONS: readonly string[] = [
 export const IMAGING_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<unknown>>> = {
   ...Object.fromEntries(IMAGING_OPERATIONS.map((op) => [op, imagingCodec as ReplayCodec<unknown>])),
   'imaging.storage.sweepOrphanBytes': orphanSweepCodec as ReplayCodec<unknown>,
+  'imaging.storage.scheduledOrphanSweep': orphanSweepCodec as ReplayCodec<unknown>,
 };

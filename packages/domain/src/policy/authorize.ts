@@ -496,6 +496,8 @@ export const ACTION_POLICIES = {
   // Closeout A5: orphan-bytes sweep of the tenant's object-store prefix. Human practice administration;
   // a real (removing) run also needs imaging.delete (checked in the domain command).
   'imaging.storage.sweepOrphanBytes': { scope: 'admin.configure', principals: ['human'] },
+  // Closeout D4: the worker's scheduled orphan-bytes report; always a dry run (removal stays human).
+  'imaging.storage.scheduledOrphanSweep': { scope: 'admin.configure', principals: ['service'] },
   // I2 ingress: staging and completing an upload is imaging work (a bridge may be a service principal).
   'imaging.ingress.begin': { scope: 'imaging.write', principals: ['human', 'service'] },
   'imaging.ingress.upload': { scope: 'imaging.write', principals: ['human', 'service'] },

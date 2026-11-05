@@ -83,6 +83,10 @@ import { createWebhookDispatcher } from './webhook-dispatch';
  *   recorded verification is older than the interval, the latest backup is verified once (digests and
  *   an isolated sample restore) and recorded for every due tenant through
  *   `operations.backupVerifications.record`; a verification that cannot run is recorded as failed.
+ * - Closeout D4 scheduled orphan-bytes report (only with `CUSPATLAS_ORPHAN_SWEEP_INTERVAL_SECONDS` and an
+ *   object store; `admin.configure`): when a served tenant's last scheduled sweep is older than the
+ *   interval, `imaging.storage.scheduledOrphanSweep` runs the sweep as a dry run and records the report
+ *   (the append-only sweep record and its audit event). It never removes bytes; removal stays human.
  *
  * No real provider exists yet (E-S1, B partner and processor selection are open), so a provider can
  * only be supplied as a test fake (`syntheticProviders`), which is refused outside synthetic-test. A
@@ -122,6 +126,7 @@ export type WorkerConsumer =
   | 'imagingReconcile'
   | 'agentTasks'
   | 'backupVerification'
+  | 'orphanSweep'
   | 'exportBuilds'
   | 'maintenance';
 
@@ -164,6 +169,16 @@ export interface TickReport {
   readonly agentTasks: readonly AgentTaskOutcome[];
   /** Closeout C: what each A15 export build lease did this tick (across served tenants). */
   readonly exportBuilds: readonly { readonly exportRef: string; readonly outcome: ExportBuildOutcome }[];
+  /** Closeout D4: dry-run orphan sweeps recorded this tick (empty: none due); null when disabled. */
+  readonly orphanSweeps:
+    | readonly {
+        readonly tenantId: string;
+        readonly sweepRef: string;
+        readonly dryRun: true;
+        readonly orphans: number;
+        readonly more: boolean;
+      }[]
+    | null;
   /** Recorded verifications this tick (empty: none due); null when the job is disabled. */
   readonly backupVerification:
     | readonly { readonly tenantId: string; readonly recorded: boolean; readonly result: string | null }[]
@@ -200,6 +215,25 @@ const MIGRATIONS_DIR = resolve(import.meta.dirname, '../../../supabase/migration
 // A routed REST/MCP operation the worker also calls (not a worker-only catalog entry, so the catalog
 // scanner's envelope-literal match must not claim it).
 const BACKUP_RECORD_OPERATION = 'operations.backupVerifications.record';
+
+/** Closeout D4: the scheduled orphan-bytes report interval bounds (seconds). */
+const ORPHAN_SWEEP_MIN_SECONDS = 60;
+const ORPHAN_SWEEP_MAX_SECONDS = 30 * 86_400;
+
+/**
+ * Closeout D4: `CUSPATLAS_ORPHAN_SWEEP_INTERVAL_SECONDS` (an integer, 60 to 2592000), or null when unset
+ * (the scheduled report stays disabled). A malformed value refuses to start (the value is not echoed).
+ */
+export function resolveOrphanSweepInterval(env: NodeJS.ProcessEnv): number | null {
+  const raw = env.CUSPATLAS_ORPHAN_SWEEP_INTERVAL_SECONDS;
+  if (raw === undefined || raw === '') return null;
+  const n = Number(raw);
+  if (!/^[0-9]{1,10}$/.test(raw) || n < ORPHAN_SWEEP_MIN_SECONDS || n > ORPHAN_SWEEP_MAX_SECONDS)
+    throw new Error(
+      `CUSPATLAS_ORPHAN_SWEEP_INTERVAL_SECONDS must be an integer from ${ORPHAN_SWEEP_MIN_SECONDS} to ${ORPHAN_SWEEP_MAX_SECONDS}`,
+    );
+  return n;
+}
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -266,6 +300,7 @@ export async function composeWorker(
   }
   const log = opts.log ?? (() => undefined);
   const backupConfig = resolveBackupVerificationConfig(env);
+  const orphanSweepInterval = resolveOrphanSweepInterval(env);
 
   // 2. Pools (synthetic databases only).
   let owned: pg.Pool[] = [];
@@ -401,6 +436,13 @@ export async function composeWorker(
       })
     : null;
   if (!imaging) disable('imagingReconcile', 'no object store is configured (CUSPATLAS_OBJECT_STORE_DIR)');
+  const orphanSweeper = imaging && orphanSweepInterval !== null ? imaging : null;
+  if (orphanSweepInterval === null)
+    disable(
+      'orphanSweep',
+      'no orphan sweep interval is configured (CUSPATLAS_ORPHAN_SWEEP_INTERVAL_SECONDS)',
+    );
+  else if (!imaging) disable('orphanSweep', 'no object store is configured (CUSPATLAS_OBJECT_STORE_DIR)');
   // Closeout C: the A15 export build job. Each build runs as its requester's live membership through
   // the same module exports the API composes (S, I, C, E, B and the M1 practice export).
   const exportBuilder =
@@ -533,6 +575,9 @@ export async function composeWorker(
       replyEscalations: 0,
       agentTasks: [] as AgentTaskOutcome[],
       exportBuilds: [] as { exportRef: string; outcome: ExportBuildOutcome }[],
+      orphanSweeps: (orphanSweeper ? [] : null) as
+        | { tenantId: string; sweepRef: string; dryRun: true; orphans: number; more: boolean }[]
+        | null,
       backupVerification: (backupVerifier ? [] : null) as
         | { tenantId: string; recorded: boolean; result: string | null }[]
         | null,
@@ -583,6 +628,29 @@ export async function composeWorker(
             'imaging.storage.sweep',
           );
           report.imagingReconciled += 1;
+        });
+      }
+      if (orphanSweeper && orphanSweepInterval !== null) {
+        await stage('orphan_sweep', async () => {
+          const r = await orphanSweeper.scheduledOrphanSweep(
+            serviceCtx(tenantId),
+            {
+              operation: 'imaging.storage.scheduledOrphanSweep',
+              idempotencyKey: randomUUID(),
+              payload: {},
+            },
+            { intervalSeconds: orphanSweepInterval },
+          );
+          if (r) {
+            const d = r.data as { sweepRef: string; orphans: string[]; more: boolean };
+            report.orphanSweeps?.push({
+              tenantId,
+              sweepRef: d.sweepRef,
+              dryRun: true,
+              orphans: d.orphans.length,
+              more: d.more,
+            });
+          }
         });
       }
       if (agentTasks) {

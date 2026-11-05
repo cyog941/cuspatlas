@@ -6,7 +6,7 @@ Evidence category: **tested on synthetic data**. Coverage means a row resolves t
 
 Rows: 27 (matrix rows plus plan-defined A rows). Covered: 25. Gaps: 2. Unknown: 0. Unmapped matrix rows: 0. Scope defects: 0.
 
-MCP surface: 470 operations have an MCP tool; 38 do not.
+MCP surface: 470 operations have an MCP tool; 39 do not.
 
 | Capability row | Owners | Release | Status | Operations | Negative cases | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -21,13 +21,13 @@ MCP surface: 470 operations have an MCP tool; 38 do not.
 | Clinical documentation | C | P1 | covered | 23: `clinical.authors.context`, `clinical.authors.define`, `clinical.history.alerts`, `clinical.history.attestReview` and 19 more | `clinical-history.test.ts`, `clinical-note-templates.test.ts`, `clinical-notes.test.ts` and 3 more |  |
 | Treatment planning | C | P1 | covered | 16: `clinical.consentTemplates.register`, `clinical.estimates.accept`, `clinical.estimates.generate`, `clinical.estimates.list` and 12 more | `clinical-estimates.test.ts`, `clinical-treatment-plans.test.ts`, `mcp-parity.test.ts` and 1 more |  |
 | Procedures/encounters | C | P1 | covered | 9: `clinical.encounters.assign`, `clinical.encounters.close`, `clinical.encounters.list`, `clinical.encounters.open` and 5 more | `clinical-chart.test.ts`, `clinical-encounters.test.ts`, `clinical-history.test.ts` and 6 more |  |
-| Imaging/documents | I | P1 import/bridge; acquisition expansion P2 | covered | 63: `clinical.imageLinks.link`, `clinical.imageLinks.list`, `clinical.imageLinks.read`, `clinical.imageLinks.relink` and 59 more | `api-mcp-catalog-parity.test.ts`, `clinical-image-links.test.ts`, `imaging-association.test.ts` and 15 more | Vendor bridges and DICOM acquisition are blocked on device/vendor discovery; the bridge contract is synthetic. |
+| Imaging/documents | I | P1 import/bridge; acquisition expansion P2 | covered | 64: `clinical.imageLinks.link`, `clinical.imageLinks.list`, `clinical.imageLinks.read`, `clinical.imageLinks.relink` and 60 more | `api-mcp-catalog-parity.test.ts`, `clinical-image-links.test.ts`, `imaging-association.test.ts` and 16 more | Vendor bridges and DICOM acquisition are blocked on device/vendor discovery; the bridge contract is synthetic. |
 | Insurance | B | P1 | covered | 5: `rcm.coverages.change`, `rcm.coverages.read`, `rcm.coverages.record`, `rcm.coverages.resolve` and 1 more | `mcp-parity.test.ts`, `negative-harness.test.ts`, `rcm-eligibility.test.ts` and 1 more |  |
 | Claims/RCM | B | P1 with validated partner | covered | 29: `rcm.appeals.draft`, `rcm.appeals.review`, `rcm.claims.attach`, `rcm.claims.measures` and 25 more | `billing-export.test.ts`, `billing-negative-matrix.test.ts`, `billing-parity.test.ts` and 8 more | Clearinghouse submission, acknowledgements and ERA intake run against a synthetic adapter; a validated partner is blocked on discovery. |
 | Financial ledger | B | P1 | covered | 17: `billing.adjustments.decide`, `billing.adjustments.post`, `billing.balances.read`, `billing.charges.post` and 13 more | `billing-allocations.test.ts`, `billing-journal.test.ts`, `billing-negative-matrix.test.ts` and 7 more |  |
 | Patient billing | B | P1 | covered | 12: `billing.plans.amend`, `billing.plans.authorize`, `billing.plans.autopay`, `billing.plans.close` and 8 more | `billing-allocations.test.ts`, `billing-payment-plans.test.ts`, `billing-statements.test.ts` and 3 more | Card tokenization and payment links need a payment provider (blocked on discovery). |
 | Prescribing | A | Integration gate before a pilot depends on it | covered | 3: `prescriptions.cancel`, `prescriptions.drafts.create`, `prescriptions.submit` | `agents-negative-harness.test.ts`, `prescribing-envelope.test.ts` | Envelope only; the e-prescribing partner, prescriber identity proofing and controlled-substance workflow are blocked on discovery. |
-| Communications | E | P1 | covered | 33: `communications.channelPolicies.define`, `communications.channelPolicies.list`, `communications.consents.list`, `communications.consents.optOut` and 29 more | `action-proposals.test.ts`, `comms-delivery.test.ts`, `comms-parity.test.ts` and 7 more | SMS, email and telephony carriers are synthetic adapters; carrier selection is blocked on discovery. |
+| Communications | E | P1 | covered | 33: `communications.channelPolicies.define`, `communications.channelPolicies.list`, `communications.consents.list`, `communications.consents.optOut` and 29 more | `action-proposals.test.ts`, `comms-delivery.test.ts`, `comms-parity.test.ts` and 8 more | SMS, email and telephony carriers are synthetic adapters; carrier selection is blocked on discovery. |
 | Recall and follow-up | S, E | P1 | covered | 11: `communications.recall.enroll`, `communications.recall.enrollments`, `scheduling.followUp.worklist`, `scheduling.recall.createTask` and 7 more | `cancellation-recovery.test.ts`, `engagement-negative-harness.test.ts`, `mcp-parity.test.ts` and 2 more |  |
 | Lab/referrals | C | P1 basic; advanced P2 | covered | 21: `clinical.labCases.attach`, `clinical.labCases.create`, `clinical.labCases.export`, `clinical.labCases.list` and 17 more | `clinical-lab-cases.test.ts`, `clinical-referrals.test.ts`, `mcp-parity.test.ts` and 1 more |  |
 | Analytics | A, B | P1 | covered | 3: `analytics.measures.list`, `analytics.measures.read`, `billing.reports.receivables` | `analytics.test.ts`, `billing-negative-matrix.test.ts`, `mcp-parity.test.ts` |  |
@@ -65,6 +65,7 @@ These are portal, device, pairing, bridge, worker or public operations; the forb
 - `imaging.grants.revokeAny`
 - `imaging.ingress.upload`
 - `imaging.objects.content`
+- `imaging.storage.scheduledOrphanSweep`
 - `imaging.storage.sweep`
 - `messaging.threads.escalate`
 - `outbox.deliver`

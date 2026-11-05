@@ -23,7 +23,7 @@ human decision (A-D2). No default role grant is asserted here.
 | `actions.approve` | human | yes | A | phi | 2 |
 | `actions.prepare` | human, service | no | A | phi | 2 |
 | `actions.read` | human, service | no | A | phi | 2 |
-| `admin.configure` | human, service | no | A, B, C, E, I, M, S | phiBulk | 48 |
+| `admin.configure` | human, service | no | A, B, C, E, I, M, S | phiBulk | 49 |
 | `agentWorkspace.read` | human, service | no | A | phi | 7 |
 | `agentWorkspace.write` | service | no | A | phi | 2 |
 | `agents.manage` | human | yes | A | phi | 11 |

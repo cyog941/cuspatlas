@@ -9,7 +9,7 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-508 operations.
+509 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
@@ -19,7 +19,7 @@ transport tables and are declarations, not independent proof.
 | C | 88 | 87 | 87 | 0 | 0 | 0 |
 | B | 68 | 68 | 68 | 0 | 0 | 0 |
 | E | 64 | 48 | 48 | 14 | 0 | 2 |
-| I | 58 | 50 | 47 | 0 | 6 | 1 |
+| I | 59 | 50 | 47 | 0 | 6 | 2 |
 | M | 39 | 39 | 39 | 0 | 0 | 0 |
 
 | Operation | Owner | Kind | Authorization | Scope | Principals | Transports | REST | MCP tool | Idempotency | Sensitivity | Status |
@@ -283,6 +283,7 @@ transport tables and are declarations, not independent proof.
 | `imaging.retention.policies` | I | query | authorize | `imaging.read` | human, service | rest, mcp | GET `/v1/imaging/retention/policies` | `imaging_retention_policies` | none | phi | active |
 | `imaging.retention.setPolicy` | I | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/imaging/retention/policies` | `imaging_retention_set_policy` | required | operational | active |
 | `imaging.storage.reconcile` | I | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/imaging/storage/reconcile` | `imaging_storage_reconcile` | required | operational | active |
+| `imaging.storage.scheduledOrphanSweep` | I | command | authorize | `admin.configure` | service | worker | - | - | none | operational | active |
 | `imaging.storage.sweep` | I | command | authorize | `admin.configure` | service | worker | - | - | none | operational | active |
 | `imaging.storage.sweepOrphanBytes` | I | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/imaging/storage/orphan-bytes/sweep` | `imaging_storage_sweep_orphan_bytes` | required | operational | active |
 | `intake.forms.list` | E | query | authorize | `patients.read` | human, service | rest, mcp | GET `/v1/intake/forms` | `intake_forms_list` | none | phi | active |

@@ -14,6 +14,8 @@ export const ORPHAN_SWEEP_RESOURCE = 'imagingOrphanSweep';
 /** Closeout D3: the completion of one durable removal intent. */
 export const ORPHAN_REMOVAL_RESOURCE = 'imagingOrphanRemoval';
 const OP = 'imaging.storage.sweepOrphanBytes';
+/** Closeout D4: the worker's scheduled dry-run report (service principal only). */
+const SCHEDULED_OP = 'imaging.storage.scheduledOrphanSweep';
 /** Files listed per run; candidates (and content locks taken) per run. */
 const MAX_LISTED = 10_000;
 const MAX_ORPHANS = 200;
@@ -199,6 +201,152 @@ export function createOrphanBytesOperations(base: ImagingBase) {
       };
     });
 
+  const maintenanceOrUnavailable = (): StagingMaintenance => {
+    base.store();
+    const maintenance = deps.stagingMaintenance;
+    if (!maintenance) {
+      base.alert('imaging_object_store_unavailable');
+      throw storeUnavailable();
+    }
+    return maintenance;
+  };
+
+  /** One sweep run (already authorized): the record, the intents, then their completion. */
+  const run = async (
+    ctx: ActorContext,
+    envelope: CommandEnvelope<unknown>,
+    op: typeof OP | typeof SCHEDULED_OP,
+    dryRun: boolean,
+    graceHours: number,
+    maintenance: StagingMaintenance,
+  ) => {
+    const graceMs = graceHours * 3600 * 1000;
+    const result = await deps.withTenantTransaction(ctx, async (tx) =>
+      execute(ctx, envelope, tx, async () => {
+        const listed = await maintenance.listContent(ctx.tenantId, MAX_LISTED + 1);
+        let more = listed.length > MAX_LISTED;
+        const files = listed.slice(0, MAX_LISTED);
+        const kept: Kept = {
+          withinGrace: 0,
+          liveObject: 0,
+          tombstoneRetained: 0,
+          legalHold: 0,
+          exportPackage: 0,
+          contentLocked: 0,
+        };
+        // Keys an earlier run already intends to remove are finished below, never intended twice.
+        const open = new Set(
+          dryRun
+            ? []
+            : (
+                await tx.query<{ storage_key: string }>(
+                  `SELECT storage_key FROM cuspatlas.imaging_orphan_removals WHERE state = 'intended'`,
+                )
+              ).rows.map((r) => r.storage_key),
+        );
+        const now = Date.now();
+        const old = files.filter((f) => {
+          const young = now - f.modifiedAt.getTime() <= graceMs;
+          if (young) kept.withinGrace += 1;
+          return !young && !open.has(f.storageKey);
+        });
+        const unreferenced: typeof old = [];
+        for (let i = 0; i < old.length; i += BATCH) {
+          const batch = old.slice(i, i + BATCH);
+          const refs = await references(
+            tx,
+            batch.map((f) => f.storageKey),
+          );
+          for (const f of batch) {
+            const why = refs.get(f.storageKey);
+            if (why) kept[why] += 1;
+            else unreferenced.push(f);
+          }
+        }
+        if (unreferenced.length > MAX_ORPHANS) more = true;
+        const orphans: typeof unreferenced = [];
+        for (const f of unreferenced.slice(0, MAX_ORPHANS)) {
+          const lock = await tx.query<{ ok: boolean }>(
+            'SELECT cuspatlas.imaging_try_lock_content(cuspatlas.current_tenant_id(), $1) AS ok',
+            [f.digestSha256],
+          );
+          if (lock.rows[0]?.ok !== true) {
+            kept.contentLocked += 1;
+            continue;
+          }
+          // Re-checked on a fresh snapshot while holding the lock: a row registered meanwhile wins.
+          const why = (await references(tx, [f.storageKey])).get(f.storageKey);
+          if (why) {
+            kept[why] += 1;
+            continue;
+          }
+          orphans.push(f);
+        }
+        const digests = orphans.map((f) => f.digestSha256);
+        const { rows } = await tx.query<{ id: string }>(
+          `INSERT INTO cuspatlas.imaging_orphan_sweeps (tenant_id, actor_id, dry_run, grace_hours, scanned_count,
+                 orphan_count, kept_within_grace, kept_live_object, kept_tombstone_retained, kept_legal_hold,
+                 kept_export_package, kept_content_locked, orphan_digests, removed_digests)
+               VALUES (cuspatlas.current_tenant_id(), cuspatlas.current_actor_id(), $1, $2, $3, $4, $5, $6, $7, $8,
+                 $9, $10, $11, '{}') RETURNING id`,
+          [
+            dryRun,
+            graceHours,
+            files.length,
+            digests.length,
+            kept.withinGrace,
+            kept.liveObject,
+            kept.tombstoneRetained,
+            kept.legalHold,
+            kept.exportPackage,
+            kept.contentLocked,
+            digests,
+          ],
+        );
+        const sweepRef = rows[0]?.id as string;
+        // D3: the removal intents commit with the sweep record, before any byte is touched.
+        if (!dryRun && orphans.length > 0)
+          await tx.query(
+            `INSERT INTO cuspatlas.imaging_orphan_removals (tenant_id, sweep_id, digest_sha256, storage_key,
+                   intended_by)
+                 SELECT cuspatlas.current_tenant_id(), $1, x.d, x.k, cuspatlas.current_actor_id()
+                 FROM unnest($2::text[], $3::text[]) AS x(d, k)`,
+            [sweepRef, digests, orphans.map((f) => f.storageKey)],
+          );
+        await recordCommand(
+          tx,
+          {
+            operation: op,
+            resourceType: ORPHAN_SWEEP_RESOURCE,
+            resourceRef: sweepRef,
+            resourceVersion: 1,
+          },
+          { changedFields: dryRun ? ['orphanDigests'] : ['orphanDigests', 'removalIntents'] },
+        );
+        return {
+          data: {
+            sweepRef,
+            dryRun,
+            graceHours,
+            scanned: files.length,
+            orphans: digests,
+            removed: [] as string[],
+            kept,
+            more,
+            pending: dryRun ? 0 : digests.length,
+            resumed: 0,
+          },
+          version: 1,
+        };
+      }),
+    );
+    const data = result.data as { sweepRef: string; dryRun: boolean; graceHours: number };
+    // A real run (or its retry) finishes the committed intents after the sweep record committed.
+    if (!data.dryRun) await finishIntents(ctx, maintenance, data.sweepRef, data.graceHours * 3600 * 1000);
+    if (!result.replayed && data.dryRun) return result;
+    return { ...result, data: { ...data, ...(await outcome(ctx, data.sweepRef)) } };
+  };
+
   return {
     sweepOrphanBytes(ctx: ActorContext, envelope: CommandEnvelope<unknown>) {
       return base.recorded(ctx, OP, async () => {
@@ -210,137 +358,36 @@ export function createOrphanBytesOperations(base: ImagingBase) {
         const graceHours = p.graceHours ?? DEFAULT_GRACE_HOURS;
         // Destroying bytes is deletion authority as well as practice administration.
         if (!dryRun) await base.authorize(ctx, 'imaging.deletions.execute');
-        base.store();
-        const maintenance = deps.stagingMaintenance;
-        if (!maintenance) {
-          base.alert('imaging_object_store_unavailable');
-          throw storeUnavailable();
-        }
-        const graceMs = graceHours * 3600 * 1000;
-        const result = await deps.withTenantTransaction(ctx, async (tx) =>
-          execute(ctx, envelope, tx, async () => {
-            const listed = await maintenance.listContent(ctx.tenantId, MAX_LISTED + 1);
-            let more = listed.length > MAX_LISTED;
-            const files = listed.slice(0, MAX_LISTED);
-            const kept: Kept = {
-              withinGrace: 0,
-              liveObject: 0,
-              tombstoneRetained: 0,
-              legalHold: 0,
-              exportPackage: 0,
-              contentLocked: 0,
-            };
-            // Keys an earlier run already intends to remove are finished below, never intended twice.
-            const open = new Set(
-              dryRun
-                ? []
-                : (
-                    await tx.query<{ storage_key: string }>(
-                      `SELECT storage_key FROM cuspatlas.imaging_orphan_removals WHERE state = 'intended'`,
-                    )
-                  ).rows.map((r) => r.storage_key),
-            );
-            const now = Date.now();
-            const old = files.filter((f) => {
-              const young = now - f.modifiedAt.getTime() <= graceMs;
-              if (young) kept.withinGrace += 1;
-              return !young && !open.has(f.storageKey);
-            });
-            const unreferenced: typeof old = [];
-            for (let i = 0; i < old.length; i += BATCH) {
-              const batch = old.slice(i, i + BATCH);
-              const refs = await references(
-                tx,
-                batch.map((f) => f.storageKey),
-              );
-              for (const f of batch) {
-                const why = refs.get(f.storageKey);
-                if (why) kept[why] += 1;
-                else unreferenced.push(f);
-              }
-            }
-            if (unreferenced.length > MAX_ORPHANS) more = true;
-            const orphans: typeof unreferenced = [];
-            for (const f of unreferenced.slice(0, MAX_ORPHANS)) {
-              const lock = await tx.query<{ ok: boolean }>(
-                'SELECT cuspatlas.imaging_try_lock_content(cuspatlas.current_tenant_id(), $1) AS ok',
-                [f.digestSha256],
-              );
-              if (lock.rows[0]?.ok !== true) {
-                kept.contentLocked += 1;
-                continue;
-              }
-              // Re-checked on a fresh snapshot while holding the lock: a row registered meanwhile wins.
-              const why = (await references(tx, [f.storageKey])).get(f.storageKey);
-              if (why) {
-                kept[why] += 1;
-                continue;
-              }
-              orphans.push(f);
-            }
-            const digests = orphans.map((f) => f.digestSha256);
-            const { rows } = await tx.query<{ id: string }>(
-              `INSERT INTO cuspatlas.imaging_orphan_sweeps (tenant_id, actor_id, dry_run, grace_hours, scanned_count,
-                 orphan_count, kept_within_grace, kept_live_object, kept_tombstone_retained, kept_legal_hold,
-                 kept_export_package, kept_content_locked, orphan_digests, removed_digests)
-               VALUES (cuspatlas.current_tenant_id(), cuspatlas.current_actor_id(), $1, $2, $3, $4, $5, $6, $7, $8,
-                 $9, $10, $11, '{}') RETURNING id`,
-              [
-                dryRun,
-                graceHours,
-                files.length,
-                digests.length,
-                kept.withinGrace,
-                kept.liveObject,
-                kept.tombstoneRetained,
-                kept.legalHold,
-                kept.exportPackage,
-                kept.contentLocked,
-                digests,
-              ],
-            );
-            const sweepRef = rows[0]?.id as string;
-            // D3: the removal intents commit with the sweep record, before any byte is touched.
-            if (!dryRun && orphans.length > 0)
-              await tx.query(
-                `INSERT INTO cuspatlas.imaging_orphan_removals (tenant_id, sweep_id, digest_sha256, storage_key,
-                   intended_by)
-                 SELECT cuspatlas.current_tenant_id(), $1, x.d, x.k, cuspatlas.current_actor_id()
-                 FROM unnest($2::text[], $3::text[]) AS x(d, k)`,
-                [sweepRef, digests, orphans.map((f) => f.storageKey)],
-              );
-            await recordCommand(
-              tx,
-              {
-                operation: OP,
-                resourceType: ORPHAN_SWEEP_RESOURCE,
-                resourceRef: sweepRef,
-                resourceVersion: 1,
-              },
-              { changedFields: dryRun ? ['orphanDigests'] : ['orphanDigests', 'removalIntents'] },
-            );
-            return {
-              data: {
-                sweepRef,
-                dryRun,
-                graceHours,
-                scanned: files.length,
-                orphans: digests,
-                removed: [] as string[],
-                kept,
-                more,
-                pending: dryRun ? 0 : digests.length,
-                resumed: 0,
-              },
-              version: 1,
-            };
-          }),
-        );
-        const data = result.data as { sweepRef: string; dryRun: boolean; graceHours: number };
-        // A real run (or its retry) finishes the committed intents after the sweep record committed.
-        if (!data.dryRun) await finishIntents(ctx, maintenance, data.sweepRef, data.graceHours * 3600 * 1000);
-        if (!result.replayed && data.dryRun) return result;
-        return { ...result, data: { ...data, ...(await outcome(ctx, data.sweepRef)) } };
+        return run(ctx, envelope, OP, dryRun, graceHours, maintenanceOrUnavailable());
+      });
+    },
+
+    /**
+     * Closeout D4: the scheduled orphan-bytes report (worker only, service principal, admin.configure).
+     * Always a dry run with the default grace period: it never records a removal intent and never
+     * removes bytes (removal stays a human operation). Due when the caller's last scheduled sweep of the
+     * tenant is older than `intervalSeconds` (read from the append-only sweep records, so a restart does
+     * not run early); returns null when not due.
+     */
+    async scheduledOrphanSweep(
+      ctx: ActorContext,
+      envelope: CommandEnvelope<unknown>,
+      opts: { readonly intervalSeconds: number },
+    ) {
+      return base.recorded(ctx, SCHEDULED_OP, async () => {
+        await base.authorize(ctx, SCHEDULED_OP);
+        checkEnvelope(envelope, SCHEDULED_OP);
+        const maintenance = maintenanceOrUnavailable();
+        const due = await deps.withTenantTransaction(ctx, async (tx) => {
+          const { rows } = await tx.query<{ due: boolean }>(
+            `SELECT coalesce(max(created_at) <= now() - make_interval(secs => $1), true) AS due
+             FROM cuspatlas.imaging_orphan_sweeps WHERE actor_id = cuspatlas.current_actor_id() AND dry_run`,
+            [opts.intervalSeconds],
+          );
+          return rows[0]?.due === true;
+        });
+        if (!due) return null;
+        return run(ctx, envelope, SCHEDULED_OP, true, DEFAULT_GRACE_HOURS, maintenance);
       });
     },
   };

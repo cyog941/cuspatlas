@@ -111,6 +111,7 @@
         "imaging.export.blobs",
         "imaging.retention.setPolicy",
         "imaging.storage.reconcile",
+        "imaging.storage.scheduledOrphanSweep",
         "imaging.storage.sweep",
         "imaging.storage.sweepOrphanBytes",
         "intake.forms.publish",

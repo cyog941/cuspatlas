@@ -13174,6 +13174,18 @@
       ]
     },
     {
+      "operation": "imaging.storage.scheduledOrphanSweep",
+      "transports": [
+        "worker"
+      ],
+      "scope": "admin.configure",
+      "principals": [
+        "service"
+      ],
+      "idempotency": "none",
+      "refusals": []
+    },
+    {
       "operation": "imaging.storage.sweep",
       "transports": [
         "worker"

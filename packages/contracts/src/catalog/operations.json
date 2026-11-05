@@ -8665,6 +8665,24 @@
     "status": "active"
   },
   {
+    "operation": "imaging.storage.scheduledOrphanSweep",
+    "owner": "I",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "imaging.storage.scheduledOrphanSweep",
+    "scope": "admin.configure",
+    "principals": [
+      "service"
+    ],
+    "transports": [
+      "worker"
+    ],
+    "refusals": [],
+    "idempotency": "none",
+    "sensitivity": "operational",
+    "status": "active"
+  },
+  {
     "operation": "imaging.storage.sweep",
     "owner": "I",
     "kind": "command",

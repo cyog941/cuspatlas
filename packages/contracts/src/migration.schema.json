@@ -1398,8 +1398,9 @@
     "ArchiveReferenceList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data"],
+      "required": ["data", "envelope"],
       "properties": {
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": {
           "type": "array",
           "maxItems": 10000,
@@ -1827,8 +1828,9 @@
     "OperationsAlertList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data"],
+      "required": ["data", "envelope"],
       "properties": {
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": {
           "type": "object",
           "additionalProperties": false,

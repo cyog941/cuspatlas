@@ -214,3 +214,12 @@ The episode is keyed on the first portal message after the last staff message; d
 - Five-way import (when a C document is in the same import; a B-only import keeps its own checks): `assertBillingProcedureRefs` refuses a `clinical_procedure` charge whose `procedure_ref` names no C14 rendered procedure of the tenant (red: the orphan import resolved; then rolled back with the whole import).
 - C12: `mergeCoverageStatus`/`coverageNowOf` keep a B5 `unknown` unknown even with an entered assumption (red then green).
 - `review-hardening-s2` `soon()` keeps the window inside one America/New_York day (shrinks near midnight; under one minute left it starts after midnight). Test-only.
+
+## 11. Close M batch 2 integration gaps
+
+Four CI failures after the M batch 2 and A20 merge.
+
+- List envelope: only two M batch 2 lists were unregistered, `migration.archive.references` (ordered by archive version, entity, source id, entry id; capped at 10000 with no cursor; tenant scope) and `operations.alerts.list` (fixed obligation order, bounded by the parent set of obligations, exact `data.count`). Both are in `LIST_OPERATIONS`, and their success schemas in `migration.schema.json` carry the top-level `envelope` as the M batch 1 lists do. The M1, M9 readiness and M10 reads are not lists by the A20 rule.
+- Vocabularies: only `migration_archive_packages.state` was uncovered; added as `migration_archive_package` (verified, partly readable, failed) and bumped the module to `migration-state-labels.2`.
+- E5 acceptance: the product was right and the test was wrong. The test's notice policy used quiet hours 03:00 to 03:01 America/New_York and CI happened to run at 03:00, so E7 correctly deferred the notice (`queued`). It passes at any other minute. The test now places a one-minute quiet window twelve hours away from the run time. No product change; OR-08 behaviour (needs-reply derived from the awaiting-reply item, escalation writes only by humans who may reply or the worker) is unchanged.
+- Lint: `useOptionalChain` in `change-control.ts` applied.

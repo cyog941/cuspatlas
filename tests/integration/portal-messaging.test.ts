@@ -72,7 +72,7 @@ beforeAll(async () => {
       purpose: 'message_notice',
       channel: 'email',
       templateRef: 'e5-notice',
-      quietHours: { start: '03:00', end: '03:01' },
+      quietHours: quietWindowAwayFromNow(),
     }),
     201,
   );
@@ -101,6 +101,21 @@ afterAll(async () => {
   await db?.close();
 });
 
+/**
+ * A one-minute quiet window twelve hours from now in the practice zone (America/New_York): the policy
+ * still carries quiet hours, but the run can never land inside it. A fixed '03:00' window made the
+ * acceptance test fail whenever CI happened to run at 03:00 Eastern (the notice stayed queued).
+ */
+function quietWindowAwayFromNow(): { start: string; end: string } {
+  const at = (ms: number) =>
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'America/New_York',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).format(new Date(Date.now() + ms));
+  return { start: at(12 * 3600_000), end: at(12 * 3600_000 + 60_000) };
+}
 const THREADS = (p: string) => `/portal/v1/patients/${p}/message-threads`;
 const open = (who: string, p: string, body: string, extra: Record<string, unknown> = {}) =>
   h.portal(who, 'POST', THREADS(p), { topic: 'general', locationRef: loc.locationRef, body, ...extra });

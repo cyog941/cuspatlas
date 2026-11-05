@@ -263,6 +263,13 @@ export const LIST_OPERATIONS: Readonly<Record<string, ListOperationSpec>> = {
     scope: 'location',
     lowerBound: 'data.count',
   },
+  'migration.archive.references': {
+    rows: 'data',
+    ordering: { key: 'archiveVersion', direction: 'asc', tieBreak: 'entryRef' },
+    limit: { default: 10000, max: 10000 },
+    cursor: false,
+    scope: 'tenant',
+  },
   'migration.openingItems.list': {
     rows: 'data.items',
     ordering: { key: 'sourceRef', direction: 'asc', tieBreak: 'openingItemRef' },
@@ -283,6 +290,15 @@ export const LIST_OPERATIONS: Readonly<Record<string, ListOperationSpec>> = {
     limit: { default: 1000, max: 1000 },
     cursor: false,
     scope: 'tenant',
+  },
+  'operations.alerts.list': {
+    rows: 'data.items',
+    // Fixed obligation evaluation order (operator, escalation, verification, SLA); one item per unmet obligation.
+    ordering: { key: 'obligationOrder', direction: 'asc', tieBreak: 'workItemRef' },
+    limit: 'parent',
+    cursor: false,
+    scope: 'tenant',
+    total: 'data.count',
   },
   'patients.duplicates.find': {
     rows: 'data',

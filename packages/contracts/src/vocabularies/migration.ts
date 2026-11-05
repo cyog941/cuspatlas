@@ -9,7 +9,7 @@ import { vocabularyEntry as e, type ModuleVocabularies } from './types';
 export const MIGRATION_VOCABULARIES: ModuleVocabularies = {
   module: 'migration',
   owner: 'M',
-  version: 'migration-state-labels.1',
+  version: 'migration-state-labels.2',
   vocabularies: [
     {
       name: 'migration_cutover',
@@ -25,6 +25,15 @@ export const MIGRATION_VOCABULARIES: ModuleVocabularies = {
       entries: [
         e('open', 'OPE', 'Open', 'lifecycle', false),
         e('resolved', 'RES', 'Resolved', 'lifecycle', true),
+      ],
+    },
+    {
+      name: 'migration_archive_package',
+      sources: ['migration_archive_packages.state'],
+      entries: [
+        e('verified', 'VER', 'Verified, readable', 'lifecycle', false),
+        e('partial', 'PAR', 'Partly readable', 'exception', false),
+        e('failed', 'FAI', 'Failed, not served', 'exception', false),
       ],
     },
   ],

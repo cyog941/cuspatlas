@@ -4787,6 +4787,7 @@ export type MigrationArchiveHoldResult = {
 export type MigrationArchiveRef = MigrationUuid;
 
 export type MigrationArchiveReferenceList = {
+  readonly "envelope": MigrationListEnvelope;
   readonly "data": readonly ({
     readonly "entryRef": MigrationUuid;
     readonly "archiveRef": MigrationArchiveRef;
@@ -5032,6 +5033,7 @@ export type MigrationOpeningReconciliation = {
 };
 
 export type MigrationOperationsAlertList = {
+  readonly "envelope": MigrationListEnvelope;
   readonly "data": {
     readonly "asOf": string;
     readonly "coverage": { readonly [k: string]: unknown };

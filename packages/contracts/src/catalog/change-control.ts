@@ -244,7 +244,7 @@ function anchoredAlternatives(pattern: string): string[] | null {
   if (!pattern.startsWith('^') || !pattern.endsWith('$') || pattern.endsWith('\\$')) return null;
   const body = pattern.slice(1, -1);
   const top = topLevelAlternatives(body);
-  if (!top || top.length !== 1) return null; // `^A|B$` anchors each side separately
+  if (top?.length !== 1) return null; // `^A|B$` anchors each side separately
   const open = body.startsWith('(?:') ? 3 : body.startsWith('(') && !body.startsWith('(?') ? 1 : 0;
   if (open > 0 && groupSpansBody(body)) return topLevelAlternatives(body.slice(open, -1));
   return [body];

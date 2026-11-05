@@ -11,6 +11,7 @@ Branch `codex/a-api-1`, based on the integrated F+S+C+E+I+B head `6871689`.
 |---|---|---|
 | A4 operation catalog and single authorization path | tested (synthetic) | `tests/integration/api-catalog.test.ts` |
 | A3 scope registry and new-operation procedure | tested (synthetic); grants pending A-D2 | `tests/integration/api-scopes.test.ts` |
+| A1 contract pipeline, generated client, representation conformance | tested (synthetic) | `tests/integration/api-contract-gate.test.ts`, ADR 0007 |
 
 ### A4: operation catalog
 
@@ -51,3 +52,22 @@ Branch `codex/a-api-1`, based on the integrated F+S+C+E+I+B head `6871689`.
   harness covers every negative class.
 - Not done: there is no grant API for staff scopes, so "a human-only scope cannot be granted to an
   agent" is proven only as "can never be exercised by one" (A7). Default role grants remain A-D2.
+
+### A1: contract pipeline, generated client and shared-representation conformance
+
+- ADR `docs/adr/0007-contract-pipeline.md` records the pipeline: code tables and JSON Schemas are the
+  sources; one generator (`pnpm catalog:generate`) derives every artifact and writes nothing when
+  validation fails; `catalog:check` rejects any stale or hand-edited generated file.
+- OpenAPI is conformance-checked, not regenerated wholesale in this batch: the documented operations
+  (method, path, operationId) equal the catalog REST operations exactly, on top of the existing
+  contract drift check. Replacing the per-workstream OpenAPI generators remains open.
+- Shared representations: no tenant field, bare `<entity>Id`, scalar money or zoneless `*At`
+  timestamp in any schema definition reachable from an operation; request objects are closed. The
+  only defects in unreachable definitions are the four scalar minor-unit amounts of the fake
+  clearinghouse `RemittanceAdvice` (adapter-internal), listed explicitly. Allowed `...Id` fields that
+  are not entity references: `correlationId`, `providerEventId`, `jobSigningKeyId`.
+- `packages/client`: `src/generated.ts` (types from the JSON Schemas plus one typed entry per REST
+  operation, 348 entries) and a hand-written transport (`src/index.ts`) with no business logic; a
+  refusal is never `ok`. The test calls the real app: create, read, a 404 refusal, and a smuggled
+  `tenantId` property rejected with 400 (not stripped). The two OpenAPI-local result schemas (Health,
+  Session) are typed `unknown`.

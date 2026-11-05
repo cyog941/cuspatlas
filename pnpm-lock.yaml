@@ -79,6 +79,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/domain
 
+  packages/client: {}
+
   packages/contracts:
     dependencies:
       ajv:

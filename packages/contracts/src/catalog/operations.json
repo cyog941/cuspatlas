@@ -5070,6 +5070,7 @@
       "method": "post",
       "path": "/v1/bridge/jobs/{jobRef}/content",
       "requestSchema": "imaging:ObjectBytes",
+      "requestMedia": "application/octet-stream",
       "successStatus": "200",
       "successSchema": "imaging:BridgeContentResult"
     },
@@ -5981,6 +5982,7 @@
       "method": "post",
       "path": "/v1/imaging/ingress/{ingressRef}/content",
       "requestSchema": "imaging:ObjectBytes",
+      "requestMedia": "application/octet-stream",
       "successStatus": "200",
       "successSchema": "imaging:IngressUploadResult"
     },
@@ -6221,7 +6223,8 @@
       "method": "get",
       "path": "/v1/imaging/objects/{objectRef}/content",
       "successStatus": "200",
-      "successSchema": "imaging:ObjectBytes"
+      "successSchema": "imaging:ObjectBytes",
+      "successMedia": "application/octet-stream"
     },
     "refusals": [
       "401",

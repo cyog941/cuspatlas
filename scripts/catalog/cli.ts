@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { validateCatalog } from '../../packages/contracts/src/catalog/catalog';
 import { buildCatalog, ROOT, stableJson } from './build-catalog';
+import { renderClient } from './client';
 import { renderCatalogMd, renderScopesMd } from './docs';
 import { buildScopeRegistry, registeredScopes } from './scopes';
 
@@ -17,6 +18,7 @@ export function generatedArtifacts(): Record<string, string> {
   return {
     'packages/contracts/src/catalog/operations.json': stableJson(catalog),
     'packages/contracts/src/catalog/scopes.json': stableJson(registry),
+    'packages/client/src/generated.ts': renderClient(catalog),
     'docs/api/operation-catalog.md': renderCatalogMd(catalog),
     'docs/api/scopes.md': renderScopesMd(registry),
   };

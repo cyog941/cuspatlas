@@ -37,8 +37,12 @@ export interface CatalogOperation {
     readonly method: 'get' | 'post';
     readonly path: string;
     readonly requestSchema?: string;
+    /** Non-JSON request body (binary upload); default application/json. */
+    readonly requestMedia?: 'application/octet-stream';
     readonly successStatus: '200' | '201';
     readonly successSchema: string;
+    /** Non-JSON success body (object bytes); default application/json. */
+    readonly successMedia?: 'application/octet-stream';
   };
   readonly mcpTool?: string;
   /** Documented refusal statuses; every one uses the shared Refusal body. */

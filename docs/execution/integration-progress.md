@@ -319,3 +319,4 @@ Branch `codex/backend-integration`, from 2475167. Synthetic data only; not pushe
   - The A2 `DowntimeLog.payload` was an open request object, which the A1 representation gate refuses. It is now a closed list of `{name, value}` string fields, with duplicate names refused. Entries are still stored as one object.
   - The A3 worker test principal lacked `communications.deliver`, which the A4 reply-escalation stage needs. The test now seeds it.
   - Both files pass when re-run, along with the contract, change-control, catalog and migration-matrix tests (6 files / 95 tests).
+- **Closeout A result.** Full `corepack pnpm run ci` at 76f17ac: exit 0, 190 files / 3526 tests. The catalog has 499 operations, up from 488. The [hand-off](backend-handoff.md) known limitations drop the per-process cursor key, the downtime log, the backup-verify wiring and the chunked download, and list the remaining Closeout A limits. Not pushed; GitHub CI has not run on these commits.

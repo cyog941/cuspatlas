@@ -186,10 +186,19 @@ Sub-decisions held in the ledgers (all pending): billing M-1..M-12, P-1..P-7, ST
 - Drill RPO/RTO timings describe only the embedded test cluster.
 - Every clinical semantic is recommended-pending-clinical-approval; no dentist has reviewed any of them.
 - Webhooks have no real network transport; a narrow window between the revoke recheck and the send remains.
-- The list cursor HMAC key is per process: cursors do not survive a restart or work across instances.
 - The privacy scan and SBOM are partial controls; a green CI is not authorization to deploy or hold PHI.
 - Open integration items: no insurer portion in C12 estimates; E2 portal documents stay unavailable; A batch 2 responses have no `data` wrapper.
 - Not built: export build as a worker job.
+- Closeout A limits (tested on synthetic data only):
+  - The downtime-log and reviewer-assignment lists return at most 500 rows, with no cursor; a full page reports `truncated`.
+  - Ending a downtime window does not require its entries to be resolved, and the log does not enforce a two-person rule for payments or notes.
+  - Reply escalation has no per-queue enable flag; only each queue's reply-due threshold applies. The escalation target queue still needs practice confirmation.
+  - Backup verification in the worker runs only when an operator configures `CUSPATLAS_BACKUP_LOCATION` and `CUSPATLAS_RESTORE_ADMIN_DATABASE_URL`. No operator location exists.
+  - The orphan-bytes sweep is a human operation, not a scheduled job, and handles at most 200 candidates per run. Known residual risks:
+    - Exports do not take the content lock.
+    - A removal followed by a transaction rollback leaves no record.
+    - An ingest retried after the grace period finds its bytes gone.
+  - Ranged export downloads read and verify the whole package on each request; the object store has no ranged read. MCP downloads have no ranges.
 - No retention period ships for messages or images, so nothing in those classes is deletable.
 - Agent memory PHI screening is a best-effort heuristic, not enforced default-deny (A23 hardening).
 

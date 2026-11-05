@@ -6539,6 +6539,28 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/billing/export:
+    get:
+      operationId: billing.export
+      description: >-
+        B10: versioned JSON export of every billing and rcm record of the tenant (journal, payments, plans,
+        statements, coverage, eligibility, claims, remittances, workflows), references preserved, no tenant
+        field, every amount as Money. Tenant-wide human administrators only; sensitive-read logged.
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/BillingExportResult'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   # END generated: BILLING_OPS
 components:
   securitySchemes:

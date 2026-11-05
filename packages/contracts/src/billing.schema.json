@@ -5242,6 +5242,42 @@
           "$ref": "#/$defs/VisitPreparation"
         }
       }
+    },
+    "BillingExport": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "B10 versioned billing export: one array of rows per billing and rcm table, references preserved, no tenant field, every *_minor amount as Money.",
+      "required": ["format", "exportedAt", "currency", "tables"],
+      "properties": {
+        "format": {
+          "const": "cuspatlas-billing-export/1"
+        },
+        "exportedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "currency": {
+          "$ref": "#/$defs/CurrencyCode"
+        },
+        "tables": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    },
+    "BillingExportResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/BillingExport"
+        }
+      }
     }
   }
 }

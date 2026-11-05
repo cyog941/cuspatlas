@@ -1,6 +1,7 @@
 import { createClaimOperations } from '../rcm/claims';
 import { createFakeClearinghouse } from '../rcm/clearinghouse';
 import { createCoverageOperations } from '../rcm/coverage';
+import { createBillingExportOperations } from '../rcm/export';
 import { createRemittanceOperations } from '../rcm/remittance';
 import { createRemittanceResolutionOperations } from '../rcm/remittance-resolution';
 import { createWorkflowOperations, type WorkflowDrivers } from '../rcm/workflow';
@@ -43,6 +44,7 @@ export function createBillingService(deps: BillingDeps) {
     ...createClaimOperations(base, partner, deps.attachments),
     ...createRemittanceOperations(base, partner),
     ...createRemittanceResolutionOperations(base),
+    ...createBillingExportOperations(base),
   };
   // The CL workflow drives only these owning commands (never SQL writes of their tables).
   drivers = service;

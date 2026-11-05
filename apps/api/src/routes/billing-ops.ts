@@ -478,6 +478,18 @@ export const BILLING_OPS: BillingOp[] = [
       'CL-08 durable timer (service principals only; the outbox worker calls the same function): records the firing once, escalates an open exception one bounded level or opens the payer follow-up, then advances the workflow.',
     invoke: (svc, actor, i) => svc.fireWorkflowTimer(actor, param(i, 'timerRef')),
   },
+  {
+    method: 'get',
+    path: '/v1/billing/export',
+    operationId: 'billing.export',
+    protected: true,
+    success: { status: '200', schema: B('BillingExportResult') },
+    refusals: BILLING_READ_REFUSALS,
+    tool: 'billing_export',
+    description:
+      'B10: versioned JSON export of every billing and rcm record of the tenant (journal, payments, plans, statements, coverage, eligibility, claims, remittances, workflows), references preserved, no tenant field, every amount as Money. Tenant-wide human administrators only; sensitive-read logged.',
+    invoke: (svc, actor) => data(svc.exportBilling(actor)),
+  },
 ];
 
 export const BILLING_OP_ROUTES = (): readonly RouteContract[] =>

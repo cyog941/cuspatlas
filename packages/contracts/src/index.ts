@@ -1,5 +1,6 @@
 export * from './action-proposal';
 export * from './billing';
+export * from './billing-export';
 export * from './billing-rcm';
 export * from './clinical';
 export * from './clinical-care';

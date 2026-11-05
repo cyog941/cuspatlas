@@ -139,6 +139,7 @@ const TOOL_NAMES = [
   'billing_adjustments_post',
   'billing_adjustments_decide',
   'billing_reports_receivables',
+  'billing_export',
   // B6 claims (fake clearinghouse only).
   'rcm_appeals_draft',
   'rcm_appeals_review',

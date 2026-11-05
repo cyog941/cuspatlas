@@ -12,7 +12,18 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { expect } from 'vitest';
 import type { TestDatabase } from './db';
-import { SVC_A1, seedTenancy, T_ALPHA, T_BETA, USER_A1, USER_A3, USER_A4, USER_B1 } from './fixtures';
+import {
+  SVC_A1,
+  SVC_B1,
+  seedTenancy,
+  T_ALPHA,
+  T_BETA,
+  USER_A1,
+  USER_A2,
+  USER_A3,
+  USER_A4,
+  USER_B1,
+} from './fixtures';
 import { patientBody, seedPatientScopes } from './patient-fixtures';
 import { seedSchedulingScopes, USER_A5 } from './scheduling-fixtures';
 import { createTestTokenIssuer, TEST_AUDIENCE, type TestTokenIssuer } from './test-token-issuer';
@@ -30,7 +41,7 @@ export interface McpOutcome {
  * the REST app under the runtime role, and helpers that build synthetic fixtures through the domain
  * commands only (never by direct writes).
  */
-export type Who = 'a1' | 'a3' | 'a4' | 'a5' | 'svcA1' | 'b1';
+export type Who = 'a1' | 'a2' | 'a3' | 'a4' | 'a5' | 'svcA1' | 'b1' | 'svcB1';
 
 export interface AppointmentHarness {
   readonly app: FastifyInstance;
@@ -87,11 +98,13 @@ export async function openAppointmentHarness(
   }
   const subjects: Record<Who, [string, string]> = {
     a1: [USER_A1, T_ALPHA],
+    a2: [USER_A2, T_ALPHA],
     a3: [USER_A3, T_ALPHA],
     a4: [USER_A4, T_ALPHA],
     a5: [USER_A5, T_ALPHA],
     svcA1: [SVC_A1, T_ALPHA],
     b1: [USER_B1, T_BETA],
+    svcB1: [SVC_B1, T_BETA],
   };
   const mcpTokens: Partial<Record<Who, string>> = {};
   const mcp: AppointmentHarness['mcp'] = async (who, tool, args, okStatus = 200) => {
@@ -125,6 +138,9 @@ export async function openAppointmentHarness(
     a5: await issuer.issue({ sub: USER_A5, tid: T_ALPHA }),
     svcA1: await issuer.issue({ sub: SVC_A1, tid: T_ALPHA }),
     b1: await issuer.issue({ sub: USER_B1, tid: T_BETA }),
+    // a2 is the REVOKED member and svc-b1 the beta service principal (B10 negative matrix).
+    a2: await issuer.issue({ sub: USER_A2, tid: T_ALPHA }),
+    svcB1: await issuer.issue({ sub: SVC_B1, tid: T_BETA }),
   };
   const call: AppointmentHarness['call'] = (who, method, url, body, key = randomUUID()) =>
     app.inject({

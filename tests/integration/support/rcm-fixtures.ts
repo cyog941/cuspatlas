@@ -44,8 +44,8 @@ export const today = () =>
     day: '2-digit',
   }).format(new Date());
 
-export async function openRcmHarness(db: TestDatabase): Promise<RcmHarness> {
-  const h = await openBillingHarness(db, { pool: 10 });
+export async function openRcmHarness(db: TestDatabase, opts: { mcp?: boolean } = {}): Promise<RcmHarness> {
+  const h = await openBillingHarness(db, { pool: 10, ...opts });
   await seedClinicalScopes(db.admin);
   const loc = await seedLocation(h, RCM_LOC);
   await db.admin.query(

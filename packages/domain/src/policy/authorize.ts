@@ -176,6 +176,8 @@ export const ACTION_POLICIES = {
   'rcm.workflows.close': { scope: 'billing.correct', principals: ['human'] },
   'rcm.workflows.fireTimer': { scope: 'billing.write', principals: ['service'] },
   'rcm.visits.prepare': { scope: 'coverage.read', principals: ['human', 'service'] },
+  // B10 billing export: a tenant-wide human administrator only (sensitive-read logged), like S17.
+  'billing.export': { scope: 'admin.configure', principals: ['human'] },
   // C5 encounters and clinical authorship (recommended-pending-clinical-approval). Clinical
   // mutations are human-only: a model or integration is never a clinical author. Every mutation
   // additionally needs a resolvable clinical author profile (clinical/authorship.ts). Reads are

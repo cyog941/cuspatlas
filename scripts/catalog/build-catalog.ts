@@ -42,6 +42,11 @@ const OWNERS: Record<string, OwnerWorkstream> = {
   migration: 'M',
   practice: 'M',
   operations: 'M',
+  // Workstream A batch 2 (A8-A13).
+  agents: 'A',
+  actions: 'A',
+  ai: 'A',
+  prescriptions: 'A',
 };
 
 /**

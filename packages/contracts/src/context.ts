@@ -19,6 +19,16 @@ export interface ActorContext {
   readonly sessionId: string;
   readonly scopes: readonly string[];
   readonly correlationId: string;
+  /**
+   * A8: present only when the principal is an agent (a service principal with an agent record): the
+   * agent and the human sponsor of record. Set by the authenticator from the live membership.
+   */
+  readonly agent?: AgentIdentity;
+}
+
+export interface AgentIdentity {
+  readonly agentRef: string;
+  readonly sponsorRef: string;
 }
 
 export interface CommandEnvelope<T> {
@@ -181,6 +191,13 @@ export const SECURITY_REASON_CODES = [
   'device_revoked',
   'device_unpaired',
   'device_signature_invalid',
+  'agent_transport_denied',
+  'agent_credential_rotated',
+  'proposal_required',
+  'consent_missing',
+  'budget_exhausted',
+  'ai_use_case_disabled',
+  'prescribing_not_available',
 ] as const;
 export type SecurityReasonCode = (typeof SECURITY_REASON_CODES)[number];
 

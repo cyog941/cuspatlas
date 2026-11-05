@@ -102,6 +102,10 @@ describe('runtime database role', () => {
     expect(rows.map((r) => r.relname)).toStrictEqual([
       'action_proposal_provenance',
       'action_proposals',
+      'agent_audit_events',
+      'agent_lifecycle_events',
+      'agent_principals',
+      'agent_sponsorships',
       'appointment_attendance_transitions',
       'appointment_lifecycle_events',
       'appointment_overrides',

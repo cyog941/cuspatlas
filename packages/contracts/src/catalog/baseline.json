@@ -2,6 +2,347 @@
   "version": 1,
   "operations": [
     {
+      "operation": "agents.audit.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agents.read",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/agents/audit"
+      },
+      "mcpTool": "agents_audit_list"
+    },
+    {
+      "operation": "agents.credentials.rotate",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agents.manage",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/agents/credentials/rotate"
+      },
+      "mcpTool": "agents_credentials_rotate",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "agentRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "expectedVersion": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 2147483647,
+            "minimum": 1
+          },
+          "reason": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z_]{1,64}$"
+          }
+        },
+        "closed": true,
+        "required": [
+          "agentRef",
+          "expectedVersion"
+        ]
+      }
+    },
+    {
+      "operation": "agents.principals.create",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agents.manage",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/agents/principals"
+      },
+      "mcpTool": "agents_principals_create",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "expiresAt": {
+            "type": [
+              "string"
+            ],
+            "maxLength": 40
+          },
+          "purpose": {
+            "type": [
+              "string"
+            ],
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[^\\u0000-\\u001f]*$"
+          },
+          "scopes": {
+            "type": [
+              "array"
+            ],
+            "maxItems": 64,
+            "items": {
+              "type": [
+                "string"
+              ],
+              "maxLength": 64,
+              "pattern": "^[a-z][a-zA-Z]*\\.[a-z][a-zA-Z]*$"
+            }
+          }
+        },
+        "closed": true,
+        "required": [
+          "expiresAt",
+          "purpose",
+          "scopes"
+        ]
+      }
+    },
+    {
+      "operation": "agents.principals.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agents.read",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/agents/principals"
+      },
+      "mcpTool": "agents_principals_list"
+    },
+    {
+      "operation": "agents.principals.read",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agents.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/agents/principals/state"
+      },
+      "mcpTool": "agents_principals_get"
+    },
+    {
+      "operation": "agents.principals.resume",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agents.manage",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/agents/principals/resume"
+      },
+      "mcpTool": "agents_principals_resume",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "agentRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "expectedVersion": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 2147483647,
+            "minimum": 1
+          },
+          "reason": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z_]{1,64}$"
+          }
+        },
+        "closed": true,
+        "required": [
+          "agentRef",
+          "expectedVersion"
+        ]
+      }
+    },
+    {
+      "operation": "agents.principals.revoke",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agents.manage",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/agents/principals/revoke"
+      },
+      "mcpTool": "agents_principals_revoke",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "agentRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "expectedVersion": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 2147483647,
+            "minimum": 1
+          },
+          "reason": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z_]{1,64}$"
+          }
+        },
+        "closed": true,
+        "required": [
+          "agentRef",
+          "expectedVersion"
+        ]
+      }
+    },
+    {
+      "operation": "agents.principals.suspend",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agents.manage",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/agents/principals/suspend"
+      },
+      "mcpTool": "agents_principals_suspend",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "agentRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "expectedVersion": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 2147483647,
+            "minimum": 1
+          },
+          "reason": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z_]{1,64}$"
+          }
+        },
+        "closed": true,
+        "required": [
+          "agentRef",
+          "expectedVersion"
+        ]
+      }
+    },
+    {
+      "operation": "agents.sponsors.change",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agents.manage",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/agents/sponsors/change"
+      },
+      "mcpTool": "agents_sponsors_change",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "agentRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "expectedVersion": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 2147483647,
+            "minimum": 1
+          },
+          "sponsorRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "closed": true,
+        "required": [
+          "agentRef",
+          "expectedVersion",
+          "sponsorRef"
+        ]
+      }
+    },
+    {
       "operation": "billing.adjustments.decide",
       "transports": [
         "rest",

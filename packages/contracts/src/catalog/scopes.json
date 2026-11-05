@@ -64,6 +64,46 @@
       "sensitivity": "phiBulk"
     },
     {
+      "name": "agents.manage",
+      "noun": "agents",
+      "verb": "manage",
+      "principalClasses": [
+        "human"
+      ],
+      "humanOnly": true,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "agents.credentials.rotate",
+        "agents.principals.create",
+        "agents.principals.resume",
+        "agents.principals.revoke",
+        "agents.principals.suspend",
+        "agents.sponsors.change"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "agents.read",
+      "noun": "agents",
+      "verb": "read",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "agents.audit.list",
+        "agents.principals.list",
+        "agents.principals.read"
+      ],
+      "sensitivity": "phi"
+    },
+    {
       "name": "billing.correct",
       "noun": "billing",
       "verb": "correct",

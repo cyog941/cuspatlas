@@ -1,0 +1,2241 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cuspatlas.invalid/schemas/agents/v1",
+  "title": "Agents, actions and AI contract v1 (workstream A batch 2: A8-A13; synthetic only; remote MCP, model providers and prescribing partners blocked on A-S1/A-S2 and the prescribing qualification)",
+  "$defs": {
+    "IdempotencyKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$"
+    },
+    "Version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "Uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "Cursor": {
+      "type": "string",
+      "description": "Opaque, tenant-bound, HMAC-protected. Never parse it.",
+      "pattern": "^[A-Za-z0-9_-]{1,200}\\.[A-Za-z0-9_-]{22}$"
+    },
+    "Instant": {
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 40
+    },
+    "ReasonCode": {
+      "type": "string",
+      "pattern": "^[a-z_]{1,64}$"
+    },
+    "Digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "ScopeName": {
+      "type": "string",
+      "pattern": "^[a-z][a-zA-Z]*\\.[a-z][a-zA-Z]*$",
+      "maxLength": 64
+    },
+    "OperationName": {
+      "type": "string",
+      "pattern": "^[a-z][A-Za-z]{0,40}(\\.[a-z][A-Za-z]{0,40}){0,3}$",
+      "maxLength": 128
+    },
+    "AgentRef": {
+      "$ref": "#/$defs/Uuid",
+      "description": "Opaque agent principal reference (tenant from context)."
+    },
+    "PrincipalRef": {
+      "$ref": "#/$defs/Uuid",
+      "description": "Opaque principal reference."
+    },
+    "CredentialRef": {
+      "type": "string",
+      "pattern": "^agc-[0-9a-f]{32}$",
+      "description": "The agent credential reference: the `sid` an agent token must carry. Rotation replaces it; a token naming an earlier one is unauthenticated."
+    },
+    "Purpose": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\u0000-\\u001f]*$"
+    },
+    "AgentCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A8: a new agent principal. The sponsor is the calling human; the scope set may not include a human-only scope or a scope the sponsor lacks; the expiry is required and bounded (A-D9 open).",
+      "required": [
+        "purpose",
+        "scopes",
+        "expiresAt"
+      ],
+      "properties": {
+        "purpose": {
+          "$ref": "#/$defs/Purpose"
+        },
+        "scopes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/ScopeName"
+          }
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "AgentTransition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "agentRef",
+        "expectedVersion"
+      ],
+      "properties": {
+        "agentRef": {
+          "$ref": "#/$defs/AgentRef"
+        },
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reason": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "AgentSponsorChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "agentRef",
+        "sponsorRef",
+        "expectedVersion"
+      ],
+      "properties": {
+        "agentRef": {
+          "$ref": "#/$defs/AgentRef"
+        },
+        "sponsorRef": {
+          "$ref": "#/$defs/PrincipalRef"
+        },
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "AgentQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "agentRef"
+      ],
+      "properties": {
+        "agentRef": {
+          "$ref": "#/$defs/AgentRef"
+        }
+      }
+    },
+    "AgentListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "cursor": {
+          "$ref": "#/$defs/Cursor"
+        },
+        "state": {
+          "enum": [
+            "active",
+            "suspended",
+            "revoked"
+          ]
+        }
+      }
+    },
+    "AgentAuditQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "agentRef"
+      ],
+      "properties": {
+        "agentRef": {
+          "$ref": "#/$defs/AgentRef"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "cursor": {
+          "$ref": "#/$defs/Cursor"
+        }
+      }
+    },
+    "AgentCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "agentRef",
+        "state",
+        "expiresAt"
+      ],
+      "properties": {
+        "agentRef": {
+          "$ref": "#/$defs/AgentRef"
+        },
+        "state": {
+          "enum": [
+            "active",
+            "suspended",
+            "revoked"
+          ]
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "credentialRef": {
+          "$ref": "#/$defs/CredentialRef"
+        },
+        "sponsorRef": {
+          "$ref": "#/$defs/PrincipalRef"
+        }
+      }
+    },
+    "AgentCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A8 lifecycle result. The credential reference appears only on create and rotate.",
+      "required": [
+        "data",
+        "version",
+        "correlationId",
+        "replayed"
+      ],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/AgentCommand"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "Agent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "agentRef",
+        "purpose",
+        "scopes",
+        "state",
+        "expiresAt",
+        "sponsorRef",
+        "createdBy",
+        "createdAt",
+        "revokedAt",
+        "version",
+        "grants"
+      ],
+      "properties": {
+        "agentRef": {
+          "$ref": "#/$defs/AgentRef"
+        },
+        "purpose": {
+          "$ref": "#/$defs/Purpose"
+        },
+        "scopes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ScopeName"
+          }
+        },
+        "state": {
+          "enum": [
+            "active",
+            "suspended",
+            "revoked"
+          ]
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "sponsorRef": {
+          "$ref": "#/$defs/PrincipalRef"
+        },
+        "createdBy": {
+          "$ref": "#/$defs/PrincipalRef"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "revokedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "grants": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "describeAgentGrants: the scopes the agent can exercise right now (reads only while suspended; none when not live).",
+          "required": [
+            "effectiveScopes",
+            "live"
+          ],
+          "properties": {
+            "effectiveScopes": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ScopeName"
+              }
+            },
+            "live": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "AgentRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A8: one agent principal with its live grants. Never carries the credential reference.",
+      "required": [
+        "data"
+      ],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/Agent"
+        }
+      }
+    },
+    "AgentList": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A8: agent principals of the tenant (OR-01 envelope), oldest first.",
+      "required": [
+        "asOf",
+        "appliedFilters",
+        "scope",
+        "limit",
+        "truncated",
+        "nextCursor",
+        "ordering",
+        "count",
+        "items"
+      ],
+      "properties": {
+        "asOf": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "appliedFilters": {
+          "type": "object"
+        },
+        "scope": {
+          "$ref": "#/$defs/ListScope"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ordering": {
+          "$ref": "#/$defs/ListOrdering"
+        },
+        "count": {
+          "$ref": "#/$defs/ListCount"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Agent"
+          }
+        }
+      }
+    },
+    "AgentAuditEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eventRef",
+        "agentRef",
+        "sponsorRef",
+        "operation",
+        "resourceType",
+        "resourceRef",
+        "resourceVersion",
+        "correlationId",
+        "occurredAt"
+      ],
+      "properties": {
+        "eventRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "agentRef": {
+          "$ref": "#/$defs/AgentRef"
+        },
+        "sponsorRef": {
+          "$ref": "#/$defs/PrincipalRef"
+        },
+        "operation": {
+          "$ref": "#/$defs/OperationName"
+        },
+        "resourceType": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "resourceRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "resourceVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "occurredAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "AgentAuditList": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A8: the separate agent-audit stream of one agent: actor is the agent, sponsor is the sponsor of record at the time.",
+      "required": [
+        "asOf",
+        "appliedFilters",
+        "scope",
+        "limit",
+        "truncated",
+        "nextCursor",
+        "ordering",
+        "count",
+        "items"
+      ],
+      "properties": {
+        "asOf": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "appliedFilters": {
+          "type": "object"
+        },
+        "scope": {
+          "$ref": "#/$defs/ListScope"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ordering": {
+          "$ref": "#/$defs/ListOrdering"
+        },
+        "count": {
+          "$ref": "#/$defs/ListCount"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AgentAuditEvent"
+          }
+        }
+      }
+    },
+    "Deployment": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9:._/-]{1,200}$",
+      "description": "The MCP deployment (its resource identifier, the token audience) the consent applies to."
+    },
+    "Budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A9 call budget. The hard ceilings (pending approval) are the schema maxima; a budget above them is refused.",
+      "required": [
+        "periodSeconds",
+        "callsPerPeriod",
+        "recordsPerPeriod",
+        "phiFieldsPerPeriod",
+        "recordsPerCall",
+        "phiFieldsPerCall"
+      ],
+      "properties": {
+        "periodSeconds": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 86400
+        },
+        "callsPerPeriod": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000
+        },
+        "recordsPerPeriod": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "phiFieldsPerPeriod": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000000
+        },
+        "recordsPerCall": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "phiFieldsPerCall": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000
+        }
+      }
+    },
+    "ConsentRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A9: a named human consents that one agent may call the listed operations (MCP tools) on one deployment, within a budget, until the expiry. Operations outside the agent scope set are refused.",
+      "required": [
+        "agentRef",
+        "deployment",
+        "operations",
+        "budget",
+        "expiresAt"
+      ],
+      "properties": {
+        "agentRef": {
+          "$ref": "#/$defs/AgentRef"
+        },
+        "deployment": {
+          "$ref": "#/$defs/Deployment"
+        },
+        "operations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 400,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/OperationName"
+          }
+        },
+        "budget": {
+          "$ref": "#/$defs/Budget"
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "ConsentRevoke": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "consentRef",
+        "expectedVersion"
+      ],
+      "properties": {
+        "consentRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "ConsentListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "agentRef": {
+          "$ref": "#/$defs/AgentRef"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "cursor": {
+          "$ref": "#/$defs/Cursor"
+        }
+      }
+    },
+    "ConsentCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "consentRef",
+        "agentRef",
+        "state",
+        "expiresAt"
+      ],
+      "properties": {
+        "consentRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "agentRef": {
+          "$ref": "#/$defs/AgentRef"
+        },
+        "state": {
+          "enum": [
+            "active",
+            "revoked"
+          ]
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "ConsentCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A9 consent command result.",
+      "required": [
+        "data",
+        "version",
+        "correlationId",
+        "replayed"
+      ],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/ConsentCommand"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "Consent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "consentRef",
+        "agentRef",
+        "deployment",
+        "operations",
+        "budget",
+        "state",
+        "grantedBy",
+        "grantedAt",
+        "expiresAt",
+        "version"
+      ],
+      "properties": {
+        "consentRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "agentRef": {
+          "$ref": "#/$defs/AgentRef"
+        },
+        "deployment": {
+          "$ref": "#/$defs/Deployment"
+        },
+        "operations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/OperationName"
+          }
+        },
+        "budget": {
+          "$ref": "#/$defs/Budget"
+        },
+        "state": {
+          "enum": [
+            "active",
+            "revoked"
+          ]
+        },
+        "grantedBy": {
+          "$ref": "#/$defs/PrincipalRef"
+        },
+        "grantedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "ConsentList": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A9: consent records (OR-01 envelope), newest first.",
+      "required": [
+        "asOf",
+        "appliedFilters",
+        "scope",
+        "limit",
+        "truncated",
+        "nextCursor",
+        "ordering",
+        "count",
+        "items"
+      ],
+      "properties": {
+        "asOf": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "appliedFilters": {
+          "type": "object"
+        },
+        "scope": {
+          "$ref": "#/$defs/ListScope"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ordering": {
+          "$ref": "#/$defs/ListOrdering"
+        },
+        "count": {
+          "$ref": "#/$defs/ListCount"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Consent"
+          }
+        }
+      }
+    },
+    "BudgetQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "agentRef",
+        "deployment"
+      ],
+      "properties": {
+        "agentRef": {
+          "$ref": "#/$defs/AgentRef"
+        },
+        "deployment": {
+          "$ref": "#/$defs/Deployment"
+        }
+      }
+    },
+    "BudgetUsage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "consentRef",
+        "periodStartedAt",
+        "calls",
+        "records",
+        "phiFields",
+        "budget"
+      ],
+      "properties": {
+        "consentRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "periodStartedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "calls": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000000
+        },
+        "records": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000000
+        },
+        "phiFields": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000000
+        },
+        "budget": {
+          "$ref": "#/$defs/Budget"
+        }
+      }
+    },
+    "BudgetRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A9: the live budget usage of one agent on one deployment in the current period.",
+      "required": [
+        "data"
+      ],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/BudgetUsage"
+        }
+      }
+    },
+    "ElevatedOperation": {
+      "enum": [
+        "portal.principals.enroll",
+        "communications.consents.record",
+        "patients.relationships.add",
+        "billing.plans.authorize"
+      ]
+    },
+    "ActionPrepare": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A10: prepare a proposal for an elevated (catalog approval: proposal) operation. Binds operation, payload digest, resource versions, policy version and an expiry.",
+      "required": [
+        "operation",
+        "payload"
+      ],
+      "properties": {
+        "operation": {
+          "$ref": "#/$defs/ElevatedOperation"
+        },
+        "payload": {
+          "type": "object",
+          "description": "The owning operation's request body, validated by its owner at commit."
+        }
+      }
+    },
+    "ActionApprove": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proposalRef",
+        "payloadDigest",
+        "expectedVersion"
+      ],
+      "properties": {
+        "proposalRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "payloadDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "ActionCommit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proposalRef",
+        "payloadDigest"
+      ],
+      "properties": {
+        "proposalRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "payloadDigest": {
+          "$ref": "#/$defs/Digest"
+        }
+      }
+    },
+    "ActionAbandon": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proposalRef",
+        "expectedVersion",
+        "reason"
+      ],
+      "properties": {
+        "proposalRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reason": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "ActionQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proposalRef"
+      ],
+      "properties": {
+        "proposalRef": {
+          "$ref": "#/$defs/Uuid"
+        }
+      }
+    },
+    "ActionListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "cursor": {
+          "$ref": "#/$defs/Cursor"
+        },
+        "state": {
+          "enum": [
+            "prepared",
+            "approved",
+            "committed",
+            "rejected",
+            "expired",
+            "abandoned"
+          ]
+        }
+      }
+    },
+    "ActionProposal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proposalRef",
+        "operation",
+        "state",
+        "payloadDigest",
+        "policyVersion",
+        "expiresAt",
+        "proposerRef",
+        "proposerKind",
+        "sponsorRef",
+        "approverRef",
+        "resourceVersions",
+        "result",
+        "dispositionReason",
+        "version"
+      ],
+      "properties": {
+        "proposalRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "operation": {
+          "$ref": "#/$defs/ElevatedOperation"
+        },
+        "state": {
+          "enum": [
+            "prepared",
+            "approved",
+            "committed",
+            "rejected",
+            "expired",
+            "abandoned"
+          ]
+        },
+        "payloadDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "policyVersion": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "proposerRef": {
+          "$ref": "#/$defs/PrincipalRef"
+        },
+        "proposerKind": {
+          "enum": [
+            "human",
+            "service"
+          ]
+        },
+        "sponsorRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PrincipalRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "approverRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PrincipalRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resourceVersions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "ref",
+              "version"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "maxLength": 64
+              },
+              "ref": {
+                "$ref": "#/$defs/Uuid"
+              },
+              "version": {
+                "$ref": "#/$defs/Version"
+              }
+            }
+          }
+        },
+        "result": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                "ref": {
+                  "$ref": "#/$defs/Uuid"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dispositionReason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "ActionProposalResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A10 proposal step result.",
+      "required": [
+        "data",
+        "version",
+        "correlationId",
+        "replayed"
+      ],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/ActionProposal"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ActionProposalRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A10: one proposal of the tenant.",
+      "required": [
+        "data"
+      ],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/ActionProposal"
+        }
+      }
+    },
+    "ActionProposalList": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A10: proposals of the tenant (OR-01 envelope), newest first.",
+      "required": [
+        "asOf",
+        "appliedFilters",
+        "scope",
+        "limit",
+        "truncated",
+        "nextCursor",
+        "ordering",
+        "count",
+        "items"
+      ],
+      "properties": {
+        "asOf": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "appliedFilters": {
+          "type": "object"
+        },
+        "scope": {
+          "$ref": "#/$defs/ListScope"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ordering": {
+          "$ref": "#/$defs/ListOrdering"
+        },
+        "count": {
+          "$ref": "#/$defs/ListCount"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ActionProposal"
+          }
+        }
+      }
+    },
+    "AiUseCase": {
+      "enum": [
+        "clinicalNoteDraft",
+        "patientMessageDraft",
+        "claimReadinessExplanation"
+      ]
+    },
+    "AiSourceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "ref"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "encounter",
+            "note",
+            "thread",
+            "claim"
+          ]
+        },
+        "ref": {
+          "$ref": "#/$defs/Uuid"
+        }
+      }
+    },
+    "AiDraftCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A11: ask the (synthetic) model for a draft from records the caller may already read. Output is always a draft.",
+      "required": [
+        "useCase",
+        "sourceRefs"
+      ],
+      "properties": {
+        "useCase": {
+          "$ref": "#/$defs/AiUseCase"
+        },
+        "sourceRefs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": {
+            "$ref": "#/$defs/AiSourceRef"
+          }
+        }
+      }
+    },
+    "AiDraftAccept": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "draftRef",
+        "expectedVersion"
+      ],
+      "properties": {
+        "draftRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "editedText": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000
+        }
+      }
+    },
+    "AiDraftReject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "draftRef",
+        "expectedVersion",
+        "reason"
+      ],
+      "properties": {
+        "draftRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reason": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "AiDraftQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "draftRef"
+      ],
+      "properties": {
+        "draftRef": {
+          "$ref": "#/$defs/Uuid"
+        }
+      }
+    },
+    "AiDraftListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "cursor": {
+          "$ref": "#/$defs/Cursor"
+        },
+        "useCase": {
+          "$ref": "#/$defs/AiUseCase"
+        },
+        "state": {
+          "enum": [
+            "offered",
+            "flagged",
+            "accepted",
+            "rejected",
+            "stale"
+          ]
+        }
+      }
+    },
+    "AiDraft": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "draftRef",
+        "useCase",
+        "state",
+        "text",
+        "modelRef",
+        "promptVersionRef",
+        "sourceRefs",
+        "freshness",
+        "flags",
+        "createdBy",
+        "createdAt",
+        "decidedBy",
+        "acceptedAs",
+        "version"
+      ],
+      "properties": {
+        "draftRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "useCase": {
+          "$ref": "#/$defs/AiUseCase"
+        },
+        "state": {
+          "enum": [
+            "offered",
+            "flagged",
+            "accepted",
+            "rejected",
+            "stale"
+          ]
+        },
+        "text": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 20000
+        },
+        "modelRef": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "promptVersionRef": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "sourceRefs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "ref",
+              "version"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "maxLength": 32
+              },
+              "ref": {
+                "$ref": "#/$defs/Uuid"
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        "freshness": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "fresh",
+            "checkedAt"
+          ],
+          "properties": {
+            "fresh": {
+              "type": "boolean"
+            },
+            "checkedAt": {
+              "$ref": "#/$defs/Instant"
+            }
+          }
+        },
+        "flags": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ReasonCode"
+          }
+        },
+        "createdBy": {
+          "$ref": "#/$defs/PrincipalRef"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "decidedBy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PrincipalRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "acceptedAs": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                "ref": {
+                  "$ref": "#/$defs/Uuid"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "AiDraftCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "draftRef",
+        "state"
+      ],
+      "properties": {
+        "draftRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "state": {
+          "enum": [
+            "offered",
+            "flagged",
+            "accepted",
+            "rejected",
+            "stale"
+          ]
+        },
+        "acceptedAs": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                "ref": {
+                  "$ref": "#/$defs/Uuid"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "AiDraftCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A11 draft command result.",
+      "required": [
+        "data",
+        "version",
+        "correlationId",
+        "replayed"
+      ],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/AiDraftCommand"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "AiDraftRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A11: one AI draft with its provenance and freshness.",
+      "required": [
+        "data"
+      ],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/AiDraft"
+        }
+      }
+    },
+    "AiDraftList": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A11: AI drafts of the tenant (OR-01 envelope), newest first.",
+      "required": [
+        "asOf",
+        "appliedFilters",
+        "scope",
+        "limit",
+        "truncated",
+        "nextCursor",
+        "ordering",
+        "count",
+        "items"
+      ],
+      "properties": {
+        "asOf": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "appliedFilters": {
+          "type": "object"
+        },
+        "scope": {
+          "$ref": "#/$defs/ListScope"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ordering": {
+          "$ref": "#/$defs/ListOrdering"
+        },
+        "count": {
+          "$ref": "#/$defs/ListCount"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AiDraft"
+          }
+        }
+      }
+    },
+    "AiUseCaseConfigure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "useCase",
+        "enabled"
+      ],
+      "properties": {
+        "useCase": {
+          "$ref": "#/$defs/AiUseCase"
+        },
+        "enabled": {
+          "type": "boolean"
+        }
+      }
+    },
+    "AiUseCaseListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "cursor": {
+          "$ref": "#/$defs/Cursor"
+        }
+      }
+    },
+    "AiUseCaseState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "useCase",
+        "registered",
+        "approval",
+        "enabled",
+        "gate",
+        "modelRef",
+        "promptVersionRef",
+        "caseSetVersion"
+      ],
+      "properties": {
+        "useCase": {
+          "$ref": "#/$defs/AiUseCase"
+        },
+        "registered": {
+          "type": "boolean"
+        },
+        "approval": {
+          "enum": [
+            "recommendedPendingApproval",
+            "approved",
+            "notApproved"
+          ]
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "gate": {
+          "enum": [
+            "pass",
+            "fail",
+            "inconclusive",
+            "stale",
+            "none"
+          ]
+        },
+        "modelRef": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "promptVersionRef": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "caseSetVersion": {
+          "type": "string",
+          "maxLength": 64
+        }
+      }
+    },
+    "AiUseCaseCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "useCase",
+        "enabled"
+      ],
+      "properties": {
+        "useCase": {
+          "$ref": "#/$defs/AiUseCase"
+        },
+        "enabled": {
+          "type": "boolean"
+        }
+      }
+    },
+    "AiUseCaseCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A11 use-case switch result.",
+      "required": [
+        "data",
+        "version",
+        "correlationId",
+        "replayed"
+      ],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/AiUseCaseCommand"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "AiUseCaseList": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A11/AS-07: the AI use-case registry with the tenant switch and the A12 gate.",
+      "required": [
+        "asOf",
+        "appliedFilters",
+        "scope",
+        "limit",
+        "truncated",
+        "nextCursor",
+        "ordering",
+        "count",
+        "items"
+      ],
+      "properties": {
+        "asOf": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "appliedFilters": {
+          "type": "object"
+        },
+        "scope": {
+          "$ref": "#/$defs/ListScope"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ordering": {
+          "$ref": "#/$defs/ListOrdering"
+        },
+        "count": {
+          "$ref": "#/$defs/ListCount"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AiUseCaseState"
+          }
+        }
+      }
+    },
+    "AiEvaluationRun": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "useCase"
+      ],
+      "properties": {
+        "useCase": {
+          "$ref": "#/$defs/AiUseCase"
+        },
+        "promptVersionRef": {
+          "type": "string",
+          "pattern": "^[a-z0-9.-]{1,64}$"
+        },
+        "repetitions": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        }
+      }
+    },
+    "AiEvaluationListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "cursor": {
+          "$ref": "#/$defs/Cursor"
+        },
+        "useCase": {
+          "$ref": "#/$defs/AiUseCase"
+        }
+      }
+    },
+    "AiEvaluation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runRef",
+        "useCase",
+        "modelRef",
+        "promptVersionRef",
+        "caseSetVersion",
+        "repetitions",
+        "verdict",
+        "metrics",
+        "failedCases",
+        "ranBy",
+        "ranAt"
+      ],
+      "properties": {
+        "runRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "useCase": {
+          "$ref": "#/$defs/AiUseCase"
+        },
+        "modelRef": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "promptVersionRef": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "caseSetVersion": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "repetitions": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "verdict": {
+          "enum": [
+            "pass",
+            "fail",
+            "inconclusive"
+          ]
+        },
+        "metrics": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          }
+        },
+        "failedCases": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        "ranBy": {
+          "$ref": "#/$defs/PrincipalRef"
+        },
+        "ranAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "AiEvaluationCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A12 evaluation run (synthetic cases, fake model; never clinical validation).",
+      "required": [
+        "data",
+        "version",
+        "correlationId",
+        "replayed"
+      ],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/AiEvaluation"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "AiEvaluationList": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A12: evaluation runs (OR-01 envelope), newest first.",
+      "required": [
+        "asOf",
+        "appliedFilters",
+        "scope",
+        "limit",
+        "truncated",
+        "nextCursor",
+        "ordering",
+        "count",
+        "items"
+      ],
+      "properties": {
+        "asOf": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "appliedFilters": {
+          "type": "object"
+        },
+        "scope": {
+          "$ref": "#/$defs/ListScope"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ordering": {
+          "$ref": "#/$defs/ListOrdering"
+        },
+        "count": {
+          "$ref": "#/$defs/ListCount"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AiEvaluation"
+          }
+        }
+      }
+    },
+    "Medication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "strength",
+        "form"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "strength": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "form": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        }
+      }
+    },
+    "PrescriptionDraftCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "patientRef",
+        "medication",
+        "sig",
+        "quantity",
+        "refills",
+        "controlledSubstance"
+      ],
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "medication": {
+          "$ref": "#/$defs/Medication"
+        },
+        "sig": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "quantity": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "refills": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 12
+        },
+        "controlledSubstance": {
+          "type": "boolean"
+        },
+        "aiDraftRef": {
+          "$ref": "#/$defs/Uuid"
+        }
+      }
+    },
+    "PrescriptionSubmit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "draftRef",
+        "proposalRef",
+        "expectedVersion"
+      ],
+      "properties": {
+        "draftRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "proposalRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "PrescriptionCancel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "draftRef",
+        "expectedVersion",
+        "reason"
+      ],
+      "properties": {
+        "draftRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reason": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "PrescriptionCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "draftRef",
+        "state"
+      ],
+      "properties": {
+        "draftRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "state": {
+          "enum": [
+            "draft",
+            "submitted",
+            "unknown",
+            "cancelled"
+          ]
+        }
+      }
+    },
+    "PrescriptionCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A13: the shape a qualified partner would return. No partner is qualified, so every prescribing operation refuses (503 service_unavailable, reason prescribing_not_available).",
+      "required": [
+        "data",
+        "version",
+        "correlationId",
+        "replayed"
+      ],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/PrescriptionCommand"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ListScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "description": "OR-01 scope: tenant-wide, the caller's assigned locations, or an explicit location set (locationRefs present for the last two).",
+      "properties": {
+        "kind": {
+          "enum": [
+            "tenant_wide",
+            "assigned_locations",
+            "location_set"
+          ]
+        },
+        "locationRefs": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]{1,64}$"
+          }
+        }
+      }
+    },
+    "ListOrdering": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "direction",
+        "tieBreak"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[A-Za-z.]{1,64}$"
+        },
+        "direction": {
+          "enum": [
+            "asc",
+            "desc"
+          ]
+        },
+        "tieBreak": {
+          "type": "string",
+          "pattern": "^[A-Za-z.]{1,64}$"
+        }
+      }
+    },
+    "ListCount": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "exact"
+          ],
+          "properties": {
+            "exact": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "atLeast"
+          ],
+          "properties": {
+            "atLeast": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      ]
+    },
+    "ListEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "OR-01 list envelope, shared by every list and worklist response.",
+      "required": [
+        "asOf",
+        "appliedFilters",
+        "scope",
+        "limit",
+        "truncated",
+        "nextCursor",
+        "ordering",
+        "count"
+      ],
+      "properties": {
+        "asOf": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server instant the list was read."
+        },
+        "appliedFilters": {
+          "type": "object",
+          "description": "Normalized filters, including the defaults the server applied."
+        },
+        "scope": {
+          "$ref": "#/$defs/ListScope"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ordering": {
+          "$ref": "#/$defs/ListOrdering"
+        },
+        "count": {
+          "$ref": "#/$defs/ListCount"
+        }
+      }
+    }
+  }
+}

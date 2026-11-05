@@ -9,7 +9,7 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-399 operations.
+408 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
@@ -23,6 +23,15 @@ transport tables and are declarations, not independent proof.
 
 | Operation | Owner | Kind | Authorization | Scope | Principals | Transports | REST | MCP tool | Idempotency | Sensitivity | Status |
 |---|---|---|---|---|---|---|---|---|---|---|---|
+| `agents.audit.list` | A | query | authorize | `agents.read` | human | rest, mcp | GET `/v1/agents/audit` | `agents_audit_list` | none | phi | active |
+| `agents.credentials.rotate` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/credentials/rotate` | `agents_credentials_rotate` | required | phi | active |
+| `agents.principals.create` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/principals` | `agents_principals_create` | required | phi | active |
+| `agents.principals.list` | A | query | authorize | `agents.read` | human | rest, mcp | GET `/v1/agents/principals` | `agents_principals_list` | none | phi | active |
+| `agents.principals.read` | A | query | authorize | `agents.read` | human, service | rest, mcp | GET `/v1/agents/principals/state` | `agents_principals_get` | none | phi | active |
+| `agents.principals.resume` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/principals/resume` | `agents_principals_resume` | required | phi | active |
+| `agents.principals.revoke` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/principals/revoke` | `agents_principals_revoke` | required | phi | active |
+| `agents.principals.suspend` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/principals/suspend` | `agents_principals_suspend` | required | phi | active |
+| `agents.sponsors.change` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/sponsors/change` | `agents_sponsors_change` | required | phi | active |
 | `billing.adjustments.decide` | B | command | authorize | `billing.correct` | human | rest, mcp | POST `/v1/billing/adjustment-requests/{requestRef}/decision` | `billing_adjustments_decide` | required | phi | active |
 | `billing.adjustments.post` | B | command | authorize | `billing.write` | human | rest, mcp | POST `/v1/billing/charges/{chargeRef}/adjustments` | `billing_adjustments_post` | required | phi | active |
 | `billing.balances.read` | B | query | authorize | `ledger.read` | human, service | rest, mcp | GET `/v1/billing/patients/{patientRef}/balance` | `billing_balances_get` | none | phi | active |

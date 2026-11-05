@@ -11,7 +11,24 @@ const SCHEMA = '../../packages/contracts/src/migration.schema.json';
 
 type Defs = Record<string, { properties?: Record<string, { $ref?: string }>; required?: string[] }>;
 
-const ref = (name: string) => `$ref: '${SCHEMA}#/$defs/${name}'`;
+/** One generated block: its markers, the schema file its $refs point at and the manifest prefix. */
+export interface OpsBlockSpec {
+  readonly begin: string;
+  readonly end: string;
+  readonly schema: string;
+  readonly prefix: string;
+}
+export const MIGRATION_OPS_BLOCK: OpsBlockSpec = {
+  begin: '  # BEGIN generated: MIGRATION_OPS (scripts/openapi-migration.ts)',
+  end: '  # END generated: MIGRATION_OPS',
+  schema: SCHEMA,
+  prefix: 'migration:',
+};
+
+type BlockOp = Pick<
+  MigrationOp,
+  'method' | 'path' | 'operationId' | 'description' | 'query' | 'requestBody' | 'success' | 'refusals'
+>;
 const fold = (text: string, indent: string) => {
   const lines: string[] = [];
   let cur = '';
@@ -26,6 +43,12 @@ const fold = (text: string, indent: string) => {
 };
 
 export function renderMigrationOpsBlock(ops: readonly MigrationOp[], defs: Defs): string {
+  return renderOpsBlock(ops, defs, MIGRATION_OPS_BLOCK);
+}
+
+/** Renders one generated block of docs/api/openapi.yaml for an operation table and its schema. */
+export function renderOpsBlock(ops: readonly BlockOp[], defs: Defs, spec: OpsBlockSpec): string {
+  const ref = (name: string) => `$ref: '${spec.schema}#/$defs/${name}'`;
   const byPath = new Map<string, string[]>();
   for (const op of ops) {
     const out: string[] = [
@@ -54,37 +77,41 @@ export function renderMigrationOpsBlock(ops: readonly MigrationOp[], defs: Defs)
         '        content:',
         '          application/json:',
       );
-      out.push('            schema:', `              ${ref(op.requestBody.replace('migration:', ''))}`);
+      out.push('            schema:', `              ${ref(op.requestBody.replace(spec.prefix, ''))}`);
     }
     out.push('      responses:', `        '${op.success.status}':`, '          description: Success.');
     out.push('          content:', '            application/json:', '              schema:');
-    out.push(`                ${ref(op.success.schema.replace('migration:', ''))}`);
+    out.push(`                ${ref(op.success.schema.replace(spec.prefix, ''))}`);
     for (const r of op.refusals)
       out.push(`        '${r}':`, "          $ref: '#/components/responses/Refusal'");
     const list = byPath.get(op.path) ?? [];
     list.push(...out);
     byPath.set(op.path, list);
   }
-  return [
-    MIGRATION_OPS_BLOCK_BEGIN,
-    ...[...byPath].flatMap(([path, lines]) => [`  ${path}:`, ...lines]),
-    MIGRATION_OPS_BLOCK_END,
-  ].join('\n');
+  return [spec.begin, ...[...byPath].flatMap(([path, lines]) => [`  ${path}:`, ...lines]), spec.end].join(
+    '\n',
+  );
 }
 
 /** The committed block (between the markers, inclusive), or null when the markers are missing. */
 export function extractMigrationOpsBlock(yaml: string): string | null {
-  const a = yaml.indexOf(MIGRATION_OPS_BLOCK_BEGIN);
-  const b = yaml.indexOf(MIGRATION_OPS_BLOCK_END);
+  return extractOpsBlock(yaml, MIGRATION_OPS_BLOCK);
+}
+export function extractOpsBlock(yaml: string, spec: OpsBlockSpec): string | null {
+  const a = yaml.indexOf(spec.begin);
+  const b = yaml.indexOf(spec.end);
   if (a < 0 || b < a) return null;
-  return yaml.slice(a, b + MIGRATION_OPS_BLOCK_END.length);
+  return yaml.slice(a, b + spec.end.length);
 }
 
 /** Replaces the committed block or inserts it before `components:`. */
 export function spliceMigrationOpsBlock(yaml: string, block: string): string {
-  const begin = yaml.indexOf(MIGRATION_OPS_BLOCK_BEGIN);
+  return spliceOpsBlock(yaml, block, MIGRATION_OPS_BLOCK);
+}
+export function spliceOpsBlock(yaml: string, block: string, spec: OpsBlockSpec): string {
+  const begin = yaml.indexOf(spec.begin);
   if (begin >= 0) {
-    const end = yaml.indexOf(MIGRATION_OPS_BLOCK_END) + MIGRATION_OPS_BLOCK_END.length;
+    const end = yaml.indexOf(spec.end) + spec.end.length;
     return yaml.slice(0, begin) + block + yaml.slice(end);
   }
   const at = yaml.indexOf('\ncomponents:');

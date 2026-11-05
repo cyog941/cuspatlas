@@ -28,6 +28,18 @@ export interface MembershipRecord {
   /** null = all locations in the tenant. */
   readonly locationRefs: readonly string[] | null;
   readonly active: boolean;
+  /**
+   * A8: the agent record when the principal is an agent. `active` already folds in the agent state,
+   * expiry and the sponsor's live membership; `scopes` are already narrowed to the agent's scope set
+   * (and to reads while suspended).
+   */
+  readonly agent?: {
+    readonly agentRef: string;
+    readonly sponsorRef: string;
+    readonly sponsorshipRef: string;
+    readonly state: 'active' | 'suspended' | 'revoked';
+    readonly credentialRef: string;
+  };
 }
 
 export interface MembershipSource {

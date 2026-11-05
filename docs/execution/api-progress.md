@@ -128,3 +128,55 @@ Branch `codex/a-api-1`, based on the integrated F+S+C+E+I+B head `6871689`.
 - Not covered by this matrix: record-level cross-tenant cases on existing records, locations,
   relationship expiry and queued-job revocation stay in the workstream harnesses; there is no UI path
   yet (UI deferred).
+
+## A batch 2
+
+Workstream A batch 2 (A8-A13) on synthetic data only. Framing, recorded before any task:
+
+- A-S1 (MCP authorization revision and remote transport qualification), A-S2 (model provider and
+  data-processing arrangement) and A-S3 (evaluation acceptance criteria and reviewer authority) are
+  blocked-on-discovery. Nothing here qualifies a remote transport, a model provider or an evaluation
+  threshold.
+- No real model call and no network egress: the AI pipeline runs only against a deterministic fake
+  model adapter, constructed by the API and MCP builders under `synthetic-test` only (the billing
+  adapter pattern). A missing model adapter disables the AI operations with a typed 503
+  (`service_unavailable`, reason `adapter_not_configured`).
+- AI output is always a draft. Nothing an AI produces becomes signed, posted, sent or booked without a
+  human command through the owning workstream.
+- Prescribing (A13): no e-prescribing partner exists. Only the operation envelope and the refusal
+  semantics are implemented; every prescribing operation refuses with a typed reason
+  (`prescribing_not_available`), never a fake success.
+- Every decision below is recommended-pending-approval.
+
+### A8: agent principals, sponsorship, revocation and separated audit
+
+- Red: `tests/integration/api-agent-identity.test.ts` 14 failed (exit 1) before the implementation;
+  green 14/14 after.
+- An agent is a service principal with an agent record (`agent_principals`, migration
+  `20261201000000`): one named human sponsor (the creating human), a purpose, a recorded scope set, an
+  expiry (required, at most 90 days: A-D9 open), a rotatable credential reference and terminal
+  revocation. The principal, membership and agent rows are written only by checked SECURITY DEFINER
+  functions that re-check a live human manager holding `agents.manage`.
+- Scope ceiling: an agent scope must be grantable (a scope some service-admitting operation uses, from
+  the generated scope registry) and not in the non-delegable set (`clinical.sign`,
+  `clinical.oversight`, `agents.manage`, `actions.approve`, `ai.review`, `prescriptions.submit`), and
+  the sponsor must hold it. A human-only scope is refused (`human_only_scope`).
+- Live authority: the membership source folds the agent state, expiry and the sponsor's live human
+  membership into every load and narrows scopes to the agent's set (reads only while suspended).
+  Because `authorize`, the MCP transport and the worker all reload memberships per call, suspension,
+  revocation, expiry and sponsor loss apply at the next call, including an open MCP session and work
+  the agent already queued (the worker refuses it as `membership_inactive`).
+- Credentials: an agent token's `sid` must equal the current credential reference; after rotation the
+  earlier one is `unauthenticated` (`agent_credential_rotated`).
+- Transport (decision, pending approval): agents are admitted only by the MCP authenticator, so consent
+  and budgets (A9) cannot be bypassed; REST refuses an agent credential (`agent_transport_denied`).
+- Separated audit: a SECURITY DEFINER trigger copies every audit row whose actor is an agent into
+  `agent_audit_events` with the sponsorship in force (actor = agent, sponsor = sponsor of record; a
+  check forbids agent = sponsor). A sponsor change is a new append-only sponsorship row, so earlier
+  actions keep their sponsor. Lifecycle events are append-only too.
+- Operations (owner A, 9): `agents.principals.create|suspend|resume|revoke|read|list`,
+  `agents.credentials.rotate`, `agents.sponsors.change`, `agents.audit.list`; lists return the OR-01
+  ListEnvelope. New scopes `agents.manage` (human only) and `agents.read`.
+- Not done: an agent credential presented after its principal record is gone cannot happen here
+  (principals are never deleted); the authorization server that would mint agent tokens is out of
+  scope (A-S1).

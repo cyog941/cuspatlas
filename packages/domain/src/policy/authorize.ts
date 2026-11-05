@@ -552,6 +552,19 @@ export const ACTION_POLICIES = {
   'practice.export.grant': { scope: 'admin.configure', principals: ['human'] },
   'practice.export.download': { scope: 'admin.configure', principals: ['human'] },
   'practice.export.verify': { scope: 'admin.configure', principals: ['human'] },
+  // Workstream A batch 2, A8 agent principals (synthetic; A-D9 open): the lifecycle is a human
+  // administrator's act under the non-delegable agents.manage scope, so no agent can create, sponsor,
+  // suspend or revoke an agent. One agent record is readable by an agent (its own grants, A23 seam);
+  // the registry and the separate agent-audit stream are human reads.
+  'agents.principals.create': { scope: 'agents.manage', principals: ['human'] },
+  'agents.principals.suspend': { scope: 'agents.manage', principals: ['human'] },
+  'agents.principals.resume': { scope: 'agents.manage', principals: ['human'] },
+  'agents.principals.revoke': { scope: 'agents.manage', principals: ['human'] },
+  'agents.credentials.rotate': { scope: 'agents.manage', principals: ['human'] },
+  'agents.sponsors.change': { scope: 'agents.manage', principals: ['human'] },
+  'agents.principals.read': { scope: 'agents.read', principals: ['human', 'service'] },
+  'agents.principals.list': { scope: 'agents.read', principals: ['human'] },
+  'agents.audit.list': { scope: 'agents.read', principals: ['human'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

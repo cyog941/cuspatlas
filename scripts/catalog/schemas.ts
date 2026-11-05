@@ -13,6 +13,7 @@ export const SCHEMA_FILES: Record<string, string> = {
   engagement: 'engagement.schema.json',
   imaging: 'imaging.schema.json',
   migration: 'migration.schema.json',
+  agents: 'agents.schema.json',
 };
 
 export type Json = { readonly [k: string]: unknown };

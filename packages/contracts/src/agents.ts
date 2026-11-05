@@ -1,0 +1,59 @@
+import type { ValidateFunction } from 'ajv/dist/2020.js';
+import schema from './agents.schema.json' with { type: 'json' };
+import registry from './catalog/scopes.json' with { type: 'json' };
+import { collectPropertyNames, createAjv } from './validation';
+
+/**
+ * Workstream A batch 2 contracts (A8-A13): agent principals, consent and budgets, generalized action
+ * proposals, the draft-only AI pipeline, the evaluation gate and the prescribing envelope. Synthetic
+ * only; every limit below is recommended-pending-approval (A-D2, A-D4, A-D9, A-S1..A-S3).
+ */
+export const agentsSchema = schema;
+export const AGENTS_SCHEMA_ID = schema.$id;
+export const AGENTS_PROPERTIES: ReadonlySet<string> = collectPropertyNames(schema);
+
+const ajv = createAjv();
+ajv.addSchema(schema);
+function def(name: keyof typeof schema.$defs): ValidateFunction {
+  const v = ajv.getSchema(`${schema.$id}#/$defs/${name}`);
+  if (!v) throw new Error(`schema definition missing: ${name}`);
+  return v;
+}
+
+export const validateAgentsIdempotencyKey = def('IdempotencyKey');
+export const validateAgentsRef = def('Uuid');
+export const validateAgentCreate = def('AgentCreate');
+export const validateAgentTransition = def('AgentTransition');
+export const validateAgentSponsorChange = def('AgentSponsorChange');
+export const validateAgentQuery = def('AgentQuery');
+export const validateAgentListQuery = def('AgentListQuery');
+export const validateAgentAuditQuery = def('AgentAuditQuery');
+
+export type AgentState = 'active' | 'suspended' | 'revoked';
+
+/** A-D9 (open): maximum agent lifetime. Recommended 90 days, pending security review. */
+export const AGENT_MAX_LIFETIME_DAYS = 90;
+
+/**
+ * A-D2 human-only, non-delegable scopes, whatever the catalog says: signing, access management,
+ * approval of agent proposals, AI draft review and prescription submission.
+ */
+export const NON_DELEGABLE_SCOPES: ReadonlySet<string> = new Set([
+  'clinical.sign',
+  'clinical.oversight',
+  'agents.manage',
+  'actions.approve',
+  'ai.review',
+  'prescriptions.submit',
+]);
+
+/**
+ * The agent scope ceiling (A-D9 "recorded maximum scope set"): every registered scope that at least
+ * one service-admitting operation uses (scopes.json `humanOnly: false`), minus the non-delegable set.
+ * Generated from the operation catalog, so a new human-only operation never widens it.
+ */
+export const AGENT_SCOPE_CEILING: ReadonlySet<string> = new Set(
+  (registry.scopes as readonly { name: string; humanOnly: boolean }[])
+    .filter((x) => !x.humanOnly && !NON_DELEGABLE_SCOPES.has(x.name))
+    .map((x) => x.name),
+);

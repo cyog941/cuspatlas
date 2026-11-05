@@ -97,6 +97,133 @@ export type ProposalTaskRef = string;
 
 export type ProposalVersion = number;
 
+export type AgentsAgent = {
+  readonly "agentRef": AgentsAgentRef;
+  readonly "purpose": AgentsPurpose;
+  readonly "scopes": readonly (AgentsScopeName)[];
+  readonly "state": "active" | "suspended" | "revoked";
+  readonly "expiresAt": AgentsInstant;
+  readonly "sponsorRef": AgentsPrincipalRef;
+  readonly "createdBy": AgentsPrincipalRef;
+  readonly "createdAt": AgentsInstant;
+  readonly "revokedAt": (AgentsInstant) | (null);
+  readonly "version": AgentsVersion;
+  readonly "grants": {
+    readonly "effectiveScopes": readonly (AgentsScopeName)[];
+    readonly "live": boolean;
+  };
+};
+
+export type AgentsAgentAuditEvent = {
+  readonly "eventRef": AgentsUuid;
+  readonly "agentRef": AgentsAgentRef;
+  readonly "sponsorRef": AgentsPrincipalRef;
+  readonly "operation": AgentsOperationName;
+  readonly "resourceType": string;
+  readonly "resourceRef": AgentsUuid;
+  readonly "resourceVersion": AgentsVersion;
+  readonly "correlationId": AgentsUuid;
+  readonly "occurredAt": AgentsInstant;
+};
+
+export type AgentsAgentAuditList = {
+  readonly "asOf": string;
+  readonly "appliedFilters": { readonly [k: string]: unknown };
+  readonly "scope": AgentsListScope;
+  readonly "limit": number;
+  readonly "truncated": boolean;
+  readonly "nextCursor": string | null;
+  readonly "ordering": AgentsListOrdering;
+  readonly "count": AgentsListCount;
+  readonly "items": readonly (AgentsAgentAuditEvent)[];
+};
+
+export type AgentsAgentCommand = {
+  readonly "agentRef": AgentsAgentRef;
+  readonly "state": "active" | "suspended" | "revoked";
+  readonly "expiresAt": AgentsInstant;
+  readonly "credentialRef"?: AgentsCredentialRef;
+  readonly "sponsorRef"?: AgentsPrincipalRef;
+};
+
+export type AgentsAgentCommandResult = {
+  readonly "data": AgentsAgentCommand;
+  readonly "version": AgentsVersion;
+  readonly "correlationId": AgentsUuid;
+  readonly "replayed": boolean;
+};
+
+export type AgentsAgentCreate = {
+  readonly "purpose": AgentsPurpose;
+  readonly "scopes": readonly (AgentsScopeName)[];
+  readonly "expiresAt": AgentsInstant;
+};
+
+export type AgentsAgentList = {
+  readonly "asOf": string;
+  readonly "appliedFilters": { readonly [k: string]: unknown };
+  readonly "scope": AgentsListScope;
+  readonly "limit": number;
+  readonly "truncated": boolean;
+  readonly "nextCursor": string | null;
+  readonly "ordering": AgentsListOrdering;
+  readonly "count": AgentsListCount;
+  readonly "items": readonly (AgentsAgent)[];
+};
+
+export type AgentsAgentRead = {
+  readonly "data": AgentsAgent;
+};
+
+export type AgentsAgentRef = AgentsUuid;
+
+export type AgentsAgentSponsorChange = {
+  readonly "agentRef": AgentsAgentRef;
+  readonly "sponsorRef": AgentsPrincipalRef;
+  readonly "expectedVersion": AgentsVersion;
+};
+
+export type AgentsAgentTransition = {
+  readonly "agentRef": AgentsAgentRef;
+  readonly "expectedVersion": AgentsVersion;
+  readonly "reason"?: AgentsReasonCode;
+};
+
+export type AgentsCredentialRef = string;
+
+export type AgentsInstant = string;
+
+export type AgentsListCount = ({
+  readonly "exact": number;
+}) | ({
+  readonly "atLeast": number;
+});
+
+export type AgentsListOrdering = {
+  readonly "key": string;
+  readonly "direction": "asc" | "desc";
+  readonly "tieBreak": string;
+};
+
+export type AgentsListScope = {
+  readonly "kind": "tenant_wide" | "assigned_locations" | "location_set";
+  readonly "locationRefs"?: readonly (string)[];
+};
+
+export type AgentsOperationName = string;
+
+export type AgentsPrincipalRef = AgentsUuid;
+
+export type AgentsPurpose = string;
+
+export type AgentsReasonCode = string;
+
+export type AgentsScopeName = string;
+
+export type AgentsUuid = string;
+
+export type AgentsVersion = number;
+
 export type BillingAccount = "patient_receivable" | "insurer_receivable" | "production_revenue" | "unapplied_credit" | "undeposited_funds" | "settled_cash" | "adjustment_expense" | "insurer_clearing" | "insurer_cash" | "opening_receivable" | "opening_credit" | "opening_equity";
 
 export type BillingAdjustmentCommandData = {
@@ -7033,6 +7160,87 @@ export type SyntheticVersion = number;
 
 /** Every REST operation of the catalog with its path parameters, body and success result types. */
 export interface Operations {
+  "agents.audit.list": {
+    method: "GET";
+    path: "/v1/agents/audit";
+    params: {  };
+    body: undefined;
+    result: AgentsAgentAuditList;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "agents.credentials.rotate": {
+    method: "POST";
+    path: "/v1/agents/credentials/rotate";
+    params: {  };
+    body: AgentsAgentTransition;
+    result: AgentsAgentCommandResult;
+    successStatus: 200;
+    idempotent: true;
+  };
+  "agents.principals.create": {
+    method: "POST";
+    path: "/v1/agents/principals";
+    params: {  };
+    body: AgentsAgentCreate;
+    result: AgentsAgentCommandResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "agents.principals.list": {
+    method: "GET";
+    path: "/v1/agents/principals";
+    params: {  };
+    body: undefined;
+    result: AgentsAgentList;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "agents.principals.read": {
+    method: "GET";
+    path: "/v1/agents/principals/state";
+    params: {  };
+    body: undefined;
+    result: AgentsAgentRead;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "agents.principals.resume": {
+    method: "POST";
+    path: "/v1/agents/principals/resume";
+    params: {  };
+    body: AgentsAgentTransition;
+    result: AgentsAgentCommandResult;
+    successStatus: 200;
+    idempotent: true;
+  };
+  "agents.principals.revoke": {
+    method: "POST";
+    path: "/v1/agents/principals/revoke";
+    params: {  };
+    body: AgentsAgentTransition;
+    result: AgentsAgentCommandResult;
+    successStatus: 200;
+    idempotent: true;
+  };
+  "agents.principals.suspend": {
+    method: "POST";
+    path: "/v1/agents/principals/suspend";
+    params: {  };
+    body: AgentsAgentTransition;
+    result: AgentsAgentCommandResult;
+    successStatus: 200;
+    idempotent: true;
+  };
+  "agents.sponsors.change": {
+    method: "POST";
+    path: "/v1/agents/sponsors/change";
+    params: {  };
+    body: AgentsAgentSponsorChange;
+    result: AgentsAgentCommandResult;
+    successStatus: 200;
+    idempotent: true;
+  };
   "billing.adjustments.decide": {
     method: "POST";
     path: "/v1/billing/adjustment-requests/{requestRef}/decision";
@@ -10576,6 +10784,15 @@ export interface OperationMeta {
 }
 
 export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
+  "agents.audit.list": { method: "GET", path: "/v1/agents/audit", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "agents.credentials.rotate": { method: "POST", path: "/v1/agents/credentials/rotate", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "agents.principals.create": { method: "POST", path: "/v1/agents/principals", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "agents.principals.list": { method: "GET", path: "/v1/agents/principals", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "agents.principals.read": { method: "GET", path: "/v1/agents/principals/state", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "agents.principals.resume": { method: "POST", path: "/v1/agents/principals/resume", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "agents.principals.revoke": { method: "POST", path: "/v1/agents/principals/revoke", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "agents.principals.suspend": { method: "POST", path: "/v1/agents/principals/suspend", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "agents.sponsors.change": { method: "POST", path: "/v1/agents/sponsors/change", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "billing.adjustments.decide": { method: "POST", path: "/v1/billing/adjustment-requests/{requestRef}/decision", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "billing.adjustments.post": { method: "POST", path: "/v1/billing/charges/{chargeRef}/adjustments", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "billing.balances.read": { method: "GET", path: "/v1/billing/patients/{patientRef}/balance", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },

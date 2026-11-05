@@ -65,10 +65,20 @@ export interface Authenticator {
   ): Promise<ActorContext>;
 }
 
+export interface AuthenticatorOptions {
+  /**
+   * A8/A9: agent principals reach the system only through the consented MCP deployment, where consent
+   * and budgets apply (decision recommended-pending-approval). The REST and other surfaces refuse an
+   * agent credential (`agent_transport_denied`); the MCP authenticator admits it.
+   */
+  readonly agents?: 'admit' | 'refuse';
+}
+
 export function createAuthenticator(
   identity: IdentityVerifierConfig,
   memberships: MembershipSource,
   recording: AttemptRecordingDeps,
+  options: AuthenticatorOptions = {},
 ): Authenticator {
   async function refuse(
     err: RefusalError,
@@ -93,6 +103,28 @@ export function createAuthenticator(
           operation,
           actorId: sub,
           tenantId: m ? m.tenantId : null,
+        });
+      }
+      if (m.agent) {
+        const who = { correlationId, operation, actorId: sub, tenantId: m.tenantId };
+        // A rotated (or foreign) credential reference: the presented credential no longer exists.
+        if (sid !== m.agent.credentialRef) {
+          return refuse(
+            new RefusalError({ code: 'unauthenticated', reasonCode: 'agent_credential_rotated' }),
+            who,
+          );
+        }
+        if (options.agents !== 'admit') {
+          return refuse(new RefusalError({ code: 'forbidden', reasonCode: 'agent_transport_denied' }), who);
+        }
+        return Object.freeze({
+          tenantId: m.tenantId,
+          actorId: m.principalId,
+          principal: m.principal,
+          sessionId: sid,
+          scopes: m.scopes,
+          correlationId,
+          agent: Object.freeze({ agentRef: m.agent.agentRef, sponsorRef: m.agent.sponsorRef }),
         });
       }
       return Object.freeze({

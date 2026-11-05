@@ -89,6 +89,8 @@ Registered by workstream I imaging (2026-11-11, synthetic implementation; decisi
 
 Registered by workstream M migration (synthetic implementation; decisions pending approval in docs/execution/migration-progress.md): `migration.read` (source profiles, packages, staged records, review items and reconciliation reports), `migration.write` (registering source profiles, package intake, staging, review resolution, apply and report builds) and `migration.signoff` (human only: recording a reviewer sign-off bound to one report version and digest).
 
+Registered by workstream A batch 2 (2026-11-05, synthetic implementation; A-D2, A-D4 and A-D9 recommended-pending-approval, see docs/execution/api-progress.md): `agents.manage` (human only, non-delegable: create, suspend, resume, revoke, rotate and re-sponsor agent principals) and `agents.read` (agent records and their live grants; the registry and the separate agent-audit stream are human reads).
+
 Camel-case scope names (`receivables.read` written as `receivablesRead`) are a defect. A scope used in any plan must appear in the registry; a plan that needs a new scope adds it there first.
 
 ### Relationship scopes

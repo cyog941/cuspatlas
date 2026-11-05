@@ -18,6 +18,7 @@ import {
   type ClaimsPartnerPort,
   type CommandExecutor,
   type CursorCodec,
+  createAgentService,
   createAppointmentService,
   createAuthorize,
   createBillingEstimatePricing,
@@ -62,6 +63,7 @@ import {
 import { registerDeprecationHeaders } from './deprecation';
 import { createDeviceAuthenticator } from './device-auth';
 import { mapErrorToRefusal, safeErrorKind } from './errors';
+import { registerAgentOpRoutes } from './routes/agent-ops';
 import {
   registerAppointmentRoutes,
   registerAttendanceRoutes,
@@ -424,6 +426,14 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         },
       });
       registerMigrationOpRoutes(app, { authenticator, migration });
+      // Workstream A batch 2 (A8-A13): agents, consent, proposals, AI drafts and prescribing envelope.
+      const agents = createAgentService({
+        authorize,
+        withTenantTransaction: deps.tenantTransactions,
+        recording,
+        execute,
+      });
+      registerAgentOpRoutes(app, { authenticator, agents });
     }
   }
 

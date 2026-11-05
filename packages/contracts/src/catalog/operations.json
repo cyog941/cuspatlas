@@ -1,5 +1,312 @@
 [
   {
+    "operation": "agents.audit.list",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "agents.audit.list",
+    "scope": "agents.read",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/agents/audit",
+      "successStatus": "200",
+      "successSchema": "agents:AgentAuditList"
+    },
+    "mcpTool": "agents_audit_list",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "agents.credentials.rotate",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "agents.credentials.rotate",
+    "scope": "agents.manage",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/agents/credentials/rotate",
+      "requestSchema": "agents:AgentTransition",
+      "successStatus": "200",
+      "successSchema": "agents:AgentCommandResult"
+    },
+    "mcpTool": "agents_credentials_rotate",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "agents.principals.create",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "agents.principals.create",
+    "scope": "agents.manage",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/agents/principals",
+      "requestSchema": "agents:AgentCreate",
+      "successStatus": "201",
+      "successSchema": "agents:AgentCommandResult"
+    },
+    "mcpTool": "agents_principals_create",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "agents.principals.list",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "agents.principals.list",
+    "scope": "agents.read",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/agents/principals",
+      "successStatus": "200",
+      "successSchema": "agents:AgentList"
+    },
+    "mcpTool": "agents_principals_list",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "agents.principals.read",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "agents.principals.read",
+    "scope": "agents.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/agents/principals/state",
+      "successStatus": "200",
+      "successSchema": "agents:AgentRead"
+    },
+    "mcpTool": "agents_principals_get",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "agents.principals.resume",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "agents.principals.resume",
+    "scope": "agents.manage",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/agents/principals/resume",
+      "requestSchema": "agents:AgentTransition",
+      "successStatus": "200",
+      "successSchema": "agents:AgentCommandResult"
+    },
+    "mcpTool": "agents_principals_resume",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "agents.principals.revoke",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "agents.principals.revoke",
+    "scope": "agents.manage",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/agents/principals/revoke",
+      "requestSchema": "agents:AgentTransition",
+      "successStatus": "200",
+      "successSchema": "agents:AgentCommandResult"
+    },
+    "mcpTool": "agents_principals_revoke",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "agents.principals.suspend",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "agents.principals.suspend",
+    "scope": "agents.manage",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/agents/principals/suspend",
+      "requestSchema": "agents:AgentTransition",
+      "successStatus": "200",
+      "successSchema": "agents:AgentCommandResult"
+    },
+    "mcpTool": "agents_principals_suspend",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "agents.sponsors.change",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "agents.sponsors.change",
+    "scope": "agents.manage",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/agents/sponsors/change",
+      "requestSchema": "agents:AgentSponsorChange",
+      "successStatus": "200",
+      "successSchema": "agents:AgentCommandResult"
+    },
+    "mcpTool": "agents_sponsors_change",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
     "operation": "billing.adjustments.decide",
     "owner": "B",
     "kind": "command",

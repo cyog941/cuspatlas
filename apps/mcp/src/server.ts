@@ -36,6 +36,7 @@ import {
   type ClaimsPartnerPort,
   type CommandExecutor,
   type CursorCodec,
+  createAgentService,
   createAppointmentService,
   createAuthorize,
   createBillingEstimatePricing,
@@ -74,6 +75,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { assertDistinctAudience, assertIdentityAllowed, createMcpAuthenticator } from './auth';
 import { toolCatalogDrift } from './catalog';
+import { AGENT_TOOLS } from './tools/agent-ops';
 import { APPOINTMENT_TOOLS } from './tools/appointments';
 import { BILLING_TOOLS } from './tools/billing';
 import { BILLING_OP_TOOLS } from './tools/billing-ops';
@@ -194,6 +196,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   ...ENGAGEMENT_OP_TOOLS,
   ...IMAGING_TOOLS,
   ...MIGRATION_TOOLS,
+  ...AGENT_TOOLS,
 ];
 
 /** Path parameters of the REST twin. A malformed one is a 404 there, decided by the domain. */
@@ -463,7 +466,14 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
       tokenSecret: resolveImagingTokenSecret(deps.env, deps.imagingTokenSecret),
     },
   });
+  const agents = createAgentService({
+    authorize,
+    withTenantTransaction: deps.tenantTransactions,
+    recording,
+    execute,
+  });
   const toolDeps: ToolDeps = {
+    agents,
     service,
     proposals,
     patients,

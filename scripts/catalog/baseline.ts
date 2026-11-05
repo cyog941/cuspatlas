@@ -12,7 +12,7 @@ import { ROOT } from './build-catalog';
 import { defsOf, type Json, loadSchemaFiles, parseSchemaRef } from './schemas';
 
 export const BASELINE_PATH = 'packages/contracts/src/catalog/baseline.json';
-export const BASELINE_VERSION = 1;
+export const BASELINE_VERSION = 2;
 
 /** The published contract of the current catalog (what change control compares against). */
 export function buildBaseline(catalog: readonly CatalogOperation[], version = BASELINE_VERSION): Baseline {
@@ -30,6 +30,8 @@ export function buildBaseline(catalog: readonly CatalogOperation[], version = BA
         ...(o.rest ? { rest: { method: o.rest.method, path: o.rest.path } } : {}),
         ...(o.mcpTool ? { mcpTool: o.mcpTool } : {}),
         ...(ref && doc ? { input: summarizeInput(defsOf(doc)[ref.def], doc) } : {}),
+        idempotency: o.idempotency,
+        refusals: [...o.refusals].sort(),
       };
     }),
   };

@@ -6869,6 +6869,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/billing/adjustment-requests/{requestRef}/decision";
     params: { readonly requestRef: string; };
+    query: Record<string, never>;
     body: BillingAdjustmentDecision;
     result: BillingAdjustmentCommandResult;
     successStatus: 201;
@@ -6878,6 +6879,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/billing/charges/{chargeRef}/adjustments";
     params: { readonly chargeRef: string; };
+    query: Record<string, never>;
     body: BillingAdjustmentPost;
     result: BillingAdjustmentCommandResult;
     successStatus: 201;
@@ -6887,6 +6889,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/billing/patients/{patientRef}/balance";
     params: { readonly patientRef: string; };
+    query: { readonly currency?: string; readonly asOf?: string; };
     body: undefined;
     result: BillingBalanceRead;
     successStatus: 200;
@@ -6896,6 +6899,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/billing/charges";
     params: {  };
+    query: Record<string, never>;
     body: BillingChargePost;
     result: BillingChargeCommandResult;
     successStatus: 201;
@@ -6905,6 +6909,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/billing/charges/{chargeRef}";
     params: { readonly chargeRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: BillingChargeRead;
     successStatus: 200;
@@ -6914,6 +6919,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/billing/entries/{entryRef}";
     params: { readonly entryRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: BillingJournalEntryRead;
     successStatus: 200;
@@ -6923,6 +6929,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/billing/entries/{entryRef}/reverse";
     params: { readonly entryRef: string; };
+    query: Record<string, never>;
     body: BillingEntryReverse;
     result: BillingReversalCommandResult;
     successStatus: 201;
@@ -6932,6 +6939,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/billing/export";
     params: {  };
+    query: Record<string, never>;
     body: undefined;
     result: BillingBillingExportResult;
     successStatus: 200;
@@ -6941,6 +6949,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/billing/fee-schedules/versions";
     params: {  };
+    query: Record<string, never>;
     body: BillingFeeSchedulePublish;
     result: BillingFeeScheduleCommandResult;
     successStatus: 201;
@@ -6950,6 +6959,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/billing/fees";
     params: {  };
+    query: { readonly codeRef: string; readonly serviceDate: string; readonly locationRef?: string; readonly coverageRef?: string; };
     body: undefined;
     result: BillingFeeResolutionResult;
     successStatus: 200;
@@ -6959,6 +6969,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/billing/payments/{paymentRef}/transfers";
     params: { readonly paymentRef: string; };
+    query: Record<string, never>;
     body: BillingFundsTransfer;
     result: BillingEntryCommandResult;
     successStatus: 201;
@@ -6968,6 +6979,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/billing/patients/{patientRef}/ledger";
     params: { readonly patientRef: string; };
+    query: { readonly limit?: string; readonly cursor?: string; };
     body: undefined;
     result: BillingLedgerPage;
     successStatus: 200;
@@ -6977,6 +6989,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/billing/payments/{paymentRef}/allocations";
     params: { readonly paymentRef: string; };
+    query: Record<string, never>;
     body: BillingPaymentAllocate;
     result: BillingAllocationCommandResult;
     successStatus: 201;
@@ -6986,6 +6999,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/billing/payments/{paymentRef}";
     params: { readonly paymentRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: BillingPaymentRead;
     successStatus: 200;
@@ -6995,6 +7009,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/billing/payment-attempts/{attemptRef}/reconcile";
     params: { readonly attemptRef: string; };
+    query: Record<string, never>;
     body: BillingAttemptReconcile;
     result: BillingReconcileCommandResult;
     successStatus: 200;
@@ -7004,6 +7019,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/billing/payments";
     params: {  };
+    query: Record<string, never>;
     body: BillingPaymentRecord;
     result: BillingPaymentCommandResult;
     successStatus: 201;
@@ -7013,6 +7029,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/billing/payments/{paymentRef}/refunds";
     params: { readonly paymentRef: string; };
+    query: Record<string, never>;
     body: BillingPaymentRefund;
     result: BillingEntryCommandResult;
     successStatus: 201;
@@ -7022,6 +7039,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/billing/payments/{paymentRef}/settle";
     params: { readonly paymentRef: string; };
+    query: Record<string, never>;
     body: BillingPaymentSettle;
     result: BillingEntryCommandResult;
     successStatus: 201;
@@ -7031,6 +7049,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/billing/payment-plans/{planRef}/amendments";
     params: { readonly planRef: string; };
+    query: Record<string, never>;
     body: BillingPlanAmend;
     result: BillingPlanCommandResult;
     successStatus: 201;
@@ -7040,6 +7059,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/billing/payment-plans/{planRef}/authorizations";
     params: { readonly planRef: string; };
+    query: Record<string, never>;
     body: BillingPlanAuthorize;
     result: BillingPlanCommandResult;
     successStatus: 201;
@@ -7049,6 +7069,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/billing/payment-plans/{planRef}/autopay";
     params: { readonly planRef: string; };
+    query: Record<string, never>;
     body: BillingPlanAutopay;
     result: BillingPlanCommandResult;
     successStatus: 201;
@@ -7058,6 +7079,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/billing/payment-plans/{planRef}/close";
     params: { readonly planRef: string; };
+    query: Record<string, never>;
     body: BillingPlanClose;
     result: BillingPlanCommandResult;
     successStatus: 201;
@@ -7067,6 +7089,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/billing/payment-plans/{planRef}/collections";
     params: { readonly planRef: string; };
+    query: Record<string, never>;
     body: BillingPlanCollect;
     result: BillingPlanCollectResult;
     successStatus: 201;
@@ -7076,6 +7099,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/billing/payment-plans";
     params: {  };
+    query: Record<string, never>;
     body: BillingPlanCreate;
     result: BillingPlanCommandResult;
     successStatus: 201;
@@ -7085,6 +7109,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/billing/payment-plans/{planRef}";
     params: { readonly planRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: BillingPlanRead;
     successStatus: 200;
@@ -7094,6 +7119,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/billing/payment-plan-worklist";
     params: {  };
+    query: { readonly kind?: string; readonly limit?: string; };
     body: undefined;
     result: BillingPlanWorklist;
     successStatus: 200;
@@ -7103,6 +7129,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/billing/procedure-events/{procedureRef}/consume";
     params: { readonly procedureRef: string; };
+    query: Record<string, never>;
     body: Record<string, never> | undefined;
     result: BillingProcedureConsumeResult;
     successStatus: 200;
@@ -7112,6 +7139,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/billing/reports/receivables";
     params: {  };
+    query: { readonly locationRef?: string; };
     body: undefined;
     result: BillingReceivablesReportResult;
     successStatus: 200;
@@ -7121,6 +7149,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/billing/charges/{chargeRef}/responsibility";
     params: { readonly chargeRef: string; };
+    query: Record<string, never>;
     body: BillingResponsibilityTransfer;
     result: BillingEntryCommandResult;
     successStatus: 201;
@@ -7130,6 +7159,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/billing/statements";
     params: {  };
+    query: Record<string, never>;
     body: BillingStatementGenerate;
     result: BillingStatementCommandResult;
     successStatus: 201;
@@ -7139,6 +7169,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/billing/statements/{statementRef}";
     params: { readonly statementRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: BillingStatementRead;
     successStatus: 200;
@@ -7148,6 +7179,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/billing/worklist";
     params: {  };
+    query: { readonly kind?: string; readonly limit?: string; };
     body: undefined;
     result: BillingWorklist;
     successStatus: 200;
@@ -7157,6 +7189,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/clinical/author-context";
     params: {  };
+    query: Record<string, never>;
     body: undefined;
     result: ClinicalAuthorContext;
     successStatus: 200;
@@ -7166,6 +7199,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/authors";
     params: {  };
+    query: Record<string, never>;
     body: ClinicalClinicalAuthorDefine;
     result: ClinicalClinicalAuthorCommandResult;
     successStatus: 201;
@@ -7175,6 +7209,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/chart/entries/{chartEntryRef}/corrections";
     params: { readonly chartEntryRef: string; };
+    query: Record<string, never>;
     body: ClinicalChartEntryCorrect;
     result: ClinicalChartCorrectionResult;
     successStatus: 201;
@@ -7184,6 +7219,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/clinical/patients/{patientRef}/chart";
     params: { readonly patientRef: string; };
+    query: { readonly asOf?: string; readonly dentition?: string; readonly provenance?: string; readonly displaySystem?: string; };
     body: undefined;
     result: ClinicalChartRead;
     successStatus: 200;
@@ -7193,6 +7229,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/chart/entries";
     params: {  };
+    query: Record<string, never>;
     body: ClinicalChartEntryRecord;
     result: ClinicalChartEntryCommandResult;
     successStatus: 201;
@@ -7202,6 +7239,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/consent-templates";
     params: {  };
+    query: Record<string, never>;
     body: ClinicalConsentTemplateRegister;
     result: ClinicalConsentTemplateCommandResult;
     successStatus: 201;
@@ -7211,6 +7249,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/consents";
     params: {  };
+    query: Record<string, never>;
     body: ClinicalConsentCapture;
     result: ClinicalConsentCommandResult;
     successStatus: 201;
@@ -7220,6 +7259,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/clinical/patients/{patientRef}/consents";
     params: { readonly patientRef: string; };
+    query: { readonly asOf?: string; readonly planVersionRef?: string; };
     body: undefined;
     result: ClinicalConsentList;
     successStatus: 200;
@@ -7229,6 +7269,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/clinical/consents/{consentRef}";
     params: { readonly consentRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: ClinicalConsentRead;
     successStatus: 200;
@@ -7238,6 +7279,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/consents/{consentRef}/withdrawal";
     params: { readonly consentRef: string; };
+    query: Record<string, never>;
     body: ClinicalConsentWithdraw;
     result: ClinicalConsentCommandResult;
     successStatus: 201;
@@ -7247,6 +7289,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/encounters/{encounterRef}/assignments";
     params: { readonly encounterRef: string; };
+    query: Record<string, never>;
     body: ClinicalEncounterAssign;
     result: ClinicalEncounterCommandResult;
     successStatus: 201;
@@ -7256,6 +7299,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/encounters/{encounterRef}/close";
     params: { readonly encounterRef: string; };
+    query: Record<string, never>;
     body: ClinicalEncounterClose;
     result: ClinicalEncounterCommandResult;
     successStatus: 200;
@@ -7265,6 +7309,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/clinical/patients/{patientRef}/encounters";
     params: { readonly patientRef: string; };
+    query: { readonly limit?: string; readonly cursor?: string; };
     body: undefined;
     result: ClinicalEncounterList;
     successStatus: 200;
@@ -7274,6 +7319,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/encounters";
     params: {  };
+    query: Record<string, never>;
     body: ClinicalEncounterOpen;
     result: ClinicalEncounterOpenResult;
     successStatus: 201;
@@ -7283,6 +7329,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/clinical/encounters/{encounterRef}";
     params: { readonly encounterRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: ClinicalEncounterRead;
     successStatus: 200;
@@ -7292,6 +7339,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/estimates/{estimateRef}/acceptance";
     params: { readonly estimateRef: string; };
+    query: Record<string, never>;
     body: ClinicalEstimateAccept;
     result: ClinicalEstimateCommandResult;
     successStatus: 201;
@@ -7301,6 +7349,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/treatment-plans/versions/{planVersionRef}/estimates";
     params: { readonly planVersionRef: string; };
+    query: Record<string, never>;
     body: ClinicalEstimateGenerate;
     result: ClinicalEstimateCommandResult;
     successStatus: 201;
@@ -7310,6 +7359,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/clinical/treatment-plans/versions/{planVersionRef}/estimates";
     params: { readonly planVersionRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: ClinicalEstimateList;
     successStatus: 200;
@@ -7319,6 +7369,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/estimates/{estimateRef}/presentation";
     params: { readonly estimateRef: string; };
+    query: Record<string, never>;
     body: ClinicalEstimatePresent;
     result: ClinicalEstimateCommandResult;
     successStatus: 200;
@@ -7328,6 +7379,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/clinical/estimates/{estimateRef}";
     params: { readonly estimateRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: ClinicalEstimateRead;
     successStatus: 200;
@@ -7337,6 +7389,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/clinical/export";
     params: {  };
+    query: Record<string, never>;
     body: undefined;
     result: ClinicalClinicalExport;
     successStatus: 200;
@@ -7346,6 +7399,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/clinical/patients/{patientRef}/alerts";
     params: { readonly patientRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: ClinicalActiveAlerts;
     successStatus: 200;
@@ -7355,6 +7409,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/encounters/{encounterRef}/history-reviews";
     params: { readonly encounterRef: string; };
+    query: Record<string, never>;
     body: ClinicalHistoryReviewAttest;
     result: ClinicalHistoryReviewCommandResult;
     successStatus: 201;
@@ -7364,6 +7419,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/clinical/patients/{patientRef}/history";
     params: { readonly patientRef: string; };
+    query: { readonly asOf?: string; };
     body: undefined;
     result: ClinicalHistoryRead;
     successStatus: 200;
@@ -7373,6 +7429,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/clinical/history/versions/{historyVersionRef}";
     params: { readonly historyVersionRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: ClinicalHistoryVersionRead;
     successStatus: 200;
@@ -7382,6 +7439,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/history/changes";
     params: {  };
+    query: Record<string, never>;
     body: ClinicalHistoryChangeRecord;
     result: ClinicalHistoryVersionCommandResult;
     successStatus: 201;
@@ -7391,6 +7449,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/history/items/{itemRef}/verifications";
     params: { readonly itemRef: string; };
+    query: Record<string, never>;
     body: ClinicalHistoryVerify;
     result: ClinicalHistoryItemCommandResult;
     successStatus: 201;
@@ -7400,6 +7459,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/encounters/{encounterRef}/image-links";
     params: { readonly encounterRef: string; };
+    query: Record<string, never>;
     body: ClinicalImageLinkCreate;
     result: ClinicalImageLinkCommandResult;
     successStatus: 201;
@@ -7409,6 +7469,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/clinical/encounters/{encounterRef}/image-links";
     params: { readonly encounterRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: ClinicalImageLinkList;
     successStatus: 200;
@@ -7418,6 +7479,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/clinical/image-links/{imageLinkRef}";
     params: { readonly imageLinkRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: ClinicalImageLinkRead;
     successStatus: 200;
@@ -7427,6 +7489,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/image-links/{imageLinkRef}/relink";
     params: { readonly imageLinkRef: string; };
+    query: Record<string, never>;
     body: ClinicalImageLinkRelink;
     result: ClinicalImageLinkCommandResult;
     successStatus: 201;
@@ -7436,6 +7499,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/image-links/{imageLinkRef}/unlink";
     params: { readonly imageLinkRef: string; };
+    query: Record<string, never>;
     body: ClinicalImageLinkUnlink;
     result: ClinicalImageLinkCommandResult;
     successStatus: 200;
@@ -7445,6 +7509,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/lab-cases/{labCaseRef}/attachments";
     params: { readonly labCaseRef: string; };
+    query: Record<string, never>;
     body: ClinicalLabCaseAttach;
     result: ClinicalLabCaseCommandResult;
     successStatus: 201;
@@ -7454,6 +7519,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/lab-cases";
     params: {  };
+    query: Record<string, never>;
     body: ClinicalLabCaseCreate;
     result: ClinicalLabCaseCommandResult;
     successStatus: 201;
@@ -7463,6 +7529,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/clinical/lab-cases/{labCaseRef}/export";
     params: { readonly labCaseRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: ClinicalLabCaseExport;
     successStatus: 200;
@@ -7472,6 +7539,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/clinical/patients/{patientRef}/lab-cases";
     params: { readonly patientRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: ClinicalLabCaseList;
     successStatus: 200;
@@ -7481,6 +7549,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/clinical/lab-cases/{labCaseRef}";
     params: { readonly labCaseRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: ClinicalLabCaseRead;
     successStatus: 200;
@@ -7490,6 +7559,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/lab-cases/{labCaseRef}/return";
     params: { readonly labCaseRef: string; };
+    query: Record<string, never>;
     body: ClinicalLabCaseReturn;
     result: ClinicalLabCaseCommandResult;
     successStatus: 200;
@@ -7499,6 +7569,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/lab-cases/{labCaseRef}/remake";
     params: { readonly labCaseRef: string; };
+    query: Record<string, never>;
     body: ClinicalLabCaseRemake;
     result: ClinicalLabCaseCommandResult;
     successStatus: 201;
@@ -7508,6 +7579,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/lab-cases/{labCaseRef}/state";
     params: { readonly labCaseRef: string; };
+    query: Record<string, never>;
     body: ClinicalLabCaseSetState;
     result: ClinicalLabCaseCommandResult;
     successStatus: 200;
@@ -7517,6 +7589,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/clinical/lab-cases/worklist";
     params: {  };
+    query: { readonly asOf?: string; };
     body: undefined;
     result: SchedulingWorkItemList;
     successStatus: 200;
@@ -7526,6 +7599,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/clinical/encounters/{encounterRef}/note-templates";
     params: { readonly encounterRef: string; };
+    query: { readonly procedureCodeRefs?: string; };
     body: undefined;
     result: ClinicalNoteTemplateApplicable;
     successStatus: 200;
@@ -7535,6 +7609,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/note-templates";
     params: {  };
+    query: Record<string, never>;
     body: ClinicalNoteTemplateDefine;
     result: ClinicalNoteTemplateCommandResult;
     successStatus: 201;
@@ -7544,6 +7619,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/clinical/note-templates/{templateRef}";
     params: { readonly templateRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: ClinicalNoteTemplateRead;
     successStatus: 200;
@@ -7553,6 +7629,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/clinical/note-template-versions/{templateVersionRef}";
     params: { readonly templateVersionRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: ClinicalNoteTemplateVersionRead;
     successStatus: 200;
@@ -7562,6 +7639,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/note-templates/{templateRef}/retire";
     params: { readonly templateRef: string; };
+    query: Record<string, never>;
     body: ClinicalNoteTemplateRetire;
     result: ClinicalNoteTemplateCommandResult;
     successStatus: 200;
@@ -7571,6 +7649,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/note-templates/{templateRef}/versions";
     params: { readonly templateRef: string; };
+    query: Record<string, never>;
     body: ClinicalNoteTemplateRevise;
     result: ClinicalNoteTemplateCommandResult;
     successStatus: 201;
@@ -7580,6 +7659,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/notes/{noteRef}/addenda";
     params: { readonly noteRef: string; };
+    query: Record<string, never>;
     body: ClinicalNoteAddendum;
     result: ClinicalNoteCommandResult;
     successStatus: 201;
@@ -7589,6 +7669,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/notes/{noteRef}/amendments";
     params: { readonly noteRef: string; };
+    query: Record<string, never>;
     body: ClinicalNoteAmend;
     result: ClinicalNoteCommandResult;
     successStatus: 201;
@@ -7598,6 +7679,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/notes/{noteRef}/cosignatures";
     params: { readonly noteRef: string; };
+    query: Record<string, never>;
     body: ClinicalNoteCosign;
     result: ClinicalNoteCommandResult;
     successStatus: 201;
@@ -7607,6 +7689,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/encounters/{encounterRef}/notes";
     params: { readonly encounterRef: string; };
+    query: Record<string, never>;
     body: ClinicalNoteDraftCreate;
     result: ClinicalNoteCommandResult;
     successStatus: 201;
@@ -7616,6 +7699,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/clinical/encounters/{encounterRef}/notes";
     params: { readonly encounterRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: ClinicalNoteList;
     successStatus: 200;
@@ -7625,6 +7709,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/clinical/notes/{noteRef}";
     params: { readonly noteRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: ClinicalNoteRead;
     successStatus: 200;
@@ -7634,6 +7719,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/notes/{noteRef}/sign";
     params: { readonly noteRef: string; };
+    query: Record<string, never>;
     body: ClinicalNoteSign;
     result: ClinicalNoteCommandResult;
     successStatus: 200;
@@ -7643,6 +7729,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/notes/{noteRef}/draft";
     params: { readonly noteRef: string; };
+    query: Record<string, never>;
     body: ClinicalNoteDraftUpdate;
     result: ClinicalNoteCommandResult;
     successStatus: 200;
@@ -7652,6 +7739,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/clinical/perio/comparisons";
     params: {  };
+    query: { readonly baseExamRef?: string; readonly targetExamRef?: string; readonly formulaRef?: string; readonly formulaVersion?: string; };
     body: undefined;
     result: ClinicalPerioComparison;
     successStatus: 200;
@@ -7661,6 +7749,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/perio/exams/{perioExamRef}/corrections";
     params: { readonly perioExamRef: string; };
+    query: Record<string, never>;
     body: ClinicalPerioExamCorrect;
     result: ClinicalPerioExamCommandResult;
     successStatus: 201;
@@ -7670,6 +7759,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/perio/exams/{perioExamRef}/derivations";
     params: { readonly perioExamRef: string; };
+    query: Record<string, never>;
     body: ClinicalPerioDerive;
     result: ClinicalPerioDerivationCommandResult;
     successStatus: 201;
@@ -7679,6 +7769,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/clinical/patients/{patientRef}/perio-exams";
     params: { readonly patientRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: ClinicalPerioExamList;
     successStatus: 200;
@@ -7688,6 +7779,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/clinical/perio/exams/{perioExamRef}";
     params: { readonly perioExamRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: ClinicalPerioExamRead;
     successStatus: 200;
@@ -7697,6 +7789,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/perio/exams";
     params: {  };
+    query: Record<string, never>;
     body: ClinicalPerioExamRecord;
     result: ClinicalPerioExamCommandResult;
     successStatus: 201;
@@ -7706,6 +7799,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/procedures/{procedureRef}/corrections";
     params: { readonly procedureRef: string; };
+    query: Record<string, never>;
     body: ClinicalProcedureCorrect;
     result: ClinicalProcedureCorrectionResult;
     successStatus: 201;
@@ -7715,6 +7809,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/clinical/encounters/{encounterRef}/procedures";
     params: { readonly encounterRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: ClinicalProcedureList;
     successStatus: 200;
@@ -7724,6 +7819,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/clinical/procedures/{procedureRef}";
     params: { readonly procedureRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: ClinicalProcedureRead;
     successStatus: 200;
@@ -7733,6 +7829,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/encounters/{encounterRef}/procedures";
     params: { readonly encounterRef: string; };
+    query: Record<string, never>;
     body: ClinicalProcedureRender;
     result: ClinicalProcedureCommandResult;
     successStatus: 201;
@@ -7742,6 +7839,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/referrals/{referralRef}/close";
     params: { readonly referralRef: string; };
+    query: Record<string, never>;
     body: ClinicalReferralClose;
     result: ClinicalReferralCommandResult;
     successStatus: 200;
@@ -7751,6 +7849,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/referrals";
     params: {  };
+    query: Record<string, never>;
     body: ClinicalReferralCreate;
     result: ClinicalReferralCommandResult;
     successStatus: 201;
@@ -7760,6 +7859,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/clinical/referrals/{referralRef}/export";
     params: { readonly referralRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: ClinicalReferralExport;
     successStatus: 200;
@@ -7769,6 +7869,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/clinical/patients/{patientRef}/referrals";
     params: { readonly patientRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: ClinicalReferralList;
     successStatus: 200;
@@ -7778,6 +7879,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/referrals/{referralRef}/sent";
     params: { readonly referralRef: string; };
+    query: Record<string, never>;
     body: ClinicalReferralSend;
     result: ClinicalReferralCommandResult;
     successStatus: 200;
@@ -7787,6 +7889,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/referrals/{referralRef}/package";
     params: { readonly referralRef: string; };
+    query: Record<string, never>;
     body: ClinicalReferralPackage;
     result: ClinicalReferralCommandResult;
     successStatus: 200;
@@ -7796,6 +7899,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/clinical/referrals/{referralRef}";
     params: { readonly referralRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: ClinicalReferralRead;
     successStatus: 200;
@@ -7805,6 +7909,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/referrals/{referralRef}/recall";
     params: { readonly referralRef: string; };
+    query: Record<string, never>;
     body: ClinicalReferralRecall;
     result: ClinicalReferralCommandResult;
     successStatus: 200;
@@ -7814,6 +7919,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/referrals/{referralRef}/responses";
     params: { readonly referralRef: string; };
+    query: Record<string, never>;
     body: ClinicalReferralResponse;
     result: ClinicalReferralCommandResult;
     successStatus: 200;
@@ -7823,6 +7929,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/referrals/{referralRef}/shares";
     params: { readonly referralRef: string; };
+    query: Record<string, never>;
     body: ClinicalReferralShareCreate;
     result: ClinicalReferralCommandResult;
     successStatus: 201;
@@ -7832,6 +7939,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/referrals/{referralRef}/transmission-failures";
     params: { readonly referralRef: string; };
+    query: Record<string, never>;
     body: ClinicalReferralTransmissionFailure;
     result: ClinicalReferralCommandResult;
     successStatus: 201;
@@ -7841,6 +7949,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/clinical/referrals/worklist";
     params: {  };
+    query: { readonly asOf?: string; };
     body: undefined;
     result: SchedulingWorkItemList;
     successStatus: 200;
@@ -7850,6 +7959,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/treatment-plans/versions/{planVersionRef}/details";
     params: { readonly planVersionRef: string; };
+    query: Record<string, never>;
     body: ClinicalPlanDetailAdd;
     result: ClinicalTreatmentPlanCommandResult;
     successStatus: 201;
@@ -7859,6 +7969,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/treatment-plans/details/{planDetailRef}/items";
     params: { readonly planDetailRef: string; };
+    query: Record<string, never>;
     body: ClinicalPlanItemAdd;
     result: ClinicalTreatmentPlanCommandResult;
     successStatus: 201;
@@ -7868,6 +7979,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/clinical/treatment-plans/{planRef}/alternatives";
     params: { readonly planRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: ClinicalPlanAlternativeList;
     successStatus: 200;
@@ -7877,6 +7989,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/treatment-plans";
     params: {  };
+    query: Record<string, never>;
     body: ClinicalTreatmentPlanCreate;
     result: ClinicalTreatmentPlanCommandResult;
     successStatus: 201;
@@ -7886,6 +7999,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/treatment-plans/{planRef}/alternatives";
     params: { readonly planRef: string; };
+    query: Record<string, never>;
     body: ClinicalPlanAlternativeCreate;
     result: ClinicalTreatmentPlanCommandResult;
     successStatus: 201;
@@ -7895,6 +8009,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/clinical/patients/{patientRef}/treatment-plans";
     params: { readonly patientRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: ClinicalTreatmentPlanList;
     successStatus: 200;
@@ -7904,6 +8019,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/clinical/treatment-plans/{planRef}";
     params: { readonly planRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: ClinicalTreatmentPlanRead;
     successStatus: 200;
@@ -7913,6 +8029,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/treatment-plans/details/{planDetailRef}/state";
     params: { readonly planDetailRef: string; };
+    query: Record<string, never>;
     body: ClinicalPlanDetailStateSet;
     result: ClinicalTreatmentPlanCommandResult;
     successStatus: 200;
@@ -7922,6 +8039,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/treatment-plans/items/{planItemRef}/state";
     params: { readonly planItemRef: string; };
+    query: Record<string, never>;
     body: ClinicalPlanItemStateSet;
     result: ClinicalTreatmentPlanCommandResult;
     successStatus: 200;
@@ -7931,6 +8049,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/clinical/treatment-plans/versions/{planVersionRef}/supersede";
     params: { readonly planVersionRef: string; };
+    query: Record<string, never>;
     body: ClinicalPlanVersionSupersede;
     result: ClinicalTreatmentPlanCommandResult;
     successStatus: 201;
@@ -7940,6 +8059,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/communications/channel-policies";
     params: {  };
+    query: Record<string, never>;
     body: EngagementChannelPolicyDefine;
     result: EngagementEngagementCommandResult;
     successStatus: 201;
@@ -7949,6 +8069,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/communications/channel-policies";
     params: {  };
+    query: Record<string, never>;
     body: undefined;
     result: EngagementEngagementRead;
     successStatus: 200;
@@ -7958,6 +8079,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/patients/{patientRef}/consents";
     params: { readonly patientRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: EngagementEngagementRead;
     successStatus: 200;
@@ -7967,6 +8089,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/patients/{patientRef}/opt-outs";
     params: { readonly patientRef: string; };
+    query: Record<string, never>;
     body: EngagementOptOutInput;
     result: EngagementEngagementCommandResult;
     successStatus: 201;
@@ -7976,6 +8099,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/patients/{patientRef}/consents";
     params: { readonly patientRef: string; };
+    query: Record<string, never>;
     body: EngagementConsentRecordInput;
     result: EngagementEngagementCommandResult;
     successStatus: 201;
@@ -7985,6 +8109,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/patients/{patientRef}/contact-verifications";
     params: { readonly patientRef: string; };
+    query: Record<string, never>;
     body: EngagementContactVerify;
     result: EngagementEngagementCommandResult;
     successStatus: 201;
@@ -7994,6 +8119,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/communications/decisions/{decisionRef}";
     params: { readonly decisionRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: EngagementEngagementRead;
     successStatus: 200;
@@ -8003,6 +8129,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/communications/deliveries/{messageRef}";
     params: { readonly messageRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: EngagementDeliveryRead;
     successStatus: 200;
@@ -8012,6 +8139,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/communications/deliveries/{messageRef}/resolve";
     params: { readonly messageRef: string; };
+    query: Record<string, never>;
     body: EngagementDeliveryResolve;
     result: EngagementEngagementCommandResult;
     successStatus: 200;
@@ -8021,6 +8149,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/communications/deliveries/worklist";
     params: {  };
+    query: Record<string, never>;
     body: undefined;
     result: SchedulingWorkItemList;
     successStatus: 200;
@@ -8030,6 +8159,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/communications/export";
     params: {  };
+    query: Record<string, never>;
     body: undefined;
     result: EngagementEngagementRead;
     successStatus: 200;
@@ -8039,6 +8169,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/communications/recall-enrollments";
     params: {  };
+    query: Record<string, never>;
     body: EngagementRecallEnroll;
     result: EngagementEngagementCommandResult;
     successStatus: 201;
@@ -8048,6 +8179,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/communications/recall-enrollments";
     params: {  };
+    query: { readonly category?: string; };
     body: undefined;
     result: EngagementEngagementRead;
     successStatus: 200;
@@ -8057,6 +8189,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/communications/receipts";
     params: {  };
+    query: Record<string, never>;
     body: EngagementReceiptInput;
     result: EngagementEngagementCommandResult;
     successStatus: 200;
@@ -8066,6 +8199,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/patients/{patientRef}/suppression-preview";
     params: { readonly patientRef: string; };
+    query: { readonly purpose?: string; readonly channel?: string; readonly at?: string; readonly locationRef?: string; };
     body: undefined;
     result: EngagementEngagementRead;
     successStatus: 200;
@@ -8075,6 +8209,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/communications/templates";
     params: {  };
+    query: Record<string, never>;
     body: EngagementTemplateDefine;
     result: EngagementEngagementCommandResult;
     successStatus: 201;
@@ -8084,6 +8219,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/communications/templates/{templateRef}/withdraw";
     params: { readonly templateRef: string; };
+    query: Record<string, never>;
     body: EngagementTemplateWithdraw;
     result: EngagementEngagementCommandResult;
     successStatus: 200;
@@ -8093,6 +8229,7 @@ export interface Operations {
     method: "GET";
     path: "/healthz";
     params: {  };
+    query: Record<string, never>;
     body: undefined;
     result: unknown;
     successStatus: 200;
@@ -8102,6 +8239,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/imaging/acquisitions";
     params: {  };
+    query: Record<string, never>;
     body: ImagingAcquisitionRequest;
     result: ImagingAcquisitionCommandResult;
     successStatus: 201;
@@ -8111,6 +8249,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/imaging/acquisitions/{deferralRef}/resolve";
     params: { readonly deferralRef: string; };
+    query: Record<string, never>;
     body: ImagingDeferralResolve;
     result: ImagingDeferralCommandResult;
     successStatus: 200;
@@ -8120,6 +8259,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/imaging/objects/{objectRef}/annotations";
     params: { readonly objectRef: string; };
+    query: Record<string, never>;
     body: ImagingAnnotationCreate;
     result: ImagingAnnotationCommandResult;
     successStatus: 201;
@@ -8129,6 +8269,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/imaging/objects/{objectRef}/annotations";
     params: { readonly objectRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: ImagingAnnotationList;
     successStatus: 200;
@@ -8138,6 +8279,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/imaging/annotations/{annotationRef}/supersede";
     params: { readonly annotationRef: string; };
+    query: Record<string, never>;
     body: ImagingAnnotationSupersede;
     result: ImagingAnnotationCommandResult;
     successStatus: 201;
@@ -8147,6 +8289,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/imaging/objects/{objectRef}/match-candidates";
     params: { readonly objectRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: ImagingMatchCandidateList;
     successStatus: 200;
@@ -8156,6 +8299,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/imaging/objects/{objectRef}/association";
     params: { readonly objectRef: string; };
+    query: Record<string, never>;
     body: ImagingAssociationConfirm;
     result: ImagingAssociationCommandResult;
     successStatus: 201;
@@ -8165,6 +8309,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/imaging/associations/{decisionRef}/correct";
     params: { readonly decisionRef: string; };
+    query: Record<string, never>;
     body: ImagingAssociationCorrect;
     result: ImagingAssociationCommandResult;
     successStatus: 201;
@@ -8174,6 +8319,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/imaging/objects/{objectRef}/associations";
     params: { readonly objectRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: ImagingAssociationHistory;
     successStatus: 200;
@@ -8183,6 +8329,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/imaging/worklists/unmatched";
     params: {  };
+    query: Record<string, never>;
     body: undefined;
     result: ImagingImagingWorkItemList;
     successStatus: 200;
@@ -8192,6 +8339,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/bridge/jobs/claim";
     params: {  };
+    query: Record<string, never>;
     body: ImagingBridgeClaim;
     result: ImagingBridgeClaimResult;
     successStatus: 200;
@@ -8201,6 +8349,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/bridge/jobs/{jobRef}/content";
     params: { readonly jobRef: string; };
+    query: Record<string, never>;
     body: Uint8Array;
     result: ImagingBridgeContentResult;
     successStatus: 200;
@@ -8210,6 +8359,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/bridge/heartbeat";
     params: {  };
+    query: Record<string, never>;
     body: ImagingBridgeHeartbeat;
     result: ImagingBridgeHeartbeatResult;
     successStatus: 200;
@@ -8219,6 +8369,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/bridge/pair";
     params: {  };
+    query: Record<string, never>;
     body: ImagingBridgePair;
     result: ImagingBridgePairResult;
     successStatus: 201;
@@ -8228,6 +8379,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/bridge/jobs/{jobRef}/result";
     params: { readonly jobRef: string; };
+    query: Record<string, never>;
     body: ImagingBridgeResultReport;
     result: ImagingBridgeResultAck;
     successStatus: 200;
@@ -8237,6 +8389,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/bridge/keys/rotate";
     params: {  };
+    query: Record<string, never>;
     body: ImagingBridgeKeyRotate;
     result: ImagingBridgeKeyRotateResult;
     successStatus: 200;
@@ -8246,6 +8399,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/imaging/worklists/bridge";
     params: {  };
+    query: Record<string, never>;
     body: undefined;
     result: ImagingBridgeWorklist;
     successStatus: 200;
@@ -8255,6 +8409,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/imaging/bridge-jobs";
     params: {  };
+    query: Record<string, never>;
     body: ImagingBridgeJobEnqueue;
     result: ImagingBridgeJobCommandResult;
     successStatus: 201;
@@ -8264,6 +8419,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/imaging/bridge-jobs/{jobRef}";
     params: { readonly jobRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: ImagingBridgeJobRead;
     successStatus: 200;
@@ -8273,6 +8429,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/imaging/bridge-jobs/{jobRef}/reconcile";
     params: { readonly jobRef: string; };
+    query: Record<string, never>;
     body: ImagingBridgeJobReconcile;
     result: ImagingBridgeJobReconcileResult;
     successStatus: 200;
@@ -8282,6 +8439,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/imaging/objects/{objectRef}/container";
     params: { readonly objectRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: ImagingContainerInspection;
     successStatus: 200;
@@ -8291,6 +8449,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/imaging/deletion-requests/{deletionRef}";
     params: { readonly deletionRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: ImagingDeletionEvaluation;
     successStatus: 200;
@@ -8300,6 +8459,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/imaging/deletion-requests/{deletionRef}/execute";
     params: { readonly deletionRef: string; };
+    query: Record<string, never>;
     body: ImagingDeletionExecute;
     result: ImagingDeletionExecuteResult;
     successStatus: 200;
@@ -8309,6 +8469,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/imaging/objects/{objectRef}/deletion-requests";
     params: { readonly objectRef: string; };
+    query: Record<string, never>;
     body: ImagingDeletionRequestCreate;
     result: ImagingDeletionRequestCommandResult;
     successStatus: 201;
@@ -8318,6 +8479,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/imaging/objects/{objectRef}/derived";
     params: { readonly objectRef: string; };
+    query: Record<string, never>;
     body: ImagingDerivedCreate;
     result: ImagingDerivedCommandResult;
     successStatus: 201;
@@ -8327,6 +8489,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/imaging/devices/{deviceRef}/pairing-codes";
     params: { readonly deviceRef: string; };
+    query: Record<string, never>;
     body: ImagingPairingCodeIssue;
     result: ImagingPairingCodeResult;
     successStatus: 201;
@@ -8336,6 +8499,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/imaging/devices";
     params: {  };
+    query: Record<string, never>;
     body: undefined;
     result: ImagingDeviceList;
     successStatus: 200;
@@ -8345,6 +8509,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/imaging/devices/{deviceRef}";
     params: { readonly deviceRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: ImagingDeviceRead;
     successStatus: 200;
@@ -8354,6 +8519,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/imaging/devices";
     params: {  };
+    query: Record<string, never>;
     body: ImagingDeviceRegister;
     result: ImagingDeviceCommandResult;
     successStatus: 201;
@@ -8363,6 +8529,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/imaging/devices/{deviceRef}/revoke";
     params: { readonly deviceRef: string; };
+    query: Record<string, never>;
     body: ImagingDeviceRevoke;
     result: ImagingDeviceCommandResult;
     successStatus: 200;
@@ -8372,6 +8539,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/imaging/devices/{deviceRef}/capabilities";
     params: { readonly deviceRef: string; };
+    query: Record<string, never>;
     body: ImagingDeviceCapabilitiesSet;
     result: ImagingDeviceCommandResult;
     successStatus: 200;
@@ -8381,6 +8549,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/imaging/export";
     params: {  };
+    query: Record<string, never>;
     body: undefined;
     result: ImagingImagingExportRead;
     successStatus: 200;
@@ -8390,6 +8559,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/imaging/export/blobs";
     params: {  };
+    query: { readonly after?: string; };
     body: undefined;
     result: ImagingImagingBlobBundle;
     successStatus: 200;
@@ -8399,6 +8569,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/imaging/image-refs/{imageRef}";
     params: { readonly imageRef: string; };
+    query: { readonly expectedPatientRef: string; };
     body: undefined;
     result: ImagingImageRefRead;
     successStatus: 200;
@@ -8408,6 +8579,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/imaging/ingress";
     params: {  };
+    query: Record<string, never>;
     body: ImagingIngressBegin;
     result: ImagingIngressBeginResult;
     successStatus: 201;
@@ -8417,6 +8589,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/imaging/ingress/{ingressRef}/complete";
     params: { readonly ingressRef: string; };
+    query: Record<string, never>;
     body: ImagingIngressComplete;
     result: ImagingIngressCompleteResult;
     successStatus: 201;
@@ -8426,6 +8599,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/imaging/ingress/failures";
     params: {  };
+    query: Record<string, never>;
     body: undefined;
     result: ImagingImagingWorkItemList;
     successStatus: 200;
@@ -8435,6 +8609,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/imaging/ingress/{ingressRef}";
     params: { readonly ingressRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: ImagingIngressRead;
     successStatus: 200;
@@ -8444,6 +8619,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/imaging/ingress/{ingressRef}/content";
     params: { readonly ingressRef: string; };
+    query: Record<string, never>;
     body: Uint8Array;
     result: ImagingIngressUploadResult;
     successStatus: 200;
@@ -8453,6 +8629,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/imaging/legal-holds";
     params: {  };
+    query: Record<string, never>;
     body: undefined;
     result: ImagingLegalHoldList;
     successStatus: 200;
@@ -8462,6 +8639,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/imaging/legal-holds";
     params: {  };
+    query: Record<string, never>;
     body: ImagingLegalHoldPlace;
     result: ImagingLegalHoldCommandResult;
     successStatus: 201;
@@ -8471,6 +8649,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/imaging/legal-holds/{legalHoldRef}/release";
     params: { readonly legalHoldRef: string; };
+    query: Record<string, never>;
     body: ImagingLegalHoldRelease;
     result: ImagingLegalHoldCommandResult;
     successStatus: 200;
@@ -8480,6 +8659,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/imaging/mounts";
     params: {  };
+    query: Record<string, never>;
     body: ImagingMountCreate;
     result: ImagingMountCommandResult;
     successStatus: 201;
@@ -8489,6 +8669,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/imaging/mounts/{mountRef}";
     params: { readonly mountRef: string; };
+    query: { readonly version?: string; };
     body: undefined;
     result: ImagingMountRead;
     successStatus: 200;
@@ -8498,6 +8679,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/imaging/mounts/{mountRef}/revise";
     params: { readonly mountRef: string; };
+    query: Record<string, never>;
     body: ImagingMountRevise;
     result: ImagingMountCommandResult;
     successStatus: 200;
@@ -8507,6 +8689,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/imaging/objects/{objectRef}/content";
     params: { readonly objectRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: Uint8Array;
     successStatus: 200;
@@ -8516,6 +8699,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/imaging/objects/{objectRef}/read-grants";
     params: { readonly objectRef: string; };
+    query: Record<string, never>;
     body: ImagingReadGrantRequest;
     result: ImagingReadGrantResult;
     successStatus: 201;
@@ -8525,6 +8709,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/imaging/objects";
     params: {  };
+    query: { readonly state?: string; readonly limit?: string; };
     body: undefined;
     result: ImagingImageObjectList;
     successStatus: 200;
@@ -8534,6 +8719,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/imaging/objects/{objectRef}";
     params: { readonly objectRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: ImagingImageObjectRead;
     successStatus: 200;
@@ -8543,6 +8729,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/imaging/read-grants/{grantRef}/revoke";
     params: { readonly grantRef: string; };
+    query: Record<string, never>;
     body: ImagingReadGrantRevoke;
     result: ImagingReadGrantCommandResult;
     successStatus: 200;
@@ -8552,6 +8739,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/imaging/retention/policies";
     params: {  };
+    query: Record<string, never>;
     body: undefined;
     result: ImagingRetentionPolicyList;
     successStatus: 200;
@@ -8561,6 +8749,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/imaging/retention/policies";
     params: {  };
+    query: Record<string, never>;
     body: ImagingRetentionPolicySet;
     result: ImagingRetentionPolicyCommandResult;
     successStatus: 201;
@@ -8570,6 +8759,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/imaging/storage/reconcile";
     params: {  };
+    query: Record<string, never>;
     body: ImagingStorageReconcile;
     result: ImagingStorageReconcileResult;
     successStatus: 200;
@@ -8579,6 +8769,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/intake/forms";
     params: {  };
+    query: Record<string, never>;
     body: undefined;
     result: EngagementEngagementRead;
     successStatus: 200;
@@ -8588,6 +8779,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/intake/forms";
     params: {  };
+    query: Record<string, never>;
     body: EngagementFormPublish;
     result: EngagementEngagementCommandResult;
     successStatus: 201;
@@ -8597,6 +8789,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/intake/forms/{formRef}/retire";
     params: { readonly formRef: string; };
+    query: Record<string, never>;
     body: EngagementFormRetire;
     result: EngagementEngagementCommandResult;
     successStatus: 200;
@@ -8606,6 +8799,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/intake/reviews/{reviewRef}";
     params: { readonly reviewRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: EngagementEngagementRead;
     successStatus: 200;
@@ -8615,6 +8809,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/intake/reviews/{reviewRef}/resolve";
     params: { readonly reviewRef: string; };
+    query: Record<string, never>;
     body: EngagementIntakeReviewResolve;
     result: EngagementEngagementCommandResult;
     successStatus: 200;
@@ -8624,6 +8819,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/intake/reviews/worklist";
     params: {  };
+    query: Record<string, never>;
     body: undefined;
     result: SchedulingWorkItemList;
     successStatus: 200;
@@ -8633,6 +8829,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/patients/{patientRef}/intake-submissions";
     params: { readonly patientRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: EngagementEngagementRead;
     successStatus: 200;
@@ -8642,6 +8839,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/intake/submissions/{submissionRef}";
     params: { readonly submissionRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: EngagementEngagementRead;
     successStatus: 200;
@@ -8651,6 +8849,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/patients/{patientRef}/intake-submissions";
     params: { readonly patientRef: string; };
+    query: Record<string, never>;
     body: EngagementFormSubmissionInput;
     result: EngagementEngagementCommandResult;
     successStatus: 201;
@@ -8660,6 +8859,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/messaging/threads/{threadRef}/messages";
     params: { readonly threadRef: string; };
+    query: Record<string, never>;
     body: EngagementMessagePost;
     result: EngagementEngagementCommandResult;
     successStatus: 201;
@@ -8669,6 +8869,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/messaging/reply-policies";
     params: {  };
+    query: Record<string, never>;
     body: EngagementReplyPolicySet;
     result: EngagementEngagementCommandResult;
     successStatus: 200;
@@ -8678,6 +8879,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/messaging/threads/{threadRef}/retention";
     params: { readonly threadRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: EngagementEngagementRead;
     successStatus: 200;
@@ -8687,6 +8889,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/messaging/threads/{threadRef}/assign";
     params: { readonly threadRef: string; };
+    query: Record<string, never>;
     body: EngagementThreadAssign;
     result: EngagementEngagementCommandResult;
     successStatus: 200;
@@ -8696,6 +8899,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/messaging/threads/{threadRef}/close";
     params: { readonly threadRef: string; };
+    query: Record<string, never>;
     body: EngagementThreadClose;
     result: EngagementEngagementCommandResult;
     successStatus: 200;
@@ -8705,6 +8909,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/messaging/threads/{threadRef}/legal-hold";
     params: { readonly threadRef: string; };
+    query: Record<string, never>;
     body: EngagementThreadLegalHold;
     result: EngagementEngagementCommandResult;
     successStatus: 200;
@@ -8714,6 +8919,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/messaging/threads";
     params: {  };
+    query: { readonly filter?: string; readonly queue?: string; readonly assigneeRef?: string; readonly limit?: string; readonly cursor?: string; };
     body: undefined;
     result: EngagementThreadList;
     successStatus: 200;
@@ -8723,6 +8929,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/patients/{patientRef}/message-threads";
     params: { readonly patientRef: string; };
+    query: Record<string, never>;
     body: EngagementThreadOpen;
     result: EngagementEngagementCommandResult;
     successStatus: 201;
@@ -8732,6 +8939,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/messaging/threads/{threadRef}";
     params: { readonly threadRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: EngagementEngagementRead;
     successStatus: 200;
@@ -8741,6 +8949,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/messaging/threads/worklist";
     params: {  };
+    query: Record<string, never>;
     body: undefined;
     result: SchedulingWorkItemList;
     successStatus: 200;
@@ -8750,6 +8959,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/migration/cutover/advance";
     params: {  };
+    query: Record<string, never>;
     body: MigrationCutoverAdvance;
     result: MigrationCutoverResult;
     successStatus: 200;
@@ -8759,6 +8969,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/migration/identity/merges";
     params: {  };
+    query: Record<string, never>;
     body: MigrationIdentityMerge;
     result: MigrationIdentityMergeResult;
     successStatus: 201;
@@ -8768,6 +8979,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/migration/imports/apply";
     params: {  };
+    query: Record<string, never>;
     body: MigrationImportApply;
     result: MigrationImportApplyResult;
     successStatus: 200;
@@ -8777,6 +8989,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/migration/imports/plan";
     params: {  };
+    query: { readonly packageRef: string; };
     body: undefined;
     result: MigrationImportPlan;
     successStatus: 200;
@@ -8786,6 +8999,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/migration/opening-items";
     params: {  };
+    query: { readonly packageRef: string; };
     body: undefined;
     result: MigrationOpeningReconciliation;
     successStatus: 200;
@@ -8795,6 +9009,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/migration/packages";
     params: {  };
+    query: Record<string, never>;
     body: MigrationPackageIntake;
     result: MigrationPackageIntakeResult;
     successStatus: 201;
@@ -8804,6 +9019,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/migration/packages/state";
     params: {  };
+    query: { readonly packageRef: string; };
     body: undefined;
     result: MigrationPackageState;
     successStatus: 200;
@@ -8813,6 +9029,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/migration/provenance";
     params: {  };
+    query: { readonly patientRef: string; };
     body: undefined;
     result: MigrationProvenanceList;
     successStatus: 200;
@@ -8822,6 +9039,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/migration/reports";
     params: {  };
+    query: Record<string, never>;
     body: MigrationReportBuild;
     result: MigrationReportSummaryResult;
     successStatus: 200;
@@ -8831,6 +9049,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/migration/reports/latest";
     params: {  };
+    query: { readonly packageRef: string; };
     body: undefined;
     result: MigrationReconciliationReportRead;
     successStatus: 200;
@@ -8840,6 +9059,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/migration/review-items";
     params: {  };
+    query: { readonly packageRef: string; readonly state?: string; };
     body: undefined;
     result: MigrationReviewItemList;
     successStatus: 200;
@@ -8849,6 +9069,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/migration/review-items/resolve";
     params: {  };
+    query: Record<string, never>;
     body: MigrationReviewItemResolve;
     result: MigrationReviewItemResolveResult;
     successStatus: 200;
@@ -8858,6 +9079,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/migration/signoffs";
     params: {  };
+    query: Record<string, never>;
     body: MigrationSignOffRecord;
     result: MigrationSignOffResult;
     successStatus: 201;
@@ -8867,6 +9089,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/migration/source-profiles";
     params: {  };
+    query: Record<string, never>;
     body: MigrationSourceProfileRegister;
     result: MigrationSourceProfileResult;
     successStatus: 201;
@@ -8876,6 +9099,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/patients/{patientRef}/access";
     params: { readonly patientRef: string; };
+    query: { readonly counterpartyRef: string; };
     body: undefined;
     result: PatientPatientAccessRead;
     successStatus: 200;
@@ -8885,6 +9109,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/patients";
     params: {  };
+    query: Record<string, never>;
     body: PatientPatientCreate;
     result: PatientPatientCommandResult;
     successStatus: 201;
@@ -8894,6 +9119,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/patients/{patientRef}/duplicate-candidates";
     params: { readonly patientRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: PatientDuplicateCandidateList;
     successStatus: 200;
@@ -8903,6 +9129,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/patients/merges";
     params: {  };
+    query: Record<string, never>;
     body: PatientMergeRequest;
     result: PatientMergeCommandResult;
     successStatus: 201;
@@ -8912,6 +9139,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/patients/{patientRef}/merge-history";
     params: { readonly patientRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: PatientMergeHistory;
     successStatus: 200;
@@ -8921,6 +9149,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/patients/{patientRef}";
     params: { readonly patientRef: string; };
+    query: { readonly requestedBy?: string; };
     body: undefined;
     result: PatientPatientRead;
     successStatus: 200;
@@ -8930,6 +9159,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/patients/{patientRef}/relationships";
     params: { readonly patientRef: string; };
+    query: Record<string, never>;
     body: PatientRelationshipCreate;
     result: PatientRelationshipCommandResult;
     successStatus: 201;
@@ -8939,6 +9169,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/patients/{patientRef}/relationships";
     params: { readonly patientRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: PatientRelationshipList;
     successStatus: 200;
@@ -8948,6 +9179,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/patients/{patientRef}/relationships/{relationshipRef}/revoke";
     params: { readonly patientRef: string; readonly relationshipRef: string; };
+    query: Record<string, never>;
     body: PatientRelationshipRevoke;
     result: PatientRelationshipCommandResult;
     successStatus: 200;
@@ -8957,6 +9189,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/patients/search";
     params: {  };
+    query: Record<string, never>;
     body: PatientPatientSearch;
     result: PatientPatientSummaryPage;
     successStatus: 200;
@@ -8966,6 +9199,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/patients/{patientRef}/status";
     params: { readonly patientRef: string; };
+    query: Record<string, never>;
     body: PatientPatientStatusChange;
     result: PatientPatientCommandResult;
     successStatus: 200;
@@ -8975,6 +9209,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/patients/merges/{mergeRef}/unmerge";
     params: { readonly mergeRef: string; };
+    query: Record<string, never>;
     body: PatientUnmergeRequest;
     result: PatientMergeCommandResult;
     successStatus: 200;
@@ -8984,6 +9219,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/patients/{patientRef}/demographics";
     params: { readonly patientRef: string; };
+    query: Record<string, never>;
     body: PatientPatientDemographicsUpdate;
     result: PatientPatientCommandResult;
     successStatus: 200;
@@ -8993,6 +9229,7 @@ export interface Operations {
     method: "POST";
     path: "/portal/v1/patients/{patientRef}/consents";
     params: { readonly patientRef: string; };
+    query: Record<string, never>;
     body: EngagementPortalConsentInput;
     result: EngagementEngagementCommandResult;
     successStatus: 201;
@@ -9002,6 +9239,7 @@ export interface Operations {
     method: "GET";
     path: "/portal/v1/forms/{formRef}";
     params: { readonly formRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: EngagementEngagementRead;
     successStatus: 200;
@@ -9011,6 +9249,7 @@ export interface Operations {
     method: "POST";
     path: "/portal/v1/patients/{patientRef}/intake-submissions";
     params: { readonly patientRef: string; };
+    query: Record<string, never>;
     body: EngagementFormSubmissionInput;
     result: EngagementEngagementCommandResult;
     successStatus: 201;
@@ -9020,6 +9259,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/patients/{patientRef}/portal-grants";
     params: { readonly patientRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: EngagementEngagementRead;
     successStatus: 200;
@@ -9029,6 +9269,7 @@ export interface Operations {
     method: "POST";
     path: "/portal/v1/patients/{patientRef}/waitlist-offers/{offerRef}/respond";
     params: { readonly patientRef: string; readonly offerRef: string; };
+    query: Record<string, never>;
     body: EngagementPortalOfferRespond;
     result: EngagementEngagementCommandResult;
     successStatus: 200;
@@ -9038,6 +9279,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/portal/principals";
     params: {  };
+    query: Record<string, never>;
     body: EngagementPortalEnroll;
     result: EngagementEngagementCommandResult;
     successStatus: 201;
@@ -9047,6 +9289,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/portal/principals/{principalRef}";
     params: { readonly principalRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: EngagementEngagementRead;
     successStatus: 200;
@@ -9056,6 +9299,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/portal/principals/{principalRef}/revoke";
     params: { readonly principalRef: string; };
+    query: Record<string, never>;
     body: EngagementPortalRevoke;
     result: EngagementEngagementCommandResult;
     successStatus: 200;
@@ -9065,6 +9309,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/portal/principals/{principalRef}/verify";
     params: { readonly principalRef: string; };
+    query: Record<string, never>;
     body: EngagementPortalVerify;
     result: EngagementEngagementCommandResult;
     successStatus: 200;
@@ -9074,6 +9319,7 @@ export interface Operations {
     method: "POST";
     path: "/portal/v1/patients/{patientRef}/appointment-requests";
     params: { readonly patientRef: string; };
+    query: Record<string, never>;
     body: EngagementPortalRequestSubmit;
     result: EngagementEngagementCommandResult;
     successStatus: 201;
@@ -9083,6 +9329,7 @@ export interface Operations {
     method: "GET";
     path: "/portal/v1/session";
     params: {  };
+    query: Record<string, never>;
     body: undefined;
     result: EngagementEngagementRead;
     successStatus: 200;
@@ -9092,6 +9339,7 @@ export interface Operations {
     method: "POST";
     path: "/portal/v1/patients/{patientRef}/message-threads";
     params: { readonly patientRef: string; };
+    query: Record<string, never>;
     body: EngagementThreadOpen;
     result: EngagementEngagementCommandResult;
     successStatus: 201;
@@ -9101,6 +9349,7 @@ export interface Operations {
     method: "POST";
     path: "/portal/v1/patients/{patientRef}/message-threads/{threadRef}/messages";
     params: { readonly patientRef: string; readonly threadRef: string; };
+    query: Record<string, never>;
     body: EngagementMessagePost;
     result: EngagementEngagementCommandResult;
     successStatus: 201;
@@ -9110,6 +9359,7 @@ export interface Operations {
     method: "GET";
     path: "/portal/v1/patients/{patientRef}/message-threads/{threadRef}";
     params: { readonly patientRef: string; readonly threadRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: EngagementEngagementRead;
     successStatus: 200;
@@ -9119,6 +9369,7 @@ export interface Operations {
     method: "GET";
     path: "/portal/v1/views/{view}";
     params: { readonly view: string; };
+    query: Record<string, never>;
     body: undefined;
     result: EngagementEngagementRead;
     successStatus: 200;
@@ -9128,6 +9379,7 @@ export interface Operations {
     method: "GET";
     path: "/portal/v1/patients/{patientRef}/views/{view}";
     params: { readonly patientRef: string; readonly view: string; };
+    query: Record<string, never>;
     body: undefined;
     result: EngagementEngagementRead;
     successStatus: 200;
@@ -9137,6 +9389,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/rcm/claims/{claimRef}/appeals";
     params: { readonly claimRef: string; };
+    query: Record<string, never>;
     body: BillingAppealDraft;
     result: BillingAppealCommandResult;
     successStatus: 201;
@@ -9146,6 +9399,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/rcm/appeals/{appealRef}/review";
     params: { readonly appealRef: string; };
+    query: Record<string, never>;
     body: BillingAppealReview;
     result: BillingAppealCommandResult;
     successStatus: 201;
@@ -9155,6 +9409,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/rcm/claims/{claimRef}/attachments";
     params: { readonly claimRef: string; };
+    query: Record<string, never>;
     body: BillingClaimAttach;
     result: BillingClaimCommandResult;
     successStatus: 201;
@@ -9164,6 +9419,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/rcm/claims/{claimRef}/attachment-packages";
     params: { readonly claimRef: string; };
+    query: Record<string, never>;
     body: BillingAttachmentPackageCreate;
     result: BillingClaimCommandResult;
     successStatus: 201;
@@ -9173,6 +9429,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/rcm/claims/{claimRef}/poll";
     params: { readonly claimRef: string; };
+    query: Record<string, never>;
     body: Record<string, never> | undefined;
     result: BillingClaimCommandResult;
     successStatus: 200;
@@ -9182,6 +9439,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/rcm/claims";
     params: {  };
+    query: Record<string, never>;
     body: BillingClaimPrepare;
     result: BillingClaimCommandResult;
     successStatus: 201;
@@ -9191,6 +9449,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/rcm/claims/{claimRef}/secondary";
     params: { readonly claimRef: string; };
+    query: Record<string, never>;
     body: BillingSecondaryClaimPrepare;
     result: BillingClaimCommandResult;
     successStatus: 201;
@@ -9200,6 +9459,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/rcm/claims/{claimRef}";
     params: { readonly claimRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: BillingClaimReadResult;
     successStatus: 200;
@@ -9209,6 +9469,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/rcm/claims/{claimRef}/replacement";
     params: { readonly claimRef: string; };
+    query: Record<string, never>;
     body: BillingClaimReplace;
     result: BillingClaimCommandResult;
     successStatus: 201;
@@ -9218,6 +9479,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/rcm/claims/{claimRef}/submissions";
     params: { readonly claimRef: string; };
+    query: Record<string, never>;
     body: BillingClaimSubmit;
     result: BillingClaimCommandResult;
     successStatus: 201;
@@ -9227,6 +9489,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/rcm/claims/{claimRef}/validation";
     params: { readonly claimRef: string; };
+    query: Record<string, never>;
     body: BillingClaimVersioned;
     result: BillingClaimCommandResult;
     successStatus: 201;
@@ -9236,6 +9499,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/rcm/claims/worklist";
     params: {  };
+    query: { readonly owner?: string; };
     body: undefined;
     result: BillingClaimWorklistResult;
     successStatus: 200;
@@ -9245,6 +9509,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/rcm/coverages/{coverageRef}/versions";
     params: { readonly coverageRef: string; };
+    query: Record<string, never>;
     body: BillingCoverageChange;
     result: BillingCoverageCommandResult;
     successStatus: 201;
@@ -9254,6 +9519,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/rcm/coverages/{coverageRef}";
     params: { readonly coverageRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: BillingCoverageRead;
     successStatus: 200;
@@ -9263,6 +9529,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/rcm/coverages";
     params: {  };
+    query: Record<string, never>;
     body: BillingCoverageRecord;
     result: BillingCoverageCommandResult;
     successStatus: 201;
@@ -9272,6 +9539,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/rcm/patients/{patientRef}/coverage";
     params: { readonly patientRef: string; };
+    query: { readonly serviceDate: string; };
     body: undefined;
     result: BillingCoverageResolution;
     successStatus: 200;
@@ -9281,6 +9549,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/rcm/coverages/{coverageRef}/eligibility";
     params: { readonly coverageRef: string; };
+    query: Record<string, never>;
     body: BillingEligibilityRecord;
     result: BillingEligibilityCommandResult;
     successStatus: 201;
@@ -9290,6 +9559,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/rcm/remittance-resolutions/{resolutionRef}/decision";
     params: { readonly resolutionRef: string; };
+    query: Record<string, never>;
     body: BillingRemittanceResolutionDecide;
     result: BillingRemittanceResolutionCommandResult;
     successStatus: 201;
@@ -9299,6 +9569,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/rcm/remittances";
     params: {  };
+    query: Record<string, never>;
     body: BillingRemittanceIngest;
     result: BillingRemittanceCommandResult;
     successStatus: 201;
@@ -9308,6 +9579,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/rcm/remittances/{remittanceRef}";
     params: { readonly remittanceRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: BillingRemittanceReadResult;
     successStatus: 200;
@@ -9317,6 +9589,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/rcm/remittances/{remittanceRef}/lines/{lineNo}/resolutions";
     params: { readonly remittanceRef: string; readonly lineNo: string; };
+    query: Record<string, never>;
     body: BillingRemittanceLineResolve;
     result: BillingRemittanceResolutionCommandResult;
     successStatus: 201;
@@ -9326,6 +9599,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/rcm/remittances/{remittanceRef}/reversal";
     params: { readonly remittanceRef: string; };
+    query: Record<string, never>;
     body: BillingRemittanceReverse;
     result: BillingRemittanceCommandResult;
     successStatus: 201;
@@ -9335,6 +9609,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/rcm/remittances/{remittanceRef}/settlements";
     params: { readonly remittanceRef: string; };
+    query: Record<string, never>;
     body: BillingRemittanceSettle;
     result: BillingRemittanceCommandResult;
     successStatus: 201;
@@ -9344,6 +9619,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/rcm/submission-policies";
     params: {  };
+    query: Record<string, never>;
     body: BillingSubmissionPolicyCreate;
     result: BillingPolicyCommandResult;
     successStatus: 201;
@@ -9353,6 +9629,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/rcm/submission-policies/{policyRef}/revoke";
     params: { readonly policyRef: string; };
+    query: Record<string, never>;
     body: BillingSubmissionPolicyRevoke;
     result: BillingPolicyCommandResult;
     successStatus: 201;
@@ -9362,6 +9639,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/rcm/patients/{patientRef}/visit-preparation";
     params: { readonly patientRef: string; };
+    query: { readonly serviceDate: string; };
     body: undefined;
     result: BillingVisitPreparationResult;
     successStatus: 200;
@@ -9371,6 +9649,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/rcm/workflow-policies";
     params: {  };
+    query: Record<string, never>;
     body: BillingWorkflowPolicyPublish;
     result: BillingWorkflowPolicyCommandResult;
     successStatus: 201;
@@ -9380,6 +9659,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/rcm/workflows/{workflowRef}/advance";
     params: { readonly workflowRef: string; };
+    query: Record<string, never>;
     body: Record<string, never> | undefined;
     result: BillingWorkflowAdvanceResult;
     successStatus: 200;
@@ -9389,6 +9669,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/rcm/workflows/{workflowRef}/closure";
     params: { readonly workflowRef: string; };
+    query: Record<string, never>;
     body: BillingClaimWorkflowClose;
     result: BillingWorkflowCommandResult;
     successStatus: 201;
@@ -9398,6 +9679,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/rcm/workflow-timers/{timerRef}/fire";
     params: { readonly timerRef: string; };
+    query: Record<string, never>;
     body: Record<string, never> | undefined;
     result: BillingWorkflowAdvanceResult;
     successStatus: 200;
@@ -9407,6 +9689,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/rcm/workflows/{workflowRef}";
     params: { readonly workflowRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: BillingClaimWorkflowReadResult;
     successStatus: 200;
@@ -9416,6 +9699,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/rcm/workflows";
     params: {  };
+    query: Record<string, never>;
     body: BillingClaimWorkflowStart;
     result: BillingWorkflowCommandResult;
     successStatus: 201;
@@ -9425,6 +9709,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/appointments";
     params: {  };
+    query: Record<string, never>;
     body: SchedulingBookingCreate;
     result: SchedulingBookingCommandResult;
     successStatus: 201;
@@ -9434,6 +9719,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/appointments/{appointmentRef}/cancel";
     params: { readonly appointmentRef: string; };
+    query: Record<string, never>;
     body: SchedulingAppointmentCancel;
     result: SchedulingAppointmentCommandResult;
     successStatus: 200;
@@ -9443,6 +9729,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/scheduling/appointments/{appointmentRef}";
     params: { readonly appointmentRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: SchedulingAppointmentRead;
     successStatus: 200;
@@ -9452,6 +9739,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/appointments/{appointmentRef}/reassign-patient";
     params: { readonly appointmentRef: string; };
+    query: Record<string, never>;
     body: SchedulingAppointmentPatientReassign;
     result: SchedulingAppointmentPatientReassignResult;
     successStatus: 200;
@@ -9461,6 +9749,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/appointments/{appointmentRef}/reschedule";
     params: { readonly appointmentRef: string; };
+    query: Record<string, never>;
     body: SchedulingAppointmentReschedule;
     result: SchedulingBookingCommandResult;
     successStatus: 200;
@@ -9470,6 +9759,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/scheduling/appointments/{appointmentRef}/attendance";
     params: { readonly appointmentRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: SchedulingAttendanceList;
     successStatus: 200;
@@ -9479,6 +9769,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/appointments/{appointmentRef}/attendance";
     params: { readonly appointmentRef: string; };
+    query: Record<string, never>;
     body: SchedulingAttendanceRecord;
     result: SchedulingAttendanceCommandResult;
     successStatus: 201;
@@ -9488,6 +9779,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/scheduling/appointments/{appointmentRef}/visit-status";
     params: { readonly appointmentRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: SchedulingVisitStatus;
     successStatus: 200;
@@ -9497,6 +9789,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/availability/search";
     params: {  };
+    query: Record<string, never>;
     body: SchedulingAvailabilitySearch;
     result: SchedulingAvailabilitySearchResult;
     successStatus: 200;
@@ -9506,6 +9799,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/scheduling/export";
     params: {  };
+    query: Record<string, never>;
     body: undefined;
     result: SchedulingSchedulingExport;
     successStatus: 200;
@@ -9515,6 +9809,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/provider-requests/{requestRef}/acknowledge";
     params: { readonly requestRef: string; };
+    query: Record<string, never>;
     body: SchedulingProviderRequestAcknowledge;
     result: SchedulingProviderRequestResult;
     successStatus: 200;
@@ -9524,6 +9819,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/provider-requests/{requestRef}/clear";
     params: { readonly requestRef: string; };
+    query: Record<string, never>;
     body: SchedulingProviderRequestClear;
     result: SchedulingProviderRequestResult;
     successStatus: 200;
@@ -9533,6 +9829,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/scheduling/floor/provider-requests";
     params: {  };
+    query: { readonly locationRef: string; };
     body: undefined;
     result: SchedulingProviderRequestList;
     successStatus: 200;
@@ -9542,6 +9839,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/scheduling/floor";
     params: {  };
+    query: { readonly locationRef: string; readonly projection?: string; };
     body: undefined;
     result: SchedulingFloorView;
     successStatus: 200;
@@ -9551,6 +9849,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/appointments/{appointmentRef}/provider-requests";
     params: { readonly appointmentRef: string; };
+    query: Record<string, never>;
     body: SchedulingProviderRequestCreate;
     result: SchedulingProviderRequestResult;
     successStatus: 201;
@@ -9560,6 +9859,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/scheduling/follow-up/worklist";
     params: {  };
+    query: { readonly locationRef?: string; };
     body: undefined;
     result: SchedulingWorkItemList;
     successStatus: 200;
@@ -9569,6 +9869,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/holds";
     params: {  };
+    query: Record<string, never>;
     body: SchedulingHoldCreate;
     result: SchedulingBookingCommandResult;
     successStatus: 201;
@@ -9578,6 +9879,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/holds/reconcile";
     params: {  };
+    query: Record<string, never>;
     body: SchedulingHoldReconcile;
     result: SchedulingHoldReconcileResult;
     successStatus: 200;
@@ -9587,6 +9889,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/holds/{holdRef}/release";
     params: { readonly holdRef: string; };
+    query: Record<string, never>;
     body: SchedulingHoldRelease;
     result: SchedulingHoldCommandResult;
     successStatus: 200;
@@ -9596,6 +9899,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/locations/{locationRef}/time-zone";
     params: { readonly locationRef: string; };
+    query: Record<string, never>;
     body: SchedulingLocationTimeZoneChange;
     result: SchedulingLocationCommandResult;
     successStatus: 200;
@@ -9605,6 +9909,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/locations";
     params: {  };
+    query: Record<string, never>;
     body: SchedulingLocationDefine;
     result: SchedulingLocationCommandResult;
     successStatus: 201;
@@ -9614,6 +9919,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/scheduling/locations";
     params: {  };
+    query: { readonly limit?: string; readonly cursor?: string; };
     body: undefined;
     result: SchedulingLocationList;
     successStatus: 200;
@@ -9623,6 +9929,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/scheduling/notifications/{intentRef}";
     params: { readonly intentRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: SchedulingNotificationIntentRead;
     successStatus: 200;
@@ -9632,6 +9939,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/scheduling/notifications/worklist";
     params: {  };
+    query: { readonly locationRef?: string; };
     body: undefined;
     result: SchedulingWorkItemList;
     successStatus: 200;
@@ -9641,6 +9949,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/scheduling/presence";
     params: {  };
+    query: { readonly locationRef: string; };
     body: undefined;
     result: SchedulingPresenceList;
     successStatus: 200;
@@ -9650,6 +9959,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/presence";
     params: {  };
+    query: Record<string, never>;
     body: SchedulingPresenceSet;
     result: SchedulingPresenceResult;
     successStatus: 200;
@@ -9659,6 +9969,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/recall/tasks";
     params: {  };
+    query: Record<string, never>;
     body: SchedulingRecallTaskCreate;
     result: SchedulingRecallTaskCommandResult;
     successStatus: 201;
@@ -9668,6 +9979,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/recall/policies";
     params: {  };
+    query: Record<string, never>;
     body: SchedulingRecallPolicyDefine;
     result: SchedulingRecallPolicyCommandResult;
     successStatus: 201;
@@ -9677,6 +9989,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/scheduling/recall/due";
     params: {  };
+    query: { readonly category: string; readonly asOf?: string; readonly locationRef?: string; };
     body: undefined;
     result: SchedulingRecallDue;
     successStatus: 200;
@@ -9686,6 +9999,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/scheduling/recall/policies";
     params: {  };
+    query: Record<string, never>;
     body: undefined;
     result: SchedulingRecallPolicyList;
     successStatus: 200;
@@ -9695,6 +10009,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/recall/tasks/{recallTaskRef}/resolve";
     params: { readonly recallTaskRef: string; };
+    query: Record<string, never>;
     body: SchedulingRecallTaskResolve;
     result: SchedulingRecallTaskCommandResult;
     successStatus: 200;
@@ -9704,6 +10019,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/recoveries/{recoveryRef}/execute";
     params: { readonly recoveryRef: string; };
+    query: Record<string, never>;
     body: SchedulingRecoveryExecute;
     result: SchedulingOfferCommandResult;
     successStatus: 201;
@@ -9713,6 +10029,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/scheduling/recoveries";
     params: {  };
+    query: { readonly locationRef?: string; };
     body: undefined;
     result: SchedulingWorkItemList;
     successStatus: 200;
@@ -9722,6 +10039,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/scheduling/recoveries/{recoveryRef}";
     params: { readonly recoveryRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: SchedulingRecoveryRead;
     successStatus: 200;
@@ -9731,6 +10049,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/appointment-requests/{requestRef}/close";
     params: { readonly requestRef: string; };
+    query: Record<string, never>;
     body: SchedulingAppointmentRequestClose;
     result: SchedulingAppointmentRequestCommandResult;
     successStatus: 200;
@@ -9740,6 +10059,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/appointment-requests";
     params: {  };
+    query: Record<string, never>;
     body: SchedulingAppointmentRequestCreate;
     result: SchedulingAppointmentRequestCommandResult;
     successStatus: 201;
@@ -9749,6 +10069,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/scheduling/appointment-requests";
     params: {  };
+    query: { readonly limit?: string; readonly cursor?: string; };
     body: undefined;
     result: SchedulingAppointmentRequestList;
     successStatus: 200;
@@ -9758,6 +10079,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/scheduling/appointment-requests/{requestRef}";
     params: { readonly requestRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: SchedulingAppointmentRequestRead;
     successStatus: 200;
@@ -9767,6 +10089,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/appointment-requests/{requestRef}/reopen";
     params: { readonly requestRef: string; };
+    query: Record<string, never>;
     body: SchedulingAppointmentRequestReopen;
     result: SchedulingAppointmentRequestCommandResult;
     successStatus: 200;
@@ -9776,6 +10099,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/appointment-requests/{requestRef}/review";
     params: { readonly requestRef: string; };
+    query: Record<string, never>;
     body: SchedulingAppointmentRequestReview;
     result: SchedulingAppointmentRequestCommandResult;
     successStatus: 200;
@@ -9785,6 +10109,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/scheduling/reports/unbooked-requests";
     params: {  };
+    query: Record<string, never>;
     body: undefined;
     result: SchedulingUnbookedRequestReport;
     successStatus: 200;
@@ -9794,6 +10119,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/appointment-requests/{requestRef}/preferences";
     params: { readonly requestRef: string; };
+    query: Record<string, never>;
     body: SchedulingAppointmentRequestPreferences;
     result: SchedulingAppointmentRequestCommandResult;
     successStatus: 200;
@@ -9803,6 +10129,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/scheduling/data-quality/state-labelled-resources";
     params: {  };
+    query: Record<string, never>;
     body: undefined;
     result: SchedulingStateLabelReport;
     successStatus: 200;
@@ -9812,6 +10139,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/resources/{resourceRef}/deactivate";
     params: { readonly resourceRef: string; };
+    query: Record<string, never>;
     body: SchedulingResourceDeactivate;
     result: SchedulingResourceCommandResult;
     successStatus: 200;
@@ -9821,6 +10149,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/resources";
     params: {  };
+    query: Record<string, never>;
     body: SchedulingResourceDefine;
     result: SchedulingResourceCommandResult;
     successStatus: 201;
@@ -9830,6 +10159,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/scheduling/resources";
     params: {  };
+    query: { readonly locationRef?: string; readonly kind?: string; readonly limit?: string; readonly cursor?: string; };
     body: undefined;
     result: SchedulingResourceList;
     successStatus: 200;
@@ -9839,6 +10169,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/scheduling/resources/{resourceRef}";
     params: { readonly resourceRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: SchedulingResourceRead;
     successStatus: 200;
@@ -9848,6 +10179,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/resources/{resourceRef}/availability";
     params: { readonly resourceRef: string; };
+    query: Record<string, never>;
     body: SchedulingAvailabilitySet;
     result: SchedulingAvailabilityCommandResult;
     successStatus: 201;
@@ -9857,6 +10189,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/series";
     params: {  };
+    query: Record<string, never>;
     body: SchedulingSeriesCreate;
     result: SchedulingSeriesCommandResult;
     successStatus: 201;
@@ -9866,6 +10199,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/series/{seriesRef}/end";
     params: { readonly seriesRef: string; };
+    query: Record<string, never>;
     body: SchedulingSeriesEnd;
     result: SchedulingSeriesCommandResult;
     successStatus: 200;
@@ -9875,6 +10209,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/series/{seriesRef}/extend";
     params: { readonly seriesRef: string; };
+    query: Record<string, never>;
     body: SchedulingSeriesExtend;
     result: SchedulingSeriesCommandResult;
     successStatus: 201;
@@ -9884,6 +10219,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/series/plan";
     params: {  };
+    query: Record<string, never>;
     body: SchedulingSeriesCreate;
     result: SchedulingSeriesPlanResult;
     successStatus: 200;
@@ -9893,6 +10229,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/scheduling/series/{seriesRef}";
     params: { readonly seriesRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: SchedulingSeriesRead;
     successStatus: 200;
@@ -9902,6 +10239,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/staging/entries";
     params: {  };
+    query: Record<string, never>;
     body: SchedulingStagingAdd;
     result: SchedulingStagingEntryResult;
     successStatus: 201;
@@ -9911,6 +10249,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/staging/settings";
     params: {  };
+    query: Record<string, never>;
     body: SchedulingStagingSettings;
     result: SchedulingStagingSettingsResult;
     successStatus: 200;
@@ -9920,6 +10259,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/scheduling/staging";
     params: {  };
+    query: { readonly locationRef: string; };
     body: undefined;
     result: SchedulingStagingList;
     successStatus: 200;
@@ -9929,6 +10269,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/staging/entries/{entryRef}/move";
     params: { readonly entryRef: string; };
+    query: Record<string, never>;
     body: SchedulingStagingMove;
     result: SchedulingStagingMoveResult;
     successStatus: 200;
@@ -9938,6 +10279,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/staging/entries/{entryRef}/remove";
     params: { readonly entryRef: string; };
+    query: Record<string, never>;
     body: SchedulingStagingRemove;
     result: SchedulingStagingEntryResult;
     successStatus: 200;
@@ -9947,6 +10289,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/standing-policies";
     params: {  };
+    query: Record<string, never>;
     body: SchedulingStandingPolicyGrant;
     result: SchedulingStandingPolicyCommandResult;
     successStatus: 201;
@@ -9956,6 +10299,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/scheduling/standing-policies";
     params: {  };
+    query: Record<string, never>;
     body: undefined;
     result: SchedulingStandingPolicyList;
     successStatus: 200;
@@ -9965,6 +10309,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/standing-policies/{policyRef}/revoke";
     params: { readonly policyRef: string; };
+    query: Record<string, never>;
     body: SchedulingStandingPolicyRevoke;
     result: SchedulingStandingPolicyCommandResult;
     successStatus: 200;
@@ -9974,6 +10319,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/time-blocks";
     params: {  };
+    query: Record<string, never>;
     body: SchedulingTimeBlockCreate;
     result: SchedulingTimeBlockCommandResult;
     successStatus: 201;
@@ -9983,6 +10329,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/appointments/{appointmentRef}/visit-context/forms";
     params: { readonly appointmentRef: string; };
+    query: Record<string, never>;
     body: SchedulingVisitFormAssign;
     result: SchedulingVisitItemCommandResult;
     successStatus: 201;
@@ -9992,6 +10339,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/scheduling/appointments/{appointmentRef}/visit-context/items";
     params: { readonly appointmentRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: SchedulingVisitContextItemList;
     successStatus: 200;
@@ -10001,6 +10349,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/appointments/{appointmentRef}/visit-context/lab-cases";
     params: { readonly appointmentRef: string; };
+    query: Record<string, never>;
     body: SchedulingVisitLabLink;
     result: SchedulingVisitItemCommandResult;
     successStatus: 201;
@@ -10010,6 +10359,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/appointments/{appointmentRef}/visit-context/medical-history-pin";
     params: { readonly appointmentRef: string; };
+    query: Record<string, never>;
     body: SchedulingVisitContextPin;
     result: SchedulingVisitItemCommandResult;
     successStatus: 201;
@@ -10019,6 +10369,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/scheduling/appointments/{appointmentRef}/visit-context";
     params: { readonly appointmentRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: SchedulingVisitContext;
     successStatus: 200;
@@ -10028,6 +10379,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/appointments/{appointmentRef}/visit-context/lab-cases/relink";
     params: { readonly appointmentRef: string; };
+    query: Record<string, never>;
     body: SchedulingVisitLabRelink;
     result: SchedulingVisitItemCommandResult;
     successStatus: 201;
@@ -10037,6 +10389,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/appointments/{appointmentRef}/visit-context/forms/{itemRef}/unassign";
     params: { readonly appointmentRef: string; readonly itemRef: string; };
+    query: Record<string, never>;
     body: SchedulingVisitFormUnassign;
     result: SchedulingVisitItemCommandResult;
     successStatus: 200;
@@ -10046,6 +10399,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/waitlist";
     params: {  };
+    query: Record<string, never>;
     body: SchedulingWaitlistAdd;
     result: SchedulingWaitlistEntryCommandResult;
     successStatus: 201;
@@ -10055,6 +10409,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/scheduling/waitlist";
     params: {  };
+    query: { readonly locationRef?: string; readonly state?: string; };
     body: undefined;
     result: SchedulingWaitlistEntryList;
     successStatus: 200;
@@ -10064,6 +10419,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/waitlist/{entryRef}/offer";
     params: { readonly entryRef: string; };
+    query: Record<string, never>;
     body: SchedulingWaitlistOffer;
     result: SchedulingOfferCommandResult;
     successStatus: 201;
@@ -10073,6 +10429,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/scheduling/waitlist-offers/{offerRef}";
     params: { readonly offerRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: SchedulingOfferRead;
     successStatus: 200;
@@ -10082,6 +10439,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/waitlist/offers/reconcile";
     params: {  };
+    query: Record<string, never>;
     body: SchedulingOfferReconcile;
     result: SchedulingOfferReconcileResult;
     successStatus: 200;
@@ -10091,6 +10449,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/waitlist/{entryRef}/remove";
     params: { readonly entryRef: string; };
+    query: Record<string, never>;
     body: SchedulingWaitlistRemove;
     result: SchedulingWaitlistEntryCommandResult;
     successStatus: 200;
@@ -10100,6 +10459,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/scheduling/waitlist-offers/{offerRef}/respond";
     params: { readonly offerRef: string; };
+    query: Record<string, never>;
     body: SchedulingOfferRespond;
     result: SchedulingOfferRespondResult;
     successStatus: 200;
@@ -10109,6 +10469,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/scheduling/worklist";
     params: {  };
+    query: Record<string, never>;
     body: undefined;
     result: SchedulingDailyWorklist;
     successStatus: 200;
@@ -10118,6 +10479,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/session";
     params: {  };
+    query: Record<string, never>;
     body: undefined;
     result: unknown;
     successStatus: 200;
@@ -10127,6 +10489,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/synthetic-tasks";
     params: {  };
+    query: Record<string, never>;
     body: SyntheticSyntheticTaskCreate;
     result: SyntheticSyntheticTaskCommandResult;
     successStatus: 201;
@@ -10136,6 +10499,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/synthetic-tasks";
     params: {  };
+    query: { readonly limit?: string; readonly cursor?: string; };
     body: undefined;
     result: SyntheticSyntheticTaskList;
     successStatus: 200;
@@ -10145,6 +10509,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/synthetic-tasks/proposals/{proposalRef}/approve";
     params: { readonly proposalRef: string; };
+    query: Record<string, never>;
     body: ProposalProposalApprove;
     result: ProposalProposalCommandResult;
     successStatus: 200;
@@ -10154,6 +10519,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/synthetic-tasks/proposals/{proposalRef}/commit";
     params: { readonly proposalRef: string; };
+    query: Record<string, never>;
     body: ProposalProposalCommit;
     result: SyntheticSyntheticTaskCommandResult;
     successStatus: 200;
@@ -10163,6 +10529,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/synthetic-tasks/proposals";
     params: {  };
+    query: Record<string, never>;
     body: ProposalProposalPrepare;
     result: ProposalProposalCommandResult;
     successStatus: 201;
@@ -10172,6 +10539,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/synthetic-tasks/proposals/{proposalRef}";
     params: { readonly proposalRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: ProposalProposalRead;
     successStatus: 200;
@@ -10181,6 +10549,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/synthetic-tasks/{taskRef}";
     params: { readonly taskRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: SyntheticSyntheticTaskRead;
     successStatus: 200;
@@ -10190,6 +10559,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/synthetic-tasks/{taskRef}/relabel";
     params: { readonly taskRef: string; };
+    query: Record<string, never>;
     body: SyntheticSyntheticTaskRelabel;
     result: SyntheticSyntheticTaskCommandResult;
     successStatus: 200;
@@ -10199,6 +10569,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/telephony/calls/{callRef}/link";
     params: { readonly callRef: string; };
+    query: Record<string, never>;
     body: EngagementCallLink;
     result: EngagementEngagementCommandResult;
     successStatus: 201;
@@ -10208,6 +10579,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/telephony/calls";
     params: {  };
+    query: Record<string, never>;
     body: undefined;
     result: EngagementEngagementRead;
     successStatus: 200;
@@ -10217,6 +10589,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/telephony/calls/{callRef}";
     params: { readonly callRef: string; };
+    query: Record<string, never>;
     body: undefined;
     result: EngagementCallRead;
     successStatus: 200;
@@ -10226,6 +10599,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/telephony/calls";
     params: {  };
+    query: Record<string, never>;
     body: EngagementCallEventInput;
     result: EngagementEngagementCommandResult;
     successStatus: 201;
@@ -10235,6 +10609,7 @@ export interface Operations {
     method: "POST";
     path: "/v1/telephony/config";
     params: {  };
+    query: Record<string, never>;
     body: EngagementTelephonyConfigDefine;
     result: EngagementEngagementCommandResult;
     successStatus: 201;
@@ -10244,6 +10619,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/telephony/config";
     params: {  };
+    query: Record<string, never>;
     body: undefined;
     result: EngagementEngagementRead;
     successStatus: 200;
@@ -10253,6 +10629,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/telephony/handling";
     params: {  };
+    query: { readonly at?: string; };
     body: undefined;
     result: EngagementEngagementRead;
     successStatus: 200;

@@ -17,7 +17,20 @@ export const NON_ENTITY_ID_FIELDS: Readonly<Record<string, string>> = {
     "a migration source system's own guarantor identifier, kept verbatim for opening-balance reconciliation (M5-M6)",
 };
 
-const MONEY_SCALAR = /(amount|Minor$|cents|Cents|price|Price|balance|Balance)/;
+const MONEY_SCALAR =
+  /(amount|Amount|Minor$|cents|Cents|price|Price|balance|Balance|fee|Fee|charge|Charge|copay|Copay|payment|Payment|total|Total)/;
+/** A-S6: counts, sequence numbers and versions are not money even when named after a money noun. */
+const NOT_MONEY = /(Count|count|Number|number|Version|version|Seq|seq|Days|days|Items|items)$/;
+const TENANT_LIKE = /^(practice|organization|org)(Id|ID|_id|Ids|IDs|_ids)$/i;
+
+/** Integer fields named after a money noun that are counts (each with its reason). */
+export const NON_MONEY_FIELDS: Readonly<Record<string, string>> = {
+  charges: 'number of charges in a receivables row, not an amount',
+};
+const ENTITY_ID = /(Id|ID|_id|Ids|IDs|_ids)$/;
+const TIMESTAMP_NAME = /(At|Timestamp)$/;
+const typesOf = (p: Json): string[] =>
+  Array.isArray(p.type) ? (p.type as string[]) : typeof p.type === 'string' ? [p.type] : [];
 const isMoneyShape = (node: Json): boolean => {
   const props = isObj(node.properties) ? Object.keys(node.properties) : [];
   return props.includes('currency') && props.includes('minor');
@@ -47,7 +60,7 @@ export function lintRepresentation(node: unknown, at: string, requestSide = fals
     if (!isObj(n)) return;
     if (isObj(n.properties)) {
       const money = isMoneyShape(n);
-      if (requestSide && n.additionalProperties !== false && n.type === 'object') {
+      if (requestSide && n.additionalProperties !== false && typesOf(n).includes('object')) {
         out.push({
           at: `${at}${path}`,
           rule: 'openObject',
@@ -58,7 +71,24 @@ export function lintRepresentation(node: unknown, at: string, requestSide = fals
       for (const [k, v] of Object.entries(n.properties)) {
         const p = isObj(v) ? v : {};
         const where = `${at}${path}`;
-        if (/^tenant/i.test(k)) {
+        // A-S6: an open map on the request side (no declared properties) accepts arbitrary keys.
+        if (
+          requestSide &&
+          !isObj(p.properties) &&
+          typesOf(p).includes('object') &&
+          (p.additionalProperties !== false || isObj(p.patternProperties)) &&
+          // A bounded keyed map (constrained key names, a size cap, typed values) is closed enough.
+          !(isObj(p.propertyNames) && typeof p.maxProperties === 'number' && isObj(p.additionalProperties))
+        ) {
+          out.push({
+            at: where,
+            rule: 'openObject',
+            field: k,
+            message: `${k}: request map accepts arbitrary keys`,
+          });
+        }
+        const types = typesOf(p);
+        if (/^tenant/i.test(k) || TENANT_LIKE.test(k)) {
           out.push({
             at: where,
             rule: 'tenantField',
@@ -66,17 +96,26 @@ export function lintRepresentation(node: unknown, at: string, requestSide = fals
             message: `${k}: tenant comes from the authenticated context`,
           });
         }
-        if (/(Id|ID|_id)$/.test(k) && !/^tenant/i.test(k) && !Object.hasOwn(NON_ENTITY_ID_FIELDS, k)) {
-          const entity = k.replace(/(Id|ID|_id)$/, '');
+        if (
+          ENTITY_ID.test(k) &&
+          !TENANT_LIKE.test(k) &&
+          !/^tenant/i.test(k) &&
+          !Object.hasOwn(NON_ENTITY_ID_FIELDS, k)
+        ) {
+          const plural = /(Ids|IDs|_ids)$/.test(k);
+          const entity = k.replace(ENTITY_ID, '');
           out.push({
             at: where,
             rule: 'bareEntityId',
             field: k,
-            message: `${k}: use the opaque ${entity}Ref`,
+            message: `${k}: use the opaque ${entity}${plural ? 'Refs' : 'Ref'}`,
           });
         }
-        const scalar = p.type === 'integer' || p.type === 'number';
-        if (scalar && MONEY_SCALAR.test(k) && !(money && k === 'minor')) {
+        const scalar = types.includes('integer') || types.includes('number');
+        // Money by shape: an integer beside a `currency` sibling that is not the Money `minor`.
+        const currencySibling = Object.hasOwn(n.properties, 'currency') && !money && !NOT_MONEY.test(k);
+        const named = MONEY_SCALAR.test(k) && !NOT_MONEY.test(k) && !Object.hasOwn(NON_MONEY_FIELDS, k);
+        if (scalar && (named || currencySibling) && !(money && k === 'minor')) {
           out.push({
             at: where,
             rule: 'scalarMoney',
@@ -84,7 +123,7 @@ export function lintRepresentation(node: unknown, at: string, requestSide = fals
             message: `${k}: an amount is Money { currency, minor }`,
           });
         }
-        if (/At$/.test(k) && p.type === 'string' && p.format !== 'date-time') {
+        if (TIMESTAMP_NAME.test(k) && types.includes('string') && p.format !== 'date-time') {
           out.push({
             at: where,
             rule: 'zonelessTimestamp',

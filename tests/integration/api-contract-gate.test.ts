@@ -146,6 +146,58 @@ describe('A1 shared representations', () => {
     expect(lintRepresentation(clean, 'synthetic', true)).toStrictEqual([]);
   });
 
+  it('A-S6: id lists, tenant-like fields, union types, money by shape and open request maps are caught', () => {
+    const bad = {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        patientIds: { type: 'array', items: { type: 'string' } },
+        practiceId: { type: 'string' },
+        organizationId: { type: 'string' },
+        balanceMinor: { type: ['integer', 'null'] },
+        copay: { type: 'integer' },
+        fee: { type: 'number' },
+        charge: {
+          type: 'object',
+          additionalProperties: false,
+          properties: { value: { type: 'integer' }, currency: { type: 'string' } },
+        },
+        settledAt: { type: ['string', 'null'] },
+        observed: { type: 'string', format: 'date', description: 'not a timestamp' },
+        loggedTimestamp: { type: 'string' },
+        labels: { type: 'object', additionalProperties: true },
+        extras: { type: 'object', additionalProperties: { type: 'string' } },
+        tags: { type: 'object', patternProperties: { '^x': { type: 'string' } } },
+      },
+    };
+    const rules = lintRepresentation(bad, 'synthetic', true).map((d) => `${d.rule}:${d.field}`);
+    expect(rules.sort()).toStrictEqual(
+      [
+        'bareEntityId:patientIds',
+        'tenantField:practiceId',
+        'tenantField:organizationId',
+        'scalarMoney:balanceMinor',
+        'scalarMoney:copay',
+        'scalarMoney:fee',
+        'scalarMoney:value',
+        'zonelessTimestamp:settledAt',
+        'zonelessTimestamp:loggedTimestamp',
+        'openObject:labels',
+        'openObject:extras',
+        'openObject:tags',
+      ].sort(),
+    );
+    // Response-side maps stay allowed; counts are not money.
+    const response = {
+      type: 'object',
+      properties: {
+        totals: { type: 'object', additionalProperties: { type: 'integer' } },
+        paymentCount: { type: 'integer' },
+      },
+    };
+    expect(lintRepresentation(response, 'synthetic', false)).toStrictEqual([]);
+  });
+
   it('every operation documents refusals through the one shared Refusal body', () => {
     expect(openapi).toContain(
       "$ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/Refusal'",
@@ -166,6 +218,17 @@ describe('A1 generated client', () => {
   it('is current: regenerating from the unchanged tree produces no diff', () => {
     const committed = readFileSync(resolve(ROOT, 'packages/client/src/generated.ts'), 'utf8');
     expect(committed).toBe(renderClient(catalog));
+  });
+
+  it('A-S6: query types are closed to the documented parameters', () => {
+    const gen = readFileSync(resolve(ROOT, 'packages/client/src/generated.ts'), 'utf8');
+    const entry = (op: string) =>
+      gen.slice(gen.indexOf(`  ${JSON.stringify(op)}: {\n`)).split('\n  };')[0] as string;
+    expect(entry('syntheticTasks.list')).toContain(
+      'query: { readonly limit?: string; readonly cursor?: string; };',
+    );
+    expect(entry('syntheticTasks.create')).toContain('query: Record<string, never>;');
+    expect(gen).not.toMatch(/query: Readonly<Record<string, string>>/);
   });
 
   it('has one typed entry per catalog REST operation', async () => {

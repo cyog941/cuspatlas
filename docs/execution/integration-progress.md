@@ -176,3 +176,11 @@ Open (round 2): `review-hardening-s2` `soon()` windows can cross local midnight 
 ### 10.1 Group A (part 1): A-M1, A-M2, A-S3, A-S8
 
 Red then green: `api-change-control-gate` (4 failed, then green), `api-scopes` registry-table and A-S3/A-S8 cases (2 failed each, then green), `comms-telephony` closed CallRead (failed: validator missing, then green). Details and decision A-D4 in `docs/execution/api-progress.md` "Hardening H1". The change-control gate is dormant against today's `origin/main` because the baseline has not landed there yet.
+
+### 10.2 Group A (part 2): A-S4, A-S5, A-S6, A-S7
+
+- A-S4: `tests/integration/support/route-sites.ts` finds every Fastify registration site under `apps/api/src` (typed instances, plugin scopes, aliases, computed verbs, `route(...)`); `api-catalog` pins the reviewed sites and proves the scanner on a bypass fixture.
+- A-S5: portal and bridge routes asserted registered in the catalog stack; action aliases may not be weaker than the operation (a command behind a read alias needs a capability check); allow path exercised for human, service and portal. The paired-device allow path stays in `imaging-bridge.test.ts` (open: not in the catalog stack).
+- A-S6: representation lint matches `...Ids`, `practiceId`/`organizationId`, union `type` arrays, money by shape (integer beside `currency`) and by name (fee/charge/copay/payment/total; counts excluded, `charges` count reviewed), `...Timestamp` names, and open request maps (`additionalProperties` true/schema, `patternProperties`) unless bounded (`propertyNames` + `maxProperties` + typed values). The generated client types `query` per operation from the documented OpenAPI query parameters (closed; `Record<string, never>` when none).
+- A-S7: `summarizeInput`/`inputBreaks` track format, minItems, uniqueItems, multipleOf, exclusive bounds, map values, `not`, `if/then/else`, per-alternative anyOf, and merge allOf by tightest constraint; the baseline (version 2) carries idempotency and refusals; a required idempotency key, a new refusal or a newly admitted non-human principal is breaking.
+- Red: A-S6 lint case and A-S7 cases failed first (3 failed), then green; the client query test first failed at parse time (honest note: not a clean assertion red).

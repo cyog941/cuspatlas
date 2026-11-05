@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { DeprecationEntry } from '../../packages/contracts/src/catalog/catalog';
 import type { Baseline } from '../../packages/contracts/src/catalog/change-control';
-import { classifyChange } from '../../packages/contracts/src/catalog/change-control';
+import {
+  classifyChange,
+  inputBreaks,
+  summarizeInput,
+} from '../../packages/contracts/src/catalog/change-control';
 import {
   BASELINE_PATH,
   changeControlRefusals,
@@ -103,5 +107,91 @@ describe('A-M1 change control against the merge base', () => {
     });
     expect(() => loadBaseState('abc', () => '{not json')).toThrow('corrupt');
     expect(resolveBaseRef({ CUSPATLAS_CATALOG_BASE_REF: 'release/1' })).toBe('release/1');
+  });
+});
+
+describe('A-S7 input summary and breaks', () => {
+  const doc = { $defs: {} };
+  const shape = (n: unknown) => summarizeInput(n, doc);
+  const breaks = (a: unknown, b: unknown) =>
+    inputBreaks(shape(a), shape(b)).map((c) => `${c.path} ${c.reason}`);
+
+  it('tracks format, minItems, uniqueItems, multipleOf, exclusive bounds, not and if/then', () => {
+    expect(breaks({ type: 'string' }, { type: 'string', format: 'uuid' })).toStrictEqual([
+      '$ format changed',
+    ]);
+    expect(breaks({ type: 'array' }, { type: 'array', minItems: 1 })).toStrictEqual(['$ minItems tightened']);
+    expect(breaks({ type: 'array' }, { type: 'array', uniqueItems: true })).toStrictEqual([
+      '$ uniqueItems added',
+    ]);
+    expect(breaks({ type: 'integer' }, { type: 'integer', multipleOf: 5 })).toStrictEqual([
+      '$ multipleOf changed',
+    ]);
+    expect(
+      breaks({ type: 'number', exclusiveMaximum: 10 }, { type: 'number', exclusiveMaximum: 5 }),
+    ).toStrictEqual(['$ exclusiveMaximum tightened']);
+    expect(breaks({ type: 'number' }, { type: 'number', exclusiveMinimum: 0 })).toStrictEqual([
+      '$ exclusiveMinimum tightened',
+    ]);
+    expect(breaks({ type: 'string' }, { type: 'string', not: { const: 'x' } })).toStrictEqual([
+      '$ not changed',
+    ]);
+    expect(
+      breaks(
+        { type: 'object', properties: { a: { type: 'string' } } },
+        {
+          type: 'object',
+          properties: { a: { type: 'string' } },
+          if: { required: ['a'] },
+          // biome-ignore lint/suspicious/noThenProperty: the JSON Schema if/then keyword, not a thenable.
+          then: { required: ['b'] },
+        },
+      ),
+    ).toStrictEqual(['$ conditional changed']);
+  });
+
+  it('tracks map values, per-alternative anyOf and merges allOf correctly', () => {
+    expect(
+      breaks(
+        { type: 'object', additionalProperties: { type: 'string' } },
+        { type: 'object', additionalProperties: { type: 'string', maxLength: 3 } },
+      ),
+    ).toStrictEqual(['${} maxLength tightened']);
+    // Same number of alternatives, but one was narrowed.
+    expect(
+      breaks(
+        { anyOf: [{ type: 'string' }, { type: 'integer' }] },
+        { anyOf: [{ type: 'string' }, { type: 'boolean' }] },
+      ),
+    ).toStrictEqual(['$ alternative 1 no longer accepted']);
+    const merged = shape({
+      allOf: [
+        { type: 'object', properties: { a: { type: 'string', maxLength: 10 } } },
+        { properties: { a: { maxLength: 5 } }, required: ['a'], additionalProperties: false },
+      ],
+    });
+    expect(merged.properties?.a).toStrictEqual({ type: ['string'], maxLength: 5 });
+    expect(merged.closed).toBe(true);
+    expect(merged.required).toStrictEqual(['a']);
+  });
+
+  it('idempotency, new refusals and newly admitted non-human principals are breaking', () => {
+    const op = (extra: Record<string, unknown>) => ({
+      version: 2,
+      operations: [
+        { operation: 'x.op', transports: ['rest'], scope: 'x.write', principals: ['human'], ...extra },
+      ],
+    });
+    const r = (a: unknown, b: unknown) =>
+      classifyChange(a as Baseline, b as Baseline).map((c) => `${c.class} ${c.reason}`);
+    expect(r(op({ idempotency: 'none' }), op({ idempotency: 'required' }))).toStrictEqual([
+      'breaking idempotency none -> required',
+    ]);
+    expect(r(op({ refusals: ['403'] }), op({ refusals: ['403', '409'] }))).toStrictEqual([
+      'breaking new refusal 409',
+    ]);
+    expect(r(op({}), op({ principals: ['human', 'service'] }))).toStrictEqual([
+      'breaking principal service newly admitted',
+    ]);
   });
 });

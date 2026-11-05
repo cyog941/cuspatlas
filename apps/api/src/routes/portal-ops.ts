@@ -40,6 +40,33 @@ export const PORTAL_OPS: readonly PortalOp[] = [
     invoke: (svc, actor, i) =>
       data(svc.readPortalView(actor, i.params.patientRef ?? '', i.params.view ?? '', i.body)),
   },
+  // E2 documents (closeout B): a short-lived grant and the bytes of one released image (REST only).
+  {
+    method: 'post',
+    path: '/portal/v1/patients/{patientRef}/documents/{releaseRef}/read-grants',
+    operationId: 'portal.documents.grantRead',
+    protected: true,
+    requestBody: E('EmptyQuery'),
+    success: { status: '201', schema: E('EngagementRead') },
+    refusals: ['400', '401', '403', '404', '409', '503'],
+    invoke: (svc, actor, i) =>
+      data(svc.grantPortalDocument(actor, i.params.patientRef ?? '', i.params.releaseRef ?? '', i.body)),
+  },
+  {
+    method: 'get',
+    path: '/portal/v1/patients/{patientRef}/documents/{releaseRef}/content',
+    operationId: 'portal.documents.content',
+    protected: true,
+    success: { status: '200', schema: 'imaging:ObjectBytes', media: 'application/octet-stream' },
+    refusals: ['401', '403', '404', '409', '503'],
+    invoke: (svc, actor, i) =>
+      svc.readPortalDocumentContent(
+        actor,
+        i.params.patientRef ?? '',
+        i.params.releaseRef ?? '',
+        i.params.token,
+      ),
+  },
   // E3 appointment requests: S8's own create command with origin portal (never a booking).
   {
     method: 'post',

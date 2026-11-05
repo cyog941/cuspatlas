@@ -812,7 +812,9 @@
         "imaging.ingress.upload",
         "imaging.mounts.create",
         "imaging.mounts.revise",
-        "imaging.objects.revokeGrant"
+        "imaging.objects.releaseToPortal",
+        "imaging.objects.revokeGrant",
+        "imaging.portalReleases.revoke"
       ],
       "sensitivity": "phi"
     },

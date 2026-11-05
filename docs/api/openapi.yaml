@@ -8247,6 +8247,88 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /portal/v1/patients/{patientRef}/documents/{releaseRef}/read-grants:
+    post:
+      operationId: portal.documents.grantRead
+      description: >-
+        Portal-audience operation portal.documents.grantRead (portal principals only; never a staff or MCP
+        surface). A short-lived read grant of one image a clinician released to this patient's portal.
+      parameters:
+        - name: patientRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/PatientRef'
+        - name: releaseRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EntityRef'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EmptyQuery'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /portal/v1/patients/{patientRef}/documents/{releaseRef}/content:
+    get:
+      operationId: portal.documents.content
+      description: >-
+        Portal-audience operation portal.documents.content (portal principals only; never a staff or MCP
+        surface). The released image bytes with a live grant in the x-object-read-token header. REST only.
+      parameters:
+        - name: patientRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/PatientRef'
+        - name: releaseRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EntityRef'
+        - name: x-object-read-token
+          in: header
+          required: true
+          description: Read-grant token from portal.documents.grantRead; never logged.
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ReadGrant/properties/token'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/octet-stream:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectBytes'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   /portal/v1/patients/{patientRef}/appointment-requests:
     post:
       operationId: portal.requests.submit
@@ -8592,1744 +8674,6 @@ paths:
         '503':
           $ref: '#/components/responses/Refusal'
   # END workstream E
-  # --- imaging (generated from IMAGING_OPS by scripts/gen-imaging-openapi.ts) ---
-  /v1/imaging/objects:
-    get:
-      operationId: imaging.objects.list
-      description: >-
-        List image objects (newest first, at most 100), optionally by state. Metadata and provenance only;
-        never bytes or storage paths.
-      parameters:
-        - name: state
-          in: query
-          required: false
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectState'
-        - name: limit
-          in: query
-          required: false
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectListQuery/properties/limit'
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ImageObjectList'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/objects/{objectRef}:
-    get:
-      operationId: imaging.objects.read
-      description: >-
-        Read one image object: state, media type, length, SHA-256 digest, provenance and (once decided) its
-        patient association. Another tenant's object is indistinguishable from a missing one.
-      parameters:
-        - name: objectRef
-          in: path
-          required: true
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectRef'
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ImageObjectRead'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/objects/{objectRef}/read-grants:
-    post:
-      operationId: imaging.objects.grantRead
-      description: >-
-        Issue a short-lived read grant (default 60 s, at most 300 s) bound to the caller, the object and the
-        expiry. The bytes are fetched on REST with the caller's own bearer token plus the grant token; the
-        grant is useless to anyone else.
-      parameters:
-        - name: objectRef
-          in: path
-          required: true
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectRef'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ReadGrantRequest'
-      responses:
-        '201':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ReadGrantResult'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '409':
-          $ref: '#/components/responses/Refusal'
-        '422':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/read-grants/{grantRef}/revoke:
-    post:
-      operationId: imaging.objects.revokeGrant
-      description: >-
-        Revoke a read grant (its holder, or a member who may write imaging records). Takes effect at once.
-      parameters:
-        - name: grantRef
-          in: path
-          required: true
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/GrantRef'
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ReadGrantRevoke'
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ReadGrantCommandResult'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '409':
-          $ref: '#/components/responses/Refusal'
-        '422':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/objects/{objectRef}/content:
-    get:
-      operationId: imaging.objects.content
-      description: >-
-        The object bytes, verified against the registered digest on every read. Requires the caller's bearer
-        token and a live read grant in the x-object-read-token header. REST only.
-      parameters:
-        - name: objectRef
-          in: path
-          required: true
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectRef'
-        - name: x-object-read-token
-          in: header
-          required: true
-          description: Read-grant token from imaging.objects.grantRead; never logged.
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ReadGrant/properties/token'
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/octet-stream:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectBytes'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '409':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/storage/reconcile:
-    post:
-      operationId: imaging.storage.reconcile
-      description: >-
-        Integrity sweep: verify stored bytes of available objects against their digest and quarantine
-        missing or altered ones (bounded per run).
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/StorageReconcile'
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/StorageReconcileResult'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '409':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/ingress:
-    post:
-      operationId: imaging.ingress.begin
-      description: >-
-        Begin an ingress: declare media type, exact length, SHA-256 and provenance (and optionally the
-        patient the uploader names). Oversize is refused here. The bytes go to the content path on REST.
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/IngressBegin'
-      responses:
-        '201':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/IngressBeginResult'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '409':
-          $ref: '#/components/responses/Refusal'
-        '422':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/ingress/failures:
-    get:
-      operationId: imaging.ingress.failures
-      description: >-
-        Work items for uploads that did not become objects: quarantined (with the gate that failed), held on
-        an undecided malware scan, or incomplete.
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ImagingWorkItemList'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/ingress/{ingressRef}:
-    get:
-      operationId: imaging.ingress.read
-      description: >-
-        Read one ingress: declared and observed digest and length, scan verdict, quarantine reason and the
-        resulting object.
-      parameters:
-        - name: ingressRef
-          in: path
-          required: true
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/IngressRef'
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/IngressRead'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/ingress/{ingressRef}/content:
-    post:
-      operationId: imaging.ingress.upload
-      description: >-
-        Upload the bytes of your own ingress (application/octet-stream, at most the declared length). Staged
-        only: nothing is available until completion. REST only.
-      parameters:
-        - name: ingressRef
-          in: path
-          required: true
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/IngressRef'
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/octet-stream:
-            schema:
-              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectBytes'
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/IngressUploadResult'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '409':
-          $ref: '#/components/responses/Refusal'
-        '422':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/ingress/{ingressRef}/complete:
-    post:
-      operationId: imaging.ingress.complete
-      description: >-
-        Complete your own ingress: length, digest, malware scan (unknown is never clean) and magic-byte
-        media checks, then patient-scoped dedupe. A failed gate quarantines the bytes and refuses with the
-        reason; nothing failed is ever served.
-      parameters:
-        - name: ingressRef
-          in: path
-          required: true
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/IngressRef'
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/IngressComplete'
-      responses:
-        '201':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/IngressCompleteResult'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '409':
-          $ref: '#/components/responses/Refusal'
-        '422':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/objects/{objectRef}/match-candidates:
-    get:
-      operationId: imaging.associations.candidates
-      description: >-
-        Patient candidates for an object from its upload metadata, each with its reasons (identifier, legal
-        name, birth date; a shared phone alone never qualifies). Candidates never bind; nothing is
-        associated automatically.
-      parameters:
-        - name: objectRef
-          in: path
-          required: true
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectRef'
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/MatchCandidateList'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/objects/{objectRef}/association:
-    post:
-      operationId: imaging.associations.confirm
-      description: >-
-        Record the association decision for an available original (a person decides; a metadata basis must
-        match the candidate evidence). Mints the stable imageRef on the first decision; an existing current
-        decision is a conflict (use the correction).
-      parameters:
-        - name: objectRef
-          in: path
-          required: true
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectRef'
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/AssociationConfirm'
-      responses:
-        '201':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/AssociationCommandResult'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '409':
-          $ref: '#/components/responses/Refusal'
-        '422':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/associations/{decisionRef}/correct:
-    post:
-      operationId: imaging.associations.correct
-      description: >-
-        Move an object to another patient with a reason: appends a decision superseding the current one
-        (both stay readable). The imageRef stays stable; its reference read reports the change.
-      parameters:
-        - name: decisionRef
-          in: path
-          required: true
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DecisionRef'
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/AssociationCorrect'
-      responses:
-        '201':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/AssociationCommandResult'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '409':
-          $ref: '#/components/responses/Refusal'
-        '422':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/objects/{objectRef}/associations:
-    get:
-      operationId: imaging.associations.history
-      description: >-
-        Every association decision of an object in order, with who decided, why and what superseded it.
-      parameters:
-        - name: objectRef
-          in: path
-          required: true
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectRef'
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/AssociationHistory'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/worklists/unmatched:
-    get:
-      operationId: imaging.associations.unmatched
-      description: >-
-        Work items for available images with no patient association, with their age; escalated after the
-        configured age (I-D8), never discarded.
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ImagingWorkItemList'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/image-refs/{imageRef}:
-    get:
-      operationId: imaging.imageRefs.resolve
-      description: >-
-        Reference read for consumers (C15 encounters, B attachment packages): object state, media type,
-        length, SHA-256 and the current association; matchesExpected is false when it no longer matches the
-        patient the consumer expected.
-      parameters:
-        - name: imageRef
-          in: path
-          required: true
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ImageRef'
-        - name: expectedPatientRef
-          in: query
-          required: true
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/PatientRef'
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ImageRefRead'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/mounts:
-    post:
-      operationId: imaging.mounts.create
-      description: >-
-        Create a mount (an ordered group of available objects of one patient) on a configured template;
-        invalid slots, unknown templates and mixed or missing associations refuse the whole mount.
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/MountCreate'
-      responses:
-        '201':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/MountCommandResult'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '409':
-          $ref: '#/components/responses/Refusal'
-        '422':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/mounts/{mountRef}/revise:
-    post:
-      operationId: imaging.mounts.revise
-      description: >-
-        Revise a mount: a new version with the given slots; every earlier version stays readable.
-      parameters:
-        - name: mountRef
-          in: path
-          required: true
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/MountRef'
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/MountRevise'
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/MountCommandResult'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '409':
-          $ref: '#/components/responses/Refusal'
-        '422':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/mounts/{mountRef}:
-    get:
-      operationId: imaging.mounts.read
-      description: >-
-        Read a mount version (current by default): slots with object state (present, unavailable, missing
-        after deletion), digest and current patient.
-      parameters:
-        - name: mountRef
-          in: path
-          required: true
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/MountRef'
-        - name: version
-          in: query
-          required: false
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/MountQuery/properties/version'
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/MountRead'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/objects/{objectRef}/annotations:
-    post:
-      operationId: imaging.annotations.create
-      description: >-
-        Add an annotation (normalized geometry, optional label) as its own record; never burned into the
-        object. No diagnostic interpretation or measurement claim.
-      parameters:
-        - name: objectRef
-          in: path
-          required: true
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectRef'
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/AnnotationCreate'
-      responses:
-        '201':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/AnnotationCommandResult'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '409':
-          $ref: '#/components/responses/Refusal'
-        '422':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-    get:
-      operationId: imaging.annotations.list
-      description: >-
-        Every annotation version of an object (current, superseded and withdrawn).
-      parameters:
-        - name: objectRef
-          in: path
-          required: true
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectRef'
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/AnnotationList'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/annotations/{annotationRef}/supersede:
-    post:
-      operationId: imaging.annotations.supersede
-      description: >-
-        Supersede an annotation with a reason: a new version with the new geometry, or a withdrawal; earlier
-        versions stay readable.
-      parameters:
-        - name: annotationRef
-          in: path
-          required: true
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/AnnotationRef'
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/AnnotationSupersede'
-      responses:
-        '201':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/AnnotationCommandResult'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '409':
-          $ref: '#/components/responses/Refusal'
-        '422':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/objects/{objectRef}/derived:
-    post:
-      operationId: imaging.derived.create
-      description: >-
-        Derive a new object (crop, quarter-turn rotation or inversion) from an available PNG original. The
-        original is never modified; the derived object records its source digest, transform and author and
-        is never an original. Same transform again returns the existing derivation.
-      parameters:
-        - name: objectRef
-          in: path
-          required: true
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectRef'
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DerivedCreate'
-      responses:
-        '201':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DerivedCommandResult'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '409':
-          $ref: '#/components/responses/Refusal'
-        '422':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/retention/policies:
-    post:
-      operationId: imaging.retention.setPolicy
-      description: >-
-        Record a new version of the minimum retention of one record class (recommended_pending_approval; no
-        universal default ships). A policy change never deletes anything.
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/RetentionPolicySet'
-      responses:
-        '201':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/RetentionPolicyCommandResult'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '409':
-          $ref: '#/components/responses/Refusal'
-        '422':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-    get:
-      operationId: imaging.retention.policies
-      description: >-
-        The current retention policy version of each record class.
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/RetentionPolicyList'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/legal-holds:
-    post:
-      operationId: imaging.legalHolds.place
-      description: >-
-        Place a legal hold on one object or on every image ever associated with a patient. A hold blocks
-        deletion and overrides retention.
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/LegalHoldPlace'
-      responses:
-        '201':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/LegalHoldCommandResult'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '409':
-          $ref: '#/components/responses/Refusal'
-        '422':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-    get:
-      operationId: imaging.legalHolds.list
-      description: >-
-        Legal holds, active first (at most 100).
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/LegalHoldList'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/legal-holds/{legalHoldRef}/release:
-    post:
-      operationId: imaging.legalHolds.release
-      description: >-
-        Release a legal hold with a reason (once; the hold stays in history).
-      parameters:
-        - name: legalHoldRef
-          in: path
-          required: true
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/LegalHoldRef'
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/LegalHoldRelease'
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/LegalHoldCommandResult'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '409':
-          $ref: '#/components/responses/Refusal'
-        '422':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/objects/{objectRef}/deletion-requests:
-    post:
-      operationId: imaging.deletions.request
-      description: >-
-        Request deletion of an object. Refused with the reason when a legal hold is active, no retention
-        policy exists, or the minimum retention is not met (with the computed earliest date).
-      parameters:
-        - name: objectRef
-          in: path
-          required: true
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectRef'
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeletionRequestCreate'
-      responses:
-        '201':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeletionRequestCommandResult'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '409':
-          $ref: '#/components/responses/Refusal'
-        '422':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/deletion-requests/{deletionRef}:
-    get:
-      operationId: imaging.deletions.evaluate
-      description: >-
-        Evaluate a deletion request now: blocked or not, the rule, the earliest date and what blocks it.
-      parameters:
-        - name: deletionRef
-          in: path
-          required: true
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeletionRef'
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeletionEvaluation'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/deletion-requests/{deletionRef}/execute:
-    post:
-      operationId: imaging.deletions.execute
-      description: >-
-        Execute a deletion (re-evaluated now; a second person for any image ever associated with a patient):
-        tombstone with audit and provenance kept, derived objects included, read grants revoked, bytes
-        removed unless shared by another live object. Retrying reports the same outcome.
-      parameters:
-        - name: deletionRef
-          in: path
-          required: true
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeletionRef'
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeletionExecute'
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeletionExecuteResult'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '409':
-          $ref: '#/components/responses/Refusal'
-        '422':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/objects/{objectRef}/container:
-    get:
-      operationId: imaging.containers.inspect
-      description: >-
-        Container inspection of an available object: whether its verified bytes carry the DICOM marker.
-        Parsing is refused (I-S2 conformance and parser licensing are blocked-on-discovery): no summary,
-        identifier or element is ever extracted and the original is stored opaquely.
-      parameters:
-        - name: objectRef
-          in: path
-          required: true
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectRef'
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ContainerInspection'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '409':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/devices:
-    post:
-      operationId: imaging.devices.register
-      description: >-
-        Register a bridge device (pending until it pairs) with its capability allowlist: allowed job kinds
-        and allowed relative path prefixes. Human practice administration (admin.configure).
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeviceRegister'
-      responses:
-        '201':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeviceCommandResult'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '409':
-          $ref: '#/components/responses/Refusal'
-        '422':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-    get:
-      operationId: imaging.devices.list
-      description: >-
-        Bridge devices with state, allowlist, key version and heartbeat-derived availability (unavailable is
-        not empty).
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeviceList'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/devices/{deviceRef}:
-    get:
-      operationId: imaging.devices.read
-      description: >-
-        One bridge device. Never a key, code or secret.
-      parameters:
-        - name: deviceRef
-          in: path
-          required: true
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeDeviceRef'
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeviceRead'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/devices/{deviceRef}/pairing-codes:
-    post:
-      operationId: imaging.devices.issuePairingCode
-      description: >-
-        Issue a one-time pairing code for a pending device (default 10 minutes, at most 1 hour); it
-        supersedes any open code and is shown once (only its SHA-256 is stored).
-      parameters:
-        - name: deviceRef
-          in: path
-          required: true
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeDeviceRef'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/PairingCodeIssue'
-      responses:
-        '201':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/PairingCodeResult'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '409':
-          $ref: '#/components/responses/Refusal'
-        '422':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/devices/{deviceRef}/capabilities:
-    post:
-      operationId: imaging.devices.setCapabilities
-      description: >-
-        Replace the allowlist of a device (expected version required). Queued jobs it no longer allows are
-        denied when the device claims them.
-      parameters:
-        - name: deviceRef
-          in: path
-          required: true
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeDeviceRef'
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeviceCapabilitiesSet'
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeviceCommandResult'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '409':
-          $ref: '#/components/responses/Refusal'
-        '422':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/devices/{deviceRef}/revoke:
-    post:
-      operationId: imaging.devices.revoke
-      description: >-
-        Revoke a device (final): its keys stop working at once and every open job, including one already
-        claimed, is denied.
-      parameters:
-        - name: deviceRef
-          in: path
-          required: true
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeDeviceRef'
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeviceRevoke'
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeviceCommandResult'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '409':
-          $ref: '#/components/responses/Refusal'
-        '422':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/bridge-jobs:
-    post:
-      operationId: imaging.bridgeJobs.enqueue
-      description: >-
-        Queue a typed bridge job (acquire, import or probe) for a paired device. Refused when the kind or
-        the relative path is outside the device's allowlist or the path is not a safe relative path.
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeJobEnqueue'
-      responses:
-        '201':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeJobCommandResult'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '409':
-          $ref: '#/components/responses/Refusal'
-        '422':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/bridge-jobs/{jobRef}:
-    get:
-      operationId: imaging.bridgeJobs.read
-      description: >-
-        One bridge job: state, attempts, lease, expiry, outcome and duplicate or late reports.
-      parameters:
-        - name: jobRef
-          in: path
-          required: true
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/JobRef'
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeJobRead'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/bridge/pair:
-    post:
-      operationId: imaging.bridge.pair
-      description: >-
-        Bridge pairing: a one-time code plus a new Ed25519 public key and a proof of possession. Returns the
-        device reference and the server job-signing public key. Every failure is the same 401.
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgePair'
-      responses:
-        '201':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgePairResult'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/bridge/jobs/claim:
-    post:
-      operationId: imaging.bridge.claim
-      description: >-
-        Claim the next ready job as a server-signed envelope (or an explicit null). The allowlist is
-        rechecked at claim time.
-      security:
-        - deviceAssertion: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeClaim'
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeClaimResult'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/bridge/jobs/{jobRef}/content:
-    post:
-      operationId: imaging.bridge.content
-      description: >-
-        Stage the bytes of a claimed acquire or import job (application/octet-stream).
-      security:
-        - deviceAssertion: []
-      parameters:
-        - name: jobRef
-          in: path
-          required: true
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/JobRef'
-      requestBody:
-        required: true
-        content:
-          application/octet-stream:
-            schema:
-              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectBytes'
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeContentResult'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '409':
-          $ref: '#/components/responses/Refusal'
-        '422':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/bridge/jobs/{jobRef}/result:
-    post:
-      operationId: imaging.bridge.result
-      description: >-
-        Report a device-signed job result. The signed artifact digest must equal the staged bytes; the I2
-        gates then run. A replayed result is a recorded duplicate (409), never a second object.
-      security:
-        - deviceAssertion: []
-      parameters:
-        - name: jobRef
-          in: path
-          required: true
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/JobRef'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeResultReport'
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeResultAck'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '409':
-          $ref: '#/components/responses/Refusal'
-        '422':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/bridge/heartbeat:
-    post:
-      operationId: imaging.bridge.heartbeat
-      description: >-
-        Device heartbeat; availability is derived from it.
-      security:
-        - deviceAssertion: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeHeartbeat'
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeHeartbeatResult'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/bridge/keys/rotate:
-    post:
-      operationId: imaging.bridge.rotateKey
-      description: >-
-        Rotate the device key: asserted with the current key, proven by the new key. The old key stops
-        working at once.
-      security:
-        - deviceAssertion: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeKeyRotate'
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeKeyRotateResult'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '422':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/acquisitions:
-    post:
-      operationId: imaging.acquisitions.request
-      description: >-
-        Request an acquisition or import on a bridge device: queued when the device is available, otherwise
-        a visible deferred item with the reason (bounded per tenant: beyond the bound a typed refusal).
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/AcquisitionRequest'
-      responses:
-        '201':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/AcquisitionCommandResult'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '409':
-          $ref: '#/components/responses/Refusal'
-        '422':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/acquisitions/{deferralRef}/resolve:
-    post:
-      operationId: imaging.acquisitions.resolve
-      description: >-
-        Release a deferred acquisition to exactly one job once its device is available (a changed patient
-        record needs re-confirmation), or cancel it with a reason (for example after a manual import). A
-        person decides.
-      parameters:
-        - name: deferralRef
-          in: path
-          required: true
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeferralRef'
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeferralResolve'
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeferralCommandResult'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '409':
-          $ref: '#/components/responses/Refusal'
-        '422':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/bridge-jobs/{jobRef}/reconcile:
-    post:
-      operationId: imaging.bridgeJobs.reconcile
-      description: >-
-        Reconcile a bridge job whose outcome is unknown, that failed or that expired: requeue it
-        (re-imported bytes deduplicate by digest) or cancel it, with a reason. Never automatic.
-      parameters:
-        - name: jobRef
-          in: path
-          required: true
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/JobRef'
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeJobReconcile'
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeJobReconcileResult'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '404':
-          $ref: '#/components/responses/Refusal'
-        '409':
-          $ref: '#/components/responses/Refusal'
-        '422':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/worklists/bridge:
-    get:
-      operationId: imaging.bridge.worklist
-      description: >-
-        Exception-first bridge worklist: deferred acquisitions, failed jobs, unknown outcomes, late results
-        and unavailable devices with waiting work, each with owner, reason, due time and next action.
-        Coverage names devices whose job picture is unknown (unavailable is not empty).
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeWorklist'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/export:
-    get:
-      operationId: imaging.export
-      description: >-
-        Versioned imaging export of the caller tenant: object metadata with digests, provenance, association
-        decisions and imageRefs, mounts, annotations, derived lineage, retention policies, legal holds and
-        deletion requests, plus the content-addressed blob manifest. Tenant-wide human administrators only.
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ImagingExportRead'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '422':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  /v1/imaging/export/blobs:
-    get:
-      operationId: imaging.export.blobs
-      description: >-
-        One page of the content-addressed blob bundle (verified bytes in digest order after `after`;
-        base64). REST only: MCP never carries bytes.
-      parameters:
-        - name: x-object-read-token
-          in: header
-          required: true
-          description: Read-grant token from imaging.objects.grantRead; never logged.
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ReadGrant/properties/token'
-        - name: after
-          in: query
-          required: false
-          schema:
-            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/Sha256'
-      responses:
-        '200':
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ImagingBlobBundle'
-        '400':
-          $ref: '#/components/responses/Refusal'
-        '401':
-          $ref: '#/components/responses/Refusal'
-        '403':
-          $ref: '#/components/responses/Refusal'
-        '409':
-          $ref: '#/components/responses/Refusal'
-        '503':
-          $ref: '#/components/responses/Refusal'
-  # --- end imaging ---
   # BEGIN generated: BILLING_OPS (scripts/openapi-billing.ts)
   /v1/billing/fee-schedules/versions:
     post:
@@ -15437,6 +13781,1824 @@ paths:
         '503':
           $ref: '#/components/responses/Refusal'
   # END generated: AUTOMATION_OPS
+  # --- imaging (generated from IMAGING_OPS by scripts/gen-imaging-openapi.ts) ---
+  /v1/imaging/objects:
+    get:
+      operationId: imaging.objects.list
+      description: >-
+        List image objects (newest first, at most 100), optionally by state. Metadata and provenance only;
+        never bytes or storage paths.
+      parameters:
+        - name: state
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectState'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectListQuery/properties/limit'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ImageObjectList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/objects/{objectRef}:
+    get:
+      operationId: imaging.objects.read
+      description: >-
+        Read one image object: state, media type, length, SHA-256 digest, provenance and (once decided) its
+        patient association. Another tenant's object is indistinguishable from a missing one.
+      parameters:
+        - name: objectRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ImageObjectRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/objects/{objectRef}/read-grants:
+    post:
+      operationId: imaging.objects.grantRead
+      description: >-
+        Issue a short-lived read grant (default 60 s, at most 300 s) bound to the caller, the object and the
+        expiry. The bytes are fetched on REST with the caller's own bearer token plus the grant token; the
+        grant is useless to anyone else.
+      parameters:
+        - name: objectRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectRef'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ReadGrantRequest'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ReadGrantResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/read-grants/{grantRef}/revoke:
+    post:
+      operationId: imaging.objects.revokeGrant
+      description: >-
+        Revoke a read grant (its holder, or a member who may write imaging records). Takes effect at once.
+      parameters:
+        - name: grantRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/GrantRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ReadGrantRevoke'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ReadGrantCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/objects/{objectRef}/portal-releases:
+    post:
+      operationId: imaging.objects.releaseToPortal
+      description: >-
+        Release one image to the portal of the patient it is currently associated with (a person's explicit
+        decision; audited and revocable). Unreleased images never appear in the portal.
+      parameters:
+        - name: objectRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/PortalReleaseCreate'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/PortalReleaseCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/portal-releases/{releaseRef}/revoke:
+    post:
+      operationId: imaging.portalReleases.revoke
+      description: >-
+        Revoke a portal release: the image leaves the portal documents view and its portal grants stop
+        working at once.
+      parameters:
+        - name: releaseRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/EntityRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/PortalReleaseRevoke'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/PortalReleaseCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/objects/{objectRef}/content:
+    get:
+      operationId: imaging.objects.content
+      description: >-
+        The object bytes, verified against the registered digest on every read. Requires the caller's bearer
+        token and a live read grant in the x-object-read-token header. REST only.
+      parameters:
+        - name: objectRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectRef'
+        - name: x-object-read-token
+          in: header
+          required: true
+          description: Read-grant token from imaging.objects.grantRead; never logged.
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ReadGrant/properties/token'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/octet-stream:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectBytes'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/storage/reconcile:
+    post:
+      operationId: imaging.storage.reconcile
+      description: >-
+        Integrity sweep: verify stored bytes of available objects against their digest and quarantine
+        missing or altered ones (bounded per run).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/StorageReconcile'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/StorageReconcileResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/ingress:
+    post:
+      operationId: imaging.ingress.begin
+      description: >-
+        Begin an ingress: declare media type, exact length, SHA-256 and provenance (and optionally the
+        patient the uploader names). Oversize is refused here. The bytes go to the content path on REST.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/IngressBegin'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/IngressBeginResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/ingress/failures:
+    get:
+      operationId: imaging.ingress.failures
+      description: >-
+        Work items for uploads that did not become objects: quarantined (with the gate that failed), held on
+        an undecided malware scan, or incomplete.
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ImagingWorkItemList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/ingress/{ingressRef}:
+    get:
+      operationId: imaging.ingress.read
+      description: >-
+        Read one ingress: declared and observed digest and length, scan verdict, quarantine reason and the
+        resulting object.
+      parameters:
+        - name: ingressRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/IngressRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/IngressRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/ingress/{ingressRef}/content:
+    post:
+      operationId: imaging.ingress.upload
+      description: >-
+        Upload the bytes of your own ingress (application/octet-stream, at most the declared length). Staged
+        only: nothing is available until completion. REST only.
+      parameters:
+        - name: ingressRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/IngressRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectBytes'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/IngressUploadResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/ingress/{ingressRef}/complete:
+    post:
+      operationId: imaging.ingress.complete
+      description: >-
+        Complete your own ingress: length, digest, malware scan (unknown is never clean) and magic-byte
+        media checks, then patient-scoped dedupe. A failed gate quarantines the bytes and refuses with the
+        reason; nothing failed is ever served.
+      parameters:
+        - name: ingressRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/IngressRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/IngressComplete'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/IngressCompleteResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/objects/{objectRef}/match-candidates:
+    get:
+      operationId: imaging.associations.candidates
+      description: >-
+        Patient candidates for an object from its upload metadata, each with its reasons (identifier, legal
+        name, birth date; a shared phone alone never qualifies). Candidates never bind; nothing is
+        associated automatically.
+      parameters:
+        - name: objectRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/MatchCandidateList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/objects/{objectRef}/association:
+    post:
+      operationId: imaging.associations.confirm
+      description: >-
+        Record the association decision for an available original (a person decides; a metadata basis must
+        match the candidate evidence). Mints the stable imageRef on the first decision; an existing current
+        decision is a conflict (use the correction).
+      parameters:
+        - name: objectRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/AssociationConfirm'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/AssociationCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/associations/{decisionRef}/correct:
+    post:
+      operationId: imaging.associations.correct
+      description: >-
+        Move an object to another patient with a reason: appends a decision superseding the current one
+        (both stay readable). The imageRef stays stable; its reference read reports the change.
+      parameters:
+        - name: decisionRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DecisionRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/AssociationCorrect'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/AssociationCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/objects/{objectRef}/associations:
+    get:
+      operationId: imaging.associations.history
+      description: >-
+        Every association decision of an object in order, with who decided, why and what superseded it.
+      parameters:
+        - name: objectRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/AssociationHistory'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/worklists/unmatched:
+    get:
+      operationId: imaging.associations.unmatched
+      description: >-
+        Work items for available images with no patient association, with their age; escalated after the
+        configured age (I-D8), never discarded.
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ImagingWorkItemList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/image-refs/{imageRef}:
+    get:
+      operationId: imaging.imageRefs.resolve
+      description: >-
+        Reference read for consumers (C15 encounters, B attachment packages): object state, media type,
+        length, SHA-256 and the current association; matchesExpected is false when it no longer matches the
+        patient the consumer expected.
+      parameters:
+        - name: imageRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ImageRef'
+        - name: expectedPatientRef
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/PatientRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ImageRefRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/mounts:
+    post:
+      operationId: imaging.mounts.create
+      description: >-
+        Create a mount (an ordered group of available objects of one patient) on a configured template;
+        invalid slots, unknown templates and mixed or missing associations refuse the whole mount.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/MountCreate'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/MountCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/mounts/{mountRef}/revise:
+    post:
+      operationId: imaging.mounts.revise
+      description: >-
+        Revise a mount: a new version with the given slots; every earlier version stays readable.
+      parameters:
+        - name: mountRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/MountRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/MountRevise'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/MountCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/mounts/{mountRef}:
+    get:
+      operationId: imaging.mounts.read
+      description: >-
+        Read a mount version (current by default): slots with object state (present, unavailable, missing
+        after deletion), digest and current patient.
+      parameters:
+        - name: mountRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/MountRef'
+        - name: version
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/MountQuery/properties/version'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/MountRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/objects/{objectRef}/annotations:
+    post:
+      operationId: imaging.annotations.create
+      description: >-
+        Add an annotation (normalized geometry, optional label) as its own record; never burned into the
+        object. No diagnostic interpretation or measurement claim.
+      parameters:
+        - name: objectRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/AnnotationCreate'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/AnnotationCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: imaging.annotations.list
+      description: >-
+        Every annotation version of an object (current, superseded and withdrawn).
+      parameters:
+        - name: objectRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/AnnotationList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/annotations/{annotationRef}/supersede:
+    post:
+      operationId: imaging.annotations.supersede
+      description: >-
+        Supersede an annotation with a reason: a new version with the new geometry, or a withdrawal; earlier
+        versions stay readable.
+      parameters:
+        - name: annotationRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/AnnotationRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/AnnotationSupersede'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/AnnotationCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/objects/{objectRef}/derived:
+    post:
+      operationId: imaging.derived.create
+      description: >-
+        Derive a new object (crop, quarter-turn rotation or inversion) from an available PNG original. The
+        original is never modified; the derived object records its source digest, transform and author and
+        is never an original. Same transform again returns the existing derivation.
+      parameters:
+        - name: objectRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DerivedCreate'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DerivedCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/retention/policies:
+    post:
+      operationId: imaging.retention.setPolicy
+      description: >-
+        Record a new version of the minimum retention of one record class (recommended_pending_approval; no
+        universal default ships). A policy change never deletes anything.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/RetentionPolicySet'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/RetentionPolicyCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: imaging.retention.policies
+      description: >-
+        The current retention policy version of each record class.
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/RetentionPolicyList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/legal-holds:
+    post:
+      operationId: imaging.legalHolds.place
+      description: >-
+        Place a legal hold on one object or on every image ever associated with a patient. A hold blocks
+        deletion and overrides retention.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/LegalHoldPlace'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/LegalHoldCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: imaging.legalHolds.list
+      description: >-
+        Legal holds, active first (at most 100).
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/LegalHoldList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/legal-holds/{legalHoldRef}/release:
+    post:
+      operationId: imaging.legalHolds.release
+      description: >-
+        Release a legal hold with a reason (once; the hold stays in history).
+      parameters:
+        - name: legalHoldRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/LegalHoldRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/LegalHoldRelease'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/LegalHoldCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/objects/{objectRef}/deletion-requests:
+    post:
+      operationId: imaging.deletions.request
+      description: >-
+        Request deletion of an object. Refused with the reason when a legal hold is active, no retention
+        policy exists, or the minimum retention is not met (with the computed earliest date).
+      parameters:
+        - name: objectRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeletionRequestCreate'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeletionRequestCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/deletion-requests/{deletionRef}:
+    get:
+      operationId: imaging.deletions.evaluate
+      description: >-
+        Evaluate a deletion request now: blocked or not, the rule, the earliest date and what blocks it.
+      parameters:
+        - name: deletionRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeletionRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeletionEvaluation'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/deletion-requests/{deletionRef}/execute:
+    post:
+      operationId: imaging.deletions.execute
+      description: >-
+        Execute a deletion (re-evaluated now; a second person for any image ever associated with a patient):
+        tombstone with audit and provenance kept, derived objects included, read grants revoked, bytes
+        removed unless shared by another live object. Retrying reports the same outcome.
+      parameters:
+        - name: deletionRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeletionRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeletionExecute'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeletionExecuteResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/objects/{objectRef}/container:
+    get:
+      operationId: imaging.containers.inspect
+      description: >-
+        Container inspection of an available object: whether its verified bytes carry the DICOM marker.
+        Parsing is refused (I-S2 conformance and parser licensing are blocked-on-discovery): no summary,
+        identifier or element is ever extracted and the original is stored opaquely.
+      parameters:
+        - name: objectRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ContainerInspection'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/devices:
+    post:
+      operationId: imaging.devices.register
+      description: >-
+        Register a bridge device (pending until it pairs) with its capability allowlist: allowed job kinds
+        and allowed relative path prefixes. Human practice administration (admin.configure).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeviceRegister'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeviceCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: imaging.devices.list
+      description: >-
+        Bridge devices with state, allowlist, key version and heartbeat-derived availability (unavailable is
+        not empty).
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeviceList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/devices/{deviceRef}:
+    get:
+      operationId: imaging.devices.read
+      description: >-
+        One bridge device. Never a key, code or secret.
+      parameters:
+        - name: deviceRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeDeviceRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeviceRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/devices/{deviceRef}/pairing-codes:
+    post:
+      operationId: imaging.devices.issuePairingCode
+      description: >-
+        Issue a one-time pairing code for a pending device (default 10 minutes, at most 1 hour); it
+        supersedes any open code and is shown once (only its SHA-256 is stored).
+      parameters:
+        - name: deviceRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeDeviceRef'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/PairingCodeIssue'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/PairingCodeResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/devices/{deviceRef}/capabilities:
+    post:
+      operationId: imaging.devices.setCapabilities
+      description: >-
+        Replace the allowlist of a device (expected version required). Queued jobs it no longer allows are
+        denied when the device claims them.
+      parameters:
+        - name: deviceRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeDeviceRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeviceCapabilitiesSet'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeviceCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/devices/{deviceRef}/revoke:
+    post:
+      operationId: imaging.devices.revoke
+      description: >-
+        Revoke a device (final): its keys stop working at once and every open job, including one already
+        claimed, is denied.
+      parameters:
+        - name: deviceRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeDeviceRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeviceRevoke'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeviceCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/bridge-jobs:
+    post:
+      operationId: imaging.bridgeJobs.enqueue
+      description: >-
+        Queue a typed bridge job (acquire, import or probe) for a paired device. Refused when the kind or
+        the relative path is outside the device's allowlist or the path is not a safe relative path.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeJobEnqueue'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeJobCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/bridge-jobs/{jobRef}:
+    get:
+      operationId: imaging.bridgeJobs.read
+      description: >-
+        One bridge job: state, attempts, lease, expiry, outcome and duplicate or late reports.
+      parameters:
+        - name: jobRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/JobRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeJobRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/bridge/pair:
+    post:
+      operationId: imaging.bridge.pair
+      description: >-
+        Bridge pairing: a one-time code plus a new Ed25519 public key and a proof of possession. Returns the
+        device reference and the server job-signing public key. Every failure is the same 401.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgePair'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgePairResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/bridge/jobs/claim:
+    post:
+      operationId: imaging.bridge.claim
+      description: >-
+        Claim the next ready job as a server-signed envelope (or an explicit null). The allowlist is
+        rechecked at claim time.
+      security:
+        - deviceAssertion: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeClaim'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeClaimResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/bridge/jobs/{jobRef}/content:
+    post:
+      operationId: imaging.bridge.content
+      description: >-
+        Stage the bytes of a claimed acquire or import job (application/octet-stream).
+      security:
+        - deviceAssertion: []
+      parameters:
+        - name: jobRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/JobRef'
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectBytes'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeContentResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/bridge/jobs/{jobRef}/result:
+    post:
+      operationId: imaging.bridge.result
+      description: >-
+        Report a device-signed job result. The signed artifact digest must equal the staged bytes; the I2
+        gates then run. A replayed result is a recorded duplicate (409), never a second object.
+      security:
+        - deviceAssertion: []
+      parameters:
+        - name: jobRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/JobRef'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeResultReport'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeResultAck'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/bridge/heartbeat:
+    post:
+      operationId: imaging.bridge.heartbeat
+      description: >-
+        Device heartbeat; availability is derived from it.
+      security:
+        - deviceAssertion: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeHeartbeat'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeHeartbeatResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/bridge/keys/rotate:
+    post:
+      operationId: imaging.bridge.rotateKey
+      description: >-
+        Rotate the device key: asserted with the current key, proven by the new key. The old key stops
+        working at once.
+      security:
+        - deviceAssertion: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeKeyRotate'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeKeyRotateResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/acquisitions:
+    post:
+      operationId: imaging.acquisitions.request
+      description: >-
+        Request an acquisition or import on a bridge device: queued when the device is available, otherwise
+        a visible deferred item with the reason (bounded per tenant: beyond the bound a typed refusal).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/AcquisitionRequest'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/AcquisitionCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/acquisitions/{deferralRef}/resolve:
+    post:
+      operationId: imaging.acquisitions.resolve
+      description: >-
+        Release a deferred acquisition to exactly one job once its device is available (a changed patient
+        record needs re-confirmation), or cancel it with a reason (for example after a manual import). A
+        person decides.
+      parameters:
+        - name: deferralRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeferralRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeferralResolve'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/DeferralCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/bridge-jobs/{jobRef}/reconcile:
+    post:
+      operationId: imaging.bridgeJobs.reconcile
+      description: >-
+        Reconcile a bridge job whose outcome is unknown, that failed or that expired: requeue it
+        (re-imported bytes deduplicate by digest) or cancel it, with a reason. Never automatic.
+      parameters:
+        - name: jobRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/JobRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeJobReconcile'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeJobReconcileResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/worklists/bridge:
+    get:
+      operationId: imaging.bridge.worklist
+      description: >-
+        Exception-first bridge worklist: deferred acquisitions, failed jobs, unknown outcomes, late results
+        and unavailable devices with waiting work, each with owner, reason, due time and next action.
+        Coverage names devices whose job picture is unknown (unavailable is not empty).
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/BridgeWorklist'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/export:
+    get:
+      operationId: imaging.export
+      description: >-
+        Versioned imaging export of the caller tenant: object metadata with digests, provenance, association
+        decisions and imageRefs, mounts, annotations, derived lineage, retention policies, legal holds and
+        deletion requests, plus the content-addressed blob manifest. Tenant-wide human administrators only.
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ImagingExportRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/export/blobs:
+    get:
+      operationId: imaging.export.blobs
+      description: >-
+        One page of the content-addressed blob bundle (verified bytes in digest order after `after`;
+        base64). REST only: MCP never carries bytes.
+      parameters:
+        - name: x-object-read-token
+          in: header
+          required: true
+          description: Read-grant token from imaging.objects.grantRead; never logged.
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ReadGrant/properties/token'
+        - name: after
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/Sha256'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ImagingBlobBundle'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  # --- end imaging ---
 components:
   securitySchemes:
     bearer:

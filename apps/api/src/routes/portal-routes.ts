@@ -1,4 +1,4 @@
-import type { ActorContext } from '@cuspatlas/contracts';
+import type { ActorContext, ObjectContent } from '@cuspatlas/contracts';
 import type { EngagementService } from '@cuspatlas/domain';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { type Authenticator, authenticateOnRequest, requireActor } from '../auth';
@@ -11,7 +11,7 @@ interface InvokableOp {
   readonly method: 'get' | 'post';
   readonly path: string;
   readonly operationId: string;
-  readonly success: { readonly status: string };
+  readonly success: { readonly status: string; readonly media?: string };
   invoke(svc: EngagementService, actor: ActorContext, input: OpInput): Promise<unknown>;
 }
 
@@ -39,7 +39,25 @@ function register(
       };
     };
     const opts = { onRequest: authenticateOnRequest(deps.authenticator, op.operationId) };
-    if (op.method === 'get') {
+    if (op.method === 'get' && op.success.media === 'application/octet-stream') {
+      // E2 documents: the read-grant token travels in a header only (never a URL), as on imaging.
+      app.get(r.fastifyPath, opts, async (request, reply) => {
+        const base = input(request);
+        const token = request.headers['x-object-read-token'];
+        const content = (await op.invoke(deps.engagement, requireActor(request), {
+          ...base,
+          params: { ...base.params, token: typeof token === 'string' ? token : '' },
+        })) as ObjectContent;
+        return reply
+          .code(200)
+          .header('content-type', content.contentType)
+          .header('content-disposition', 'attachment')
+          .header('content-security-policy', "default-src 'none'; sandbox")
+          .header('referrer-policy', 'no-referrer')
+          .header('x-object-digest-sha256', content.digestSha256)
+          .send(Buffer.from(content.bytes.buffer, content.bytes.byteOffset, content.bytes.byteLength));
+      });
+    } else if (op.method === 'get') {
       app.get(r.fastifyPath, opts, async (request) =>
         op.invoke(deps.engagement, requireActor(request), input(request)),
       );

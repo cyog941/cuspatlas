@@ -31,6 +31,19 @@ export interface EngagementDeps {
   readonly attachmentRefs?: AttachmentRefResolver;
   /** S16 completed-procedure basis (the C14 read); absent: such a policy is `basis_unavailable`. */
   readonly completedProcedures?: CompletedProcedureReader;
+  /** E2 -> I1/I3 portal documents (closeout B): grant and bytes of a released image; absent: 503. */
+  readonly portalDocuments?: PortalDocumentPort;
+}
+
+/** The imaging side of portal document downloads (implemented by the imaging service). */
+export interface PortalDocumentPort {
+  grant(ctx: ActorContext, patientRef: string, releaseRef: string, body: unknown): Promise<unknown>;
+  content(
+    ctx: ActorContext,
+    patientRef: string,
+    releaseRef: string,
+    token: unknown,
+  ): Promise<import('@cuspatlas/contracts').ObjectContent>;
 }
 
 /**

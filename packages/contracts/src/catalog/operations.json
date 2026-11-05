@@ -8371,6 +8371,41 @@
     "status": "active"
   },
   {
+    "operation": "imaging.objects.releaseToPortal",
+    "owner": "I",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "imaging.objects.releaseToPortal",
+    "scope": "imaging.write",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/imaging/objects/{objectRef}/portal-releases",
+      "requestSchema": "imaging:PortalReleaseCreate",
+      "successStatus": "201",
+      "successSchema": "imaging:PortalReleaseCommandResult"
+    },
+    "mcpTool": "imaging_objects_release_to_portal",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
     "operation": "imaging.objects.revokeGrant",
     "owner": "I",
     "kind": "command",
@@ -8393,6 +8428,41 @@
       "successSchema": "imaging:ReadGrantCommandResult"
     },
     "mcpTool": "imaging_objects_revoke_grant",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "imaging.portalReleases.revoke",
+    "owner": "I",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "imaging.portalReleases.revoke",
+    "scope": "imaging.write",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/imaging/portal-releases/{releaseRef}/revoke",
+      "requestSchema": "imaging:PortalReleaseRevoke",
+      "successStatus": "200",
+      "successSchema": "imaging:PortalReleaseCommandResult"
+    },
+    "mcpTool": "imaging_portal_releases_revoke",
     "refusals": [
       "400",
       "401",
@@ -10551,6 +10621,69 @@
       "404",
       "409",
       "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "portal.documents.content",
+    "owner": "E",
+    "kind": "query",
+    "authorization": "portal",
+    "action": null,
+    "scope": null,
+    "principals": [
+      "portal"
+    ],
+    "transports": [
+      "portal"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/portal/v1/patients/{patientRef}/documents/{releaseRef}/content",
+      "successStatus": "200",
+      "successSchema": "imaging:ObjectBytes",
+      "successMedia": "application/octet-stream"
+    },
+    "refusals": [
+      "401",
+      "403",
+      "404",
+      "409",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "portal.documents.grantRead",
+    "owner": "E",
+    "kind": "command",
+    "authorization": "portal",
+    "action": null,
+    "scope": null,
+    "principals": [
+      "portal"
+    ],
+    "transports": [
+      "portal"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/portal/v1/patients/{patientRef}/documents/{releaseRef}/read-grants",
+      "requestSchema": "engagement:EmptyQuery",
+      "successStatus": "201",
+      "successSchema": "engagement:EngagementRead"
+    },
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
       "503"
     ],
     "idempotency": "required",

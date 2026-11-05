@@ -95,6 +95,33 @@ export const ROWS: ImagingHarnessRow[] = [
     }),
     mcpArgs: (x) => ({ objectRef: x.object, ttlSeconds: 30 }),
   },
+  // E2 portal documents (closeout B): release and revoke are human-only imaging.write commands.
+  {
+    operation: 'imaging.objects.releaseToPortal',
+    crossTenant: 'not_found',
+    downgradedTo: 'imagingReadOnly',
+    rest: (x) => ({
+      method: 'POST',
+      url: `/v1/imaging/objects/${x.associated}/portal-releases`,
+      body: { patientRef: x.patient },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (x) => ({ objectRef: x.associated, patientRef: x.patient, idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'imaging.portalReleases.revoke',
+    crossTenant: 'not_found',
+    downgradedTo: 'imagingReadOnly',
+    rest: (x) => ({
+      method: 'POST',
+      url: `/v1/imaging/portal-releases/${x.release}/revoke`,
+      body: {},
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (x) => ({ releaseRef: x.release, idempotencyKey: randomUUID() }),
+  },
   {
     operation: 'imaging.objects.revokeGrant',
     crossTenant: 'not_found',
@@ -714,6 +741,8 @@ beforeAll(async () => {
   const assoc = c.json.data as { decisionRef: string; imageRef: string };
   const post = (url: string, body: unknown) =>
     s.inject('owner', 'POST', url, body, { 'idempotency-key': randomUUID() });
+  const rel = await post(`/v1/imaging/objects/${associated}/portal-releases`, { patientRef: patient });
+  expect(rel.status).toBe(201);
   const mnt = await post('/v1/imaging/mounts', {
     template: 'bitewing-2',
     slots: [{ slot: 1, objectRef: associated }],
@@ -786,6 +815,7 @@ beforeAll(async () => {
     annotation: (ann.json.data as { annotationRef: string }).annotationRef,
     hold: (hold.json.data as { legalHoldRef: string }).legalHoldRef,
     deletion: (del.json.data as { deletionRef: string }).deletionRef,
+    release: (rel.json.data as { releaseRef: string }).releaseRef,
   };
 });
 afterAll(async () => {

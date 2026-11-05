@@ -400,6 +400,13 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         withTenantTransaction: deps.tenantTransactions,
         recording,
         execute,
+        // E2 -> I1/I3 portal documents (closeout B); the imaging service below implements it.
+        portalDocuments: {
+          grant: (ctx, patientRef, releaseRef, body) =>
+            imaging.portalDocumentGrant(ctx, patientRef, releaseRef, body),
+          content: (ctx, patientRef, releaseRef, token) =>
+            imaging.portalDocumentContent(ctx, patientRef, releaseRef, token),
+        },
       });
       registerEngagementOpRoutes(app, { authenticator, engagement });
       if (deps.portalIdentity && deps.portalPrincipals) {

@@ -67,10 +67,13 @@ const min = (a: bigint, b: bigint) => (a < b ? a : b);
 export function computeInsurerEstimate(q: {
   readonly currency: string;
   readonly serviceDate: string;
+  /** The instant B5/B9 were read (the capture instant of a schedule-sourced input). */
+  readonly readAt?: string;
   readonly inputs: BenefitInputs;
   readonly lines: readonly InsurerEstimateLineInput[];
 }): InsurerEstimate {
   const { inputs: i, currency } = q;
+  const readAt = q.readAt ?? new Date().toISOString();
   const m = (minor: bigint) => money(currency, minor);
   if (i.status === 'none') return insurerEstimateUnavailable('coverage_none');
   if (i.status === 'unknown') return insurerEstimateUnavailable('coverage_unknown');
@@ -80,7 +83,7 @@ export function computeInsurerEstimate(q: {
     name: 'coverage_status',
     source: i.benefits.status?.provenance.source ?? elig?.source ?? 'unknown',
     sourceRef: elig?.eligibilityRef ?? null,
-    capturedAt: i.benefits.status?.provenance.capturedAt ?? elig?.retrievedAt ?? '',
+    capturedAt: i.benefits.status?.provenance.capturedAt ?? elig?.retrievedAt ?? readAt,
     freshUntil: elig?.freshUntil ?? null,
   };
   if (i.status === 'inactive') {
@@ -189,7 +192,7 @@ export function computeInsurerEstimate(q: {
     name,
     source: prov?.source ?? 'unknown',
     sourceRef: elig?.eligibilityRef ?? null,
-    capturedAt: prov?.capturedAt ?? '',
+    capturedAt: prov?.capturedAt ?? readAt,
     freshUntil: elig?.freshUntil ?? null,
   });
   const allowanceInputs: InsurerEstimateInput[] = [];
@@ -201,7 +204,7 @@ export function computeInsurerEstimate(q: {
       name: 'allowance',
       source: 'fee_schedule',
       sourceRef: ref,
-      capturedAt: q.serviceDate,
+      capturedAt: readAt,
       freshUntil: null,
     });
   }

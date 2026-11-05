@@ -109,6 +109,35 @@ export const IMAGING_OPS: readonly ImagingOp[] = [
     invoke: (svc, actor, i) =>
       svc.revokeGrant(actor, param(i, 'grantRef'), env('imaging.objects.revokeGrant', i)),
   },
+  // E2 portal documents (closeout B): a clinician's explicit, revocable release of one image.
+  {
+    method: 'post',
+    path: `${OBJ}/portal-releases`,
+    operationId: 'imaging.objects.releaseToPortal',
+    protected: true,
+    requestBody: I('PortalReleaseCreate'),
+    success: { status: '201', schema: I('PortalReleaseCommandResult') },
+    refusals: COMMAND,
+    tool: 'imaging_objects_release_to_portal',
+    description:
+      "Release one image to the portal of the patient it is currently associated with (a person's explicit decision; audited and revocable). Unreleased images never appear in the portal.",
+    invoke: (svc, actor, i) =>
+      svc.releaseToPortal(actor, param(i, 'objectRef'), env('imaging.objects.releaseToPortal', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/imaging/portal-releases/{releaseRef}/revoke',
+    operationId: 'imaging.portalReleases.revoke',
+    protected: true,
+    requestBody: I('PortalReleaseRevoke'),
+    success: { status: '200', schema: I('PortalReleaseCommandResult') },
+    refusals: COMMAND,
+    tool: 'imaging_portal_releases_revoke',
+    description:
+      'Revoke a portal release: the image leaves the portal documents view and its portal grants stop working at once.',
+    invoke: (svc, actor, i) =>
+      svc.revokePortalRelease(actor, param(i, 'releaseRef'), env('imaging.portalReleases.revoke', i)),
+  },
   {
     method: 'get',
     path: `${OBJ}/content`,

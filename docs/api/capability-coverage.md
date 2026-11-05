@@ -6,7 +6,7 @@ Evidence category: **tested on synthetic data**. Coverage means a row resolves t
 
 Rows: 27 (matrix rows plus plan-defined A rows). Covered: 25. Gaps: 2. Unknown: 0. Unmapped matrix rows: 0. Scope defects: 0.
 
-MCP surface: 455 operations have an MCP tool; 33 do not.
+MCP surface: 457 operations have an MCP tool; 35 do not.
 
 | Capability row | Owners | Release | Status | Operations | Negative cases | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -14,14 +14,14 @@ MCP surface: 455 operations have an MCP tool; 33 do not.
 | Patient identity | S | P1 | covered | 14: `patients.access.resolve`, `patients.create`, `patients.duplicates.find`, `patients.merge` and 10 more | `action-proposals.test.ts`, `agent-workspace-hardening.test.ts`, `agent-workspace.test.ts` and 31 more |  |
 | Family and consent | S, E, C | P1 | covered | 12: `clinical.consents.capture`, `clinical.consents.list`, `clinical.consents.read`, `clinical.consents.withdraw` and 8 more | `action-proposals.test.ts`, `clinical-consents.test.ts`, `comms-parity.test.ts` and 4 more |  |
 | Scheduling | S, A | P1 | covered | 29: `schedule.view`, `scheduling.appointments.book`, `scheduling.appointments.cancel`, `scheduling.appointments.override` and 25 more | `booking-conflicts.test.ts`, `mcp-parity.test.ts`, `navigation.test.ts` and 11 more |  |
-| Intake and portal | E, S | P1 | covered | 33: `intake.forms.list`, `intake.forms.publish`, `intake.forms.retire`, `intake.reviews.read` and 29 more | `appointment-requests.test.ts`, `comms-parity.test.ts`, `engagement-negative-harness.test.ts` and 10 more |  |
+| Intake and portal | E, S | P1 | covered | 35: `intake.forms.list`, `intake.forms.publish`, `intake.forms.retire`, `intake.reviews.read` and 31 more | `appointment-requests.test.ts`, `comms-parity.test.ts`, `engagement-negative-harness.test.ts` and 10 more |  |
 | Daily workflow | S, A | P1 | covered | 22: `appointments.detail`, `huddle.read`, `scheduling.attendance.list`, `scheduling.attendance.record` and 18 more | `attendance.test.ts`, `floor-view.test.ts`, `huddle.test.ts` and 5 more |  |
 | Clinical chart | C | P1 | covered | 3: `clinical.chart.correctEntry`, `clinical.chart.read`, `clinical.chart.recordEntry` | `clinical-chart.test.ts`, `mcp-parity.test.ts`, `negative-harness.test.ts` and 1 more |  |
 | Periodontal | C | P1 | covered | 6: `clinical.perio.compare`, `clinical.perio.correctExam`, `clinical.perio.derive`, `clinical.perio.listExams` and 2 more | `clinical-perio.test.ts`, `mcp-parity.test.ts`, `negative-harness.test.ts` | Clinician validation against a synthetic paper chart is pending (domain validation gate). |
 | Clinical documentation | C | P1 | covered | 23: `clinical.authors.context`, `clinical.authors.define`, `clinical.history.alerts`, `clinical.history.attestReview` and 19 more | `clinical-history.test.ts`, `clinical-note-templates.test.ts`, `clinical-notes.test.ts` and 3 more |  |
 | Treatment planning | C | P1 | covered | 16: `clinical.consentTemplates.register`, `clinical.estimates.accept`, `clinical.estimates.generate`, `clinical.estimates.list` and 12 more | `clinical-estimates.test.ts`, `clinical-treatment-plans.test.ts`, `mcp-parity.test.ts` and 1 more |  |
 | Procedures/encounters | C | P1 | covered | 9: `clinical.encounters.assign`, `clinical.encounters.close`, `clinical.encounters.list`, `clinical.encounters.open` and 5 more | `clinical-chart.test.ts`, `clinical-encounters.test.ts`, `clinical-history.test.ts` and 6 more |  |
-| Imaging/documents | I | P1 import/bridge; acquisition expansion P2 | covered | 60: `clinical.imageLinks.link`, `clinical.imageLinks.list`, `clinical.imageLinks.read`, `clinical.imageLinks.relink` and 56 more | `api-mcp-catalog-parity.test.ts`, `clinical-image-links.test.ts`, `imaging-association.test.ts` and 14 more | Vendor bridges and DICOM acquisition are blocked on device/vendor discovery; the bridge contract is synthetic. |
+| Imaging/documents | I | P1 import/bridge; acquisition expansion P2 | covered | 62: `clinical.imageLinks.link`, `clinical.imageLinks.list`, `clinical.imageLinks.read`, `clinical.imageLinks.relink` and 58 more | `api-mcp-catalog-parity.test.ts`, `clinical-image-links.test.ts`, `imaging-association.test.ts` and 14 more | Vendor bridges and DICOM acquisition are blocked on device/vendor discovery; the bridge contract is synthetic. |
 | Insurance | B | P1 | covered | 5: `rcm.coverages.change`, `rcm.coverages.read`, `rcm.coverages.record`, `rcm.coverages.resolve` and 1 more | `mcp-parity.test.ts`, `negative-harness.test.ts`, `rcm-eligibility.test.ts` and 1 more |  |
 | Claims/RCM | B | P1 with validated partner | covered | 29: `rcm.appeals.draft`, `rcm.appeals.review`, `rcm.claims.attach`, `rcm.claims.measures` and 25 more | `billing-export.test.ts`, `billing-negative-matrix.test.ts`, `billing-parity.test.ts` and 8 more | Clearinghouse submission, acknowledgements and ERA intake run against a synthetic adapter; a validated partner is blocked on discovery. |
 | Financial ledger | B | P1 | covered | 17: `billing.adjustments.decide`, `billing.adjustments.post`, `billing.balances.read`, `billing.charges.post` and 13 more | `billing-allocations.test.ts`, `billing-journal.test.ts`, `billing-negative-matrix.test.ts` and 6 more |  |
@@ -68,6 +68,8 @@ These are portal, device, pairing, bridge, worker or public operations; the forb
 - `outbox.deliver`
 - `patients.unmerge.reconcile`
 - `portal.consents.record`
+- `portal.documents.content`
+- `portal.documents.grantRead`
 - `portal.forms.describe`
 - `portal.forms.submit`
 - `portal.offers.respond`

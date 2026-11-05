@@ -7511,16 +7511,12 @@
                     ]
                   },
                   "capturedAt": {
-                    "type": "string",
-                    "minLength": 0,
-                    "maxLength": 64
+                    "$ref": "#/$defs/Instant"
                   },
                   "freshUntil": {
                     "anyOf": [
                       {
-                        "type": "string",
-                        "minLength": 0,
-                        "maxLength": 64
+                        "$ref": "#/$defs/Instant"
                       },
                       {
                         "type": "null"

@@ -8,6 +8,7 @@ import {
   validateEmptyQuery,
 } from '@cuspatlas/contracts';
 import { recordSensitiveRead } from '../../events/record-sensitive-read';
+import { portalDocumentsView } from '../../imaging/portal-documents';
 import type { EngagementBase } from '../common';
 import { formsView } from '../intake/forms';
 import { messagesView } from '../messaging/threads';
@@ -159,12 +160,13 @@ export const PORTAL_VIEWS: Readonly<Record<PortalViewName, ViewDefinition>> = {
     redactions: ['note', 'stateReason', 'transitions', 'providerPreference', 'location', 'contactConsent'],
     project: requests,
   },
+  // Closeout B: images a clinician explicitly released to the portal (I3 association + release fact).
   documents: {
     requiredScope: ['clinical_read'],
-    fields: [],
-    itemFields: [],
-    redactions: [],
-    unavailable: { owner: 'C15', reason: 'producer_not_deployed' },
+    fields: ['documents'],
+    itemFields: ['releaseRef', 'kind', 'contentType', 'byteLength', 'releasedAt'],
+    redactions: ['objectRef', 'unreleasedObjects', 'provenance', 'digest', 'releasedBy', 'association'],
+    project: portalDocumentsView,
   },
   balances: {
     requiredScope: ['financial'],
@@ -199,7 +201,19 @@ const viewOf = (name: string): ViewDefinition => {
 
 export function createPortalViewOperations(base: EngagementBase) {
   const { deps } = base;
+  const port = () => {
+    if (!deps.portalDocuments) throw new RefusalError({ code: 'service_unavailable', retryable: true });
+    return deps.portalDocuments;
+  };
   return {
+    /** E2 documents: a short-lived read grant of one released image (imaging side). */
+    grantPortalDocument(ctx: ActorContext, patientRef: string, releaseRef: string, body: unknown) {
+      return port().grant(ctx, patientRef, releaseRef, body);
+    },
+    /** E2 documents: the bytes of one released image with a live grant (REST only). */
+    readPortalDocumentContent(ctx: ActorContext, patientRef: string, releaseRef: string, token: unknown) {
+      return port().content(ctx, patientRef, releaseRef, token);
+    },
     /** describePortalView: the declared allowlist, redactions and scope requirement (no data). */
     describePortalView(ctx: ActorContext, view: string, query: unknown) {
       return base.guarded(ctx, 'portal.views.describe', async () => {

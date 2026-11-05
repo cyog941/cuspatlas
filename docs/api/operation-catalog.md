@@ -9,7 +9,7 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-488 operations.
+492 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
@@ -18,8 +18,8 @@ transport tables and are declarations, not independent proof.
 | S | 92 | 90 | 90 | 0 | 0 | 0 |
 | C | 88 | 87 | 87 | 0 | 0 | 0 |
 | B | 66 | 66 | 66 | 0 | 0 | 0 |
-| E | 60 | 48 | 48 | 11 | 0 | 1 |
-| I | 55 | 47 | 44 | 0 | 6 | 1 |
+| E | 62 | 48 | 48 | 13 | 0 | 1 |
+| I | 57 | 49 | 46 | 0 | 6 | 1 |
 | M | 29 | 29 | 29 | 0 | 0 | 0 |
 
 | Operation | Owner | Kind | Authorization | Scope | Principals | Transports | REST | MCP tool | Idempotency | Sensitivity | Status |
@@ -274,7 +274,9 @@ transport tables and are declarations, not independent proof.
 | `imaging.objects.grantRead` | I | command | authorize | `imaging.read` | human | rest, mcp | POST `/v1/imaging/objects/{objectRef}/read-grants` | `imaging_objects_grant_read` | none | phi | active |
 | `imaging.objects.list` | I | query | authorize | `imaging.read` | human, service | rest, mcp | GET `/v1/imaging/objects` | `imaging_objects_list` | none | phi | active |
 | `imaging.objects.read` | I | query | authorize | `imaging.read` | human, service | rest, mcp | GET `/v1/imaging/objects/{objectRef}` | `imaging_objects_get` | none | phi | active |
+| `imaging.objects.releaseToPortal` | I | command | authorize | `imaging.write` | human | rest, mcp | POST `/v1/imaging/objects/{objectRef}/portal-releases` | `imaging_objects_release_to_portal` | required | phi | active |
 | `imaging.objects.revokeGrant` | I | command | authorize | `imaging.write` | human, service | rest, mcp | POST `/v1/imaging/read-grants/{grantRef}/revoke` | `imaging_objects_revoke_grant` | required | phi | active |
+| `imaging.portalReleases.revoke` | I | command | authorize | `imaging.write` | human | rest, mcp | POST `/v1/imaging/portal-releases/{releaseRef}/revoke` | `imaging_portal_releases_revoke` | required | phi | active |
 | `imaging.retention.policies` | I | query | authorize | `imaging.read` | human, service | rest, mcp | GET `/v1/imaging/retention/policies` | `imaging_retention_policies` | none | phi | active |
 | `imaging.retention.setPolicy` | I | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/imaging/retention/policies` | `imaging_retention_set_policy` | required | operational | active |
 | `imaging.storage.reconcile` | I | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/imaging/storage/reconcile` | `imaging_storage_reconcile` | required | operational | active |
@@ -340,6 +342,8 @@ transport tables and are declarations, not independent proof.
 | `patients.unmerge.reconcile` | S | capability | capability | `patients.mergeReconcile` | human | - | - | - | none | phi | active |
 | `patients.updateDemographics` | S | command | authorize | `patients.write` | human, service | rest, mcp | POST `/v1/patients/{patientRef}/demographics` | `patients_update_demographics` | required | phi | active |
 | `portal.consents.record` | E | command | portal | - | portal | portal | POST `/portal/v1/patients/{patientRef}/consents` | - | required | phi | active |
+| `portal.documents.content` | E | query | portal | - | portal | portal | GET `/portal/v1/patients/{patientRef}/documents/{releaseRef}/content` | - | none | phi | active |
+| `portal.documents.grantRead` | E | command | portal | - | portal | portal | POST `/portal/v1/patients/{patientRef}/documents/{releaseRef}/read-grants` | - | required | phi | active |
 | `portal.forms.describe` | E | query | portal | - | portal | portal | GET `/portal/v1/forms/{formRef}` | - | none | phi | active |
 | `portal.forms.submit` | E | command | portal | - | portal | portal | POST `/portal/v1/patients/{patientRef}/intake-submissions` | - | required | phi | active |
 | `portal.grants.list` | E | query | authorize | `patients.read` | human, service | rest, mcp | GET `/v1/patients/{patientRef}/portal-grants` | `portal_grants_list` | none | phi | active |

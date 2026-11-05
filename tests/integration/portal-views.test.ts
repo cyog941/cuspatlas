@@ -126,11 +126,10 @@ describe('E2 acceptance', () => {
   });
 
   it('views whose producer is not deployed are explicit unavailable states, never empty', async () => {
-    for (const [view, owner] of [['documents', 'C15']] as const) {
-      const v = h.ok<{ data: View }>(await read(parentP, parent, view)).data;
-      expect(v.coverage).toStrictEqual({ status: 'unavailable', reason: 'producer_not_deployed', owner });
-      expect(v.fields).toBeNull();
-    }
+    // Closeout B deployed the documents producer (released images only; see portal-documents.test.ts).
+    const documents = h.ok<{ data: View }>(await read(parentP, parent, 'documents')).data;
+    expect(documents.coverage).toStrictEqual({ status: 'available' });
+    expect(documents.fields).toStrictEqual({ documents: [] });
     // E4 deployed the forms producer: available, and an empty list is not the unavailable state.
     const forms = h.ok<{ data: View }>(await read(parentP, parent, 'forms')).data;
     expect(forms.coverage).toStrictEqual({ status: 'available' });

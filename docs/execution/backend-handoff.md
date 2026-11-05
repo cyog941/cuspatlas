@@ -177,7 +177,7 @@ Sub-decisions held in the ledgers (all pending): billing M-1..M-12, P-1..P-7, ST
 ## Known limitations
 
 - Everything runs on synthetic data on a Windows development host; nothing is approved, deployed, compliant or clinically validated.
-- Hosted-Windows embedded PostgreSQL is unresolved; the Linux path is evidenced by GitHub CI only.
+- Hosted-Windows embedded PostgreSQL: the CI diagnostic (run 42065120458) shows the cause. `postgres.exe` refuses to start under the runner's administrator account ("Execution of PostgreSQL by a user with administrative permissions is not permitted"), and embedded-postgres launches it directly rather than through `pg_ctl`, which would drop privileges. The Windows CI job therefore runs install, typecheck and unit tests only, and the integration suites are evidenced on Linux CI and on a non-admin Windows developer host. A fix needs either a non-admin runner user or starting the server through `pg_ctl`.
 - Billing uses a synthetic payment processor and a fake clearinghouse; a missing adapter refuses with 503 `adapter_not_configured`, and fakes are allowed only under `synthetic-test`.
 - Messaging and telephony are fake providers; email is exercised, SMS is modelled but not exercised, call recording is refused.
 - AI uses a deterministic fake model adapter: no egress, output is always a draft, prescribing operations always refuse.

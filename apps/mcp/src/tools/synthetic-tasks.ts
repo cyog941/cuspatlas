@@ -6,6 +6,7 @@ import {
   createAjv,
   ENGAGEMENT_PROPERTIES,
   IMAGING_PROPERTIES,
+  MIGRATION_PROPERTIES,
   PATIENT_PROPERTIES,
   RefusalError,
   SCHEDULING_PROPERTIES,
@@ -22,6 +23,7 @@ import {
   type ClinicalService,
   type EngagementService,
   type ImagingService,
+  type MigrationService,
   type PatientService,
   type ProposalService,
   type SchedulingResourceService,
@@ -106,6 +108,8 @@ export interface ToolDeps {
   readonly engagement?: EngagementService;
   /** I imaging objects, ingress, association, composition and retention (no bytes on MCP). */
   readonly imaging: ImagingService;
+  /** Workstream M migration intake, import, reconciliation and sign-off. */
+  readonly migration: MigrationService;
   readonly authorize: Authorize;
   readonly recording: AttemptRecordingDeps;
 }
@@ -145,6 +149,7 @@ const KNOWN_PROPERTIES: ReadonlySet<string> = new Set([
   ...CLINICAL_PROPERTIES,
   ...ENGAGEMENT_PROPERTIES,
   ...IMAGING_PROPERTIES,
+  ...MIGRATION_PROPERTIES,
   'idempotencyKey',
   'proposalRef',
   'patientRef',

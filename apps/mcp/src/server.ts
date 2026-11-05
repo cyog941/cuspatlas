@@ -41,6 +41,7 @@ import {
   createImagingAttachmentRefResolver,
   createImagingImageRefResolver,
   createImagingService,
+  createMigrationService,
   createPatientService,
   createProposalService,
   createSchedulingResourceService,
@@ -69,6 +70,7 @@ import { CLINICAL_TOOLS } from './tools/clinical';
 import { CLINICAL_RECORD_TOOLS } from './tools/clinical-record';
 import { ENGAGEMENT_OP_TOOLS } from './tools/engagement-ops';
 import { IMAGING_TOOLS } from './tools/imaging-ops';
+import { MIGRATION_TOOLS } from './tools/migration-ops';
 import { PATIENT_TOOLS } from './tools/patients';
 import { PROPOSAL_TOOLS } from './tools/proposals';
 import { SCHEDULING_TOOLS } from './tools/scheduling';
@@ -172,6 +174,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   ...SCHEDULING_OP_TOOLS,
   ...ENGAGEMENT_OP_TOOLS,
   ...IMAGING_TOOLS,
+  ...MIGRATION_TOOLS,
 ];
 
 /** Path parameters of the REST twin. A malformed one is a 404 there, decided by the domain. */
@@ -395,6 +398,14 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     ...(deps.imagingLimits ? { limits: deps.imagingLimits } : {}),
     alert: (code) => write({ level: 'error', msg: 'imaging alert', alert: code }),
   });
+  const migration = createMigrationService({
+    authorize,
+    withTenantTransaction: deps.tenantTransactions,
+    recording,
+    execute,
+    patients,
+    matchKeyPepper: resolveMatchKeyPepper(deps.env, deps.matchKeyPepper),
+  });
   const toolDeps: ToolDeps = {
     service,
     proposals,
@@ -405,6 +416,7 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     clinical,
     engagement,
     imaging,
+    migration,
     authorize,
     recording,
   };

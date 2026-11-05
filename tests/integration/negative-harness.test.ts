@@ -18,6 +18,12 @@ import { openTestDatabase, type TestDatabase } from './support/db';
 import { SVC_A1, seedTenancy, T_ALPHA, T_BETA, USER_A1, USER_A2, USER_A4, USER_B1 } from './support/fixtures';
 import { fakeImageResolver } from './support/image-ref-resolver';
 import { MARKER } from './support/marker';
+import { seedMigrationScopes } from './support/migration-fixtures';
+import {
+  MIGRATION_HARNESS_ROWS,
+  MIGRATION_STATE_SQL,
+  seedMigrationHarness,
+} from './support/migration-harness';
 import { seedNoteScopes } from './support/note-fixtures';
 import { patientBody, seedPatientScopes, USER_A5 } from './support/patient-fixtures';
 import { seedSchedulingScopes } from './support/scheduling-fixtures';
@@ -2536,6 +2542,8 @@ export const COMMANDS: HarnessCommand[] = [
     mcpArgs: () => ({}),
   },
 ];
+// Workstream M rows (support/migration-harness.ts).
+COMMANDS.push(...MIGRATION_HARNESS_ROWS);
 
 const PLANS = '/v1/billing/payment-plans';
 const STATEMENTS = '/v1/billing/statements';
@@ -3140,6 +3148,7 @@ beforeAll(async () => {
   await seedPatientScopes(db.admin);
   await seedSchedulingScopes(db.admin);
   await seedBillingScopes(db.admin);
+  await seedMigrationScopes(db.admin);
   await seedClinicalScopes(db.admin);
   await seedNoteScopes(db.admin);
   await seedDispositions(db.admin, T_ALPHA, ['completed_as_planned']);
@@ -3587,7 +3596,11 @@ beforeAll(async () => {
     asOf: '2031-01-01T12:00:00Z',
   });
   expect(recallTask.statusCode).toBe(201);
+  const migrationFixture = await seedMigrationHarness(owner, (url) =>
+    app.inject({ method: 'GET', url, headers: { authorization: `Bearer ${rest.owner}` } }),
+  );
   fixture = {
+    ...migrationFixture,
     alphaPaymentPlan: paymentPlan.json().data.planRef,
     alphaCoverage: coverage.json().data.coverageRef,
     alphaStatement: statement.json().data.statementRef,
@@ -3826,6 +3839,7 @@ async function state(): Promise<string> {
     await q('SELECT count(*)::int AS n FROM cuspatlas.audit_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.outbox_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.command_idempotency'),
+    ...(await Promise.all(MIGRATION_STATE_SQL.map(q))),
   ].join('|');
 }
 

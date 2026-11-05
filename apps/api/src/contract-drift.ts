@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { REFUSAL_CODES } from '@cuspatlas/contracts';
 import { parse } from 'yaml';
 import { extractBillingOpsBlock, renderBillingOpsBlock } from './billing-openapi';
+import { extractMigrationOpsBlock, renderMigrationOpsBlock } from './migration-openapi';
 import { BILLING_OPS } from './routes/billing-ops';
 import { ENGAGEMENT_OPS } from './routes/engagement-ops';
 import { IMAGING_OPS } from './routes/imaging-ops';
@@ -11,12 +12,14 @@ import {
   CLINICAL_SCHEMA_FILE,
   ENGAGEMENT_SCHEMA_FILE,
   IMAGING_SCHEMA_FILE,
+  MIGRATION_SCHEMA_FILE,
   PATIENT_SCHEMA_FILE,
   PROPOSAL_SCHEMA_FILE,
   ROUTES,
   SCHEDULING_SCHEMA_FILE,
   SCHEMA_FILE,
 } from './routes/manifest';
+import { MIGRATION_OPS } from './routes/migration-ops';
 import { PORTAL_OPS } from './routes/portal-ops';
 import { SCHEDULING_OPS } from './routes/scheduling-ops';
 
@@ -30,6 +33,7 @@ export interface ContractSources {
   readonly clinicalSchemaText: string;
   readonly engagementSchemaText: string;
   readonly imagingSchemaText: string;
+  readonly migrationSchemaText: string;
 }
 
 export const OPENAPI_PATH = 'docs/api/openapi.yaml';
@@ -49,6 +53,8 @@ export const ENGAGEMENT_SCHEMA_PATH = `packages/contracts/src/${ENGAGEMENT_SCHEM
 const ENGAGEMENT_REF_PREFIX = `../../${ENGAGEMENT_SCHEMA_PATH}#`;
 export const IMAGING_SCHEMA_PATH = `packages/contracts/src/${IMAGING_SCHEMA_FILE}`;
 const IMAGING_REF_PREFIX = `../../${IMAGING_SCHEMA_PATH}#`;
+export const MIGRATION_SCHEMA_PATH = `packages/contracts/src/${MIGRATION_SCHEMA_FILE}`;
+const MIGRATION_REF_PREFIX = `../../${MIGRATION_SCHEMA_PATH}#`;
 
 export function loadContractSources(root: string): ContractSources {
   return {
@@ -61,6 +67,7 @@ export function loadContractSources(root: string): ContractSources {
     clinicalSchemaText: readFileSync(resolve(root, CLINICAL_SCHEMA_PATH), 'utf8'),
     engagementSchemaText: readFileSync(resolve(root, ENGAGEMENT_SCHEMA_PATH), 'utf8'),
     imagingSchemaText: readFileSync(resolve(root, IMAGING_SCHEMA_PATH), 'utf8'),
+    migrationSchemaText: readFileSync(resolve(root, MIGRATION_SCHEMA_PATH), 'utf8'),
   };
 }
 
@@ -92,21 +99,23 @@ function collectRefs(node: unknown, out: string[] = []): string[] {
 const schemaRef = (name: string) =>
   name.startsWith('#/')
     ? name
-    : name.startsWith('proposal:')
-      ? `${PROPOSAL_REF_PREFIX}/$defs/${name.slice('proposal:'.length)}`
-      : name.startsWith('patient:')
-        ? `${PATIENT_REF_PREFIX}/$defs/${name.slice('patient:'.length)}`
-        : name.startsWith('scheduling:')
-          ? `${SCHEDULING_REF_PREFIX}/$defs/${name.slice('scheduling:'.length)}`
-          : name.startsWith('clinical:')
-            ? `${CLINICAL_REF_PREFIX}/$defs/${name.slice('clinical:'.length)}`
-            : name.startsWith('engagement:')
-              ? `${ENGAGEMENT_REF_PREFIX}/$defs/${name.slice('engagement:'.length)}`
-              : name.startsWith('imaging:')
-                ? `${IMAGING_REF_PREFIX}/$defs/${name.slice('imaging:'.length)}`
-                : name.startsWith('billing:')
-                  ? `${BILLING_REF_PREFIX}/$defs/${name.slice('billing:'.length)}`
-                  : `${SCHEMA_REF_PREFIX}/$defs/${name}`;
+    : name.startsWith('migration:')
+      ? `${MIGRATION_REF_PREFIX}/$defs/${name.slice('migration:'.length)}`
+      : name.startsWith('proposal:')
+        ? `${PROPOSAL_REF_PREFIX}/$defs/${name.slice('proposal:'.length)}`
+        : name.startsWith('patient:')
+          ? `${PATIENT_REF_PREFIX}/$defs/${name.slice('patient:'.length)}`
+          : name.startsWith('scheduling:')
+            ? `${SCHEDULING_REF_PREFIX}/$defs/${name.slice('scheduling:'.length)}`
+            : name.startsWith('clinical:')
+              ? `${CLINICAL_REF_PREFIX}/$defs/${name.slice('clinical:'.length)}`
+              : name.startsWith('engagement:')
+                ? `${ENGAGEMENT_REF_PREFIX}/$defs/${name.slice('engagement:'.length)}`
+                : name.startsWith('imaging:')
+                  ? `${IMAGING_REF_PREFIX}/$defs/${name.slice('imaging:'.length)}`
+                  : name.startsWith('billing:')
+                    ? `${BILLING_REF_PREFIX}/$defs/${name.slice('billing:'.length)}`
+                    : `${SCHEMA_REF_PREFIX}/$defs/${name}`;
 
 /** Definitions the scheduling contract copies from the task contract; they must stay byte-identical. */
 const SCHEDULING_SHARED_DEFS = ['LocationRef', 'Version', 'IdempotencyKey'] as const;
@@ -331,6 +340,7 @@ export function checkContractDrift(src: ContractSources): string[] {
   let clinical: Json;
   let engagement: Json;
   let imaging: Json;
+  let migration: Json;
   try {
     api = parse(src.openapiText) as Json;
     schema = JSON.parse(src.schemaText) as Json;
@@ -341,12 +351,17 @@ export function checkContractDrift(src: ContractSources): string[] {
     clinical = JSON.parse(src.clinicalSchemaText) as Json;
     engagement = JSON.parse(src.engagementSchemaText) as Json;
     imaging = JSON.parse(src.imagingSchemaText) as Json;
+    migration = JSON.parse(src.migrationSchemaText) as Json;
   } catch {
     return ['OpenAPI or JSON Schema does not parse'];
   }
 
   for (const ref of collectRefs(api)) {
-    if (ref.startsWith(BILLING_REF_PREFIX)) {
+    if (ref.startsWith(MIGRATION_REF_PREFIX)) {
+      if (pointer(migration, ref.slice(MIGRATION_REF_PREFIX.length)) === undefined) {
+        problems.push(`OpenAPI $ref does not resolve in ${MIGRATION_SCHEMA_FILE}: ${ref}`);
+      }
+    } else if (ref.startsWith(BILLING_REF_PREFIX)) {
       if (pointer(billing, ref.slice(BILLING_REF_PREFIX.length)) === undefined) {
         problems.push(`OpenAPI $ref does not resolve in ${BILLING_SCHEMA_FILE}: ${ref}`);
       }
@@ -589,6 +604,32 @@ export function checkContractDrift(src: ContractSources): string[] {
       problems.push(`${IMAGING_SCHEMA_FILE} ${name} differs from ${SCHEMA_FILE}`);
     }
   }
+  // Workstream M: the generated MIGRATION_OPS block matches the table; every body and query is closed;
+  // the shared definitions stay identical to the task contract.
+  try {
+    const committed = extractMigrationOpsBlock(src.openapiText);
+    const rendered = renderMigrationOpsBlock(MIGRATION_OPS, (migration as { $defs: never }).$defs);
+    if (committed !== rendered)
+      problems.push(
+        'generated MIGRATION_OPS block differs from scripts/openapi-migration.ts (run openapi:migration)',
+      );
+  } catch (err) {
+    problems.push(`generated MIGRATION_OPS block cannot be rendered: ${String(err)}`);
+  }
+  const mdef = (name: string) => pointer(migration, `/$defs/${name}`);
+  for (const name of MIGRATION_OPS.flatMap((o) => [
+    ...(o.requestBody ? [o.requestBody.replace('migration:', '')] : []),
+    ...(o.query ? [o.query] : []),
+  ])) {
+    if (pointer(mdef(name), '/additionalProperties') !== false)
+      problems.push(`${name} must set additionalProperties: false`);
+  }
+  for (const name of ['IdempotencyKey', 'Version']) {
+    if (JSON.stringify(mdef(name)) !== JSON.stringify(def(name)))
+      problems.push(`${MIGRATION_SCHEMA_FILE} ${name} differs from ${SCHEMA_FILE}`);
+  }
+  if (pointer(mdef('MinorUnits'), '/type') !== 'integer')
+    problems.push('MinorUnits must be an integer (no float money)');
   const codes = pointer(def('Refusal'), '/properties/code/enum');
   if (!Array.isArray(codes) || codes.join(',') !== REFUSAL_CODES.join(',')) {
     problems.push('Refusal.code enum differs from the shared REFUSAL_CODES contract');

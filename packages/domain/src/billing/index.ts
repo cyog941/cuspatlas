@@ -1,4 +1,9 @@
 export {
+  type AttachmentSourcePort,
+  createFakeAttachmentSource,
+  type FakeAttachmentSource,
+} from '../rcm/attachments';
+export {
   type ClaimsPartnerPort,
   createFakeClearinghouse,
   type FakeClearinghouse,

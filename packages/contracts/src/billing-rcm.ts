@@ -142,7 +142,8 @@ export interface ClaimCommandData {
     | 'transmitted'
     | 'rejected'
     | 'unknown'
-    | 'polled';
+    | 'polled'
+    | 'packaged';
   readonly submissionRef?: string | null;
   readonly issueCount?: number;
   readonly eventCount?: number;
@@ -247,3 +248,90 @@ export interface SecondaryClaimPrepare {
   readonly coverageRef: string;
 }
 export const validateSecondaryClaimPrepare = billingDef('SecondaryClaimPrepare');
+
+// ---- Closed-loop claims workflow (CL-01..CL-12), attachment packages (CL-04), visit preparation (CL-01).
+export interface AttachmentPackageCreate {
+  readonly expectedVersion: number;
+  readonly items: readonly { readonly objectRef: string; readonly digest: string }[];
+}
+export interface WorkflowCommandData {
+  readonly workflowRef: string;
+  readonly outcome: 'started' | 'advanced' | 'closed';
+  readonly changes: number;
+  readonly openExceptions: number;
+}
+export type WorkflowOwner = 'billing' | 'front_office' | 'clinical' | 'billing_manager';
+export interface ClaimWorkflowView {
+  readonly workflowRef: string;
+  readonly claimRef: string;
+  readonly workflowPolicyRef: string | null;
+  readonly submissionPolicyRef: string | null;
+  readonly claims: readonly { readonly claimRef: string; readonly rank: number; readonly state: string }[];
+  readonly steps: readonly {
+    readonly step: string;
+    readonly subjectKind: string;
+    readonly subjectRef: string;
+    readonly outcome: string;
+    readonly attempt: number;
+    readonly inputVersions: Record<string, unknown>;
+    readonly authority: Record<string, unknown>;
+    readonly nextExpected: string | null;
+    readonly recordedAt: string;
+  }[];
+  readonly exceptions: readonly {
+    readonly exceptionRef: string;
+    readonly issueKey: string;
+    readonly occurrence: number;
+    readonly reasonCode: string;
+    readonly owner: WorkflowOwner;
+    readonly owedBy: 'practice' | 'patient' | 'payer' | 'platform';
+    readonly sourceRef: string | null;
+    readonly state: 'open' | 'resolved';
+    readonly escalationLevel: number;
+    readonly openedAt: string;
+    readonly dueAt: string;
+  }[];
+  readonly timers: readonly {
+    readonly timerRef: string;
+    readonly kind: 'payer_follow_up' | 'exception_escalation';
+    readonly subjectRef: string;
+    readonly level: number;
+    readonly dueAt: string;
+    readonly firedOutcome: string | null;
+  }[];
+  readonly responsibilities: readonly {
+    readonly chargeRef: string;
+    readonly patient: Money;
+    readonly insurer: readonly { readonly coverageRef: string | null; readonly amount: Money }[];
+  }[];
+  readonly closure: {
+    readonly closedAt: string;
+    readonly breakdown: readonly Record<string, unknown>[];
+  } | null;
+  readonly version: number;
+}
+export interface VisitPreparation {
+  readonly patientRef: string;
+  readonly serviceDate: string;
+  readonly coverages: readonly {
+    readonly coverageRef: string;
+    readonly rank: string;
+    readonly payerRef: string;
+    readonly coverageStatus: string;
+    readonly eligibilityState: string | null;
+    readonly freshness: string | null;
+    readonly eligibilityRef: string | null;
+  }[];
+  readonly missing: readonly {
+    readonly code: string;
+    readonly owner: WorkflowOwner;
+    readonly sourceRef: string | null;
+  }[];
+  readonly ready: boolean;
+  readonly paymentAssurance: 'none';
+  readonly checkedAt: string;
+}
+export const validateAttachmentPackageCreate = billingDef('AttachmentPackageCreate');
+export const validateClaimWorkflowStart = billingDef('ClaimWorkflowStart');
+export const validateClaimWorkflowClose = billingDef('ClaimWorkflowClose');
+export const validateVisitPreparationQuery = billingDef('VisitPreparationQuery');

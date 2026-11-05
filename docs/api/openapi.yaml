@@ -6291,6 +6291,254 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/rcm/claims/{claimRef}/attachment-packages:
+    post:
+      operationId: rcm.claims.packageAttachments
+      description: >-
+        CL-04: bind the head claim version object references (I owns the bytes) and their digests into one
+        attachment package; each digest is checked now and again before dispatch (an altered original
+        refuses the submission).
+      parameters:
+        - name: claimRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/AttachmentPackageCreate'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/patients/{patientRef}/visit-preparation:
+    get:
+      operationId: rcm.visits.prepare
+      description: >-
+        CL-01: coverage status, eligibility freshness and source per coverage for a service date, and the
+        missing facts with their owner. Unknown or stale stays unknown or stale; payment is never implied.
+      parameters:
+        - name: patientRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PatientRef'
+        - name: serviceDate
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/LocalDate'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/VisitPreparationResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/workflows:
+    post:
+      operationId: rcm.workflows.start
+      description: >-
+        CL workflow: start the persistent workflow of a primary claim lineage, optionally under a standing
+        submission policy (the workflow then drives validate, submit, poll and the secondary through the
+        owning commands) and a workflow policy version (deadlines, escalation).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimWorkflowStart'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/WorkflowCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/workflows/{workflowRef}:
+    get:
+      operationId: rcm.workflows.read
+      description: >-
+        CL workflow: linked steps (by reference; input versions, authority, outcome, attempt, next expected
+        event), owned exceptions with escalation, durable timers, open responsibilities per charge and the
+        closure fact.
+      parameters:
+        - name: workflowRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimWorkflowReadResult'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/workflows/{workflowRef}/advance:
+    post:
+      operationId: rcm.workflows.advance
+      description: >-
+        CL workflow: under the standing policy drive the next owned claim work items (bounded attempts),
+        then record every new fact as a step, open or resolve one exception per underlying issue and
+        schedule the durable timers. Idempotent: a repeat records nothing twice.
+      parameters:
+        - name: workflowRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/WorkflowAdvanceResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/workflows/{workflowRef}/closure:
+    post:
+      operationId: rcm.workflows.close
+      description: >-
+        CL-12: close the lineage only when every patient and insurer responsibility is zero and no exception
+        is open (409 closure_blocked naming each); the closure fact breaks each charge down into insurer
+        payment, patient payment, adjustments, write-off and transfers. No silent write-off.
+      parameters:
+        - name: workflowRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimWorkflowClose'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/WorkflowCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/workflow-timers/{timerRef}/fire:
+    post:
+      operationId: rcm.workflows.fireTimer
+      description: >-
+        CL-08 durable timer (service principals only; the outbox worker calls the same function): records
+        the firing once, escalates an open exception one bounded level or opens the payer follow-up, then
+        advances the workflow.
+      parameters:
+        - name: timerRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/WorkflowAdvanceResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   # END generated: BILLING_OPS
 components:
   securitySchemes:

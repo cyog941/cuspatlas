@@ -3654,7 +3654,8 @@
             "transmitted",
             "rejected",
             "unknown",
-            "polled"
+            "polled",
+            "packaged"
           ]
         },
         "submissionRef": {
@@ -4702,6 +4703,543 @@
       "properties": {
         "coverageRef": {
           "$ref": "#/$defs/Uuid"
+        }
+      }
+    },
+    "WorkflowRef": {
+      "$ref": "#/$defs/Uuid"
+    },
+    "AttachmentPackageCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "CL-04: bind the head version's object references (I owns the bytes) and their content digests into one attachment package; rechecked before dispatch.",
+      "required": ["expectedVersion", "items"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["objectRef", "digest"],
+            "properties": {
+              "objectRef": {
+                "$ref": "#/$defs/ObjectRef"
+              },
+              "digest": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "ClaimWorkflowStart": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Start the closed-loop workflow of a primary claim lineage. A standing submission policy lets the workflow drive validate, submit, poll and secondary preparation through the owning commands; a workflow policy version fixes the deadlines (else the latest for the payer).",
+      "required": ["claimRef"],
+      "properties": {
+        "claimRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "workflowPolicyRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "submissionPolicyRef": {
+          "$ref": "#/$defs/Uuid"
+        }
+      }
+    },
+    "ClaimWorkflowClose": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "WorkflowCommandData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workflowRef", "outcome", "changes", "openExceptions"],
+      "properties": {
+        "workflowRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "outcome": {
+          "enum": ["started", "advanced", "closed"]
+        },
+        "changes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "openExceptions": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "VisitPreparationQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["serviceDate"],
+      "properties": {
+        "serviceDate": {
+          "$ref": "#/$defs/LocalDate"
+        }
+      }
+    },
+    "VisitPreparation": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "CL-01 visit preparation: coverage status, eligibility freshness and source per coverage for a service date, and the missing facts with their owner. Never implies payment.",
+      "required": [
+        "patientRef",
+        "serviceDate",
+        "coverages",
+        "missing",
+        "ready",
+        "paymentAssurance",
+        "checkedAt"
+      ],
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "serviceDate": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "coverages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "coverageRef",
+              "rank",
+              "payerRef",
+              "coverageStatus",
+              "eligibilityState",
+              "freshness",
+              "eligibilityRef"
+            ],
+            "properties": {
+              "coverageRef": {
+                "$ref": "#/$defs/Uuid"
+              },
+              "rank": {
+                "type": "string"
+              },
+              "payerRef": {
+                "type": "string"
+              },
+              "coverageStatus": {
+                "type": "string"
+              },
+              "eligibilityState": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "freshness": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "eligibilityRef": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "missing": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["code", "owner", "sourceRef"],
+            "properties": {
+              "code": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,63}$"
+              },
+              "owner": {
+                "enum": ["billing", "front_office", "clinical", "billing_manager"]
+              },
+              "sourceRef": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "ready": {
+          "type": "boolean"
+        },
+        "paymentAssurance": {
+          "const": "none"
+        },
+        "checkedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "ClaimWorkflowView": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The closed-loop workflow of one claim lineage: linked steps (by reference, never copied state), owned exceptions with escalation, durable timers, open responsibilities per charge and the closure fact.",
+      "required": [
+        "workflowRef",
+        "claimRef",
+        "workflowPolicyRef",
+        "submissionPolicyRef",
+        "claims",
+        "steps",
+        "exceptions",
+        "timers",
+        "responsibilities",
+        "closure",
+        "version"
+      ],
+      "properties": {
+        "workflowRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "claimRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "workflowPolicyRef": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Uuid"
+            }
+          ]
+        },
+        "submissionPolicyRef": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Uuid"
+            }
+          ]
+        },
+        "claims": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["claimRef", "rank", "state"],
+            "properties": {
+              "claimRef": {
+                "$ref": "#/$defs/Uuid"
+              },
+              "rank": {
+                "type": "integer"
+              },
+              "state": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "step",
+              "subjectKind",
+              "subjectRef",
+              "outcome",
+              "attempt",
+              "inputVersions",
+              "authority",
+              "nextExpected",
+              "recordedAt"
+            ],
+            "properties": {
+              "step": {
+                "type": "string"
+              },
+              "subjectKind": {
+                "type": "string"
+              },
+              "subjectRef": {
+                "type": "string"
+              },
+              "outcome": {
+                "type": "string"
+              },
+              "attempt": {
+                "type": "integer"
+              },
+              "inputVersions": {
+                "type": "object"
+              },
+              "authority": {
+                "type": "object"
+              },
+              "nextExpected": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "recordedAt": {
+                "$ref": "#/$defs/Instant"
+              }
+            }
+          }
+        },
+        "exceptions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "exceptionRef",
+              "issueKey",
+              "occurrence",
+              "reasonCode",
+              "owner",
+              "owedBy",
+              "sourceRef",
+              "state",
+              "escalationLevel",
+              "openedAt",
+              "dueAt"
+            ],
+            "properties": {
+              "exceptionRef": {
+                "$ref": "#/$defs/Uuid"
+              },
+              "issueKey": {
+                "type": "string"
+              },
+              "occurrence": {
+                "type": "integer"
+              },
+              "reasonCode": {
+                "type": "string"
+              },
+              "owner": {
+                "enum": ["billing", "front_office", "clinical", "billing_manager"]
+              },
+              "owedBy": {
+                "enum": ["practice", "patient", "payer", "platform"]
+              },
+              "sourceRef": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "state": {
+                "enum": ["open", "resolved"]
+              },
+              "escalationLevel": {
+                "type": "integer"
+              },
+              "openedAt": {
+                "$ref": "#/$defs/Instant"
+              },
+              "dueAt": {
+                "$ref": "#/$defs/Instant"
+              }
+            }
+          }
+        },
+        "timers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["timerRef", "kind", "subjectRef", "level", "dueAt", "firedOutcome"],
+            "properties": {
+              "timerRef": {
+                "$ref": "#/$defs/Uuid"
+              },
+              "kind": {
+                "enum": ["payer_follow_up", "exception_escalation"]
+              },
+              "subjectRef": {
+                "type": "string"
+              },
+              "level": {
+                "type": "integer"
+              },
+              "dueAt": {
+                "$ref": "#/$defs/Instant"
+              },
+              "firedOutcome": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responsibilities": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["chargeRef", "patient", "insurer"],
+            "properties": {
+              "chargeRef": {
+                "$ref": "#/$defs/Uuid"
+              },
+              "patient": {
+                "$ref": "#/$defs/Money"
+              },
+              "insurer": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["coverageRef", "amount"],
+                  "properties": {
+                    "coverageRef": {
+                      "anyOf": [
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "$ref": "#/$defs/Uuid"
+                        }
+                      ]
+                    },
+                    "amount": {
+                      "$ref": "#/$defs/Money"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "closure": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["closedAt", "breakdown"],
+              "properties": {
+                "closedAt": {
+                  "$ref": "#/$defs/Instant"
+                },
+                "breakdown": {
+                  "type": "array"
+                }
+              }
+            }
+          ]
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "WorkflowCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/WorkflowCommandData"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "WorkflowAdvanceResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/WorkflowCommandData"
+        }
+      }
+    },
+    "ClaimWorkflowReadResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/ClaimWorkflowView"
+        }
+      }
+    },
+    "VisitPreparationResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/VisitPreparation"
         }
       }
     }

@@ -168,6 +168,14 @@ export const ACTION_POLICIES = {
   'rcm.remittances.resolveLine': { scope: 'billing.write', principals: ['human'] },
   'rcm.remittances.decideResolution': { scope: 'billing.correct', principals: ['human'] },
   'rcm.workflowPolicies.publish': { scope: 'billing.correct', principals: ['human'] },
+  // Closed-loop claims workflow (CL-01..CL-12): drives only the owning commands, which authorize again.
+  'rcm.claims.packageAttachments': { scope: 'billing.write', principals: ['human', 'service'] },
+  'rcm.workflows.start': { scope: 'billing.write', principals: ['human', 'service'] },
+  'rcm.workflows.advance': { scope: 'billing.write', principals: ['human', 'service'] },
+  'rcm.workflows.read': { scope: 'openClaims.read', principals: ['human', 'service'] },
+  'rcm.workflows.close': { scope: 'billing.correct', principals: ['human'] },
+  'rcm.workflows.fireTimer': { scope: 'billing.write', principals: ['service'] },
+  'rcm.visits.prepare': { scope: 'coverage.read', principals: ['human', 'service'] },
   // C5 encounters and clinical authorship (recommended-pending-clinical-approval). Clinical
   // mutations are human-only: a model or integration is never a clinical author. Every mutation
   // additionally needs a resolvable clinical author profile (clinical/authorship.ts). Reads are

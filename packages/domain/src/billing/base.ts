@@ -38,6 +38,8 @@ export interface BillingDeps {
   readonly providerLeaseMarginMs?: number;
   /** Claims partner port (B6/B7). Defaults to the in-process fake clearinghouse (B-S2 open). */
   readonly claims?: import('../rcm/clearinghouse').ClaimsPartnerPort;
+  /** CL-04 object source (workstream I owns the bytes). Defaults to the in-process fake. */
+  readonly attachments?: import('../rcm/attachments').AttachmentSourcePort;
 }
 
 export interface BillingBase {

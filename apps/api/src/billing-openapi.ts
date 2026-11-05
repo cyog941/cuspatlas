@@ -21,6 +21,9 @@ export const BILLING_PARAM_DEFS: Readonly<Record<string, string>> = {
   remittanceRef: 'RemittanceRef',
   lineNo: 'RemittanceLineNo',
   resolutionRef: 'Uuid',
+  workflowRef: 'Uuid',
+  timerRef: 'Uuid',
+  patientRef: 'PatientRef',
 };
 
 type Defs = Record<string, { properties?: Record<string, { $ref?: string }>; required?: string[] }>;

@@ -91,6 +91,17 @@ export interface WorkerDeps {
    * events are retried (and eventually dead-lettered), never delivered.
    */
   readonly procedures?: ProcedureEventConsumer;
+  /**
+   * Closed-loop claims workflow timers (workstream B, CL-08). Events on the `rcmWorkflowTimer`
+   * aggregate are fired in-process under the worker's own service principal (the domain authorizes it
+   * freshly for `rcm.workflows.fireTimer`; a firing is recorded once per timer); they are never sent
+   * to an adapter. Without it such events are retried (and eventually dead-lettered).
+   */
+  readonly claimWorkflows?: ClaimWorkflowTimerConsumer;
+}
+
+export interface ClaimWorkflowTimerConsumer {
+  fireWorkflowTimer(ctx: ActorContext, timerRef: string): Promise<unknown>;
 }
 
 export interface ProcedureEventConsumer {
@@ -319,6 +330,68 @@ export function createWorker(deps: WorkerDeps) {
   }
 
   /**
+   * In-process execution of a domain consumer under the worker's own principal (shared by the C14
+   * consumer and the CL workflow timers): retryable refusals back off, others dead-letter for review.
+   */
+  async function settleInProcess(
+    event: LeasedEvent,
+    run: ((ctx: ActorContext) => Promise<unknown>) | null,
+  ): Promise<DispatchResult> {
+    if (event.attempt > event.maxAttempts) {
+      const ok = await finalize(event, {
+        state: 'dead_letter',
+        reason: 'max_attempts_exhausted',
+        outcome: 'exhausted',
+      });
+      return ok ? 'dead-letter' : 'lease-lost';
+    }
+    if (!run) {
+      const ok = await finalize(event, {
+        state: 'retry',
+        delaySeconds: delay(event.attempt),
+        outcome: 'executor_unavailable',
+      });
+      return ok ? 'retry' : 'lease-lost';
+    }
+    const m = await deps.memberships.load(deps.workerPrincipalId, event.tenantId);
+    const executor: ActorContext = {
+      tenantId: event.tenantId,
+      actorId: deps.workerPrincipalId,
+      principal: 'service',
+      sessionId: randomUUID(),
+      scopes: m?.active ? m.scopes : [],
+      correlationId: randomUUID(),
+    };
+    try {
+      await run(executor);
+    } catch (err) {
+      if (!isRefusalError(err)) throw err;
+      if (err.retryable || err.code === 'service_unavailable') {
+        const ok = await finalize(event, {
+          state: 'retry',
+          delaySeconds: delay(event.attempt),
+          outcome: 'failed',
+        });
+        return ok ? 'retry' : 'lease-lost';
+      }
+      const denied = err.code === 'forbidden' || err.code === 'unauthenticated';
+      const ok = await finalize(event, {
+        state: 'dead_letter',
+        reason: denied
+          ? err.reasonCode === 'membership_inactive'
+            ? 'membership_revoked'
+            : 'authorization_denied'
+          : 'provider_rejected',
+        outcome: denied ? 'denied' : 'rejected',
+      });
+      if (!ok) return 'lease-lost';
+      return denied ? 'denied' : 'dead-letter';
+    }
+    const ok = await finalize(event, { state: 'delivered', outcome: 'executed' });
+    return ok ? 'delivered' : 'lease-lost';
+  }
+
+  /**
    * In-process consumption of a rendered-procedure fact by billing. The clinical fact stands even if
    * its author's access later changes, so the event actor is not reauthorized; the worker principal is
    * authorized freshly by the billing domain for every attempt. Consumption is idempotent per
@@ -384,6 +457,13 @@ export function createWorker(deps: WorkerDeps) {
   async function settle(event: LeasedEvent, adapter: DeliveryAdapter): Promise<DispatchResult> {
     if (event.aggregateType === 'actionProposal') return settleProposal(event);
     if (event.aggregateType === 'clinicalRenderedProcedure') return settleProcedure(event);
+    if (event.aggregateType === 'rcmWorkflowTimer') {
+      const consumer = deps.claimWorkflows;
+      return settleInProcess(
+        event,
+        consumer ? (ctx) => consumer.fireWorkflowTimer(ctx, event.aggregateId) : null,
+      );
+    }
     const exhausted = event.attempt >= event.maxAttempts;
 
     // 1. A previous attempt may have reached the provider: reconcile by delivery key, never re-send blind.

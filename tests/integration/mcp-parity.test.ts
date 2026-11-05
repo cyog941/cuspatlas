@@ -162,6 +162,14 @@ const TOOL_NAMES = [
   'rcm_remittances_resolve_line',
   'rcm_remittances_decide_resolution',
   'rcm_workflow_policies_publish',
+  // Closed-loop claims workflow, attachment packages and visit preparation.
+  'rcm_claims_package_attachments',
+  'rcm_visits_prepare',
+  'rcm_workflows_advance',
+  'rcm_workflows_close',
+  'rcm_workflows_fire_timer',
+  'rcm_workflows_get',
+  'rcm_workflows_start',
   // C5 encounter and authorship tools (parity in clinical-encounters and negative-harness tests).
   'clinical_author_context',
   'clinical_authors_define',

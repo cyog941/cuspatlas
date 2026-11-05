@@ -90,6 +90,10 @@ export async function insurerOpen(tx: TenantTransaction, chargeId: string, cover
   return BigInt(rows[0]?.s ?? '0');
 }
 
+/**
+ * The transmitted claim line an ERA line answers: the claim's adjudicated (else latest) transmitted
+ * version, so a corrected replacement (two transmitted versions) stays unambiguous.
+ */
 export async function matchClaimLine(
   tx: TenantTransaction,
   claimRef: string,
@@ -107,7 +111,10 @@ export async function matchClaimLine(
         ORDER BY v.coverage_version DESC LIMIT 1) AS claim_rank,
        sec.id AS secondary_coverage_id, sec.payer_ref AS secondary_payer_ref
      FROM cuspatlas.rcm_claims c
-     JOIN cuspatlas.rcm_claim_submissions s ON s.claim_id = c.id AND s.outcome = 'transmitted'
+     JOIN LATERAL (
+       SELECT x.version_id FROM cuspatlas.rcm_claim_submissions x WHERE x.claim_id = c.id AND x.outcome = 'transmitted'
+       ORDER BY EXISTS (SELECT 1 FROM cuspatlas.rcm_claim_events e WHERE e.submission_id = x.id
+                        AND e.kind = 'adjudicated_paid') DESC, x.created_at DESC, x.id DESC LIMIT 1) s ON true
      JOIN cuspatlas.rcm_claim_lines l ON l.version_id = s.version_id AND l.line_no = $2
      LEFT JOIN LATERAL (
        SELECT sc.id, sc.payer_ref FROM cuspatlas.rcm_coverages sc

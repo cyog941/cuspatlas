@@ -32,7 +32,17 @@ export interface RcmHarness {
   ): Promise<unknown>;
 }
 
-export const today = () => new Date().toISOString().slice(0, 10);
+/**
+ * Today in the synthetic location's own time zone (America/New_York): a clinical date of service is
+ * refused when it is after the location's today, so a UTC date fails between 00:00 and 05:00 UTC.
+ */
+export const today = () =>
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
 
 export async function openRcmHarness(db: TestDatabase): Promise<RcmHarness> {
   const h = await openBillingHarness(db, { pool: 10 });

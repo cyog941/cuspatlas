@@ -3,6 +3,7 @@ import {
   type AppealCommandData,
   type AppealDraft,
   type AppealReview,
+  type AttachmentPackageCreate,
   type ClaimAttach,
   type ClaimCommandData,
   type ClaimIssue,
@@ -21,6 +22,7 @@ import {
   type TenantTransaction,
   validateAppealDraft,
   validateAppealReview,
+  validateAttachmentPackageCreate,
   validateClaimAttach,
   validateClaimPrepare,
   validateClaimReplace,
@@ -53,6 +55,7 @@ import { loadRenderedProcedureEvent } from '../clinical/procedures';
 import { canonicalJson, sha256Hex } from '../commands/digest';
 import { recordCommand } from '../events/record-command';
 import { recordSensitiveRead } from '../events/record-sensitive-read';
+import { type AttachmentSourcePort, createFakeAttachmentSource } from './attachments';
 import { type ClaimsPartnerPort, createFakeClearinghouse, type TransportAnswer } from './clearinghouse';
 
 export const CLAIM_RESOURCE = 'rcmClaim';
@@ -63,7 +66,7 @@ export const CLAIM_WORKLIST_PAGE = 200;
 const SYN_DENIALS = { source: 'syn-denial-codes', version: 'v1' } as const;
 const SYN_REJECTIONS = { source: 'syn-clearinghouse-rejections', version: 'v1' } as const;
 
-interface ClaimRow extends Record<string, unknown> {
+export interface ClaimRow extends Record<string, unknown> {
   id: string;
   patient_id: string;
   coverage_id: string;
@@ -144,6 +147,21 @@ async function chargeOf(tx: TenantTransaction, procedureRef: string, lock = fals
     [procedureRef],
   );
   return rows[0] ?? null;
+}
+
+/** CL-04: the attachment package bound to one claim version, with its items, or null. */
+export async function packageOf(tx: TenantTransaction, versionId: string) {
+  const { rows } = await tx.query<{ id: string; manifest_digest: string }>(
+    'SELECT id, manifest_digest FROM cuspatlas.rcm_claim_attachment_packages WHERE version_id = $1',
+    [versionId],
+  );
+  const pkg = rows[0];
+  if (!pkg) return null;
+  const { rows: items } = await tx.query<{ object_ref: string; digest: string }>(
+    'SELECT object_ref, digest FROM cuspatlas.rcm_claim_attachment_package_items WHERE package_id = $1 ORDER BY object_ref',
+    [pkg.id],
+  );
+  return { ...pkg, items };
 }
 
 /** B8: the primary claim a secondary claim relies on, or null for a primary claim. */
@@ -380,6 +398,12 @@ async function readiness(tx: TenantTransaction, claim: ClaimRow, head: VersionRo
       issues.push({ code: 'attachment_required', owner: 'clinical', sourceRef: l.procedure_id });
     facts.push([l.charge_id, charge?.reversed ?? null, eff[0]?.ok ?? null, rec?.id ?? null]);
   }
+  if (attachments.length > 0) {
+    // CL-04: object references alone are not dispatchable; a manifest-bound package of this version is.
+    const pkg = await packageOf(tx, head.id);
+    if (!pkg) issues.push({ code: 'attachment_package_missing', owner: 'clinical', sourceRef: head.id });
+    facts.push(['package', pkg?.id ?? null]);
+  }
   const primary = await secondaryOf(tx, claim.id);
   if (primary !== null) {
     // A secondary relies on the primary's remittance: a reversal since preparation flags it for review.
@@ -409,6 +433,7 @@ async function readiness(tx: TenantTransaction, claim: ClaimRow, head: VersionRo
 export function createClaimOperations(
   base: BillingBase,
   partner: ClaimsPartnerPort = createFakeClearinghouse(),
+  objects: AttachmentSourcePort = createFakeAttachmentSource(),
 ) {
   const { deps, execute } = base;
   const timing = providerTiming(deps);
@@ -627,6 +652,24 @@ export function createClaimOperations(
         const p = envelope.payload;
         validate<ClaimSubmit>(validateClaimSubmit, p);
         const replay = { ...envelope, payload: { claimRef, ...p } };
+        // CL-04/CL-05: the package of the head version is rechecked against the object source (I owns
+        // the bytes) before anything is dispatched; an altered or missing object refuses the dispatch.
+        const bound = await deps.withTenantTransaction(ctx, async (tx) => {
+          const claim = await loadClaim(tx, claimRef);
+          const head = await headOf(tx, claim.id);
+          return { head: head.id, pkg: await packageOf(tx, head.id) };
+        });
+        const live =
+          bound.pkg === null
+            ? []
+            : await Promise.all(
+                bound.pkg.items.map(async (i) => ({
+                  ref: i.object_ref,
+                  ok:
+                    (await withTimeout(() => objects.digestOf(i.object_ref), timing.timeoutMs, null)) ===
+                    i.digest,
+                })),
+              );
         const pending = await deps.withTenantTransaction(ctx, async (tx) => {
           const claim = await loadClaim(tx, claimRef, 'FOR UPDATE');
           if (await committedReplay(tx, op, envelope.idempotencyKey)) return null;
@@ -635,6 +678,15 @@ export function createClaimOperations(
           const prior = await latestSubmission(tx, claim.id);
           if (prior && prior.version_id === head.id)
             throw conflict('already_submitted', [{ kind: 'claimSubmission', ref: prior.id }]);
+          const pkgNow = await packageOf(tx, head.id);
+          if (
+            pkgNow !== null &&
+            (bound.head !== head.id || bound.pkg?.id !== pkgNow.id || live.some((x) => !x.ok))
+          )
+            throw conflict(
+              'attachment_package_stale',
+              live.filter((x) => !x.ok).map((x) => ({ kind: 'attachmentObject', ref: x.ref })),
+            );
           const { rows: vr } = await tx.query<{ id: string; valid: boolean; input_digest: string }>(
             `SELECT id, valid, input_digest FROM cuspatlas.rcm_claim_validations WHERE version_id = $1
              ORDER BY validated_at DESC, id DESC LIMIT 1`,
@@ -1007,6 +1059,83 @@ export function createClaimOperations(
       });
     },
 
+    /**
+     * CL-04 attachment package placeholder: binds the head version's object references (I owns the
+     * bytes; syn-img-/syn-obj- references only) and their digests into one manifest. Each digest is
+     * checked against the object source now and again before dispatch; the items must be exactly the
+     * version's attachments; a submitted version is never repackaged (a new version is).
+     */
+    packageClaimAttachments(
+      ctx: ActorContext,
+      claimRef: string,
+      envelope: CommandEnvelope<unknown>,
+    ): Promise<CommandResult<ClaimCommandData>> {
+      const op = 'rcm.claims.packageAttachments';
+      return base.guarded(ctx, op, async () => {
+        await base.authorize(ctx, op);
+        checkEnvelope(envelope, op);
+        const p = envelope.payload;
+        validate<AttachmentPackageCreate>(validateAttachmentPackageCreate, p);
+        const checked = await Promise.all(
+          p.items.map(
+            async (i) =>
+              (await withTimeout(() => objects.digestOf(i.objectRef), timing.timeoutMs, null)) === i.digest,
+          ),
+        );
+        return deps.withTenantTransaction(ctx, async (tx) => {
+          const claim = await loadClaim(tx, claimRef, 'FOR UPDATE');
+          return execute<ClaimCommandData>(
+            ctx,
+            { ...envelope, payload: { claimRef, ...p } },
+            tx,
+            async () => {
+              checkVersion(claim, p.expectedVersion);
+              const head = await headOf(tx, claim.id);
+              const sub = await latestSubmission(tx, claim.id);
+              if (sub && sub.version_id === head.id) throw conflict('claim_version_submitted');
+              const refs = (await attachmentsOf(tx, head.id)).map((a) => a.object_ref).sort();
+              const given = p.items.map((i) => i.objectRef).sort();
+              if (refs.length === 0 || refs.join(',') !== given.join(','))
+                throw failed('package_items_mismatch');
+              if (checked.some((ok) => !ok)) throw failed('attachment_digest_mismatch');
+              const items = [...p.items].sort((a, b) => a.objectRef.localeCompare(b.objectRef));
+              const manifest = sha256Hex(canonicalJson({ version: head.id, items }));
+              let packageRef: string;
+              try {
+                const { rows } = await tx.query<{ id: string }>(
+                  `INSERT INTO cuspatlas.rcm_claim_attachment_packages (tenant_id, claim_id, version_id, manifest_digest, item_count,
+                     created_by)
+                   VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, cuspatlas.current_actor_id()) RETURNING id`,
+                  [claim.id, head.id, manifest, items.length],
+                );
+                packageRef = rows[0]?.id as string;
+              } catch (err) {
+                if (isPgError(err, '23505')) throw conflict('package_exists');
+                throw err;
+              }
+              for (const i of items)
+                await tx.query(
+                  `INSERT INTO cuspatlas.rcm_claim_attachment_package_items (tenant_id, package_id, object_ref, digest)
+                   VALUES (cuspatlas.current_tenant_id(), $1, $2, $3)`,
+                  [packageRef, i.objectRef, i.digest],
+                );
+              const version = await bump(tx, claim.id);
+              await record(tx, op, claim.id, version, 'attachmentPackage');
+              return {
+                data: {
+                  claimRef: claim.id,
+                  versionRef: head.id,
+                  versionNo: head.version_no,
+                  outcome: 'packaged',
+                },
+                version,
+              };
+            },
+          );
+        });
+      });
+    },
+
     getClaim(ctx: ActorContext, claimRef: string) {
       const op = 'rcm.claims.read';
       return base.guarded(ctx, op, async () => {
@@ -1042,94 +1171,7 @@ export function createClaimOperations(
           const items: ClaimWorkItem[] = [];
           const { rows: clock } = await tx.query<{ now: Date }>('SELECT now() AS now');
           const now = (clock[0] as { now: Date }).now;
-          const item = (
-            claimRef: string,
-            kind: string,
-            owner: ClaimWorkItem['owner'],
-            reasonCode: string,
-            due: Date,
-            sourceRef: string | null,
-          ) =>
-            items.push({
-              kind,
-              claimRef,
-              owner,
-              reasonCode,
-              dueAt: due.toISOString(),
-              overdue: due < now,
-              sourceRef,
-            });
-          for (const c of claims) {
-            const v = await claimView(tx, c);
-            const head = v.versions[v.versions.length - 1];
-            const latest = v.submissions[v.submissions.length - 1];
-            const headSubmitted = latest && latest.versionNo === v.headVersionNo;
-            const day = (n: number) => new Date(now.getTime() + n * 86_400_000);
-            if (!headSubmitted) {
-              if (!head?.validation || !head.validation.current)
-                item(
-                  c.id,
-                  'validate_claim',
-                  'billing',
-                  'validation_required',
-                  day(1),
-                  head?.versionRef ?? null,
-                );
-              else if (!head.validation.valid)
-                for (const i of head.validation.issues)
-                  item(c.id, 'resolve_issue', i.owner, i.code, day(1), i.sourceRef);
-              else item(c.id, 'submit_claim', 'billing', 'ready_to_submit', day(1), head.versionRef);
-              continue;
-            }
-            if (v.state === 'submission_pending') {
-              const { rows } = await tx.query<{ at: Date | null }>(
-                'SELECT call_deadline AS at FROM cuspatlas.rcm_claim_submissions WHERE id = $1',
-                [latest?.submissionRef],
-              );
-              // Visible once its call can no longer be in flight; reconciled by lookup (rcm.claims.poll).
-              const at = rows[0]?.at ?? now;
-              if (at <= now)
-                item(
-                  c.id,
-                  'reconcile_submission',
-                  'billing',
-                  'submission_pending',
-                  at,
-                  latest?.submissionRef ?? null,
-                );
-            }
-            if (v.state === 'submission_unknown')
-              item(
-                c.id,
-                'reconcile_submission',
-                'billing',
-                'transport_outcome_unknown',
-                day(0),
-                latest?.submissionRef ?? null,
-              );
-            if (v.state === 'transport_rejected' || v.state === 'payer_rejected')
-              item(c.id, 'correct_and_replace', 'billing', v.state, day(2), latest?.submissionRef ?? null);
-            if (v.state === 'denied' && v.appeals.length === 0)
-              item(c.id, 'review_denial', 'billing', 'denied', day(5), null);
-            for (const a of v.appeals)
-              if (a.state === 'draft')
-                item(c.id, 'review_appeal', 'billing_manager', 'appeal_draft', day(3), a.appealRef);
-            if (v.state === 'transmitted' || v.state === 'payer_acknowledged') {
-              const { rows } = await tx.query<{ at: Date }>(
-                'SELECT created_at AS at FROM cuspatlas.rcm_claim_submissions WHERE id = $1',
-                [latest?.submissionRef],
-              );
-              const at = rows[0]?.at ?? now;
-              item(
-                c.id,
-                'follow_up',
-                'billing',
-                'no_adjudication',
-                new Date(at.getTime() + CLAIM_FOLLOW_UP_DAYS * 86_400_000),
-                latest?.submissionRef ?? null,
-              );
-            }
-          }
+          for (const c of claims) items.push(...(await claimWorkItems(tx, c, now)));
           const data = items.filter((i) => query.owner === undefined || i.owner === query.owner);
           return { data, totalCount: data.length, checkedAt: now.toISOString(), truncated };
         });
@@ -1453,151 +1495,245 @@ export function createClaimOperations(
       });
     });
   }
+}
 
-  async function claimView(tx: TenantTransaction, claim: ClaimRow) {
-    const { rows: versions } = await tx.query<VersionRow>(
-      `SELECT id, version_no, reason, coverage_version, billed_total_minor::text AS billed, currency
-       FROM cuspatlas.rcm_claim_versions WHERE claim_id = $1 ORDER BY version_no`,
-      [claim.id],
-    );
-    const head = versions[versions.length - 1] as VersionRow;
-    const out = [];
-    for (const v of versions) {
-      const { rows: val } = await tx.query<{
-        valid: boolean;
-        issues: ClaimIssue[];
-        validated_at: Date;
-        input_digest: string;
-      }>(
-        `SELECT valid, issues, validated_at, input_digest FROM cuspatlas.rcm_claim_validations WHERE version_id = $1
-         ORDER BY validated_at DESC, id DESC LIMIT 1`,
-        [v.id],
-      );
-      const val0 = val[0];
-      const current =
-        val0 !== undefined &&
-        v.id === head.id &&
-        (await readiness(tx, claim, v)).digest === val0.input_digest;
-      out.push({
-        versionRef: v.id,
-        versionNo: v.version_no,
-        reason: v.reason,
-        billedTotal: moneyFromMinorText(v.currency, v.billed),
-        lines: (await linesOf(tx, v.id)).map((l) => ({
-          lineNo: l.line_no,
-          procedureRef: l.procedure_id,
-          chargeRef: l.charge_id,
-          codeRef: l.code_ref,
-          dateOfService: l.date_of_service,
-          renderingProviderRef: l.rendering_provider_id,
-          billed: moneyFromMinorText(v.currency, l.billed),
-          allowance: l.allowance === null ? null : moneyFromMinorText(v.currency, l.allowance),
-        })),
-        attachments: (await attachmentsOf(tx, v.id)).map((a) => ({ objectRef: a.object_ref, kind: a.kind })),
-        validation: val0
-          ? { valid: val0.valid, issues: val0.issues, validatedAt: val0.validated_at.toISOString(), current }
-          : null,
-      });
-    }
-    const { rows: subs } = await tx.query<{
-      id: string;
-      version_no: number;
-      authorization_mode: 'explicit' | 'policy';
-      outcome: 'pending' | 'transmitted' | 'rejected' | 'unknown';
-      rejection_code: string | null;
+async function claimView(tx: TenantTransaction, claim: ClaimRow) {
+  const { rows: versions } = await tx.query<VersionRow>(
+    `SELECT id, version_no, reason, coverage_version, billed_total_minor::text AS billed, currency
+     FROM cuspatlas.rcm_claim_versions WHERE claim_id = $1 ORDER BY version_no`,
+    [claim.id],
+  );
+  const head = versions[versions.length - 1] as VersionRow;
+  const out = [];
+  for (const v of versions) {
+    const { rows: val } = await tx.query<{
+      valid: boolean;
+      issues: ClaimIssue[];
+      validated_at: Date;
+      input_digest: string;
     }>(
-      `SELECT s.id, v.version_no, s.authorization_mode, s.outcome, s.rejection_code FROM cuspatlas.rcm_claim_submissions s
-       JOIN cuspatlas.rcm_claim_versions v ON v.id = s.version_id WHERE s.claim_id = $1 ORDER BY s.created_at, s.id`,
-      [claim.id],
+      `SELECT valid, issues, validated_at, input_digest FROM cuspatlas.rcm_claim_validations WHERE version_id = $1
+       ORDER BY validated_at DESC, id DESC LIMIT 1`,
+      [v.id],
     );
-    const { rows: events } = await tx.query<{
-      id: string;
-      kind: string;
-      code: string | null;
-      code_source: string | null;
-      code_version: string | null;
-      occurred_at: Date;
-      submission_id: string;
-    }>(
-      `SELECT id, kind, code, code_source, code_version, occurred_at, submission_id FROM cuspatlas.rcm_claim_events
-       WHERE claim_id = $1 ORDER BY recorded_at, occurred_at, id`,
-      [claim.id],
-    );
-    const { rows: appeals } = await tx.query<{
-      id: string;
-      basis_code: string;
-      decision: string | null;
-      sent_ref: string | null;
-    }>(
-      `SELECT a.id, a.basis_code, r.decision, coalesce(r.sent_ref, x.sent_ref) AS sent_ref FROM cuspatlas.rcm_appeals a
-       LEFT JOIN cuspatlas.rcm_appeal_reviews r ON r.appeal_id = a.id
-       LEFT JOIN cuspatlas.rcm_appeal_send_resolutions x ON x.appeal_id = a.id
-       WHERE a.claim_id = $1 ORDER BY a.created_at, a.id`,
-      [claim.id],
-    );
-    const latest = subs[subs.length - 1];
-    const mine = events.filter((e) => latest && e.submission_id === latest.id).map((e) => e.kind);
-    const headView = out[out.length - 1];
-    const state =
-      !latest || latest.version_no !== head.version_no
-        ? latest && head.reason === 'replacement' && !headView?.validation
-          ? 'replaced'
-          : headView?.validation?.valid && headView.validation.current
-            ? 'validated'
-            : 'prepared'
-        : latest.outcome === 'pending'
-          ? 'submission_pending'
-          : latest.outcome === 'unknown'
-            ? 'submission_unknown'
-            : latest.outcome === 'rejected'
-              ? 'transport_rejected'
-              : mine.includes('adjudicated_paid')
-                ? 'paid'
-                : mine.includes('adjudicated_denied')
-                  ? 'denied'
-                  : mine.includes('payer_rejected')
-                    ? 'payer_rejected'
-                    : mine.includes('payer_acknowledged')
-                      ? 'payer_acknowledged'
-                      : 'transmitted';
-    return {
-      claimRef: claim.id,
-      patientRef: claim.patient_id,
-      coverageRef: claim.coverage_id,
-      payerRef: claim.payer_ref,
-      rank: await coverageRankOf(tx, claim.coverage_id),
-      primaryClaimRef: await secondaryOf(tx, claim.id),
-      state,
-      headVersionNo: head.version_no,
-      versions: out,
-      submissions: subs.map((s) => ({
-        submissionRef: s.id,
-        versionNo: s.version_no,
-        mode: s.authorization_mode,
-        outcome: s.outcome,
-        rejectionCode: s.rejection_code,
+    const val0 = val[0];
+    const current =
+      val0 !== undefined && v.id === head.id && (await readiness(tx, claim, v)).digest === val0.input_digest;
+    out.push({
+      versionRef: v.id,
+      versionNo: v.version_no,
+      reason: v.reason,
+      billedTotal: moneyFromMinorText(v.currency, v.billed),
+      lines: (await linesOf(tx, v.id)).map((l) => ({
+        lineNo: l.line_no,
+        procedureRef: l.procedure_id,
+        chargeRef: l.charge_id,
+        codeRef: l.code_ref,
+        dateOfService: l.date_of_service,
+        renderingProviderRef: l.rendering_provider_id,
+        billed: moneyFromMinorText(v.currency, l.billed),
+        allowance: l.allowance === null ? null : moneyFromMinorText(v.currency, l.allowance),
       })),
-      events: events.map((e) => ({
-        eventRef: e.id,
-        kind: e.kind,
-        code: e.code,
-        codeSource: e.code_source,
-        codeVersion: e.code_version,
-        occurredAt: e.occurred_at.toISOString(),
-      })),
-      appeals: appeals.map((a) => ({
-        appealRef: a.id,
-        basisCode: a.basis_code,
-        state:
-          a.decision === null
-            ? 'draft'
-            : a.decision === 'rejected'
-              ? 'rejected'
-              : a.sent_ref
-                ? 'sent'
-                : 'send_unknown',
-      })),
-      version: claim.version,
-    };
+      attachments: (await attachmentsOf(tx, v.id)).map((a) => ({ objectRef: a.object_ref, kind: a.kind })),
+      validation: val0
+        ? { valid: val0.valid, issues: val0.issues, validatedAt: val0.validated_at.toISOString(), current }
+        : null,
+    });
   }
+  const { rows: subs } = await tx.query<{
+    id: string;
+    version_no: number;
+    authorization_mode: 'explicit' | 'policy';
+    outcome: 'pending' | 'transmitted' | 'rejected' | 'unknown';
+    rejection_code: string | null;
+  }>(
+    `SELECT s.id, v.version_no, s.authorization_mode, s.outcome, s.rejection_code FROM cuspatlas.rcm_claim_submissions s
+     JOIN cuspatlas.rcm_claim_versions v ON v.id = s.version_id WHERE s.claim_id = $1 ORDER BY s.created_at, s.id`,
+    [claim.id],
+  );
+  const { rows: events } = await tx.query<{
+    id: string;
+    kind: string;
+    code: string | null;
+    code_source: string | null;
+    code_version: string | null;
+    occurred_at: Date;
+    submission_id: string;
+  }>(
+    `SELECT id, kind, code, code_source, code_version, occurred_at, submission_id FROM cuspatlas.rcm_claim_events
+     WHERE claim_id = $1 ORDER BY recorded_at, occurred_at, id`,
+    [claim.id],
+  );
+  const { rows: appeals } = await tx.query<{
+    id: string;
+    basis_code: string;
+    decision: string | null;
+    sent_ref: string | null;
+  }>(
+    `SELECT a.id, a.basis_code, r.decision, coalesce(r.sent_ref, x.sent_ref) AS sent_ref FROM cuspatlas.rcm_appeals a
+     LEFT JOIN cuspatlas.rcm_appeal_reviews r ON r.appeal_id = a.id
+     LEFT JOIN cuspatlas.rcm_appeal_send_resolutions x ON x.appeal_id = a.id
+     WHERE a.claim_id = $1 ORDER BY a.created_at, a.id`,
+    [claim.id],
+  );
+  const latest = subs[subs.length - 1];
+  const mine = events.filter((e) => latest && e.submission_id === latest.id).map((e) => e.kind);
+  const headView = out[out.length - 1];
+  const state =
+    !latest || latest.version_no !== head.version_no
+      ? latest && head.reason === 'replacement' && !headView?.validation
+        ? 'replaced'
+        : headView?.validation?.valid && headView.validation.current
+          ? 'validated'
+          : 'prepared'
+      : latest.outcome === 'pending'
+        ? 'submission_pending'
+        : latest.outcome === 'unknown'
+          ? 'submission_unknown'
+          : latest.outcome === 'rejected'
+            ? 'transport_rejected'
+            : mine.includes('adjudicated_paid')
+              ? 'paid'
+              : mine.includes('adjudicated_denied')
+                ? 'denied'
+                : mine.includes('payer_rejected')
+                  ? 'payer_rejected'
+                  : mine.includes('payer_acknowledged')
+                    ? 'payer_acknowledged'
+                    : 'transmitted';
+  return {
+    claimRef: claim.id,
+    patientRef: claim.patient_id,
+    coverageRef: claim.coverage_id,
+    payerRef: claim.payer_ref,
+    rank: await coverageRankOf(tx, claim.coverage_id),
+    primaryClaimRef: await secondaryOf(tx, claim.id),
+    state,
+    headVersionNo: head.version_no,
+    versions: out,
+    submissions: subs.map((s) => ({
+      submissionRef: s.id,
+      versionNo: s.version_no,
+      mode: s.authorization_mode,
+      outcome: s.outcome,
+      rejectionCode: s.rejection_code,
+    })),
+    events: events.map((e) => ({
+      eventRef: e.id,
+      kind: e.kind,
+      code: e.code,
+      codeSource: e.code_source,
+      codeVersion: e.code_version,
+      occurredAt: e.occurred_at.toISOString(),
+    })),
+    appeals: appeals.map((a) => ({
+      appealRef: a.id,
+      basisCode: a.basis_code,
+      state:
+        a.decision === null
+          ? 'draft'
+          : a.decision === 'rejected'
+            ? 'rejected'
+            : a.sent_ref
+              ? 'sent'
+              : 'send_unknown',
+    })),
+    version: claim.version,
+  };
+}
+
+/**
+ * CL-08: every open fact of one claim as an owned work item with a due time and the next action (the
+ * claims worklist and the closed-loop workflow read the same derivation).
+ */
+export async function claimWorkItems(
+  tx: TenantTransaction,
+  c: ClaimRow,
+  now: Date,
+): Promise<ClaimWorkItem[]> {
+  const items: ClaimWorkItem[] = [];
+  const item = (
+    claimRef: string,
+    kind: string,
+    owner: ClaimWorkItem['owner'],
+    reasonCode: string,
+    due: Date,
+    sourceRef: string | null,
+  ) =>
+    items.push({
+      kind,
+      claimRef,
+      owner,
+      reasonCode,
+      dueAt: due.toISOString(),
+      overdue: due < now,
+      sourceRef,
+    });
+  const v = await claimView(tx, c);
+  const head = v.versions[v.versions.length - 1];
+  const latest = v.submissions[v.submissions.length - 1];
+  const headSubmitted = latest && latest.versionNo === v.headVersionNo;
+  const day = (n: number) => new Date(now.getTime() + n * 86_400_000);
+  if (!headSubmitted) {
+    if (!head?.validation || !head.validation.current)
+      item(c.id, 'validate_claim', 'billing', 'validation_required', day(1), head?.versionRef ?? null);
+    else if (!head.validation.valid)
+      for (const i of head.validation.issues)
+        item(c.id, 'resolve_issue', i.owner, i.code, day(1), i.sourceRef);
+    else item(c.id, 'submit_claim', 'billing', 'ready_to_submit', day(1), head.versionRef);
+    return items;
+  }
+  if (v.state === 'submission_pending') {
+    const { rows } = await tx.query<{ at: Date | null }>(
+      'SELECT call_deadline AS at FROM cuspatlas.rcm_claim_submissions WHERE id = $1',
+      [latest?.submissionRef],
+    );
+    // Visible once its call can no longer be in flight; reconciled by lookup (rcm.claims.poll).
+    const at = rows[0]?.at ?? now;
+    if (at <= now)
+      item(c.id, 'reconcile_submission', 'billing', 'submission_pending', at, latest?.submissionRef ?? null);
+  }
+  if (v.state === 'submission_unknown')
+    item(
+      c.id,
+      'reconcile_submission',
+      'billing',
+      'transport_outcome_unknown',
+      day(0),
+      latest?.submissionRef ?? null,
+    );
+  if (v.state === 'transport_rejected' || v.state === 'payer_rejected')
+    item(c.id, 'correct_and_replace', 'billing', v.state, day(2), latest?.submissionRef ?? null);
+  if (v.state === 'denied' && v.appeals.length === 0)
+    item(c.id, 'review_denial', 'billing', 'denied', day(5), null);
+  for (const a of v.appeals)
+    if (a.state === 'draft')
+      item(c.id, 'review_appeal', 'billing_manager', 'appeal_draft', day(3), a.appealRef);
+  if (v.state === 'transmitted' || v.state === 'payer_acknowledged') {
+    const { rows } = await tx.query<{ at: Date }>(
+      'SELECT created_at AS at FROM cuspatlas.rcm_claim_submissions WHERE id = $1',
+      [latest?.submissionRef],
+    );
+    const at = rows[0]?.at ?? now;
+    item(
+      c.id,
+      'follow_up',
+      'billing',
+      'no_adjudication',
+      new Date(at.getTime() + CLAIM_FOLLOW_UP_DAYS * 86_400_000),
+      latest?.submissionRef ?? null,
+    );
+  }
+  return items;
+}
+
+/** A claim row with its benefit rank and derived lifecycle state (for the CL workflow). */
+export interface ClaimRowLite extends ClaimRow {
+  readonly rank: number;
+  readonly state: string;
+}
+export async function loadClaimRow(tx: TenantTransaction, claimRef: string): Promise<ClaimRowLite> {
+  const claim = await loadClaim(tx, claimRef);
+  const v = await claimView(tx, claim);
+  return { ...claim, rank: v.rank, state: v.state };
 }

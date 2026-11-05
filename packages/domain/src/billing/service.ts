@@ -3,6 +3,7 @@ import { createFakeClearinghouse } from '../rcm/clearinghouse';
 import { createCoverageOperations } from '../rcm/coverage';
 import { createRemittanceOperations } from '../rcm/remittance';
 import { createRemittanceResolutionOperations } from '../rcm/remittance-resolution';
+import { createWorkflowOperations, type WorkflowDrivers } from '../rcm/workflow';
 import { createAdjustmentOperations } from './adjustments';
 import { createAllocationOperations } from './allocations';
 import { type BillingDeps, createBillingBase } from './base';
@@ -26,7 +27,8 @@ export function createBillingService(deps: BillingDeps) {
   const base = createBillingBase(deps);
   const provider = deps.payments ?? createSyntheticPaymentProvider();
   const partner = deps.claims ?? createFakeClearinghouse();
-  return {
+  let drivers: WorkflowDrivers | null = null;
+  const service = {
     ...createChargeOperations(base),
     ...createEntryOperations(base),
     ...createPaymentOperations(base, provider),
@@ -38,9 +40,15 @@ export function createBillingService(deps: BillingDeps) {
     ...createFeeOperations(base),
     ...createProcedureConsumer(base),
     ...createAdjustmentOperations(base),
-    ...createClaimOperations(base, partner),
+    ...createClaimOperations(base, partner, deps.attachments),
     ...createRemittanceOperations(base, partner),
     ...createRemittanceResolutionOperations(base),
+  };
+  // The CL workflow drives only these owning commands (never SQL writes of their tables).
+  drivers = service;
+  return {
+    ...service,
+    ...createWorkflowOperations(base, () => drivers as WorkflowDrivers),
   };
 }
 

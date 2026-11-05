@@ -65,7 +65,7 @@ const h = (s: string) => createHash('sha256').update(s).digest('hex').slice(0, 2
  * The fake clearinghouse: in-process, deterministic by the synthetic payer reference.
  * `syn-payer-reject...` is a transport rejection (SYN-RJ-001); `syn-payer-transport-timeout...` answers unknown on
  * submit and transmitted on lookup; `syn-payer-deny...` acknowledges then denies (SYN-DN-045); any
- * other payer acknowledges then pays. Remittances exist only when staged (`stageRemittance`).
+ * other payer acknowledges then pays; `syn-payer-cl-reject-first` payer-rejects version 1 (SYN-RJ-014). Remittances exist only when staged (`stageRemittance`).
  */
 export function createFakeClearinghouse() {
   const submitted = new Map<string, ClaimSubmitRequest>();
@@ -109,6 +109,18 @@ export function createFakeClearinghouse() {
         ];
       }
       if (r.payerRef.startsWith('syn-payer-noresponse')) return [];
+      // `syn-payer-cl-reject-first...`: the payer rejects version 1 and pays a corrected replacement.
+      if (r.payerRef.startsWith('syn-payer-cl-reject-first') && r.versionNo === 1) {
+        return [
+          ack,
+          {
+            eventRef: `syn-evt-${h(`prj:${key}`)}`,
+            kind: 'payer_rejected',
+            code: 'SYN-RJ-014',
+            occurredAt: at,
+          },
+        ];
+      }
       return [ack, { eventRef: `syn-evt-${h(`adj:${key}`)}`, kind: 'adjudicated_paid', occurredAt: at }];
     },
     async sendAppeal(r) {

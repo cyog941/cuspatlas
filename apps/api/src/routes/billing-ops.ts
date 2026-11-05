@@ -386,6 +386,98 @@ export const BILLING_OPS: BillingOp[] = [
       'CL-08 policy data: a new version of the claims-workflow deadlines (acknowledgement, payer follow-up, exception due), bounded escalation and the residual write-off limit for one synthetic payer or the tenant default. Earlier versions are never changed.',
     invoke: (svc, actor, i) => svc.publishWorkflowPolicy(actor, env('rcm.workflowPolicies.publish', i)),
   },
+  {
+    method: 'post',
+    path: '/v1/rcm/claims/{claimRef}/attachment-packages',
+    operationId: 'rcm.claims.packageAttachments',
+    protected: true,
+    requestBody: B('AttachmentPackageCreate'),
+    success: { status: '201', schema: B('ClaimCommandResult') },
+    refusals: COMMAND,
+    tool: 'rcm_claims_package_attachments',
+    description:
+      'CL-04: bind the head claim version object references (I owns the bytes) and their digests into one attachment package; each digest is checked now and again before dispatch (an altered original refuses the submission).',
+    invoke: (svc, actor, i) =>
+      svc.packageClaimAttachments(actor, param(i, 'claimRef'), env('rcm.claims.packageAttachments', i)),
+  },
+  {
+    method: 'get',
+    path: '/v1/rcm/patients/{patientRef}/visit-preparation',
+    operationId: 'rcm.visits.prepare',
+    protected: true,
+    query: 'VisitPreparationQuery',
+    success: { status: '200', schema: B('VisitPreparationResult') },
+    refusals: ['400', '401', '403', '404', '503'],
+    tool: 'rcm_visits_prepare',
+    description:
+      'CL-01: coverage status, eligibility freshness and source per coverage for a service date, and the missing facts with their owner. Unknown or stale stays unknown or stale; payment is never implied.',
+    invoke: (svc, actor, i) => data(svc.prepareVisit(actor, param(i, 'patientRef'), i.body)),
+  },
+  {
+    method: 'post',
+    path: '/v1/rcm/workflows',
+    operationId: 'rcm.workflows.start',
+    protected: true,
+    requestBody: B('ClaimWorkflowStart'),
+    success: { status: '201', schema: B('WorkflowCommandResult') },
+    refusals: COMMAND,
+    tool: 'rcm_workflows_start',
+    description:
+      'CL workflow: start the persistent workflow of a primary claim lineage, optionally under a standing submission policy (the workflow then drives validate, submit, poll and the secondary through the owning commands) and a workflow policy version (deadlines, escalation).',
+    invoke: (svc, actor, i) => svc.startClaimWorkflow(actor, env('rcm.workflows.start', i)),
+  },
+  {
+    method: 'get',
+    path: '/v1/rcm/workflows/{workflowRef}',
+    operationId: 'rcm.workflows.read',
+    protected: true,
+    success: { status: '200', schema: B('ClaimWorkflowReadResult') },
+    refusals: BILLING_READ_REFUSALS,
+    tool: 'rcm_workflows_get',
+    description:
+      'CL workflow: linked steps (by reference; input versions, authority, outcome, attempt, next expected event), owned exceptions with escalation, durable timers, open responsibilities per charge and the closure fact.',
+    invoke: (svc, actor, i) => data(svc.getClaimWorkflow(actor, param(i, 'workflowRef'))),
+  },
+  {
+    method: 'post',
+    path: '/v1/rcm/workflows/{workflowRef}/advance',
+    operationId: 'rcm.workflows.advance',
+    protected: true,
+    unkeyed: true,
+    success: { status: '200', schema: B('WorkflowAdvanceResult') },
+    refusals: COMMAND,
+    tool: 'rcm_workflows_advance',
+    description:
+      'CL workflow: under the standing policy drive the next owned claim work items (bounded attempts), then record every new fact as a step, open or resolve one exception per underlying issue and schedule the durable timers. Idempotent: a repeat records nothing twice.',
+    invoke: (svc, actor, i) => svc.advanceClaimWorkflow(actor, param(i, 'workflowRef')),
+  },
+  {
+    method: 'post',
+    path: '/v1/rcm/workflows/{workflowRef}/closure',
+    operationId: 'rcm.workflows.close',
+    protected: true,
+    requestBody: B('ClaimWorkflowClose'),
+    success: { status: '201', schema: B('WorkflowCommandResult') },
+    refusals: COMMAND,
+    tool: 'rcm_workflows_close',
+    description:
+      'CL-12: close the lineage only when every patient and insurer responsibility is zero and no exception is open (409 closure_blocked naming each); the closure fact breaks each charge down into insurer payment, patient payment, adjustments, write-off and transfers. No silent write-off.',
+    invoke: (svc, actor, i) =>
+      svc.closeClaimWorkflow(actor, param(i, 'workflowRef'), env('rcm.workflows.close', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/rcm/workflow-timers/{timerRef}/fire',
+    operationId: 'rcm.workflows.fireTimer',
+    protected: true,
+    unkeyed: true,
+    success: { status: '200', schema: B('WorkflowAdvanceResult') },
+    refusals: COMMAND,
+    tool: 'rcm_workflows_fire_timer',
+    description:
+      'CL-08 durable timer (service principals only; the outbox worker calls the same function): records the firing once, escalates an open exception one bounded level or opens the payer follow-up, then advances the workflow.',
+    invoke: (svc, actor, i) => svc.fireWorkflowTimer(actor, param(i, 'timerRef')),
+  },
 ];
 
 export const BILLING_OP_ROUTES = (): readonly RouteContract[] =>

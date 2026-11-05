@@ -358,7 +358,9 @@ describe('SHOULD', () => {
       providerLeaseMarginMs: 30,
       withTenantTransaction: async (ctx, work) => {
         calls += 1;
-        if (calls === 2) throw new Error('synthetic crash after the partner call');
+        // Call 1 reads the attachment package, call 2 records the pending submission (phase 1), the
+        // partner is called, and call 3 (recording the answer) crashes.
+        if (calls === 3) throw new Error('synthetic crash after the partner call');
         return runner(ctx, work);
       },
     });

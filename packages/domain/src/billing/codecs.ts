@@ -243,6 +243,9 @@ export const BILLING_FLAT_OPERATIONS: readonly string[] = [
   'rcm.remittances.resolveLine',
   'rcm.remittances.decideResolution',
   'rcm.workflowPolicies.publish',
+  'rcm.claims.packageAttachments',
+  'rcm.workflows.start',
+  'rcm.workflows.close',
 ];
 
 /** Every billing operation that runs through executeOnce (B1 and B2). */

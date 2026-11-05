@@ -447,8 +447,7 @@ describe.each([practice, automation])('Closeout C MCP chunked download: $name', 
       for (const at of [0, CHUNK, 2 * CHUNK]) expect((await mcpChunk(t, body, at)).isError).toBe(false);
       expect((await fetchBytes(t, body, { range: 'bytes=0-99' })).status).toBe(206);
     } finally {
-      store.read = original.read;
-      store.readRange = original.readRange;
+      Object.assign(store, original);
     }
     expect(calls).toStrictEqual({ read: 0, readRange: 4 });
   });

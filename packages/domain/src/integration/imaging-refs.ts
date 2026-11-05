@@ -2,6 +2,7 @@ import { RefusalError, type TenantTransaction } from '@cuspatlas/contracts';
 import type { ImageRefResolver } from '../clinical/image-links';
 import type { AttachmentRefResolver } from '../engagement/common';
 import { imageReference } from '../imaging/association';
+import type { AttachmentSourcePort } from '../rcm/attachments';
 
 /**
  * Integration seams to I3's consumer reference read (`imageReference`), the one read C15 image links,
@@ -66,6 +67,21 @@ export function createImagingAttachmentRefResolver(): AttachmentRefResolver {
       }
       const r = await imageReferenceOrNull(tx, imageRef, patientRef);
       return r?.matchesExpected === true;
+    },
+  };
+}
+
+/**
+ * B CL-04: the digest of a claim attachment is I3's digest of the image, reported only while the
+ * imageRef is current for the claim's patient (another patient, tenant, a missing or malformed
+ * reference all read null, so the package or dispatch is refused).
+ */
+export function createImagingAttachmentSource(): AttachmentSourcePort {
+  return {
+    async digestOf(tx, objectRef, expectedPatientRef) {
+      const r = await imageReferenceOrNull(tx, objectRef, expectedPatientRef);
+      if (r === null || r.matchesExpected !== true || r.objectState !== 'available') return null;
+      return r.digestSha256 ?? null;
     },
   };
 }

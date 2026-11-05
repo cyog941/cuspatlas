@@ -3519,7 +3519,8 @@
     },
     "ObjectRef": {
       "type": "string",
-      "pattern": "^syn-(img|obj)-[a-z0-9-]{1,60}$"
+      "pattern": "^(syn-(img|obj)-[a-z0-9-]{1,60}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$",
+      "description": "A claim attachment object: an I3 imageRef current for the claim's patient, or a synthetic syn-img-/syn-obj- reference for the fake object source."
     },
     "ClaimPrepare": {
       "type": "object",

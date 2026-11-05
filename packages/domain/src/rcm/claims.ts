@@ -659,17 +659,6 @@ export function createClaimOperations(
           const head = await headOf(tx, claim.id);
           return { head: head.id, pkg: await packageOf(tx, head.id) };
         });
-        const live =
-          bound.pkg === null
-            ? []
-            : await Promise.all(
-                bound.pkg.items.map(async (i) => ({
-                  ref: i.object_ref,
-                  ok:
-                    (await withTimeout(() => objects.digestOf(i.object_ref), timing.timeoutMs, null)) ===
-                    i.digest,
-                })),
-              );
         const pending = await deps.withTenantTransaction(ctx, async (tx) => {
           const claim = await loadClaim(tx, claimRef, 'FOR UPDATE');
           if (await committedReplay(tx, op, envelope.idempotencyKey)) return null;
@@ -679,6 +668,13 @@ export function createClaimOperations(
           if (prior && prior.version_id === head.id)
             throw conflict('already_submitted', [{ kind: 'claimSubmission', ref: prior.id }]);
           const pkgNow = await packageOf(tx, head.id);
+          // The recheck runs in this locked transaction with the claim's patient (I3 under RLS).
+          const live: { ref: string; ok: boolean }[] = [];
+          for (const i of pkgNow?.items ?? [])
+            live.push({
+              ref: i.object_ref,
+              ok: (await objects.digestOf(tx, i.object_ref, claim.patient_id)) === i.digest,
+            });
           if (
             pkgNow !== null &&
             (bound.head !== head.id || bound.pkg?.id !== pkgNow.id || live.some((x) => !x.ok))
@@ -1076,14 +1072,12 @@ export function createClaimOperations(
         checkEnvelope(envelope, op);
         const p = envelope.payload;
         validate<AttachmentPackageCreate>(validateAttachmentPackageCreate, p);
-        const checked = await Promise.all(
-          p.items.map(
-            async (i) =>
-              (await withTimeout(() => objects.digestOf(i.objectRef), timing.timeoutMs, null)) === i.digest,
-          ),
-        );
         return deps.withTenantTransaction(ctx, async (tx) => {
           const claim = await loadClaim(tx, claimRef, 'FOR UPDATE');
+          // Each digest is checked in this transaction against the claim's patient (I3 under RLS).
+          const checked: boolean[] = [];
+          for (const i of p.items)
+            checked.push((await objects.digestOf(tx, i.objectRef, claim.patient_id)) === i.digest);
           return execute<ClaimCommandData>(
             ctx,
             { ...envelope, payload: { claimRef, ...p } },

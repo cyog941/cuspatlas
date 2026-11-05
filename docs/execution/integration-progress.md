@@ -17,7 +17,7 @@ Status values: not started, in progress, blocked with cause, verified (on synthe
 | 5. Merge `codex/i-imaging-1` (4bf86c5) | verified | merge commit | 22 conflicted files; merge-registry mirror gains `imagingAssociation` (`20261125030000`) |
 | 6. I seams (C15 and E resolvers to I3, S+I+C+E import) | verified | step 6 commit | no migration |
 | 7. Merge `codex/b-billing-1` (344256f) | verified | merge commit | 11 conflicted files |
-| 8. B seams (C12 fees and coverage, CL-04 to I3, five-way round trip) | in progress (C12 done) | | |
+| 8. B seams (C12 fees and coverage, CL-04 to I3, five-way round trip) | C12 and CL-04 done; five-way round trip open | | |
 
 ## 1. Merge of codex/e-portal-1
 
@@ -91,12 +91,18 @@ Test fixes: `portal-requests.test.ts` also excludes `billing_`/`rcm_` tables fro
 - Tests: `tests/integration/integration-estimate-pricing.test.ts` (6: server fee and version, mismatch 409 writing nothing, missing fee incomplete, new fee version reprices and pin refused, inactive no insurer portion, stale). Red: 6 failed, exit 1; green: 6 passed. Existing C12 tests seed B9 through `tests/integration/support/fee-fixtures.ts` (`seedPracticeFees`) and assertions that relied on caller fees were updated (EUR/mixed caller fees now `409 fee_mismatch`). `corepack pnpm run ci` exit 0: 125 files, 2830 tests.
 - Not done: no insurer portion is computed from B5 benefits or B9 allowances (`resolveAllowance`); the estimate still shows a bounded range only.
 
+### 8.2 B CL-04 attachment packages -> I3
+
+- `AttachmentSourcePort.digestOf(tx, objectRef, expectedPatientRef)` now runs in the caller's tenant transaction with the claim's patient. `createImagingAttachmentSource()` (`packages/domain/src/integration/imaging-refs.ts`) is built on `imageReferenceOrNull`: it returns I3's `digestSha256` only when `matchesExpected` and the object is `available`, else null (another patient, another tenant under RLS, missing or malformed). Wired into the API and MCP billing builders; the fake source keeps `syn-img-`/`syn-obj-` for domain tests.
+- `packageClaimAttachments` checks each digest inside its `FOR UPDATE` transaction; `submitClaim` rechecks the head package inside the locked dispatch transaction (no `withTimeout` outside a transaction any more). The B contract `ObjectRef` and the `rcm_claim_attachments` / `rcm_claim_attachment_package_items` CHECKs (migration `20261125050000_integration_claim_attachments_i3.sql`, unnamed CHECKs found by a DO block) accept an I3 imageRef uuid as well as the synthetic forms.
+- Tests: `tests/integration/integration-claim-attachments.test.ts` (4: happy path with a real I3 image packaged and submitted; another patient's image refused with its true digest; I3 digest changed between package and submit refuses dispatch with no submission row; another tenant, made-up and synthetic refs read no digest). Red: suite failed to load (port not exported), exit 1; green: 4 passed. `corepack pnpm run ci` exit 0: 126 files, 2834 tests (a first run hit four 120 s beforeAll hook timeouts under load in suites unrelated to this change; those four passed alone and the full rerun passed).
+
 ## Open items
 
-Status 8 (B seams) is **not started**; each needs a contract or port change in B or C, recorded here so the next step is explicit:
+Status 8 (B seams): C12 and CL-04 are wired; the remaining items stay recorded here so the next step is explicit:
 
-- C12 estimates -> B9 fees and B5 coverage. C12  takes caller-supplied line fees (, , ) and caller-entered coverage assumptions with  (stale after 30 days). Wiring means: resolve each line through  (B9) inside the estimate transaction and refuse or flag a supplied fee that differs, record the resolved version ref; read coverage through  and map B5  to an excluded/expired coverage assumption (no assumption is ever invented); tests for missing schedule (no guessed amount), version pinning and .
-- B CL-04 attachment packages -> I3. B's  is called outside any tenant transaction and without the claim's patient, and B's contract accepts only synthetic / refs. Wiring means: port  implemented with  ( and ), called inside the package and submit transactions with the claim's patient, B schema accepting I3 imageRefs; recheck before dispatch already exists in B and stays.
+- C12 estimates -> B9 fees and B5 coverage: done (section 8.1). Open: no insurer portion from B5 benefits or B9 allowances.
+- B CL-04 attachment packages -> I3: done (section 8.2).
 - Five-way export round trip:  covers S, I, C, E; B's  (with its own reference, currency, trigger-invariant and ledger re-checks) is still separate. Next: fold B9/B10 into  after E (order S, I, C, E, B) reusing B's checks, and extend  with billing data.
 - Worker:  (C14 -> B consumer) and  are wired by tests only; the repository has no worker process entry point to wire them in.
 - E2 portal  () stays  until a patient-facing document projection is specified.

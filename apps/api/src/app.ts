@@ -24,6 +24,7 @@ import {
   createDurableExecutor,
   createEngagementService,
   createImagingAttachmentRefResolver,
+  createImagingAttachmentSource,
   createImagingImageRefResolver,
   createImagingService,
   createPatientService,
@@ -293,6 +294,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         withTenantTransaction: deps.tenantTransactions,
         recording,
         execute,
+        // B CL-04 -> I3 (integration): attachment digests from I3's consumer reference read.
+        attachments: createImagingAttachmentSource(),
       });
       registerBillingRoutes(app, { authenticator, billing });
       registerBillingOpRoutes(app, { authenticator, billing });

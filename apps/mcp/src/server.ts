@@ -40,6 +40,7 @@ import {
   createDurableExecutor,
   createEngagementService,
   createImagingAttachmentRefResolver,
+  createImagingAttachmentSource,
   createImagingImageRefResolver,
   createImagingService,
   createPatientService,
@@ -361,6 +362,8 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     withTenantTransaction: deps.tenantTransactions,
     recording,
     execute,
+    // B CL-04 -> I3 (integration): attachment digests from I3's consumer reference read.
+    attachments: createImagingAttachmentSource(),
   });
   const clinical = createClinicalService({
     authorize,

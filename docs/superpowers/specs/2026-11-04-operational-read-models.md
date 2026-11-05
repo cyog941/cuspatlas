@@ -42,9 +42,11 @@ The domain modules record facts correctly but expose them one aggregate at a tim
 - Hand-maintained navigation (OR-14).
 - Any visual treatment. Design stays deferred.
 
-## Open decisions (recommended option, pending approval)
+## Decisions (accepted by the user on 2026-11-04: "go with your recommended options")
 
-| ID | Question | Recommended option | Owner |
+The six product decisions below were accepted by the user as recommended. This acceptance covers these product choices only; clinical, billing, privacy and legal reviewer sign-offs recorded elsewhere remain pending.
+
+| ID | Question | Accepted option | Owner |
 |---|---|---|---|
 | OR-D1 | Floor view in the first release, or an attendance report only? | Build the read model now (cheap, composed); release decision with the clinical reviewer | Product + clinical |
 | OR-D2 | Staging list capacity and whether a staged appointment keeps its slot | Capacity 10 per location, configurable; the slot is kept until rebooked or cancelled | Engineering + reception |

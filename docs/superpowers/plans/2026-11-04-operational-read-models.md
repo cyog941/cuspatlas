@@ -1,6 +1,6 @@
 # Operational read models implementation plan
 
-> Implements the [operational read models spec](../specs/2026-11-04-operational-read-models.md). Task IDs continue each owning workstream's numbering per [SHARED-CONTRACTS](../../SHARED-CONTRACTS.md#plan-taxonomy-task-identifiers). Synthetic data only. UI remains deferred. Every decision marked OR-D is recommended-pending-approval.
+> Implements the [operational read models spec](../specs/2026-11-04-operational-read-models.md). Task IDs continue each owning workstream's numbering per [SHARED-CONTRACTS](../../SHARED-CONTRACTS.md#plan-taxonomy-task-identifiers). Synthetic data only. UI remains deferred. Decisions OR-D1 to OR-D6 were accepted by the user on 2026-11-04.
 
 **Depends on:** the integrated backend (F, S, C, B, E, I), plus A4 (operation catalog) for the A tasks.
 

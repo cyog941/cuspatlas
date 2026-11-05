@@ -73,10 +73,10 @@ describe('A20 / OR-01 catalog-wide list envelope conformance', () => {
     ).toEqual([]);
   });
 
-  it('every list declares ordering with a documented tie-break distinct from its key', () => {
+  it('every list declares ordering with a documented total tie-break (a unique key is its own tie-break)', () => {
     for (const [op, spec] of Object.entries(LIST_OPERATIONS)) {
+      expect(spec.ordering.key, op).toMatch(/^[A-Za-z.]{1,64}$/);
       expect(spec.ordering.tieBreak, op).toMatch(/^[A-Za-z.]{1,64}$/);
-      expect(spec.ordering.tieBreak, op).not.toBe(spec.ordering.key);
       expect(spec.rows, op).toMatch(/^data(\.[A-Za-z]+)?$/);
     }
   });

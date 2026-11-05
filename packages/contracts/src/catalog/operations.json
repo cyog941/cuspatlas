@@ -4112,7 +4112,7 @@
       "method": "get",
       "path": "/v1/communications/channel-policies",
       "successStatus": "200",
-      "successSchema": "engagement:EngagementRead"
+      "successSchema": "engagement:EngagementListRead"
     },
     "mcpTool": "communications_channel_policies_list",
     "refusals": [
@@ -4144,7 +4144,7 @@
       "method": "get",
       "path": "/v1/patients/{patientRef}/consents",
       "successStatus": "200",
-      "successSchema": "engagement:EngagementRead"
+      "successSchema": "engagement:EngagementListRead"
     },
     "mcpTool": "communications_consents_list",
     "refusals": [
@@ -4498,7 +4498,7 @@
       "method": "get",
       "path": "/v1/communications/recall-enrollments",
       "successStatus": "200",
-      "successSchema": "engagement:EngagementRead"
+      "successSchema": "engagement:EngagementListRead"
     },
     "mcpTool": "communications_recall_enrollments",
     "refusals": [
@@ -6502,7 +6502,7 @@
       "method": "get",
       "path": "/v1/intake/forms",
       "successStatus": "200",
-      "successSchema": "engagement:EngagementRead"
+      "successSchema": "engagement:EngagementListRead"
     },
     "mcpTool": "intake_forms_list",
     "refusals": [
@@ -6703,7 +6703,7 @@
       "method": "get",
       "path": "/v1/patients/{patientRef}/intake-submissions",
       "successStatus": "200",
-      "successSchema": "engagement:EngagementRead"
+      "successSchema": "engagement:EngagementListRead"
     },
     "mcpTool": "intake_submissions_list",
     "refusals": [
@@ -8195,7 +8195,7 @@
       "method": "get",
       "path": "/v1/patients/{patientRef}/portal-grants",
       "successStatus": "200",
-      "successSchema": "engagement:EngagementRead"
+      "successSchema": "engagement:EngagementListRead"
     },
     "mcpTool": "portal_grants_list",
     "refusals": [
@@ -12726,7 +12726,7 @@
       "method": "get",
       "path": "/v1/telephony/calls",
       "successStatus": "200",
-      "successSchema": "engagement:EngagementRead"
+      "successSchema": "engagement:EngagementListRead"
     },
     "mcpTool": "telephony_calls_list",
     "refusals": [

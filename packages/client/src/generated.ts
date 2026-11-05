@@ -508,6 +508,7 @@ export type BillingClaimWorklist = {
 };
 
 export type BillingClaimWorklistResult = {
+  readonly "envelope": BillingListEnvelope;
   readonly "data": BillingClaimWorklist;
 };
 
@@ -772,8 +773,37 @@ export type BillingJournalLine = {
 };
 
 export type BillingLedgerPage = {
+  readonly "envelope": BillingListEnvelope;
   readonly "data": readonly (BillingJournalEntry)[];
   readonly "nextCursor": (BillingCursor) | (null);
+};
+
+export type BillingListCount = ({
+  readonly "exact": number;
+}) | ({
+  readonly "atLeast": number;
+});
+
+export type BillingListEnvelope = {
+  readonly "asOf": string;
+  readonly "appliedFilters": { readonly [k: string]: unknown };
+  readonly "scope": BillingListScope;
+  readonly "limit": number;
+  readonly "truncated": boolean;
+  readonly "nextCursor": string | null;
+  readonly "ordering": BillingListOrdering;
+  readonly "count": BillingListCount;
+};
+
+export type BillingListOrdering = {
+  readonly "key": string;
+  readonly "direction": "asc" | "desc";
+  readonly "tieBreak": string;
+};
+
+export type BillingListScope = {
+  readonly "kind": "tenant_wide" | "assigned_locations" | "location_set";
+  readonly "locationRefs"?: readonly (string)[];
 };
 
 export type BillingLocalDate = string;
@@ -1051,6 +1081,7 @@ export type BillingPlanWorkItem = {
 };
 
 export type BillingPlanWorklist = {
+  readonly "envelope": BillingListEnvelope;
   readonly "data": readonly (BillingPlanWorkItem)[];
   readonly "totalCount": number;
   readonly "truncated": boolean;
@@ -1419,6 +1450,7 @@ export type BillingWorkflowPolicyPublish = {
 };
 
 export type BillingWorklist = {
+  readonly "envelope": BillingListEnvelope;
   readonly "data": readonly (BillingWorkItem)[];
   readonly "totalCount": number;
   readonly "truncated": boolean;
@@ -1708,6 +1740,7 @@ export type ClinicalConsentEvidence = {
 };
 
 export type ClinicalConsentList = {
+  readonly "envelope": ClinicalListEnvelope;
   readonly "data": readonly (ClinicalConsent)[];
   readonly "asOf": ClinicalInstant;
 };
@@ -1860,6 +1893,7 @@ export type ClinicalEncounterImageLink = {
 };
 
 export type ClinicalEncounterList = {
+  readonly "envelope": ClinicalListEnvelope;
   readonly "data": readonly (ClinicalEncounter)[];
   readonly "nextCursor": (ClinicalCursor) | (null);
 };
@@ -1962,6 +1996,7 @@ export type ClinicalEstimateLineInput = {
 };
 
 export type ClinicalEstimateList = {
+  readonly "envelope": ClinicalListEnvelope;
   readonly "data": readonly (ClinicalEstimate)[];
 };
 
@@ -2167,6 +2202,7 @@ export type ClinicalImageLinkCreate = {
 };
 
 export type ClinicalImageLinkList = {
+  readonly "envelope": ClinicalListEnvelope;
   readonly "data": {
     readonly "links": readonly (ClinicalEncounterImageLink)[];
   };
@@ -2265,6 +2301,7 @@ export type ClinicalLabCaseExport = {
 };
 
 export type ClinicalLabCaseList = {
+  readonly "envelope": ClinicalListEnvelope;
   readonly "data": readonly (ClinicalLabCase)[];
 };
 
@@ -2299,6 +2336,34 @@ export type ClinicalLabCaseSetState = {
 export type ClinicalLabCaseState = "draft" | "sent" | "in_progress" | "received" | "seated" | "remake" | "cancelled";
 
 export type ClinicalLabCounterpartyRef = string;
+
+export type ClinicalListCount = ({
+  readonly "exact": number;
+}) | ({
+  readonly "atLeast": number;
+});
+
+export type ClinicalListEnvelope = {
+  readonly "asOf": string;
+  readonly "appliedFilters": { readonly [k: string]: unknown };
+  readonly "scope": ClinicalListScope;
+  readonly "limit": number;
+  readonly "truncated": boolean;
+  readonly "nextCursor": string | null;
+  readonly "ordering": ClinicalListOrdering;
+  readonly "count": ClinicalListCount;
+};
+
+export type ClinicalListOrdering = {
+  readonly "key": string;
+  readonly "direction": "asc" | "desc";
+  readonly "tieBreak": string;
+};
+
+export type ClinicalListScope = {
+  readonly "kind": "tenant_wide" | "assigned_locations" | "location_set";
+  readonly "locationRefs"?: readonly (string)[];
+};
 
 export type ClinicalLocalDate = string;
 
@@ -2400,6 +2465,7 @@ export type ClinicalNoteDraftUpdate = {
 };
 
 export type ClinicalNoteList = {
+  readonly "envelope": ClinicalListEnvelope;
   readonly "data": readonly (ClinicalNote)[];
 };
 
@@ -2665,6 +2731,7 @@ export type ClinicalPerioExamHeader = {
 };
 
 export type ClinicalPerioExamList = {
+  readonly "envelope": ClinicalListEnvelope;
   readonly "data": readonly (ClinicalPerioExamHeader)[];
 };
 
@@ -2757,6 +2824,7 @@ export type ClinicalPlanAlternativeCreate = {
 };
 
 export type ClinicalPlanAlternativeList = {
+  readonly "envelope": ClinicalListEnvelope;
   readonly "data": readonly ({
     readonly "planRef": ClinicalTreatmentPlanRef;
     readonly "headVersionRef": ClinicalPlanVersionRef;
@@ -2944,6 +3012,7 @@ export type ClinicalProcedureCorrectionResult = {
 export type ClinicalProcedureDuplicateIntent = "repeat_in_visit" | "additional_visit";
 
 export type ClinicalProcedureList = {
+  readonly "envelope": ClinicalListEnvelope;
   readonly "data": {
     readonly "procedures": readonly (ClinicalRenderedProcedure)[];
     readonly "netRefs": readonly (ClinicalProcedureRef)[];
@@ -3069,6 +3138,7 @@ export type ClinicalReferralExport = {
 };
 
 export type ClinicalReferralList = {
+  readonly "envelope": ClinicalListEnvelope;
   readonly "data": readonly (ClinicalReferral)[];
 };
 
@@ -3222,6 +3292,7 @@ export type ClinicalTreatmentPlanCreate = {
 };
 
 export type ClinicalTreatmentPlanList = {
+  readonly "envelope": ClinicalListEnvelope;
   readonly "data": readonly ({
     readonly "planRef": ClinicalTreatmentPlanRef;
     readonly "patientRef": ClinicalPatientRef;
@@ -3370,6 +3441,11 @@ export type EngagementEngagementCommandResult = {
   readonly "replayed": boolean;
 };
 
+export type EngagementEngagementListRead = {
+  readonly "data": { readonly [k: string]: unknown } | readonly (unknown)[];
+  readonly "envelope": EngagementListEnvelope;
+};
+
 export type EngagementEngagementRead = {
   readonly "data": { readonly [k: string]: unknown } | readonly (unknown)[];
 };
@@ -3435,6 +3511,17 @@ export type EngagementListCount = ({
 }) | ({
   readonly "atLeast": number;
 });
+
+export type EngagementListEnvelope = {
+  readonly "asOf": string;
+  readonly "appliedFilters": { readonly [k: string]: unknown };
+  readonly "scope": EngagementListScope;
+  readonly "limit": number;
+  readonly "truncated": boolean;
+  readonly "nextCursor": string | null;
+  readonly "ordering": EngagementListOrdering;
+  readonly "count": EngagementListCount;
+};
 
 export type EngagementListOrdering = {
   readonly "key": string;
@@ -3665,6 +3752,7 @@ export type ImagingAnnotationKind = "marker" | "region" | "line" | "label";
 export type ImagingAnnotationLabel = string;
 
 export type ImagingAnnotationList = {
+  readonly "envelope": ImagingListEnvelope;
   readonly "data": {
     readonly "objectRef": ImagingObjectRef;
     readonly "annotations": readonly (ImagingAnnotation)[];
@@ -3869,6 +3957,7 @@ export type ImagingBridgeResultReport = {
 };
 
 export type ImagingBridgeWorklist = {
+  readonly "envelope": ImagingListEnvelope;
   readonly "data": {
     readonly "asOf": ImagingInstant;
     readonly "coverage": {
@@ -4023,6 +4112,7 @@ export type ImagingDeviceCommandResult = {
 export type ImagingDeviceLabel = string;
 
 export type ImagingDeviceList = {
+  readonly "envelope": ImagingListEnvelope;
   readonly "data": readonly (ImagingDeviceView)[];
 };
 
@@ -4103,6 +4193,7 @@ export type ImagingImageObject = {
 };
 
 export type ImagingImageObjectList = {
+  readonly "envelope": ImagingListEnvelope;
   readonly "data": readonly (ImagingImageObject)[];
 };
 
@@ -4299,6 +4390,7 @@ export type ImagingLegalHoldCommandResult = {
 };
 
 export type ImagingLegalHoldList = {
+  readonly "envelope": ImagingListEnvelope;
   readonly "data": readonly (ImagingLegalHold)[];
 };
 
@@ -4314,6 +4406,34 @@ export type ImagingLegalHoldRef = ImagingEntityRef;
 
 export type ImagingLegalHoldRelease = {
   readonly "reasonCode": ImagingReasonCode;
+};
+
+export type ImagingListCount = ({
+  readonly "exact": number;
+}) | ({
+  readonly "atLeast": number;
+});
+
+export type ImagingListEnvelope = {
+  readonly "asOf": string;
+  readonly "appliedFilters": { readonly [k: string]: unknown };
+  readonly "scope": ImagingListScope;
+  readonly "limit": number;
+  readonly "truncated": boolean;
+  readonly "nextCursor": string | null;
+  readonly "ordering": ImagingListOrdering;
+  readonly "count": ImagingListCount;
+};
+
+export type ImagingListOrdering = {
+  readonly "key": string;
+  readonly "direction": "asc" | "desc";
+  readonly "tieBreak": string;
+};
+
+export type ImagingListScope = {
+  readonly "kind": "tenant_wide" | "assigned_locations" | "location_set";
+  readonly "locationRefs"?: readonly (string)[];
 };
 
 export type ImagingMatchBasis = "operatorSelected" | "metadataExact" | "metadataAssisted";
@@ -4517,6 +4637,7 @@ export type ImagingRetentionPolicyCommandResult = {
 };
 
 export type ImagingRetentionPolicyList = {
+  readonly "envelope": ImagingListEnvelope;
   readonly "data": readonly (ImagingRetentionPolicy)[];
 };
 
@@ -4656,6 +4777,34 @@ export type MigrationImportPlan = {
 
 export type MigrationItemRef = MigrationUuid;
 
+export type MigrationListCount = ({
+  readonly "exact": number;
+}) | ({
+  readonly "atLeast": number;
+});
+
+export type MigrationListEnvelope = {
+  readonly "asOf": string;
+  readonly "appliedFilters": { readonly [k: string]: unknown };
+  readonly "scope": MigrationListScope;
+  readonly "limit": number;
+  readonly "truncated": boolean;
+  readonly "nextCursor": string | null;
+  readonly "ordering": MigrationListOrdering;
+  readonly "count": MigrationListCount;
+};
+
+export type MigrationListOrdering = {
+  readonly "key": string;
+  readonly "direction": "asc" | "desc";
+  readonly "tieBreak": string;
+};
+
+export type MigrationListScope = {
+  readonly "kind": "tenant_wide" | "assigned_locations" | "location_set";
+  readonly "locationRefs"?: readonly (string)[];
+};
+
 export type MigrationManifestEntity = {
   readonly "name": MigrationEntityName;
   readonly "declaredCount": MigrationCount;
@@ -4670,6 +4819,7 @@ export type MigrationMoney = {
 };
 
 export type MigrationOpeningReconciliation = {
+  readonly "envelope": MigrationListEnvelope;
   readonly "data": {
     readonly "currency": MigrationCurrencyCode;
     readonly "items": readonly ({
@@ -4750,6 +4900,7 @@ export type MigrationPracticeRef = string;
 export type MigrationProfileRef = MigrationUuid;
 
 export type MigrationProvenanceList = {
+  readonly "envelope": MigrationListEnvelope;
   readonly "data": readonly ({
     readonly "packageRef": MigrationPackageRef;
     readonly "patientRef": MigrationPatientRef;
@@ -4813,6 +4964,7 @@ export type MigrationReviewItem = {
 };
 
 export type MigrationReviewItemList = {
+  readonly "envelope": MigrationListEnvelope;
   readonly "data": readonly (MigrationReviewItem)[];
 };
 
@@ -4930,6 +5082,7 @@ export type PatientDuplicateCandidate = {
 };
 
 export type PatientDuplicateCandidateList = {
+  readonly "envelope": PatientListEnvelope;
   readonly "data": readonly (PatientDuplicateCandidate)[];
   readonly "minScore": number;
   readonly "policyVersion": string;
@@ -4961,6 +5114,34 @@ export type PatientLegalName = ({
   readonly "family": PatientText;
 }) | (PatientUnknown);
 
+export type PatientListCount = ({
+  readonly "exact": number;
+}) | ({
+  readonly "atLeast": number;
+});
+
+export type PatientListEnvelope = {
+  readonly "asOf": string;
+  readonly "appliedFilters": { readonly [k: string]: unknown };
+  readonly "scope": PatientListScope;
+  readonly "limit": number;
+  readonly "truncated": boolean;
+  readonly "nextCursor": string | null;
+  readonly "ordering": PatientListOrdering;
+  readonly "count": PatientListCount;
+};
+
+export type PatientListOrdering = {
+  readonly "key": string;
+  readonly "direction": "asc" | "desc";
+  readonly "tieBreak": string;
+};
+
+export type PatientListScope = {
+  readonly "kind": "tenant_wide" | "assigned_locations" | "location_set";
+  readonly "locationRefs"?: readonly (string)[];
+};
+
 export type PatientLocationRef = string;
 
 export type PatientMergeCommandResult = {
@@ -4971,6 +5152,7 @@ export type PatientMergeCommandResult = {
 };
 
 export type PatientMergeHistory = {
+  readonly "envelope": PatientListEnvelope;
   readonly "data": readonly (PatientMergeResult)[];
 };
 
@@ -5123,6 +5305,7 @@ export type PatientPatientSummary = {
 };
 
 export type PatientPatientSummaryPage = {
+  readonly "envelope": PatientListEnvelope;
   readonly "data": readonly (PatientPatientSummary)[];
   readonly "nextCursor": (PatientCursor) | (null);
 };
@@ -5188,6 +5371,7 @@ export type PatientRelationshipCreate = {
 export type PatientRelationshipKind = "guardian" | "guarantor" | "dependent" | "proxy";
 
 export type PatientRelationshipList = {
+  readonly "envelope": PatientListEnvelope;
   readonly "data": readonly (PatientRelationship)[];
 };
 
@@ -5361,6 +5545,7 @@ export type SchedulingAppointmentRequestCreate = {
 };
 
 export type SchedulingAppointmentRequestList = {
+  readonly "envelope": SchedulingListEnvelope;
   readonly "data": readonly (SchedulingAppointmentRequestSummary)[];
   readonly "nextCursor": (SchedulingCursor) | (null);
 };
@@ -5432,6 +5617,7 @@ export type SchedulingAttendanceCommandResult = {
 export type SchedulingAttendanceKind = "confirmed_manual" | "confirmed_automated" | "arrived" | "arrived_curbside" | "waiting" | "in_care" | "late" | "left_without_treatment" | "no_show" | "cancelled" | "rescheduled";
 
 export type SchedulingAttendanceList = {
+  readonly "envelope": SchedulingListEnvelope;
   readonly "data": readonly (SchedulingAttendanceTransition)[];
 };
 
@@ -5596,6 +5782,7 @@ export type SchedulingContactConsent = "unknown" | "granted" | "declined";
 export type SchedulingCursor = string;
 
 export type SchedulingDailyWorklist = {
+  readonly "envelope": SchedulingListEnvelope;
   readonly "data": {
     readonly "locationRef": SchedulingLocationRef;
     readonly "date": SchedulingLocalDate;
@@ -5756,6 +5943,7 @@ export type SchedulingLocationDefine = {
 };
 
 export type SchedulingLocationList = {
+  readonly "envelope": SchedulingListEnvelope;
   readonly "data": readonly (SchedulingLocation)[];
   readonly "nextCursor": (SchedulingCursor) | (null);
 };
@@ -6046,6 +6234,7 @@ export type SchedulingRecallPolicyDefine = {
 };
 
 export type SchedulingRecallPolicyList = {
+  readonly "envelope": SchedulingListEnvelope;
   readonly "data": readonly (SchedulingRecallPolicy)[];
 };
 
@@ -6193,6 +6382,7 @@ export type SchedulingResourceDetail = {
 export type SchedulingResourceKind = "provider" | "operatory" | "equipment" | "staff";
 
 export type SchedulingResourceList = {
+  readonly "envelope": SchedulingListEnvelope;
   readonly "data": readonly (SchedulingResource)[];
   readonly "nextCursor": (SchedulingCursor) | (null);
 };
@@ -6440,6 +6630,7 @@ export type SchedulingStandingPolicyGrant = {
 };
 
 export type SchedulingStandingPolicyList = {
+  readonly "envelope": SchedulingListEnvelope;
   readonly "data": readonly ({
     readonly "policyRef": SchedulingStandingPolicyRef;
     readonly "operation": "scheduling.recovery.execute";
@@ -6578,6 +6769,7 @@ export type SchedulingVisitContextItem = {
 };
 
 export type SchedulingVisitContextItemList = {
+  readonly "envelope": SchedulingListEnvelope;
   readonly "data": readonly (SchedulingVisitContextItem)[];
 };
 
@@ -6696,6 +6888,7 @@ export type SchedulingWaitlistEntryCommandResult = {
 };
 
 export type SchedulingWaitlistEntryList = {
+  readonly "envelope": SchedulingListEnvelope;
   readonly "data": readonly (SchedulingWaitlistEntry)[];
 };
 
@@ -6752,6 +6945,7 @@ export type SchedulingWorkItem = {
 };
 
 export type SchedulingWorkItemList = {
+  readonly "envelope": SchedulingListEnvelope;
   readonly "data": {
     readonly "asOf": SchedulingInstant;
     readonly "coverage": SchedulingWorkCoverage;
@@ -6768,6 +6962,34 @@ export type SchedulingWorkItemList = {
 export type SyntheticCursor = string;
 
 export type SyntheticLabel = string;
+
+export type SyntheticListCount = ({
+  readonly "exact": number;
+}) | ({
+  readonly "atLeast": number;
+});
+
+export type SyntheticListEnvelope = {
+  readonly "asOf": string;
+  readonly "appliedFilters": { readonly [k: string]: unknown };
+  readonly "scope": SyntheticListScope;
+  readonly "limit": number;
+  readonly "truncated": boolean;
+  readonly "nextCursor": string | null;
+  readonly "ordering": SyntheticListOrdering;
+  readonly "count": SyntheticListCount;
+};
+
+export type SyntheticListOrdering = {
+  readonly "key": string;
+  readonly "direction": "asc" | "desc";
+  readonly "tieBreak": string;
+};
+
+export type SyntheticListScope = {
+  readonly "kind": "tenant_wide" | "assigned_locations" | "location_set";
+  readonly "locationRefs"?: readonly (string)[];
+};
 
 export type SyntheticLocationRef = string;
 
@@ -6847,6 +7069,7 @@ export type SyntheticSyntheticTaskCreate = {
 };
 
 export type SyntheticSyntheticTaskList = {
+  readonly "envelope": SyntheticListEnvelope;
   readonly "data": readonly (SyntheticSyntheticTask)[];
   readonly "nextCursor": (SyntheticCursor) | (null);
 };
@@ -8072,7 +8295,7 @@ export interface Operations {
     params: {  };
     query: Record<string, never>;
     body: undefined;
-    result: EngagementEngagementRead;
+    result: EngagementEngagementListRead;
     successStatus: 200;
     idempotent: false;
   };
@@ -8082,7 +8305,7 @@ export interface Operations {
     params: { readonly patientRef: string; };
     query: Record<string, never>;
     body: undefined;
-    result: EngagementEngagementRead;
+    result: EngagementEngagementListRead;
     successStatus: 200;
     idempotent: false;
   };
@@ -8182,7 +8405,7 @@ export interface Operations {
     params: {  };
     query: { readonly category?: string; };
     body: undefined;
-    result: EngagementEngagementRead;
+    result: EngagementEngagementListRead;
     successStatus: 200;
     idempotent: false;
   };
@@ -8772,7 +8995,7 @@ export interface Operations {
     params: {  };
     query: Record<string, never>;
     body: undefined;
-    result: EngagementEngagementRead;
+    result: EngagementEngagementListRead;
     successStatus: 200;
     idempotent: false;
   };
@@ -8832,7 +9055,7 @@ export interface Operations {
     params: { readonly patientRef: string; };
     query: Record<string, never>;
     body: undefined;
-    result: EngagementEngagementRead;
+    result: EngagementEngagementListRead;
     successStatus: 200;
     idempotent: false;
   };
@@ -9262,7 +9485,7 @@ export interface Operations {
     params: { readonly patientRef: string; };
     query: Record<string, never>;
     body: undefined;
-    result: EngagementEngagementRead;
+    result: EngagementEngagementListRead;
     successStatus: 200;
     idempotent: false;
   };
@@ -10582,7 +10805,7 @@ export interface Operations {
     params: {  };
     query: Record<string, never>;
     body: undefined;
-    result: EngagementEngagementRead;
+    result: EngagementEngagementListRead;
     successStatus: 200;
     idempotent: false;
   };

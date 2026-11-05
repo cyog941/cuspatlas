@@ -474,8 +474,9 @@
     "LocationList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data", "nextCursor"],
+      "required": ["data", "nextCursor", "envelope"],
       "properties": {
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/Location" } },
         "nextCursor": { "anyOf": [{ "$ref": "#/$defs/Cursor" }, { "type": "null" }] }
       }
@@ -542,8 +543,9 @@
     "ResourceList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data", "nextCursor"],
+      "required": ["data", "nextCursor", "envelope"],
       "properties": {
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/Resource" } },
         "nextCursor": { "anyOf": [{ "$ref": "#/$defs/Cursor" }, { "type": "null" }] }
       }
@@ -1130,8 +1132,9 @@
     "AppointmentRequestList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data", "nextCursor"],
+      "required": ["data", "nextCursor", "envelope"],
       "properties": {
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": {
           "type": "array",
           "maxItems": 100,
@@ -1977,8 +1980,9 @@
     "AttendanceList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data"],
+      "required": ["data", "envelope"],
       "properties": {
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": {
           "type": "array",
           "maxItems": 200,
@@ -2134,8 +2138,9 @@
     "DailyWorklist": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data"],
+      "required": ["data", "envelope"],
       "properties": {
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": {
           "type": "object",
           "additionalProperties": false,
@@ -2727,8 +2732,9 @@
     "VisitContextItemList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data"],
+      "required": ["data", "envelope"],
       "properties": {
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": {
           "type": "array",
           "maxItems": 200,
@@ -3408,8 +3414,9 @@
     "WorkItemList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data"],
+      "required": ["data", "envelope"],
       "properties": {
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": {
           "type": "object",
           "additionalProperties": false,
@@ -3970,8 +3977,9 @@
     "WaitlistEntryList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data"],
+      "required": ["data", "envelope"],
       "properties": {
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": {
           "type": "array",
           "maxItems": 100,
@@ -4424,8 +4432,9 @@
     "StandingPolicyList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data"],
+      "required": ["data", "envelope"],
       "properties": {
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": {
           "type": "array",
           "maxItems": 100,
@@ -4635,8 +4644,9 @@
     "RecallPolicyList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data"],
+      "required": ["data", "envelope"],
       "properties": {
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": {
           "type": "array",
           "maxItems": 200,

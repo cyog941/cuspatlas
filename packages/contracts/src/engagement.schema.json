@@ -199,6 +199,16 @@
         }
       }
     },
+    "EngagementListRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A20 / OR-01: an engagement list read (the generic read plus the shared list envelope).",
+      "required": ["data", "envelope"],
+      "properties": {
+        "data": { "type": ["object", "array"] },
+        "envelope": { "$ref": "#/$defs/ListEnvelope" }
+      }
+    },
     "PortalView": {
       "enum": ["demographics", "appointments", "requests", "documents", "balances", "messages", "forms"],
       "description": "E2 portal view names. Each maps to relationship scopes (appointments/requests: scheduling; balances: financial; documents: clinical_read; messages: consent; forms: demographics and consent); none is a scope itself."

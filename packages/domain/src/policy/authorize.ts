@@ -6,6 +6,7 @@ import {
   RefusalError,
   type SecurityReasonCode,
 } from '@cuspatlas/contracts';
+import { recordListScope } from './list-scope';
 
 interface ActionPolicy {
   /** Scope required in BOTH the live membership and the context; null = any active member. */
@@ -607,6 +608,7 @@ export function createAuthorize(memberships: MembershipSource): Authorize {
       deny('scope_missing');
     }
     if (resource.locationId !== undefined) assertLocation(m.locationRefs, resource.locationId);
+    recordListScope(m.locationRefs);
     return { action, locationRefs: m.locationRefs };
   };
 }

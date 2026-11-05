@@ -630,7 +630,11 @@ describe('C5 separation, visibility, privacy and parity', () => {
         `/v1/clinical/patients/${await createPatient(h, 'Synthetic Empty')}/encounters`,
       ),
     );
-    expect(none).toStrictEqual({ data: [], nextCursor: null });
+    expect(none).toMatchObject({
+      data: [],
+      nextCursor: null,
+      envelope: { count: { exact: 0 }, truncated: false },
+    });
   });
 
   it('reads are sensitive-read logged with references only', async () => {

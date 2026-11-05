@@ -17,6 +17,7 @@ export * from './integrations/adapter';
 export * from './migration';
 export * from './patients';
 export * from './policy/authorize';
+export * from './policy/list-scope';
 export * from './policy/patient-access';
 export * from './scheduling';
 export * from './synthetic-tasks';

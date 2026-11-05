@@ -198,7 +198,7 @@ describe('S4 acceptance', () => {
       .data.map((p: { patientRef: string }) => p.patientRef)
       .sort();
     expect(refs).toStrictEqual([one.json().data.patientRef, two.json().data.patientRef].sort());
-    expect(Object.keys(found.json()).sort()).toStrictEqual(['data', 'nextCursor']);
+    expect(Object.keys(found.json()).sort()).toStrictEqual(['data', 'envelope', 'nextCursor']);
     expect(await count('patients', 'merged_into IS NOT NULL')).toBe(0);
   });
 
@@ -301,7 +301,9 @@ describe('S4 acceptance', () => {
     // Search from the other tenant returns an empty page, not a denial-shaped error.
     const foreign = await search('b1', { name: 'Synthetic Patient Hidden' });
     expect(foreign.statusCode).toBe(200);
-    expect(foreign.json()).toStrictEqual({ data: [], nextCursor: null });
+    expect(foreign.json()).toMatchObject({ data: [], nextCursor: null, envelope: { count: { exact: 0 } } });
+    // A20: identifying search filters are never echoed back in the envelope.
+    expect(foreign.json().envelope.appliedFilters.name).toBe('provided');
   });
 
   it('6. absent field groups are stored as explicit unknown, never as an empty string', async () => {

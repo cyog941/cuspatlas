@@ -62,6 +62,7 @@ import {
 import { registerDeprecationHeaders } from './deprecation';
 import { createDeviceAuthenticator } from './device-auth';
 import { mapErrorToRefusal, safeErrorKind } from './errors';
+import { registerListEnvelope } from './list-envelope-hook';
 import {
   registerAppointmentRoutes,
   registerAttendanceRoutes,
@@ -247,6 +248,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   });
 
   registerDeprecationHeaders(app, deps.deprecations ?? DEPRECATIONS);
+  registerListEnvelope(app);
 
   app.decorateRequest('actor', null);
   app.addHook('onRequest', async (request, reply) => {

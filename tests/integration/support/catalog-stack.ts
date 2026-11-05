@@ -14,6 +14,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { openTestDatabase, type TestDatabase } from './db';
+import { email } from './engagement-fixtures';
 import { createFakeScanner } from './fake-scanner';
 import { seedTenancy, T_ALPHA, T_BETA } from './fixtures';
 import { tempObjectStore } from './imaging-fixtures';
@@ -183,7 +184,16 @@ export async function startCatalogStack(label: string, allScopes: readonly strin
     return client;
   };
   const mcpAt: CatalogStack['mcpAt'] = async (url, who, tool, args) => {
-    const result = await (await clientFor(who, url)).callTool({ name: tool, arguments: args });
+    let client: Client;
+    try {
+      client = await clientFor(who, url);
+    } catch (err) {
+      // The transport refused the credential before any tool ran (HTTP refusal body in the error).
+      const m = /\{.*\}/.exec(String((err as Error).message));
+      const body = m ? (JSON.parse(m[0]) as Record<string, unknown>) : { code: 'transport_error' };
+      return { isError: true, body, meta: null };
+    }
+    const result = await client.callTool({ name: tool, arguments: args });
     return {
       isError: result.isError === true,
       body: (result.structuredContent ?? {}) as Record<string, unknown>,
@@ -236,10 +246,7 @@ export async function enrollPortalPrincipal(
     'POST',
     '/v1/patients',
     patientBody('Synthetic Matrix Person', {
-      contact: {
-        known: true,
-        points: [{ channel: 'email', value: 'matrix@example.invalid', preference: 'preferred' }],
-      },
+      contact: { known: true, points: [email('matrix')] },
     }),
   );
   if (p.statusCode !== 201) throw new Error(`patient create ${p.statusCode} ${p.body}`);

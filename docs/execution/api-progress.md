@@ -13,6 +13,7 @@ Branch `codex/a-api-1`, based on the integrated F+S+C+E+I+B head `6871689`.
 | A3 scope registry and new-operation procedure | tested (synthetic); grants pending A-D2 | `tests/integration/api-scopes.test.ts` |
 | A1 contract pipeline, generated client, representation conformance | tested (synthetic) | `tests/integration/api-contract-gate.test.ts`, ADR 0007 |
 | A5 change control, deprecation and sunset record | tested (synthetic); window length pending A-D1 | `tests/integration/api-change-control.test.ts` |
+| A7 forbidden-operation matrix | tested (synthetic, runtime role); UI path absent | `tests/integration/api-forbidden-matrix.test.ts`, docs/api/forbidden-matrix.md |
 | A6 MCP parity from the catalog | tested (local synthetic transport); remote blocked on A-S1; disable list pending A-D3 | `tests/integration/api-mcp-catalog-parity.test.ts` |
 
 ### A4: operation catalog
@@ -106,3 +107,24 @@ Branch `codex/a-api-1`, based on the integrated F+S+C+E+I+B head `6871689`.
   a REST-audience credential is refused by the MCP transport before any tool runs. Identical refusals
   per operation are proven by the A7 matrix.
 - `docs/api/mcp-surface.md` lists the REST-only operations and the candidate disable list (A-D3, open).
+
+### A7: forbidden-operation matrix
+
+- Derived from the catalog: 2082 cases over 354 operations (every operation except public health),
+  by principal kind human 1030, service 360, portal 351, device 341; fingerprints per surface REST
+  1970, MCP 974, portal 52, bridge 18, worker 42. Runs on the real app and MCP server under the
+  runtime role in about 80 s on this host.
+- Every staff operation: excluded kind with full scopes is `principal_kind_denied`, admitted kind
+  without scope is `scope_missing`, identical on REST and MCP (outcome, code and internal reason);
+  revoked membership; token naming another tenant; portal and device identities on the staff
+  transport. Portal, bridge/pairing, worker and capability operations have their own cases.
+- First run (red, exit 1, 3 failed / 4 passed) found: a too-broad agent-boundary rule
+  (`billing.plans.amend` is a payment-plan amendment, not clinical), the MCP transport refusing
+  revoked or unscoped credentials before tool dispatch (now recorded as a transport denial), and one
+  reason difference: `syntheticTasks.proposals.approve` for a service principal is denied as not-found
+  because the proposal is loaded before the policy check; reviewed and listed (still denied, REST =
+  MCP; existing-proposal refusals are in proposal-policy.test.ts). No operation was allowed that the
+  catalog forbids.
+- Not covered by this matrix: record-level cross-tenant cases on existing records, locations,
+  relationship expiry and queued-job revocation stay in the workstream harnesses; there is no UI path
+  yet (UI deferred).

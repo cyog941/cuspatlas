@@ -72,6 +72,8 @@ export async function leaseReady(
     readonly leaseSeconds: number;
     /** An expired lease is taken over only this many seconds after it expired (default 0). */
     readonly quietSeconds?: number;
+    /** Only events of these aggregate types (absent: every type). */
+    readonly aggregateTypes?: readonly string[];
   },
 ): Promise<LeasedEvent[]> {
   const limit = Math.min(Math.max(Math.trunc(opts.limit), 1), 100);
@@ -81,8 +83,9 @@ export async function leaseReady(
   const { rows } = await tx.query<LeaseRow>(
     `WITH ready AS (
        SELECT id, state AS prior_state FROM cuspatlas.outbox_events
-       WHERE (state IN ('pending', 'retry', 'reconciliation') AND next_attempt_at <= now())
-          OR (state = 'leased' AND leased_until + make_interval(secs => $3) <= now())
+       WHERE ((state IN ('pending', 'retry', 'reconciliation') AND next_attempt_at <= now())
+          OR (state = 'leased' AND leased_until + make_interval(secs => $3) <= now()))
+         AND ($4::text[] IS NULL OR aggregate_type = ANY ($4::text[]))
        ORDER BY next_attempt_at, id
        LIMIT $1
        FOR UPDATE SKIP LOCKED
@@ -93,7 +96,7 @@ export async function leaseReady(
      FROM ready WHERE o.id = ready.id
      RETURNING o.id, o.tenant_id, o.actor_id, o.operation, o.aggregate_type, o.aggregate_id,
        o.aggregate_version, o.correlation_id, o.payload, o.attempt, o.max_attempts, ready.prior_state`,
-    [limit, opts.leaseSeconds, quiet],
+    [limit, opts.leaseSeconds, quiet, opts.aggregateTypes ? [...opts.aggregateTypes] : null],
   );
   return rows.map((r) => ({
     id: r.id,

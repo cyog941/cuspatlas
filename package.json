@@ -19,6 +19,7 @@
     "contract:check": "tsx apps/api/src/contract-drift-cli.ts",
     "openapi:billing": "tsx scripts/openapi-billing.ts",
     "start": "tsx apps/api/src/main.ts",
+    "start:worker": "tsx apps/worker/src/main.ts",
     "sbom": "node scripts/sbom.mjs",
     "scan:privacy": "node scripts/privacy-scan.mjs",
     "evidence": "node scripts/evidence.mjs",

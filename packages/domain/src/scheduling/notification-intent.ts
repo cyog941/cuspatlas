@@ -41,6 +41,8 @@ export interface IntentInput {
   readonly dueAt: Date | null;
   /** The earlier intent this one replaces (the subject's reminder on cancel or reschedule). */
   readonly supersedes?: string | null;
+  /** The id in the delivery key when the subject already has an intent of this purpose (S22 reassign). */
+  readonly deliveryKeyRef?: string;
 }
 
 /** Records one intent with channel `none` in the caller's transaction (audit and outbox included). */
@@ -69,7 +71,7 @@ export async function recordNotificationIntent(
       i.subjectId,
       i.locationId,
       i.purpose,
-      `${i.purpose}:${i.subjectId}`,
+      `${i.purpose}:${i.deliveryKeyRef ?? i.subjectId}`,
       NOTIFICATION_POLICY_REF,
       i.supersedes ?? null,
       i.dueAt,

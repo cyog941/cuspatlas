@@ -480,6 +480,10 @@ export const ACTION_POLICIES = {
   'imaging.objects.grantRead': { scope: 'imaging.read', principals: ['human'] }, // A-D4
   'imaging.objects.content': { scope: 'imaging.read', principals: ['human'] }, // A-D4
   'imaging.objects.revokeGrant': { scope: 'imaging.write', principals: ['human', 'service'] }, // A-S8
+  // E2 portal documents (closeout B): releasing an image to the patient's portal, and revoking it, is a
+  // clinician's explicit human decision (never an agent or service).
+  'imaging.objects.releaseToPortal': { scope: 'imaging.write', principals: ['human'] },
+  'imaging.portalReleases.revoke': { scope: 'imaging.write', principals: ['human'] },
   // Capability probe: revoking another principal's grant needs imaging.write.
   'imaging.grants.revokeAny': { scope: 'imaging.write', principals: ['human', 'service'] },
   // A-D4: the admin reconcile is human only; the worker runs the same sweep as its own service-only command.

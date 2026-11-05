@@ -15941,6 +15941,168 @@ paths:
         '503':
           $ref: '#/components/responses/Refusal'
   # END generated: AUTOMATION_OPS
+  /portal/v1/patients/{patientRef}/documents/{releaseRef}/read-grants:
+    post:
+      operationId: portal.documents.grantRead
+      description: >-
+        Portal-audience operation portal.documents.grantRead (portal principals only; never a staff or MCP
+        surface). A short-lived read grant of one image a clinician released to this patient's portal.
+      parameters:
+        - name: patientRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/PatientRef'
+        - name: releaseRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EntityRef'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EmptyQuery'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /portal/v1/patients/{patientRef}/documents/{releaseRef}/content:
+    get:
+      operationId: portal.documents.content
+      description: >-
+        Portal-audience operation portal.documents.content (portal principals only; never a staff or MCP
+        surface). The released image bytes with a live grant in the x-object-read-token header. REST only.
+      parameters:
+        - name: patientRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/PatientRef'
+        - name: releaseRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EntityRef'
+        - name: x-object-read-token
+          in: header
+          required: true
+          description: Read-grant token from portal.documents.grantRead; never logged.
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ReadGrant/properties/token'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/octet-stream:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectBytes'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/objects/{objectRef}/portal-releases:
+    post:
+      operationId: imaging.objects.releaseToPortal
+      description: >-
+        Release one image to the portal of the patient it is currently associated with (a person's explicit
+        decision; audited and revocable). Unreleased images never appear in the portal.
+      parameters:
+        - name: objectRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/ObjectRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/PortalReleaseCreate'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/PortalReleaseCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/imaging/portal-releases/{releaseRef}/revoke:
+    post:
+      operationId: imaging.portalReleases.revoke
+      description: >-
+        Revoke a portal release: the image leaves the portal documents view and its portal grants stop
+        working at once.
+      parameters:
+        - name: releaseRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/EntityRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/PortalReleaseRevoke'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/imaging.schema.json#/$defs/PortalReleaseCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
 components:
   securitySchemes:
     bearer:

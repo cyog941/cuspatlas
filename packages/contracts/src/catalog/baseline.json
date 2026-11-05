@@ -12866,6 +12866,49 @@
       ]
     },
     {
+      "operation": "imaging.objects.releaseToPortal",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "imaging.write",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/imaging/objects/{objectRef}/portal-releases"
+      },
+      "mcpTool": "imaging_objects_release_to_portal",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "patientRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "patientRef"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
       "operation": "imaging.objects.revokeGrant",
       "transports": [
         "rest",
@@ -12881,6 +12924,39 @@
         "path": "/v1/imaging/read-grants/{grantRef}/revoke"
       },
       "mcpTool": "imaging_objects_revoke_grant",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {}
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "imaging.portalReleases.revoke",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "imaging.write",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/imaging/portal-releases/{releaseRef}/revoke"
+      },
+      "mcpTool": "imaging_portal_releases_revoke",
       "input": {
         "type": [
           "object"
@@ -17831,6 +17907,58 @@
       ]
     },
     {
+      "operation": "portal.documents.content",
+      "transports": [
+        "portal"
+      ],
+      "scope": null,
+      "principals": [
+        "portal"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/portal/v1/patients/{patientRef}/documents/{releaseRef}/content"
+      },
+      "idempotency": "none",
+      "refusals": [
+        "401",
+        "403",
+        "404",
+        "409",
+        "503"
+      ]
+    },
+    {
+      "operation": "portal.documents.grantRead",
+      "transports": [
+        "portal"
+      ],
+      "scope": null,
+      "principals": [
+        "portal"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/portal/v1/patients/{patientRef}/documents/{releaseRef}/read-grants"
+      },
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {}
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "503"
+      ]
+    },
+    {
       "operation": "portal.forms.describe",
       "transports": [
         "portal"
@@ -20306,6 +20434,37 @@
                   "\"unknown\""
                 ]
               },
+              "coinsurance": {
+                "type": [
+                  "array"
+                ],
+                "maxItems": 50,
+                "items": {
+                  "type": [
+                    "object"
+                  ],
+                  "closed": true,
+                  "properties": {
+                    "categoryCode": {
+                      "type": [
+                        "string"
+                      ],
+                      "pattern": "^SYN-[A-Z0-9-]{1,40}$"
+                    },
+                    "insurerPercent": {
+                      "type": [
+                        "integer"
+                      ],
+                      "maximum": 100,
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "categoryCode",
+                    "insurerPercent"
+                  ]
+                }
+              },
               "frequencies": {
                 "type": [
                   "array"
@@ -20336,6 +20495,13 @@
                       ],
                       "maximum": 120,
                       "minimum": 1
+                    },
+                    "used": {
+                      "type": [
+                        "integer"
+                      ],
+                      "maximum": 99,
+                      "minimum": 0
                     }
                   },
                   "required": [
@@ -20385,6 +20551,7 @@
                       "enum": [
                         "\"annual_maximum\"",
                         "\"deductible\"",
+                        "\"deductible_remaining\"",
                         "\"remaining_maximum\""
                       ]
                     }
@@ -20392,6 +20559,36 @@
                   "required": [
                     "amount",
                     "kind"
+                  ]
+                }
+              },
+              "waitingPeriods": {
+                "type": [
+                  "array"
+                ],
+                "maxItems": 50,
+                "items": {
+                  "type": [
+                    "object"
+                  ],
+                  "closed": true,
+                  "properties": {
+                    "categoryCode": {
+                      "type": [
+                        "string"
+                      ],
+                      "pattern": "^SYN-[A-Z0-9-]{1,40}$"
+                    },
+                    "satisfiedOn": {
+                      "type": [
+                        "string"
+                      ],
+                      "format": "date"
+                    }
+                  },
+                  "required": [
+                    "categoryCode",
+                    "satisfiedOn"
                   ]
                 }
               }

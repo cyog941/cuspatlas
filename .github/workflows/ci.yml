@@ -83,7 +83,24 @@ jobs:
       - run: pnpm test -- --project unit
       # Embedded PostgreSQL does not yet initialise on hosted Windows runners (cause under investigation;
       # see the execution ledger). Real-database evidence comes from the Linux verify job and the local
-      # Windows host. This non-blocking step keeps the server's initialisation error visible.
-      - name: embedded PostgreSQL diagnostic (non-blocking)
+      # Windows host. These non-blocking steps capture initdb/postgres stdout and stderr to files and
+      # print them, so the run log shows the real cause (the earlier step printed nothing).
+      - name: embedded PostgreSQL binaries diagnostic (non-blocking)
         continue-on-error: true
-        run: pnpm test:integration -- service-boundary
+        shell: bash
+        run: node scripts/pg-diagnostic.mjs "$RUNNER_TEMP/pg-diagnostic.log"
+      - name: embedded PostgreSQL integration diagnostic (non-blocking)
+        continue-on-error: true
+        shell: bash
+        env:
+          CUSPATLAS_PG_DIAG_FILE: ${{ runner.temp }}/pg-global-setup.log
+        run: pnpm test:integration -- service-boundary 2>&1 | tee "$RUNNER_TEMP/pg-integration.log"
+      - name: print embedded PostgreSQL diagnostics
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          for f in pg-diagnostic.log pg-global-setup.log pg-integration.log; do
+            echo "===== $f ====="
+            cat "$RUNNER_TEMP/$f" 2>/dev/null || echo "(not written)"
+          done

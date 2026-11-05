@@ -167,6 +167,14 @@ export const validateImagingIdempotencyKey = def('IdempotencyKey');
 export const validateObjectListQuery = def('ObjectListQuery');
 export const validateReadGrantRequest = def('ReadGrantRequest');
 export const validateReadGrantRevoke = def('ReadGrantRevoke');
+export const validatePortalReleaseCreate = def('PortalReleaseCreate');
+export const validatePortalReleaseRevoke = def('PortalReleaseRevoke');
+export interface PortalReleaseData {
+  readonly releaseRef: string;
+  readonly objectRef: string;
+  readonly patientRef: string;
+  readonly state: 'released' | 'revoked';
+}
 export const validateStorageReconcile = def('StorageReconcile');
 export const validateStorageOrphanSweep = def('StorageOrphanSweep');
 export interface StorageOrphanSweep {

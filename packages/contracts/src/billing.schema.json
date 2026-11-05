@@ -410,7 +410,9 @@
       "additionalProperties": false,
       "required": ["data", "nextCursor", "envelope"],
       "properties": {
-        "envelope": { "$ref": "#/$defs/ListEnvelope" },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
+        },
         "data": {
           "type": "array",
           "maxItems": 100,
@@ -1265,7 +1267,9 @@
       "additionalProperties": false,
       "required": ["data", "totalCount", "truncated", "checkedAt", "envelope"],
       "properties": {
-        "envelope": { "$ref": "#/$defs/ListEnvelope" },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
+        },
         "data": {
           "type": "array",
           "maxItems": 100,
@@ -2042,7 +2046,9 @@
       "additionalProperties": false,
       "required": ["data", "totalCount", "truncated", "checkedAt", "envelope"],
       "properties": {
-        "envelope": { "$ref": "#/$defs/ListEnvelope" },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
+        },
         "data": {
           "type": "array",
           "maxItems": 100,
@@ -2528,7 +2534,7 @@
             "required": ["kind", "amount"],
             "properties": {
               "kind": {
-                "enum": ["annual_maximum", "deductible", "remaining_maximum"]
+                "enum": ["annual_maximum", "deductible", "remaining_maximum", "deductible_remaining"]
               },
               "amount": {
                 "$ref": "#/$defs/Money"
@@ -2556,6 +2562,47 @@
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 120
+              },
+              "used": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 99
+              }
+            }
+          }
+        },
+        "coinsurance": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["categoryCode", "insurerPercent"],
+            "properties": {
+              "categoryCode": {
+                "$ref": "#/$defs/SyntheticProcedureCode"
+              },
+              "insurerPercent": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              }
+            }
+          }
+        },
+        "waitingPeriods": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["categoryCode", "satisfiedOn"],
+            "properties": {
+              "categoryCode": {
+                "$ref": "#/$defs/SyntheticProcedureCode"
+              },
+              "satisfiedOn": {
+                "$ref": "#/$defs/LocalDate"
               }
             }
           }
@@ -2713,7 +2760,7 @@
                 "required": ["kind", "amount"],
                 "properties": {
                   "kind": {
-                    "enum": ["annual_maximum", "deductible", "remaining_maximum"]
+                    "enum": ["annual_maximum", "deductible", "remaining_maximum", "deductible_remaining"]
                   },
                   "amount": {
                     "$ref": "#/$defs/Money"
@@ -2775,6 +2822,115 @@
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 120
+                  },
+                  "used": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 99
+                  }
+                }
+              }
+            },
+            "provenance": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["source", "capturedAt", "recordedByRef", "receiptRef"],
+              "properties": {
+                "source": {
+                  "enum": ["entered", "fake_adapter"]
+                },
+                "capturedAt": {
+                  "$ref": "#/$defs/Instant"
+                },
+                "recordedByRef": {
+                  "$ref": "#/$defs/PrincipalRef"
+                },
+                "receiptRef": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^syn-elig-[a-z0-9]{1,64}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "coinsurance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["items", "provenance"],
+          "properties": {
+            "items": {
+              "type": "array",
+              "maxItems": 50,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["categoryCode", "insurerPercent"],
+                "properties": {
+                  "categoryCode": {
+                    "$ref": "#/$defs/SyntheticProcedureCode"
+                  },
+                  "insurerPercent": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100
+                  }
+                }
+              }
+            },
+            "provenance": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["source", "capturedAt", "recordedByRef", "receiptRef"],
+              "properties": {
+                "source": {
+                  "enum": ["entered", "fake_adapter"]
+                },
+                "capturedAt": {
+                  "$ref": "#/$defs/Instant"
+                },
+                "recordedByRef": {
+                  "$ref": "#/$defs/PrincipalRef"
+                },
+                "receiptRef": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^syn-elig-[a-z0-9]{1,64}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "waitingPeriods": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["items", "provenance"],
+          "properties": {
+            "items": {
+              "type": "array",
+              "maxItems": 50,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["categoryCode", "satisfiedOn"],
+                "properties": {
+                  "categoryCode": {
+                    "$ref": "#/$defs/SyntheticProcedureCode"
+                  },
+                  "satisfiedOn": {
+                    "$ref": "#/$defs/LocalDate"
                   }
                 }
               }
@@ -4193,7 +4349,9 @@
       "additionalProperties": false,
       "required": ["data", "vocabularies"],
       "properties": {
-        "vocabularies": { "$ref": "#/$defs/VocabularyVersions" },
+        "vocabularies": {
+          "$ref": "#/$defs/VocabularyVersions"
+        },
         "data": {
           "$ref": "#/$defs/ClaimView"
         }
@@ -4204,7 +4362,9 @@
       "additionalProperties": false,
       "required": ["data", "envelope"],
       "properties": {
-        "envelope": { "$ref": "#/$defs/ListEnvelope" },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
+        },
         "data": {
           "$ref": "#/$defs/ClaimWorklist"
         }

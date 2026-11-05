@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { buildApp } from '@cuspatlas/api';
-import { REFUSAL_HTTP_STATUS, type RefusalCode } from '@cuspatlas/contracts';
+import { type ObjectStorePort, REFUSAL_HTTP_STATUS, type RefusalCode } from '@cuspatlas/contracts';
 import {
   createMembershipSource,
   createPortalPrincipalSource,
@@ -72,6 +72,7 @@ export async function openAppointmentHarness(
     portal?: boolean;
     imageRefResolver?: ImageRefResolver;
     attachmentRefs?: AttachmentRefResolver;
+    objectStore?: ObjectStorePort;
   } = {},
 ): Promise<AppointmentHarness> {
   await seedTenancy(db.admin);
@@ -92,6 +93,7 @@ export async function openAppointmentHarness(
     tenantTransactions,
     ...(opts.imageRefResolver ? { imageRefResolver: opts.imageRefResolver } : {}),
     ...(opts.attachmentRefs ? { attachmentRefs: opts.attachmentRefs } : {}),
+    ...(opts.objectStore ? { objectStore: opts.objectStore } : {}),
     // E1: the portal transport (its own audience) is registered only when asked for.
     ...(opts.portal
       ? {

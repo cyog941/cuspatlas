@@ -344,6 +344,8 @@ const TOOL_NAMES = [
   'imaging_objects_get',
   'imaging_objects_grant_read',
   'imaging_objects_revoke_grant',
+  'imaging_objects_release_to_portal',
+  'imaging_portal_releases_revoke',
   'imaging_storage_reconcile',
   'imaging_storage_sweep_orphan_bytes',
   'imaging_ingress_begin',

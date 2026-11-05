@@ -1,10 +1,12 @@
 import { createHash } from 'node:crypto';
 import {
   type ActorContext,
+  type BenefitCoinsurance,
   type BenefitFrequency,
   type BenefitLimit,
   type BenefitProvenance,
   type Benefits,
+  type BenefitWaitingPeriod,
   type CommandEnvelope,
   type CommandResult,
   type CoverageChangeInput,
@@ -96,6 +98,24 @@ export function createFakeEligibilityAdapter(): EligibilityPort {
       }
       if (r.payerRef.startsWith('syn-payer-inactive'))
         return { outcome: 'declined', receiptId: receipt(r.requestKey) };
+      if (r.payerRef.startsWith('syn-payer-full')) {
+        // Synthetic structured benefits for the C12 insurer-portion estimate (no real plan design).
+        return {
+          outcome: 'confirmed',
+          receiptId: receipt(r.requestKey),
+          detail: {
+            format: 'syn-elig-v1',
+            active: true,
+            annualMaximumMinor: 150000,
+            deductibleMinor: 5000,
+            annualMaximumRemainingMinor: 100000,
+            deductibleRemainingMinor: 0,
+            frequencies: [{ code: 'SYN-PROPHY', count: 2, periodMonths: 12, used: 0 }],
+            coinsurance: [{ code: 'SYN-PROPHY', percent: 100 }],
+            waitingPeriods: [],
+          },
+        };
+      }
       return {
         outcome: 'confirmed',
         receiptId: receipt(r.requestKey),
@@ -116,6 +136,10 @@ interface MappedDetail {
   readonly annualMaximumMinor: number;
   readonly deductibleMinor: number;
   readonly frequencies: readonly BenefitFrequency[];
+  readonly annualMaximumRemainingMinor?: number;
+  readonly deductibleRemainingMinor?: number;
+  readonly coinsurance?: readonly BenefitCoinsurance[];
+  readonly waitingPeriods?: readonly BenefitWaitingPeriod[];
 }
 const isCount = (v: unknown, max: number): v is number =>
   typeof v === 'number' && Number.isSafeInteger(v) && v >= 0 && v <= max;
@@ -132,13 +156,52 @@ function mapDetail(detail: unknown): MappedDetail | null {
     const x = f as Record<string, unknown>;
     if (typeof x?.code !== 'string' || !/^SYN-[A-Z0-9]{1,12}$/.test(x.code)) return null;
     if (!isCount(x.count, 99) || !isCount(x.periodMonths, 120) || x.periodMonths === 0) return null;
-    frequencies.push({ categoryCode: x.code, count: x.count, periodMonths: x.periodMonths });
+    if (x.used !== undefined && !isCount(x.used, 99)) return null;
+    frequencies.push({
+      categoryCode: x.code,
+      count: x.count,
+      periodMonths: x.periodMonths,
+      ...(x.used === undefined ? {} : { used: x.used as number }),
+    });
+  }
+  // Optional structured placeholders: present and well-formed, or the whole response stays unparsed.
+  const optional = (v: unknown) => v === undefined || isCount(v, 99999999999);
+  if (!optional(d.annualMaximumRemainingMinor) || !optional(d.deductibleRemainingMinor)) return null;
+  let coinsurance: BenefitCoinsurance[] | undefined;
+  if (d.coinsurance !== undefined) {
+    if (!Array.isArray(d.coinsurance) || d.coinsurance.length > 50) return null;
+    coinsurance = [];
+    for (const c of d.coinsurance as unknown[]) {
+      const x = c as Record<string, unknown>;
+      if (typeof x?.code !== 'string' || !/^SYN-[A-Z0-9]{1,12}$/.test(x.code) || !isCount(x.percent, 100))
+        return null;
+      coinsurance.push({ categoryCode: x.code, insurerPercent: x.percent });
+    }
+  }
+  let waitingPeriods: BenefitWaitingPeriod[] | undefined;
+  if (d.waitingPeriods !== undefined) {
+    if (!Array.isArray(d.waitingPeriods) || d.waitingPeriods.length > 50) return null;
+    waitingPeriods = [];
+    for (const w of d.waitingPeriods as unknown[]) {
+      const x = w as Record<string, unknown>;
+      if (typeof x?.code !== 'string' || !/^SYN-[A-Z0-9]{1,12}$/.test(x.code)) return null;
+      if (typeof x.satisfiedOn !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(x.satisfiedOn)) return null;
+      waitingPeriods.push({ categoryCode: x.code, satisfiedOn: x.satisfiedOn });
+    }
   }
   return {
     active: d.active,
     annualMaximumMinor: d.annualMaximumMinor,
     deductibleMinor: d.deductibleMinor,
     frequencies,
+    ...(d.annualMaximumRemainingMinor === undefined
+      ? {}
+      : { annualMaximumRemainingMinor: d.annualMaximumRemainingMinor as number }),
+    ...(d.deductibleRemainingMinor === undefined
+      ? {}
+      : { deductibleRemainingMinor: d.deductibleRemainingMinor as number }),
+    ...(coinsurance === undefined ? {} : { coinsurance }),
+    ...(waitingPeriods === undefined ? {} : { waitingPeriods }),
   };
 }
 
@@ -678,6 +741,12 @@ export function createCoverageOperations(
                   ...(b.frequencies === undefined
                     ? {}
                     : { frequencies: { items: [...b.frequencies], provenance: prov } }),
+                  ...(b.coinsurance === undefined
+                    ? {}
+                    : { coinsurance: { items: [...b.coinsurance], provenance: prov } }),
+                  ...(b.waitingPeriods === undefined
+                    ? {}
+                    : { waitingPeriods: { items: [...b.waitingPeriods], provenance: prov } }),
                 };
                 // Staff-entered eligibility is labeled unverified until a qualified source exists (B-S3).
                 state = 'unverified';
@@ -716,10 +785,32 @@ export function createCoverageOperations(
                         items: [
                           { kind: 'annual_maximum', amount: money(mapped.annualMaximumMinor) },
                           { kind: 'deductible', amount: money(mapped.deductibleMinor) },
+                          ...(mapped.annualMaximumRemainingMinor === undefined
+                            ? []
+                            : [
+                                {
+                                  kind: 'remaining_maximum' as const,
+                                  amount: money(mapped.annualMaximumRemainingMinor),
+                                },
+                              ]),
+                          ...(mapped.deductibleRemainingMinor === undefined
+                            ? []
+                            : [
+                                {
+                                  kind: 'deductible_remaining' as const,
+                                  amount: money(mapped.deductibleRemainingMinor),
+                                },
+                              ]),
                         ],
                         provenance: prov,
                       },
                       frequencies: { items: [...mapped.frequencies], provenance: prov },
+                      ...(mapped.coinsurance === undefined
+                        ? {}
+                        : { coinsurance: { items: [...mapped.coinsurance], provenance: prov } }),
+                      ...(mapped.waitingPeriods === undefined
+                        ? {}
+                        : { waitingPeriods: { items: [...mapped.waitingPeriods], provenance: prov } }),
                     };
                   }
                 }

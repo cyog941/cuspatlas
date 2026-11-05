@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -59,6 +59,13 @@ export default async function setup(): Promise<() => Promise<void>> {
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       const tail = serverLog.slice(-8).join(' | ');
+      // CI diagnostic (hosted Windows): the whole server log goes to a file the CI step prints.
+      const diag = process.env.CUSPATLAS_PG_DIAG_FILE;
+      if (diag) {
+        try {
+          writeFileSync(diag, [`phase=${phase}`, `reason=${reason}`, ...serverLog].join(' | '));
+        } catch {}
+      }
       try {
         await server.stop();
       } catch {}

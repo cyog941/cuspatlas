@@ -268,6 +268,7 @@ describe('runtime database role', () => {
       'patient_relationships',
       'patient_status_history',
       'patients',
+      'portal_document_releases',
       'portal_principals',
       'practice_export_grants',
       'practice_exports',

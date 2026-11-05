@@ -96,6 +96,8 @@ export const orphanSweepCodec: ReplayCodec<Record<string, unknown>> = {
 /** Imaging commands replayed through `imagingCodec`; each imaging task appends its commands. */
 export const IMAGING_OPERATIONS: readonly string[] = [
   'imaging.objects.revokeGrant',
+  'imaging.objects.releaseToPortal',
+  'imaging.portalReleases.revoke',
   'imaging.storage.reconcile',
   'imaging.storage.sweep',
   'imaging.ingress.begin',

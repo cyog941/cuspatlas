@@ -1293,7 +1293,7 @@ export type BillingBenefits = {
   };
   readonly "limits"?: {
     readonly "items": readonly ({
-      readonly "kind": "annual_maximum" | "deductible" | "remaining_maximum";
+      readonly "kind": "annual_maximum" | "deductible" | "remaining_maximum" | "deductible_remaining";
       readonly "amount": BillingMoney;
     })[];
     readonly "provenance": {
@@ -1308,6 +1308,31 @@ export type BillingBenefits = {
       readonly "categoryCode": BillingSyntheticProcedureCode;
       readonly "count": number;
       readonly "periodMonths": number;
+      readonly "used"?: number;
+    })[];
+    readonly "provenance": {
+      readonly "source": "entered" | "fake_adapter";
+      readonly "capturedAt": BillingInstant;
+      readonly "recordedByRef": BillingPrincipalRef;
+      readonly "receiptRef": (string) | (null);
+    };
+  };
+  readonly "coinsurance"?: {
+    readonly "items": readonly ({
+      readonly "categoryCode": BillingSyntheticProcedureCode;
+      readonly "insurerPercent": number;
+    })[];
+    readonly "provenance": {
+      readonly "source": "entered" | "fake_adapter";
+      readonly "capturedAt": BillingInstant;
+      readonly "recordedByRef": BillingPrincipalRef;
+      readonly "receiptRef": (string) | (null);
+    };
+  };
+  readonly "waitingPeriods"?: {
+    readonly "items": readonly ({
+      readonly "categoryCode": BillingSyntheticProcedureCode;
+      readonly "satisfiedOn": BillingLocalDate;
     })[];
     readonly "provenance": {
       readonly "source": "entered" | "fake_adapter";
@@ -1785,13 +1810,22 @@ export type BillingEligibilityRef = string;
 export type BillingEnteredBenefits = {
   readonly "activeStatus"?: "active" | "inactive" | "unknown";
   readonly "limits"?: readonly ({
-    readonly "kind": "annual_maximum" | "deductible" | "remaining_maximum";
+    readonly "kind": "annual_maximum" | "deductible" | "remaining_maximum" | "deductible_remaining";
     readonly "amount": BillingMoney;
   })[];
   readonly "frequencies"?: readonly ({
     readonly "categoryCode": BillingSyntheticProcedureCode;
     readonly "count": number;
     readonly "periodMonths": number;
+    readonly "used"?: number;
+  })[];
+  readonly "coinsurance"?: readonly ({
+    readonly "categoryCode": BillingSyntheticProcedureCode;
+    readonly "insurerPercent": number;
+  })[];
+  readonly "waitingPeriods"?: readonly ({
+    readonly "categoryCode": BillingSyntheticProcedureCode;
+    readonly "satisfiedOn": BillingLocalDate;
   })[];
 };
 
@@ -3074,6 +3108,7 @@ export type ClinicalEstimate = {
   readonly "coverageStatus": ClinicalCoverageStatus;
   readonly "grossAmount": (ClinicalMoney) | (null);
   readonly "patientResponsibility": ClinicalPatientResponsibility;
+  readonly "insurerEstimate": ClinicalInsurerEstimate;
   readonly "notAGuarantee": true;
   readonly "presentation": (ClinicalEstimatePresentation) | (null);
   readonly "acceptance": (ClinicalPlanAcceptance) | (null);
@@ -3364,6 +3399,48 @@ export type ClinicalImageRef = string;
 export type ClinicalImageResolutionStatus = "current" | "association_changed" | "unavailable" | "not_found" | "resolver_unavailable";
 
 export type ClinicalInstant = string;
+
+export type ClinicalInsurerEstimate = ({
+  readonly "kind": "estimated";
+  readonly "basis": "benefits_applied" | "coverage_inactive";
+  readonly "insurerPortion": ClinicalMoney;
+  readonly "patientPortion": ClinicalMoney;
+  readonly "lines": readonly ({
+    readonly "planItemRef": string;
+    readonly "procedureCodeRef": string;
+    readonly "fee": ClinicalMoney;
+    readonly "allowed": ClinicalMoney;
+    readonly "deductibleApplied": ClinicalMoney;
+    readonly "insurerPercent": (number) | (null);
+    readonly "insurerPortion": ClinicalMoney;
+    readonly "patientPortion": ClinicalMoney;
+    readonly "limitation": "none" | "annual_maximum_reached" | "frequency_limit_reached" | "waiting_period" | "coverage_inactive";
+  })[];
+  readonly "inputs": readonly ({
+    readonly "name": "coverage_status" | "coinsurance" | "deductible_remaining" | "annual_maximum_remaining" | "frequencies" | "waiting_periods" | "allowance";
+    readonly "source": string;
+    readonly "sourceRef": (string) | (null);
+    readonly "capturedAt": ClinicalInstant;
+    readonly "freshUntil": (ClinicalInstant) | (null);
+  })[];
+  readonly "method": {
+    readonly "ref": "c12-insurer-portion-v1";
+    readonly "status": "recommended-pending-billing-approval";
+    readonly "description": string;
+  };
+  readonly "notAGuarantee": true;
+}) | ({
+  readonly "kind": "unavailable";
+  readonly "reason": "estimate_incomplete" | "coverage_none" | "coverage_unknown" | "coverage_stale" | "input_unknown" | "input_stale";
+  readonly "missing": readonly (string)[];
+  readonly "fallback": "patient_range";
+  readonly "method": {
+    readonly "ref": "c12-insurer-portion-v1";
+    readonly "status": "recommended-pending-billing-approval";
+    readonly "description": string;
+  };
+  readonly "notAGuarantee": true;
+});
 
 export type ClinicalLabCase = {
   readonly "labCaseRef": ClinicalLabCaseRef;
@@ -4571,6 +4648,10 @@ export type EngagementDeliveryResolve = {
   readonly "action": "resend" | "abandon";
 };
 
+export type EngagementEmptyQuery = {
+
+};
+
 export type EngagementEngagementCommandResult = {
   readonly "data": { readonly [k: string]: unknown };
   readonly "version": EngagementVersion;
@@ -5694,6 +5775,26 @@ export type ImagingPatientHints = {
 };
 
 export type ImagingPatientRef = ImagingEntityRef;
+
+export type ImagingPortalReleaseCommandResult = {
+  readonly "data": {
+    readonly "releaseRef": ImagingEntityRef;
+    readonly "objectRef": ImagingObjectRef;
+    readonly "patientRef": ImagingPatientRef;
+    readonly "state": "released" | "revoked";
+  };
+  readonly "version": ImagingVersion;
+  readonly "correlationId": string;
+  readonly "replayed": boolean;
+};
+
+export type ImagingPortalReleaseCreate = {
+  readonly "patientRef": ImagingPatientRef;
+};
+
+export type ImagingPortalReleaseRevoke = {
+
+};
 
 export type ImagingProvenance = {
   readonly "provenanceRef": ImagingEntityRef;
@@ -11378,6 +11479,16 @@ export interface Operations {
     successStatus: 200;
     idempotent: false;
   };
+  "imaging.objects.releaseToPortal": {
+    method: "POST";
+    path: "/v1/imaging/objects/{objectRef}/portal-releases";
+    params: { readonly objectRef: string; };
+    query: Record<string, never>;
+    body: ImagingPortalReleaseCreate;
+    result: ImagingPortalReleaseCommandResult;
+    successStatus: 201;
+    idempotent: true;
+  };
   "imaging.objects.revokeGrant": {
     method: "POST";
     path: "/v1/imaging/read-grants/{grantRef}/revoke";
@@ -11385,6 +11496,16 @@ export interface Operations {
     query: Record<string, never>;
     body: ImagingReadGrantRevoke;
     result: ImagingReadGrantCommandResult;
+    successStatus: 200;
+    idempotent: true;
+  };
+  "imaging.portalReleases.revoke": {
+    method: "POST";
+    path: "/v1/imaging/portal-releases/{releaseRef}/revoke";
+    params: { readonly releaseRef: string; };
+    query: Record<string, never>;
+    body: ImagingPortalReleaseRevoke;
+    result: ImagingPortalReleaseCommandResult;
     successStatus: 200;
     idempotent: true;
   };
@@ -12105,6 +12226,26 @@ export interface Operations {
     query: Record<string, never>;
     body: EngagementPortalConsentInput;
     result: EngagementEngagementCommandResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "portal.documents.content": {
+    method: "GET";
+    path: "/portal/v1/patients/{patientRef}/documents/{releaseRef}/content";
+    params: { readonly patientRef: string; readonly releaseRef: string; };
+    query: Record<string, never>;
+    body: undefined;
+    result: Uint8Array;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "portal.documents.grantRead": {
+    method: "POST";
+    path: "/portal/v1/patients/{patientRef}/documents/{releaseRef}/read-grants";
+    params: { readonly patientRef: string; readonly releaseRef: string; };
+    query: Record<string, never>;
+    body: EngagementEmptyQuery;
+    result: EngagementEngagementRead;
     successStatus: 201;
     idempotent: true;
   };
@@ -14058,7 +14199,9 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "imaging.objects.grantRead": { method: "POST", path: "/v1/imaging/objects/{objectRef}/read-grants", successStatus: 201, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "imaging.objects.list": { method: "GET", path: "/v1/imaging/objects", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "imaging.objects.read": { method: "GET", path: "/v1/imaging/objects/{objectRef}", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "imaging.objects.releaseToPortal": { method: "POST", path: "/v1/imaging/objects/{objectRef}/portal-releases", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "imaging.objects.revokeGrant": { method: "POST", path: "/v1/imaging/read-grants/{grantRef}/revoke", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "imaging.portalReleases.revoke": { method: "POST", path: "/v1/imaging/portal-releases/{releaseRef}/revoke", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "imaging.retention.policies": { method: "GET", path: "/v1/imaging/retention/policies", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "imaging.retention.setPolicy": { method: "POST", path: "/v1/imaging/retention/policies", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "imaging.storage.reconcile": { method: "POST", path: "/v1/imaging/storage/reconcile", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
@@ -14131,6 +14274,8 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "patients.unmerge": { method: "POST", path: "/v1/patients/merges/{mergeRef}/unmerge", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "patients.updateDemographics": { method: "POST", path: "/v1/patients/{patientRef}/demographics", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "portal.consents.record": { method: "POST", path: "/portal/v1/patients/{patientRef}/consents", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "portal.documents.content": { method: "GET", path: "/portal/v1/patients/{patientRef}/documents/{releaseRef}/content", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: true, deprecated: false },
+  "portal.documents.grantRead": { method: "POST", path: "/portal/v1/patients/{patientRef}/documents/{releaseRef}/read-grants", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "portal.forms.describe": { method: "GET", path: "/portal/v1/forms/{formRef}", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "portal.forms.submit": { method: "POST", path: "/portal/v1/patients/{patientRef}/intake-submissions", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "portal.grants.list": { method: "GET", path: "/v1/patients/{patientRef}/portal-grants", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },

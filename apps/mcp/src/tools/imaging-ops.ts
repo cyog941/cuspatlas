@@ -10,6 +10,7 @@ export const IMAGING_TRANSPORT: Record<string, string> = {
   idempotencyKey: 'IdempotencyKey',
   objectRef: 'ObjectRef',
   grantRef: 'GrantRef',
+  releaseRef: 'EntityRef',
   ingressRef: 'IngressRef',
   decisionRef: 'DecisionRef',
   imageRef: 'ImageRef',

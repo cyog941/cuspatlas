@@ -10,18 +10,26 @@ import { T_ALPHA, USER_A1 } from './fixtures';
 export async function seedPracticeFees(
   db: TestDatabase,
   items: readonly (readonly [codeRef: string, minor: number])[],
-  opts: { tenantId?: string; createdBy?: string; effectiveFrom?: string; currency?: string } = {},
+  opts: {
+    tenantId?: string;
+    createdBy?: string;
+    effectiveFrom?: string;
+    currency?: string;
+    /** An allowance schedule (B9 purpose `allowance`) a coverage names by its feeScheduleRef. */
+    allowanceRef?: string;
+  } = {},
 ): Promise<{ scheduleRef: string; versionRef: string }> {
   const tenantId = opts.tenantId ?? T_ALPHA;
   const createdBy = opts.createdBy ?? USER_A1;
-  const scheduleRef = 'syn-fee-practice';
+  const scheduleRef = opts.allowanceRef ?? 'syn-fee-practice';
+  const purpose = opts.allowanceRef === undefined ? 'practice' : 'allowance';
   const client = await db.admin.connect();
   try {
     await client.query('BEGIN');
     await client.query(
       `INSERT INTO cuspatlas.billing_fee_schedules (tenant_id, schedule_ref, purpose, currency, created_by)
-       VALUES ($1, $2, 'practice', $3, $4) ON CONFLICT (tenant_id, schedule_ref) DO NOTHING`,
-      [tenantId, scheduleRef, opts.currency ?? 'USD', createdBy],
+       VALUES ($1, $2, $5, $3, $4) ON CONFLICT (tenant_id, schedule_ref) DO NOTHING`,
+      [tenantId, scheduleRef, opts.currency ?? 'USD', createdBy, purpose],
     );
     const { rows: s } = await client.query<{ id: string; next: number }>(
       `SELECT s.id, coalesce((SELECT max(v.version_no) FROM cuspatlas.billing_fee_schedule_versions v

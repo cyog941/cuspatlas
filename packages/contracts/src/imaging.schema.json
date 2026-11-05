@@ -339,7 +339,9 @@
       "additionalProperties": false,
       "required": ["data", "envelope"],
       "properties": {
-        "envelope": { "$ref": "#/$defs/ListEnvelope" },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
+        },
         "data": {
           "type": "array",
           "maxItems": 100,
@@ -1690,7 +1692,9 @@
       "additionalProperties": false,
       "required": ["data", "envelope"],
       "properties": {
-        "envelope": { "$ref": "#/$defs/ListEnvelope" },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
+        },
         "data": {
           "type": "array",
           "maxItems": 100,
@@ -2371,7 +2375,9 @@
       "additionalProperties": false,
       "required": ["data", "envelope"],
       "properties": {
-        "envelope": { "$ref": "#/$defs/ListEnvelope" },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
+        },
         "data": {
           "type": "object",
           "additionalProperties": false,
@@ -2542,15 +2548,33 @@
             "summary"
           ],
           "properties": {
-            "objectRef": { "$ref": "#/$defs/ObjectRef" },
-            "digestSha256": { "$ref": "#/$defs/Sha256" },
-            "container": { "enum": ["dicom", "none"] },
-            "markerRecognized": { "type": "boolean" },
-            "supported": { "const": false },
-            "parsing": { "const": "refused" },
-            "limitation": { "enum": ["dicom_parser_not_qualified", "not_a_container"] },
-            "blockedOn": { "const": "I-S2" },
-            "summary": { "type": "null" }
+            "objectRef": {
+              "$ref": "#/$defs/ObjectRef"
+            },
+            "digestSha256": {
+              "$ref": "#/$defs/Sha256"
+            },
+            "container": {
+              "enum": ["dicom", "none"]
+            },
+            "markerRecognized": {
+              "type": "boolean"
+            },
+            "supported": {
+              "const": false
+            },
+            "parsing": {
+              "const": "refused"
+            },
+            "limitation": {
+              "enum": ["dicom_parser_not_qualified", "not_a_container"]
+            },
+            "blockedOn": {
+              "const": "I-S2"
+            },
+            "summary": {
+              "type": "null"
+            }
           }
         }
       }
@@ -3091,7 +3115,9 @@
       "additionalProperties": false,
       "required": ["data", "envelope"],
       "properties": {
-        "envelope": { "$ref": "#/$defs/ListEnvelope" },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
+        },
         "data": {
           "type": "object",
           "additionalProperties": false,
@@ -3335,7 +3361,9 @@
       "additionalProperties": false,
       "required": ["data", "envelope"],
       "properties": {
-        "envelope": { "$ref": "#/$defs/ListEnvelope" },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
+        },
         "data": {
           "type": "array",
           "maxItems": 100,
@@ -3483,7 +3511,9 @@
       "additionalProperties": false,
       "required": ["data", "envelope"],
       "properties": {
-        "envelope": { "$ref": "#/$defs/ListEnvelope" },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
+        },
         "data": {
           "type": "array",
           "maxItems": 100,
@@ -3782,6 +3812,58 @@
         },
         "count": {
           "$ref": "#/$defs/ListCount"
+        }
+      }
+    },
+    "PortalReleaseCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["patientRef"],
+      "description": "E2: release one image to the portal of the patient it is currently associated with (human-only, audited, revocable).",
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        }
+      }
+    },
+    "PortalReleaseRevoke": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "PortalReleaseCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["releaseRef", "objectRef", "patientRef", "state"],
+          "properties": {
+            "releaseRef": {
+              "$ref": "#/$defs/EntityRef"
+            },
+            "objectRef": {
+              "$ref": "#/$defs/ObjectRef"
+            },
+            "patientRef": {
+              "$ref": "#/$defs/PatientRef"
+            },
+            "state": {
+              "enum": ["released", "revoked"]
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
         }
       }
     }

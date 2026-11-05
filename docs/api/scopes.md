@@ -52,7 +52,7 @@ human decision (A-D2). No default role grant is asserted here.
 | `imaging.delete` | human | yes | I | phi | 2 |
 | `imaging.legalHold` | human | yes | I | phi | 2 |
 | `imaging.read` | human, service | no | I | phi | 19 |
-| `imaging.write` | human, service | no | I | phi | 14 |
+| `imaging.write` | human, service | no | I | phi | 16 |
 | `ledger.read` | human, service | no | B | phi | 5 |
 | `messaging.read` | human, service | no | E | phi | 4 |
 | `messaging.write` | human | yes | E | phi | 4 |

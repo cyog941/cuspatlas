@@ -32,6 +32,7 @@ type Estimate = {
   coverageStatus: string;
   grossAmount: unknown;
   patientResponsibility: Record<string, unknown>;
+  insurerEstimate: unknown;
   notAGuarantee: true;
 };
 
@@ -212,5 +213,140 @@ describe('C12 -> B9/B5 estimate pricing seam', () => {
     );
     expect(e.coverageStatus).toBe('stale');
     expect(e.patientResponsibility).toMatchObject({ kind: 'range', basis: 'coverage_not_applied' });
+  });
+
+  it('C12 insurer portion: entered B5 benefits and a B9 allowance give per-line and total portions with sources', async () => {
+    await seedPracticeFees(db, [
+      ['SYN-EP-700', 12_000],
+      ['SYN-EP-701', 20_000],
+    ]);
+    await seedPracticeFees(
+      db,
+      [
+        ['SYN-EP-700', 10_000],
+        ['SYN-EP-701', 15_000],
+      ],
+      { allowanceRef: 'syn-fee-allow-ep7' },
+    );
+    const p = await plan('Synthetic Insurer Portion', ['SYN-EP-700', 'SYN-EP-701']);
+    const cov = await recordCoverage(h, p.patientRef, { feeScheduleRef: 'syn-fee-allow-ep7' });
+    const benefits = (coins: { categoryCode: string; insurerPercent: number }[]) => ({
+      activeStatus: 'active',
+      limits: [
+        { kind: 'deductible_remaining', amount: USD(2_500) },
+        { kind: 'remaining_maximum', amount: USD(100_000) },
+      ],
+      frequencies: [{ categoryCode: 'SYN-EP-700', count: 2, periodMonths: 12, used: 0 }],
+      coinsurance: coins,
+      waitingPeriods: [],
+    });
+    h.ok(
+      await h.call('a1', 'POST', `/v1/rcm/coverages/${cov}/eligibility`, {
+        source: 'entered',
+        serviceDate: today(),
+        benefits: benefits([
+          { categoryCode: 'SYN-EP-700', insurerPercent: 80 },
+          { categoryCode: 'SYN-EP-701', insurerPercent: 50 },
+        ]),
+      }),
+      201,
+    );
+    const e = okE(await generate(p.versionRef, { lines: p.items.map((planItemRef) => ({ planItemRef })) }));
+    const ie = e.insurerEstimate as Record<string, unknown> & { lines: Record<string, unknown>[] };
+    expect(ie).toMatchObject({
+      kind: 'estimated',
+      basis: 'benefits_applied',
+      insurerPortion: USD(13_500),
+      patientPortion: USD(11_500),
+      notAGuarantee: true,
+      method: { ref: 'c12-insurer-portion-v1', status: 'recommended-pending-billing-approval' },
+    });
+    expect(ie.lines.map((l) => [l.allowed, l.deductibleApplied, l.insurerPortion, l.patientPortion])).toEqual(
+      [
+        [USD(10_000), USD(2_500), USD(6_000), USD(4_000)],
+        [USD(15_000), USD(0), USD(7_500), USD(7_500)],
+      ],
+    );
+    expect((ie.inputs as { name: string }[]).map((x) => x.name)).toContain('allowance');
+    // The existing bounded/labelled patient responsibility stays alongside (never a guarantee).
+    expect(['unknown', 'range']).toContain(e.patientResponsibility.kind);
+    const read = h.ok<{ data: Estimate }>(
+      await h.call('a1', 'GET', `/v1/clinical/estimates/${e.estimateRef}`),
+    );
+    expect(read.data.insurerEstimate).toEqual(e.insurerEstimate);
+  });
+
+  it('C12 insurer portion: unknown coinsurance falls back to the range; inactive coverage is all patient', async () => {
+    await seedPracticeFees(db, [['SYN-EP-800', 9_000]]);
+    await seedPracticeFees(db, [['SYN-EP-800', 8_000]], { allowanceRef: 'syn-fee-allow-ep8' });
+    const p = await plan('Synthetic Insurer Unknown', ['SYN-EP-800']);
+    const cov = await recordCoverage(h, p.patientRef, { feeScheduleRef: 'syn-fee-allow-ep8' });
+    h.ok(
+      await h.call('a1', 'POST', `/v1/rcm/coverages/${cov}/eligibility`, {
+        source: 'entered',
+        serviceDate: today(),
+        benefits: {
+          activeStatus: 'active',
+          limits: [
+            { kind: 'deductible_remaining', amount: USD(0) },
+            { kind: 'remaining_maximum', amount: USD(100_000) },
+          ],
+          frequencies: [],
+          waitingPeriods: [],
+        },
+      }),
+      201,
+    );
+    const e = okE(await generate(p.versionRef, { lines: [{ planItemRef: p.items[0] }] }));
+    expect(e.insurerEstimate).toMatchObject({
+      kind: 'unavailable',
+      reason: 'input_unknown',
+      fallback: 'patient_range',
+      missing: ['coinsurance:SYN-EP-800'],
+    });
+    expect(['unknown', 'range']).toContain(e.patientResponsibility.kind);
+
+    await seedPracticeFees(db, [['SYN-EP-801', 9_000]]);
+    const q = await plan('Synthetic Insurer Inactive', ['SYN-EP-801']);
+    const cov2 = await recordCoverage(h, q.patientRef, { payerRef: 'syn-payer-inactive-ep8' });
+    h.ok(
+      await h.call('a1', 'POST', `/v1/rcm/coverages/${cov2}/eligibility`, {
+        source: 'fake_adapter',
+        serviceDate: today(),
+      }),
+      201,
+    );
+    const f = okE(await generate(q.versionRef, { lines: [{ planItemRef: q.items[0] }] }));
+    expect(f.insurerEstimate).toMatchObject({
+      kind: 'estimated',
+      basis: 'coverage_inactive',
+      insurerPortion: USD(0),
+      patientPortion: USD(9_000),
+    });
+  });
+
+  it('C12 insurer portion: fake-adapter structured benefits (syn-payer-full) are applied with their receipt', async () => {
+    await seedPracticeFees(db, [['SYN-PROPHY', 9_000]]);
+    await seedPracticeFees(db, [['SYN-PROPHY', 7_000]], { allowanceRef: 'syn-fee-allow-ep9' });
+    const p = await plan('Synthetic Insurer Adapter', ['SYN-PROPHY']);
+    const cov = await recordCoverage(h, p.patientRef, {
+      payerRef: 'syn-payer-full-ep9',
+      feeScheduleRef: 'syn-fee-allow-ep9',
+    });
+    h.ok(
+      await h.call('a1', 'POST', `/v1/rcm/coverages/${cov}/eligibility`, {
+        source: 'fake_adapter',
+        serviceDate: today(),
+      }),
+      201,
+    );
+    const e = okE(await generate(p.versionRef, { lines: [{ planItemRef: p.items[0] }] }));
+    expect(e.insurerEstimate).toMatchObject({
+      kind: 'estimated',
+      insurerPortion: USD(7_000),
+      patientPortion: USD(0),
+    });
+    const sources = (e.insurerEstimate as { inputs: { name: string; source: string }[] }).inputs;
+    expect(sources.find((x) => x.name === 'coinsurance')?.source).toBe('fake_adapter');
   });
 });

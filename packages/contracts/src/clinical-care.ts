@@ -54,6 +54,72 @@ export type PatientResponsibility =
       readonly basis: 'coverage_not_applied' | 'coverage_inactive';
     };
 
+/** C12 insurer-portion estimate (method c12-insurer-portion-v1, recommended-pending-billing-approval). */
+export type InsurerLimitation =
+  | 'none'
+  | 'annual_maximum_reached'
+  | 'frequency_limit_reached'
+  | 'waiting_period'
+  | 'coverage_inactive';
+
+export interface InsurerEstimateLine {
+  readonly planItemRef: string;
+  readonly procedureCodeRef: string;
+  readonly fee: Money;
+  readonly allowed: Money;
+  readonly deductibleApplied: Money;
+  readonly insurerPercent: number | null;
+  readonly insurerPortion: Money;
+  readonly patientPortion: Money;
+  readonly limitation: InsurerLimitation;
+}
+
+export interface InsurerEstimateInput {
+  readonly name:
+    | 'coverage_status'
+    | 'coinsurance'
+    | 'deductible_remaining'
+    | 'annual_maximum_remaining'
+    | 'frequencies'
+    | 'waiting_periods'
+    | 'allowance';
+  readonly source: string;
+  readonly sourceRef: string | null;
+  readonly capturedAt: string;
+  readonly freshUntil: string | null;
+}
+
+export interface InsurerEstimateMethod {
+  readonly ref: 'c12-insurer-portion-v1';
+  readonly status: 'recommended-pending-billing-approval';
+  readonly description: string;
+}
+export type InsurerEstimate =
+  | {
+      readonly kind: 'estimated';
+      readonly basis: 'benefits_applied' | 'coverage_inactive';
+      readonly insurerPortion: Money;
+      readonly patientPortion: Money;
+      readonly lines: readonly InsurerEstimateLine[];
+      readonly inputs: readonly InsurerEstimateInput[];
+      readonly method: InsurerEstimateMethod;
+      readonly notAGuarantee: true;
+    }
+  | {
+      readonly kind: 'unavailable';
+      readonly reason:
+        | 'estimate_incomplete'
+        | 'coverage_none'
+        | 'coverage_unknown'
+        | 'coverage_stale'
+        | 'input_unknown'
+        | 'input_stale';
+      readonly missing: readonly string[];
+      readonly fallback: 'patient_range';
+      readonly method: InsurerEstimateMethod;
+      readonly notAGuarantee: true;
+    };
+
 export interface EstimateConsentBinding {
   readonly status: 'outstanding' | 'bound' | 'withdrawn';
   readonly consentRefs: readonly string[];
@@ -90,6 +156,7 @@ export interface Estimate {
   readonly coverageStatus: CoverageStatus;
   readonly grossAmount: Money | null;
   readonly patientResponsibility: PatientResponsibility;
+  readonly insurerEstimate: InsurerEstimate;
   readonly notAGuarantee: true;
   readonly presentation: {
     readonly presentedBy: string;

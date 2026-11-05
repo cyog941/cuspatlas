@@ -13,6 +13,7 @@ import { createExportOperations } from './export';
 import { createIngressOperations, sweepAbandonedIngress, sweepOrphanStaging } from './ingress';
 import { createObjectOperations } from './objects';
 import { createOrphanBytesOperations } from './orphan-bytes';
+import { createPortalDocumentOperations } from './portal-documents';
 import { createRetentionOperations, reconcileDeletions } from './retention';
 
 /**
@@ -33,6 +34,7 @@ export function createImagingService(deps: ImagingDeps) {
       ],
     ),
     ...createIngressOperations(base),
+    ...createPortalDocumentOperations(base),
     ...createAssociationOperations(base, [mountGuard], deps.limits?.unmatchedEscalationHours ?? 48),
     ...createCompositionOperations(base),
     ...createRetentionOperations(base),

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import type { ObjectStorePort } from '@cuspatlas/contracts';
 import type { LightMyRequestResponse } from 'fastify';
 import type pg from 'pg';
 import { type AppointmentHarness, openAppointmentHarness, type Who } from './appointment-fixtures';
@@ -98,7 +99,7 @@ export interface EngagementHarness extends AppointmentHarness {
 
 export async function openEngagementHarness(
   db: TestDatabase,
-  opts: { pool?: number; mcp?: boolean } = {},
+  opts: { pool?: number; mcp?: boolean; objectStore?: ObjectStorePort } = {},
 ): Promise<EngagementHarness> {
   const attachments = new FakeAttachmentRefs();
   const h = await openAppointmentHarness(db, { ...opts, portal: true, attachmentRefs: attachments });

@@ -765,7 +765,7 @@ export type AutomationWebhookReplay = {
   readonly "deliveryRef": AutomationUuid;
 };
 
-export type AutomationWebhookResponseClass = "2xx" | "3xx" | "4xx" | "5xx" | "network" | "timeout";
+export type AutomationWebhookResponseClass = "2xx" | "3xx" | "redirect_refused" | "4xx" | "5xx" | "network" | "timeout";
 
 export type AutomationWebhookSubscription = {
   readonly "subscriptionRef": AutomationUuid;

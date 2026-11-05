@@ -60,7 +60,7 @@
     },
     "WebhookResponseClass": {
       "type": "string",
-      "enum": ["2xx", "3xx", "4xx", "5xx", "network", "timeout"]
+      "enum": ["2xx", "3xx", "redirect_refused", "4xx", "5xx", "network", "timeout"]
     },
     "WebhookSubscriptionCreate": {
       "type": "object",

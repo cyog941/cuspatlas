@@ -10,11 +10,14 @@ import {
   createAuthorize,
   createAutomationService,
   executeOnce,
+  openSecret,
   resolveWebhookPort,
+  sealSecret,
   signDelivery,
   verifyWebhookSignature,
   WEBHOOK_EVENT_CATALOG,
   type WebhookDeliveryPort,
+  webhookKeyId,
 } from '@cuspatlas/domain';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { actorFor } from './support/domain-harness';
@@ -37,12 +40,30 @@ let allow: string[] = [
   '127.0.0.1',
   '169.254.169.254',
   'localhost',
+  'pin.example.test',
+  'race.example.test',
+  'backoff.example.test',
 ];
 const dns = new Map<string, string[]>([
   ['hooks.example.test', ['203.0.113.10']],
   ['rebind.example.test', ['203.0.113.11']],
+  ['pin.example.test', ['203.0.113.12']],
+  ['race.example.test', ['203.0.113.14']],
+  ['backoff.example.test', ['203.0.113.13']],
 ]);
-const resolveHost = async (host: string) => dns.get(host) ?? ['203.0.113.99'];
+/** One-shot hooks run inside a resolution after its answer is fixed (simulate rebinding or a race). */
+const resolveHooks = new Map<string, () => Promise<void>>();
+const resolveCalls = new Map<string, number>();
+const resolveHost = async (host: string) => {
+  const addrs = dns.get(host) ?? ['203.0.113.99'];
+  resolveCalls.set(host, (resolveCalls.get(host) ?? 0) + 1);
+  const hook = resolveHooks.get(host);
+  if (hook) {
+    resolveHooks.delete(host);
+    await hook();
+  }
+  return addrs;
+};
 const webhookDeps = {
   webhookPort: receiver.port,
   webhookAllowlist: () => allow,
@@ -53,7 +74,7 @@ let worker: ActorContext;
 const data = <T>(r: { json: Record<string, unknown> }) => r.json.data as T;
 const SUB = '/v1/webhooks/subscriptions';
 
-function service(port: WebhookDeliveryPort | null) {
+function service(port: WebhookDeliveryPort | null, extra: Record<string, unknown> = {}) {
   return createAutomationService({
     env: 'synthetic-test',
     authorize: createAuthorize(createMembershipSource(s.db.app)),
@@ -65,11 +86,12 @@ function service(port: WebhookDeliveryPort | null) {
       allowlist: () => allow,
       resolveHost,
       backoffSeconds: () => 0,
+      ...extra,
     },
   });
 }
-const dispatch = (port: WebhookDeliveryPort | null = receiver.port) =>
-  service(port).dispatchWebhookDeliveries(worker, {
+const dispatch = (port: WebhookDeliveryPort | null = receiver.port, extra: Record<string, unknown> = {}) =>
+  service(port, extra).dispatchWebhookDeliveries(worker, {
     operation: 'webhooks.deliveries.dispatch',
     idempotencyKey: randomUUID(),
     payload: {},
@@ -95,6 +117,7 @@ type Delivery = {
   lastResponseClass: string | null;
   lastGuard: string | null;
   replayOf: string | null;
+  nextAttemptAt: string;
 };
 async function deliveries(subscriptionRef: string): Promise<Delivery[]> {
   const r = await s.inject('owner', 'GET', `/v1/webhooks/deliveries?subscriptionRef=${subscriptionRef}`);
@@ -441,5 +464,197 @@ describe('A14 signed at-least-once delivery', () => {
     expect(resolveWebhookPort('synthetic-test', receiver.port)).toBe(receiver.port);
     await dispatch();
     expect((await deliveries(subscriptionRef))[0]?.state).toBe('delivered');
+  });
+});
+
+describe('A14 hardening: pinning, redirects, IPv6, leases, rechecks and backoff', () => {
+  it('blocks IPv6 forms that embed private IPv4 and the IPv6 special ranges', () => {
+    for (const ip of [
+      '::ffff:7f00:1',
+      '::ffff:127.0.0.1',
+      '::ffff:a9fe:a9fe',
+      '64:ff9b::a9fe:a9fe',
+      '64:ff9b::10.0.0.1',
+      '2002:a9fe:a9fe::',
+      '2002:0a00:0001::1',
+      '::7f00:1',
+      'fec0::1',
+      'fe80::1',
+      'fd00:ec2::254',
+      'ff02::1',
+      '::',
+      '::1',
+      '2001:db8::1',
+      '2001:0:4136:e378:8000:63bf:3fff:fdd2',
+    ])
+      expect([ip, checkWebhookEndpoint(`https://[${ip}]/x`, [`[${ip}]`]).ok]).toStrictEqual([ip, false]);
+    for (const ip of ['2606:4700::1111', '::ffff:cb00:710a', '64:ff9b::cb00:710a', '2002:cb00:710a::'])
+      expect([ip, checkWebhookEndpoint(`https://[${ip}]/x`, [`[${ip}]`]).ok]).toStrictEqual([ip, true]);
+  });
+
+  it('an allowlist entry admits port 443 only unless it pins another port', () => {
+    expect(checkWebhookEndpoint('https://hooks.example.test:8443/x', ['hooks.example.test'])).toStrictEqual({
+      ok: false,
+      reason: 'endpoint_port_not_allowed',
+    });
+    expect(checkWebhookEndpoint('https://hooks.example.test:8443/x', ['hooks.example.test:8443']).ok).toBe(
+      true,
+    );
+    expect(checkWebhookEndpoint('https://hooks.example.test/x', ['hooks.example.test:8443']).ok).toBe(false);
+  });
+
+  it('a sealed secret is bound to its subscription id and carries a key id; the overlap is bounded', () => {
+    const key = new Uint8Array(32).fill(7);
+    const a = randomUUID();
+    const sealed = sealSecret(key, 'whsec_synthetic', a);
+    expect(openSecret(key, sealed, a)).toBe('whsec_synthetic');
+    expect(() => openSecret(key, sealed, randomUUID())).toThrow();
+    expect(Buffer.from(sealed, 'base64url').subarray(1, 9).equals(webhookKeyId(key))).toBe(true);
+    expect(() => service(receiver.port, { rotationOverlapSeconds: 30 * 86_400 })).toThrow(/overlap/);
+  });
+
+  it('a network delivery port cannot be composed without a resolver', () => {
+    const network: WebhookDeliveryPort = {
+      egress: 'network',
+      send: async () => ({ outcome: 'network_error' }),
+    };
+    expect(() => resolveWebhookPort('synthetic-test', network)).toThrow(/resolver/);
+    expect(resolveWebhookPort('synthetic-test', network, resolveHost)).toBe(network);
+    expect(() => service(network, { resolveHost: undefined })).toThrow(/resolver/);
+  });
+
+  it('pins the guard-checked address: a name rebinding after the check does not move the send', async () => {
+    const { subscriptionRef } = await subscribe('/pin', 'pin.example.test');
+    resolveHooks.set('pin.example.test', async () => {
+      dns.set('pin.example.test', ['127.0.0.1']);
+    });
+    await newPatient('Webhook Pin');
+    await dispatch();
+    dns.set('pin.example.test', ['203.0.113.12']);
+    const got = receiver.to('/pin');
+    expect(got.map((g) => g.connectAddress)).toStrictEqual(['203.0.113.12']);
+    expect(receiver.violations).toStrictEqual([]);
+    expect((await deliveries(subscriptionRef))[0]?.state).toBe('delivered');
+  });
+
+  it('never follows a redirect: a 302 to an internal address is a terminal redirect_refused', async () => {
+    const { subscriptionRef } = await subscribe('/redirect');
+    receiver.respond('/redirect', 302, 'https://169.254.169.254/latest/meta-data');
+    await newPatient('Webhook Redirect');
+    await dispatch();
+    await dispatch();
+    expect(receiver.received.some((r) => r.url.includes('169.254.169.254'))).toBe(false);
+    expect(receiver.to('/redirect').length).toBe(1);
+    expect((await deliveries(subscriptionRef))[0]).toMatchObject({
+      state: 'dead_lettered',
+      lastResponseClass: 'redirect_refused',
+      attempts: 1,
+    });
+    expect(receiver.violations).toStrictEqual([]);
+  });
+
+  it('rechecks the subscription right before the send: a revoke after the lease sends nothing', async () => {
+    const { subscriptionRef } = await subscribe('/race', 'race.example.test');
+    resolveHooks.set('race.example.test', async () => {
+      const r = await s.command('owner', `${SUB}/revoke`, { subscriptionRef, reason: 'retired' });
+      expect(r.status).toBe(200);
+    });
+    await newPatient('Webhook Race');
+    await dispatch();
+    expect(receiver.to('/race').length).toBe(0);
+    expect((await deliveries(subscriptionRef))[0]?.state).toBe('cancelled');
+  });
+
+  it('leases per delivery for the send budget: a slow endpoint does not cause duplicate sends', async () => {
+    await subscribe('/slow');
+    const slow: WebhookDeliveryPort = {
+      egress: 'in_process_fake',
+      async send(req) {
+        if (new URL(req.url).pathname === '/slow') await new Promise((r) => setTimeout(r, 1500));
+        return receiver.port.send(req);
+      },
+    };
+    await newPatient('Webhook Slow One');
+    await newPatient('Webhook Slow Two');
+    const extra = { leaseSeconds: 1, sendTimeoutMs: 3000 };
+    const a = dispatch(slow, extra);
+    await new Promise((r) => setTimeout(r, 1200));
+    const b = dispatch(slow, extra);
+    await Promise.all([a, b]);
+    const got = receiver.to('/slow');
+    expect(got.length).toBe(2);
+    expect(new Set(got.map((g) => g.eventId)).size).toBe(2);
+  }, 20_000);
+
+  it('paused deliveries back off; an attempt counts before the send; an exhausted expired lease dead-letters', async () => {
+    const { subscriptionRef } = await subscribe('/backoff', 'backoff.example.test');
+    dns.set('backoff.example.test', ['10.0.0.6']);
+    await newPatient('Webhook Backoff');
+    await dispatch(receiver.port, { backoffSeconds: () => 3600 });
+    const [d] = await deliveries(subscriptionRef);
+    expect(d).toMatchObject({ state: 'paused', attempts: 0 });
+    expect(Date.parse(d?.nextAttemptAt as string) - Date.now()).toBeGreaterThan(3_000_000);
+    const calls = resolveCalls.get('backoff.example.test');
+    await dispatch(receiver.port, { backoffSeconds: () => 3600 });
+    expect(resolveCalls.get('backoff.example.test')).toBe(calls);
+    // Released: the attempt is already counted when the request leaves.
+    dns.set('backoff.example.test', ['203.0.113.13']);
+    await s.db.admin.query('UPDATE cuspatlas.webhook_deliveries SET next_attempt_at = now() WHERE id = $1', [
+      d?.deliveryRef,
+    ]);
+    const seenAttempts: number[] = [];
+    const probe: WebhookDeliveryPort = {
+      egress: 'in_process_fake',
+      async send(req) {
+        if (new URL(req.url).pathname === '/backoff') {
+          const { rows } = await s.db.admin.query<{ attempts: number }>(
+            'SELECT attempts FROM cuspatlas.webhook_deliveries WHERE id = $1',
+            [req.headers['cuspatlas-delivery-id']],
+          );
+          seenAttempts.push(rows[0]?.attempts ?? -1);
+          return { outcome: 'response', status: 503 };
+        }
+        return receiver.port.send(req);
+      },
+    };
+    await dispatch(probe);
+    expect(seenAttempts).toStrictEqual([1]);
+    // A crash after the last counted attempt: the expired lease dead-letters instead of re-sending.
+    await s.db.admin.query(
+      `UPDATE cuspatlas.webhook_deliveries SET state = 'delivering', attempts = 5, lease_token = gen_random_uuid(),
+         lease_expires_at = now() - interval '1 minute' WHERE id = $1`,
+      [d?.deliveryRef],
+    );
+    await dispatch(probe);
+    expect(seenAttempts).toStrictEqual([1]);
+    expect((await deliveries(subscriptionRef))[0]).toMatchObject({ state: 'dead_lettered', attempts: 5 });
+  });
+
+  it('a subscription on an unsupported event version does not starve the fan-out window', async () => {
+    const { subscriptionRef } = await subscribe('/window');
+    const v2 = '00000000-0000-4000-8000-000000000002';
+    await s.db.admin.query(
+      `INSERT INTO cuspatlas.webhook_subscriptions (id, tenant_id, endpoint_url, endpoint_host, event_types,
+         event_version, secret_ciphertext, secret_fingerprint, created_by, created_at)
+       SELECT $2, tenant_id, endpoint_url || '-v2', endpoint_host, event_types, 2, secret_ciphertext,
+         secret_fingerprint, created_by, created_at FROM cuspatlas.webhook_subscriptions WHERE id = $1`,
+      [subscriptionRef, v2],
+    );
+    try {
+      await newPatient('Webhook Window');
+      for (let i = 0; i < 3; i += 1) {
+        const r = (await dispatch(receiver.port, { fanOutWindow: 1 })) as { data: { fannedOut: number } };
+        expect(r.data.fannedOut).toBe(1);
+      }
+      const { rows } = await s.db.admin.query(
+        'SELECT 1 FROM cuspatlas.webhook_deliveries WHERE subscription_id = $1',
+        [v2],
+      );
+      expect(rows.length).toBe(0);
+    } finally {
+      await s.db.admin.query(`UPDATE cuspatlas.webhook_subscriptions SET state = 'revoked' WHERE id = $1`, [
+        v2,
+      ]);
+    }
   });
 });

@@ -72,6 +72,8 @@ export interface SyntheticProviders {
   readonly payments?: PaymentProviderPort;
   /** A14 webhook delivery port (synthetic-test only; otherwise deliveries wait as adapter_not_configured). */
   readonly webhooks?: WebhookDeliveryPort;
+  /** A14 resolver for the send-time guard and DNS pinning; a network port without one refuses to boot. */
+  readonly webhookResolveHost?: (host: string) => Promise<readonly string[]>;
 }
 
 export interface WorkerPools {
@@ -301,7 +303,8 @@ export async function composeWorker(
       recording,
       execute,
       webhooks: {
-        port: resolveWebhookPort(runtimeEnv, providers.webhooks),
+        port: resolveWebhookPort(runtimeEnv, providers.webhooks, providers.webhookResolveHost),
+        ...(providers.webhookResolveHost ? { resolveHost: providers.webhookResolveHost } : {}),
         secretKey: resolveWebhookSecretKey(runtimeEnv, undefined),
       },
     }),

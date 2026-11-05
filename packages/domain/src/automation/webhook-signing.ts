@@ -89,16 +89,36 @@ export function resolveWebhookSecretKey(env: string, configured: Uint8Array | un
 const aesKey = (key: Uint8Array) =>
   createHash('sha256').update('cuspatlas-webhook-secret/1').update(key).digest();
 
-/** AES-256-GCM: base64url(iv || tag || ciphertext). The plaintext secret is never stored. */
-export function sealSecret(key: Uint8Array, secret: string): string {
+/** Key identifier carried in every sealed secret, so a later key rotation can tell keys apart. */
+export const webhookKeyId = (key: Uint8Array): Buffer =>
+  createHash('sha256').update('cuspatlas-webhook-key-id/1').update(key).digest().subarray(0, 8);
+
+const SEAL_V2 = 0x02;
+
+/**
+ * AES-256-GCM, format 2: base64url(0x02 || keyId(8) || iv(12) || tag(16) || ciphertext), with the
+ * subscription id as additional authenticated data, so a sealed secret copied onto another
+ * subscription row does not open. The plaintext secret is never stored.
+ */
+export function sealSecret(key: Uint8Array, secret: string, subscriptionId: string): string {
   const iv = randomBytes(12);
   const c = createCipheriv('aes-256-gcm', aesKey(key), iv);
+  c.setAAD(Buffer.from(subscriptionId, 'utf8'));
   const ct = Buffer.concat([c.update(secret, 'utf8'), c.final()]);
-  return Buffer.concat([iv, c.getAuthTag(), ct]).toString('base64url');
+  return Buffer.concat([Buffer.from([SEAL_V2]), webhookKeyId(key), iv, c.getAuthTag(), ct]).toString(
+    'base64url',
+  );
 }
 
-export function openSecret(key: Uint8Array, sealed: string): string {
+export function openSecret(key: Uint8Array, sealed: string, subscriptionId: string): string {
   const raw = Buffer.from(sealed, 'base64url');
+  if (raw[0] === SEAL_V2 && raw.subarray(1, 9).equals(webhookKeyId(key))) {
+    const d = createDecipheriv('aes-256-gcm', aesKey(key), raw.subarray(9, 21));
+    d.setAAD(Buffer.from(subscriptionId, 'utf8'));
+    d.setAuthTag(raw.subarray(21, 37));
+    return Buffer.concat([d.update(raw.subarray(37)), d.final()]).toString('utf8');
+  }
+  // Format 1 (pre-hardening synthetic rows): base64url(iv || tag || ciphertext), no AAD.
   const d = createDecipheriv('aes-256-gcm', aesKey(key), raw.subarray(0, 12));
   d.setAuthTag(raw.subarray(12, 28));
   return Buffer.concat([d.update(raw.subarray(28)), d.final()]).toString('utf8');

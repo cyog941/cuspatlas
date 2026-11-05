@@ -478,7 +478,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         recording,
         execute,
         webhooks: {
-          port: resolveWebhookPort(deps.env, deps.webhookPort),
+          port: resolveWebhookPort(deps.env, deps.webhookPort, deps.webhookResolveHost),
           ...(deps.webhookAllowlist ? { allowlist: deps.webhookAllowlist } : {}),
           ...(deps.webhookResolveHost ? { resolveHost: deps.webhookResolveHost } : {}),
           secretKey: resolveWebhookSecretKey(deps.env, deps.webhookSecretKey),

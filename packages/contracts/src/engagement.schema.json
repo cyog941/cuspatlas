@@ -762,7 +762,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["decision", "expectedVersion"],
-      "description": "Staff resolution of an intake review item. apply (demographics only) calls S4's own update with the patient version the reviewer saw; reject records a reason. Medical-history hand-offs cannot be applied here (C8).",
+      "description": "Staff resolution of an intake review item. apply on a demographics review calls S4's own update with the patient version the reviewer saw; apply on a medical-history hand-off copies nothing and succeeds only when a clinician has recorded a C8 history version from this submission (provenance patient_reported, sourceRef intake-submission:<submission>), which the item then names; reject records a reason.",
       "properties": {
         "decision": {
           "enum": ["apply", "reject"]

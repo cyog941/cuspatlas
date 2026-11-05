@@ -6167,7 +6167,10 @@ paths:
       operationId: intake.reviews.resolve
       description: >-
         Apply a demographics review through the patient record (with the patient version the reviewer saw; a
-        changed record is stale) or reject a review item. Medical-history hand-offs cannot be applied here.
+        changed record is stale) or reject a review item. A medical-history hand-off is applied only after a
+        clinician recorded it in C8 (clinical.history.recordChange, provenance patient_reported, sourceRef
+        intake-submission:<submission>; otherwise 409 clinical_history_not_recorded naming that alternative);
+        it copies nothing and names that history version (needs clinical.history.read as well).
         Human staff only.
       parameters:
         - name: reviewRef

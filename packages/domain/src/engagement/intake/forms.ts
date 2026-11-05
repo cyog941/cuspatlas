@@ -15,7 +15,15 @@ import { executeOnce } from '../../commands/execute-once';
 import { recordCommand } from '../../events/record-command';
 import { recordSensitiveRead } from '../../events/record-sensitive-read';
 import { AVAILABLE, workItem, workList } from '../../work-items';
-import { assertRef, checkEnvelope, conflict, type EngagementBase, failedAt, notFound } from '../common';
+import {
+  assertRef,
+  checkEnvelope,
+  conflict,
+  type EngagementBase,
+  failedAt,
+  forbidden,
+  notFound,
+} from '../common';
 import { insertConsent } from '../communications/consent';
 import { loadPortalPrincipal, requirePortalAccess } from '../portal/access';
 import { boundFormSubmissions, lockForBounds, recordLimited } from '../portal/bounds';
@@ -32,7 +40,10 @@ import { boundFormSubmissions, lockForBounds, recordLimited } from '../portal/bo
  *   the diff against the live record and applies it through S4's own update command (never a silent
  *   overwrite), or rejects it;
  * - medical-history answers open one hand-off item for C8 carrying only a payload reference
- *   (`intake-submission:<ref>#<keys>`); C8 is not deployed, so the item stays open and blocked on C8.
+ *   (`intake-submission:<ref>#<keys>`). Nothing is copied into the chart: a clinician records the
+ *   structured change through C8 (`clinical.history.recordChange`, provenance `patient_reported`,
+ *   `sourceRef` = `intake-submission:<ref>`), and only then can the item be resolved `applied`,
+ *   naming that C8 version (integration seam; recommended-pending-clinical-approval).
  *
  * An answer equal to the record opens nothing (a fact entered once is reused, UX-02).
  */
@@ -175,7 +186,7 @@ const reviewExplanation = {
   demographics_update:
     'An intake form proposes demographic changes that differ from the patient record. Review the difference and apply it through the patient record, or reject it.',
   medical_history_handoff:
-    'An intake form carries medical-history answers for clinical review. They are held by reference until the clinical record (C8) can receive them; nothing was written to the chart.',
+    'An intake form carries medical-history answers for clinical review. They are held by reference until a clinician records them in the clinical history (C8) from this submission; nothing was written to the chart.',
 } as const;
 
 export function createIntakeOperations(base: EngagementBase) {
@@ -677,7 +688,9 @@ export function createIntakeOperations(base: EngagementBase) {
                 ],
                 dueAt: null,
                 suggestedNextAction:
-                  r.kind === 'demographics_update' ? 'review_and_apply_or_reject' : 'hold_for_c8',
+                  r.kind === 'demographics_update'
+                    ? 'review_and_apply_or_reject'
+                    : 'record_in_clinical_history',
                 blockingDependencies: r.kind === 'medical_history_handoff' ? ['C8'] : [],
               }),
             ),
@@ -765,6 +778,8 @@ export function createIntakeOperations(base: EngagementBase) {
           patientVersion?: number;
           reasonCode?: string;
         };
+        // E4 -> C8: closing a hand-off reads the clinical history, so it needs the C8 read too.
+        const canReadHistory = await base.can(ctx, 'clinical.history.read');
         // One transaction: S4's update (with the patient version the reviewer saw, so a changed record is
         // stale and never overwritten) and the resolution of the item commit together or not at all. A
         // failure of either step leaves the record and the item exactly as they were; a retry starts clean.
@@ -773,11 +788,12 @@ export function createIntakeOperations(base: EngagementBase) {
             const { rows } = await tx.query<{
               kind: string;
               patient_id: string;
+              submission_id: string;
               proposed: { groups?: Record<string, unknown>; provenance?: string };
               state: string;
               version: number;
             }>(
-              `SELECT kind, patient_id, proposed, state, version FROM cuspatlas.intake_review_items
+              `SELECT kind, patient_id, submission_id, proposed, state, version FROM cuspatlas.intake_review_items
                WHERE id = $1 FOR UPDATE`,
               [reviewRef],
             );
@@ -787,8 +803,30 @@ export function createIntakeOperations(base: EngagementBase) {
               throw new RefusalError({ code: 'stale_version', detail: { currentVersion: r.version } });
             if (r.state !== 'open') throw conflict('review_already_resolved');
             let appliedVersion: number | null = null;
-            if (p.decision === 'apply') {
-              if (r.kind !== 'demographics_update') throw conflict('c8_not_deployed');
+            let historyVersion: string | null = null;
+            if (p.decision === 'apply' && r.kind === 'medical_history_handoff') {
+              // Never copied: the item closes only on the clinician's own C8 version recorded from this
+              // submission for this item's patient (the database guard checks the same binding).
+              if (!canReadHistory) throw forbidden('scope_missing');
+              const v = await tx.query<{ id: string }>(
+                `SELECT v.id FROM cuspatlas.clinical_history_versions v
+                 JOIN cuspatlas.clinical_history_streams s ON s.id = v.stream_id AND s.tenant_id = v.tenant_id
+                 WHERE s.subject_patient_id = $1 AND v.provenance = 'patient_reported' AND v.source_ref = $2
+                 ORDER BY v.recorded_at DESC, v.id DESC LIMIT 1`,
+                [r.patient_id, `intake-submission:${r.submission_id}`],
+              );
+              historyVersion = v.rows[0]?.id ?? null;
+              if (historyVersion === null) {
+                throw new RefusalError({
+                  code: 'conflict',
+                  detail: {
+                    reason: 'clinical_history_not_recorded',
+                    alternative: 'clinical.history.recordChange',
+                  },
+                });
+              }
+            } else if (p.decision === 'apply') {
+              if (r.kind !== 'demographics_update') throw conflict('review_kind_not_applicable');
               if (p.patientVersion === undefined) throw failedAt('/patientVersion', 'required');
               if (!deps.patients) {
                 throw new RefusalError({
@@ -818,12 +856,19 @@ export function createIntakeOperations(base: EngagementBase) {
             const state = p.decision === 'apply' ? 'applied' : 'rejected';
             await tx.query(
               `UPDATE cuspatlas.intake_review_items SET state = $2, resolution_reason = $3, applied_patient_version = $4,
-                 resolved_by = cuspatlas.current_actor_id(), resolved_at = now(), version = version + 1 WHERE id = $1`,
+                 applied_history_version_id = $5, resolved_by = cuspatlas.current_actor_id(), resolved_at = now(),
+                 version = version + 1 WHERE id = $1`,
               [
                 reviewRef,
                 state,
-                p.reasonCode ?? (p.decision === 'apply' ? 'applied_by_staff' : 'rejected_by_staff'),
+                p.reasonCode ??
+                  (historyVersion !== null
+                    ? 'recorded_in_clinical_history'
+                    : p.decision === 'apply'
+                      ? 'applied_by_staff'
+                      : 'rejected_by_staff'),
                 appliedVersion,
+                historyVersion,
               ],
             );
             await recordCommand(
@@ -837,7 +882,12 @@ export function createIntakeOperations(base: EngagementBase) {
               { changedFields: ['state'] },
             );
             return {
-              data: { reviewRef, state, appliedPatientVersion: appliedVersion },
+              data: {
+                reviewRef,
+                state,
+                appliedPatientVersion: appliedVersion,
+                ...(historyVersion !== null ? { historyVersionRef: historyVersion } : {}),
+              },
               version: r.version + 1,
             };
           }),

@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { seedClinicalScopes } from './support/clinical-fixtures';
 import { openTestDatabase, type TestDatabase } from './support/db';
 import { type EngagementHarness, email, openEngagementHarness } from './support/engagement-fixtures';
+import { T_ALPHA, USER_A1 } from './support/fixtures';
 import { MARKER } from './support/marker';
 
 /**
@@ -83,6 +85,8 @@ type Sub = {
 beforeAll(async () => {
   db = await openTestDatabase('portal_intake');
   h = await openEngagementHarness(db, { mcp: true });
+  // Integration: C8 is deployed beside E4; a1 is a clinician with a clinical author profile.
+  await seedClinicalScopes(db.admin);
   adult = await h.person(`Synthetic Intake Adult ${MARKER}`, [email('e4.adult')]);
   kid = await h.person('Synthetic Intake Kid', [], { birthDate: MINOR });
   parent = await h.person('Synthetic Intake Parent', [email('e4.parent')]);
@@ -357,7 +361,7 @@ describe('E4 acceptance', () => {
     expect([again.statusCode, again.json().detail.reason]).toStrictEqual([409, 'review_already_resolved']);
   });
 
-  it('medical-history answers are a C8 hand-off by reference only: blocked, never applied, chart untouched', async () => {
+  it('medical-history answers are a C8 hand-off by reference only: copied nowhere, applied only on the clinician C8 version', async () => {
     const current = h.ok<{ data: { formVersion: number }[] }>(await h.call('a1', 'GET', '/v1/intake/forms'))
       .data[0]?.formVersion as number;
     const res = h.ok<{ data: Sub }>(
@@ -395,19 +399,164 @@ describe('E4 acceptance', () => {
       expectedVersion: review.version,
       patientVersion: 1,
     });
-    expect([apply.statusCode, apply.json().detail.reason]).toStrictEqual([409, 'c8_not_deployed']);
-    // C8 exists on the integration branch; the hand-off still writes nothing to the clinical record.
-    const history = await db.admin.query(
-      `SELECT count(*)::int AS n FROM cuspatlas.clinical_history_versions v
-       JOIN cuspatlas.clinical_history_streams s ON s.id = v.stream_id WHERE s.subject_patient_id = $1`,
-      [adult],
-    );
-    expect(history.rows[0].n).toBe(0);
+    // Nothing recorded in C8 yet: refused, naming the C8 path; the hand-off wrote nothing to the chart.
+    expect([apply.statusCode, apply.json().detail]).toStrictEqual([
+      409,
+      { reason: 'clinical_history_not_recorded', alternative: 'clinical.history.recordChange' },
+    ]);
+    const historyRows = async () =>
+      (
+        await db.admin.query(
+          `SELECT count(*)::int AS n FROM cuspatlas.clinical_history_versions v
+           JOIN cuspatlas.clinical_history_streams s ON s.id = v.stream_id WHERE s.subject_patient_id = $1`,
+          [adult],
+        )
+      ).rows[0].n as number;
+    expect(await historyRows()).toBe(0);
     const proposed = await db.admin.query(
       'SELECT proposed::text AS p FROM cuspatlas.intake_review_items WHERE id = $1',
       [item?.workItemRef],
     );
     expect(proposed.rows[0].p).toBe('{}');
+    const record = (sourceRef: string) =>
+      h.call(
+        'a1',
+        'POST',
+        '/v1/clinical/history/changes',
+        {
+          patientRef: adult,
+          provenance: 'patient_reported',
+          reportedBy: 'patient',
+          sourceRef,
+          changes: [
+            { kind: 'allergy', state: 'active', displayText: 'Synthetic pollen (clinician-entered)' },
+          ],
+        },
+        randomUUID(),
+      );
+    // A C8 version recorded from another source does not close this item.
+    h.ok(await record(`intake-submission:${randomUUID()}`), 201);
+    const other = await h.call('a1', 'POST', `/v1/intake/reviews/${item?.workItemRef}/resolve`, {
+      decision: 'apply',
+      expectedVersion: review.version,
+    });
+    expect([other.statusCode, other.json().detail?.reason]).toStrictEqual([
+      409,
+      'clinical_history_not_recorded',
+    ]);
+    // The clinician records the structured change in C8 from this submission.
+    const version = h.ok<{ data: { header: { historyVersionRef: string } } }>(
+      await record(`intake-submission:${res.submissionRef}`),
+      201,
+    ).data.header.historyVersionRef;
+    // Closing the hand-off reads clinical history: a reviewer without clinical.read is refused.
+    await db.admin.query(
+      `UPDATE cuspatlas.memberships SET scopes = array_remove(scopes, 'clinical.read') WHERE principal_id = $1`,
+      [USER_A1],
+    );
+    try {
+      const denied = await h.call('a1', 'POST', `/v1/intake/reviews/${item?.workItemRef}/resolve`, {
+        decision: 'apply',
+        expectedVersion: review.version,
+      });
+      expect([denied.statusCode, denied.json().code]).toStrictEqual([403, 'forbidden']);
+    } finally {
+      await db.admin.query(
+        `UPDATE cuspatlas.memberships SET scopes = scopes || ARRAY['clinical.read'] WHERE principal_id = $1`,
+        [USER_A1],
+      );
+    }
+    const applied = h.ok<{ data: { state: string; historyVersionRef: string } }>(
+      await h.call('a1', 'POST', `/v1/intake/reviews/${item?.workItemRef}/resolve`, {
+        decision: 'apply',
+        expectedVersion: review.version,
+      }),
+    ).data;
+    expect([applied.state, applied.historyVersionRef]).toStrictEqual(['applied', version]);
+    const row = await db.admin.query(
+      `SELECT state, resolution_reason, applied_history_version_id, proposed::text AS p
+       FROM cuspatlas.intake_review_items WHERE id = $1`,
+      [item?.workItemRef],
+    );
+    expect(row.rows[0]).toStrictEqual({
+      state: 'applied',
+      resolution_reason: 'recorded_in_clinical_history',
+      applied_history_version_id: version,
+      p: '{}',
+    });
+  });
+
+  it('the database binds an applied hand-off to a C8 version of its own submission and patient', async () => {
+    const current = h.ok<{ data: { formVersion: number }[] }>(await h.call('a1', 'GET', '/v1/intake/forms'))
+      .data[0]?.formVersion as number;
+    const sub = h.ok<{ data: Sub }>(
+      await submit(adultP, adult, {
+        formVersion: current,
+        answers: answers({ allergies: 'synthetic dust' }),
+      }),
+      201,
+    ).data;
+    const itemRef = (
+      await db.admin.query(
+        `SELECT id FROM cuspatlas.intake_review_items WHERE submission_id = $1 AND kind = 'medical_history_handoff'`,
+        [sub.submissionRef],
+      )
+    ).rows[0].id as string;
+    // A C8 version of this patient recorded from another submission.
+    const foreign = (
+      await db.admin.query(
+        `SELECT v.id FROM cuspatlas.clinical_history_versions v
+         JOIN cuspatlas.clinical_history_streams s ON s.id = v.stream_id
+         WHERE s.subject_patient_id = $1 AND v.source_ref <> $2 LIMIT 1`,
+        [adult, `intake-submission:${sub.submissionRef}`],
+      )
+    ).rows[0].id as string;
+    const forge = async (sql: string, params: unknown[]) => {
+      const client = await db.app.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query(`SELECT set_config('cuspatlas.tenant_id', $1, true)`, [T_ALPHA]);
+        await client.query(`SELECT set_config('cuspatlas.actor_id', $1, true)`, [USER_A1]);
+        await client.query(sql, params);
+        await client.query('COMMIT');
+        return 'ok';
+      } catch (e) {
+        await client.query('ROLLBACK').catch(() => undefined);
+        return (e as { code?: string }).code ?? 'error';
+      } finally {
+        client.release();
+      }
+    };
+    // Another submission's version is refused by the guard; no version at all by the CHECK.
+    expect(
+      await forge(
+        `UPDATE cuspatlas.intake_review_items SET state = 'applied', applied_history_version_id = $2,
+           resolution_reason = 'forged', resolved_by = $3, resolved_at = now(), version = version + 1 WHERE id = $1`,
+        [itemRef, foreign, USER_A1],
+      ),
+    ).toBe('42501');
+    expect(
+      await forge(
+        `UPDATE cuspatlas.intake_review_items SET state = 'applied', resolution_reason = 'forged', resolved_by = $2,
+           resolved_at = now(), version = version + 1 WHERE id = $1`,
+        [itemRef, USER_A1],
+      ),
+    ).toBe('23514');
+    // Rejecting stays available and never needs C8.
+    const state = (
+      await db.admin.query('SELECT state, version FROM cuspatlas.intake_review_items WHERE id = $1', [
+        itemRef,
+      ])
+    ).rows[0];
+    expect(state.state).toBe('open');
+    const rejected = h.ok<{ data: { state: string } }>(
+      await h.call('a1', 'POST', `/v1/intake/reviews/${itemRef}/resolve`, {
+        decision: 'reject',
+        expectedVersion: state.version,
+        reasonCode: 'duplicate_submission',
+      }),
+    ).data;
+    expect(rejected.state).toBe('rejected');
   });
 
   it('the portal forms view lists the submissions without answers; staff reads are sensitive-read logged; MCP agrees', async () => {

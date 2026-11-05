@@ -24,7 +24,9 @@ let loc: { locationRef: string; provider: string; operatory: string };
 const LOC = 'loc-c12-hardening';
 const PLANS = '/v1/clinical/treatment-plans';
 const EST = '/v1/clinical/estimates';
-const TODAY = new Date().toISOString().slice(0, 10);
+// Today in the seeded location's own time zone (the server compares there; a UTC date is tomorrow
+// in New York for five hours a day).
+const TODAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date());
 const DIGEST = `sha256:${'c'.repeat(64)}`;
 const USD = (minor: number) => ({ currency: 'USD', minor });
 const tooth = (code: string) => ({ system: 'universal', code });

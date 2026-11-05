@@ -34,7 +34,9 @@ let loc: { locationRef: string; provider: string; operatory: string };
 let otherProvider: string;
 const LOC = 'loc-proc';
 const PLANS = '/v1/clinical/treatment-plans';
-const TODAY = new Date().toISOString().slice(0, 10);
+// Today in the seeded location's own time zone (the server compares there; a UTC date is tomorrow
+// in New York for five hours a day).
+const TODAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date());
 
 beforeAll(async () => {
   db = await openTestDatabase('clinical_procedures');

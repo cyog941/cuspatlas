@@ -9,7 +9,7 @@ Status values: not started, in progress, blocked with cause, verified (on synthe
 | Step | Status | Commit | Notes |
 |---|---|---|---|
 | 1. Merge `codex/e-portal-1` (a2966ef) | verified | merge commit | 16 conflicted files, all resolved keeping both behaviours; combined S+C+E import |
-| 2. Integration seams (E4 to C8, E2 `clinical_read`, E attachment port) | not started | | |
+| 2. Integration seams (E4 to C8, E2 `clinical_read`, E attachment port, E6 over C14) | verified (E4 to C8, E6 over C14); E2 documents and E attachments recorded as ports | step 2 commit | migration `20261120000000` |
 | 3. S-table relink guard | not started | | |
 | 4. Keyed idempotency payload digest | not started | | |
 | Phase 2: merge I and B, resolver and fee/coverage seams | not started (waiting for the I and B branches) | | |
@@ -32,6 +32,14 @@ Semantic fixes needed by the combination (no conflict markers):
 - New test: `clinical-export.test.ts` "S17 + C18 + E9 import in one call": verifier required, a cross-document orphan rolls back all three documents, duplicates refused, reverse-order import succeeds and all three exports round-trip identically.
 
 Gate: see the commit message of the merge for the run counts.
+
+## 2. Integration seams
+
+- E4 medical-history hand-off to C8 (wired). C8 exposes no proposal queue: history enters the record only as a clinician's own `clinical.history.recordChange` (structured items; free text cannot be mapped automatically without clinical judgment). The seam is therefore "record, then close": the clinician records the change with provenance `patient_reported` and `sourceRef` `intake-submission:<submission>`; `intake.reviews.resolve` with `apply` on a hand-off then names that version (`historyVersionRef` in the result, `applied_history_version_id` on the item, resolution `recorded_in_clinical_history`). Without such a version: 409 `clinical_history_not_recorded` with alternative `clinical.history.recordChange` (replaces E's `c8_not_deployed`); without `clinical.history.read`: 403. Nothing is copied from the submission; the proposal stays `{}`. Migration `20261120000000_integration_intake_history_handoff.sql`: column with composite FK to the C8 version, the E4 CHECK "a hand-off is never applied" relaxed to "applied only with a C8 version", and the review-item guard checks the version is a patient-reported version of the item's own patient recorded from the item's own submission. Worklist suggestion `record_in_clinical_history` (was `hold_for_c8`). Recommended-pending-clinical-approval. Tests: `portal-intake.test.ts` (refusal, wrong-source version, 403, apply, DB binding under the runtime role: 42501 for another submission's version, 23514 without a version; reject still available).
+- E6 recall enrollment over S16's completed-procedure basis (wired in the merge, tested here): `integration-seams.test.ts` (procedure-due patient enrolled, listed with the procedure as last event, other code `no_baseline`, 403 without `clinical.read` for enroll and list).
+- E2 portal `clinical_read` view (`documents`): kept `unavailable` (owner C15). C exposes no patient-facing projection: every C read is a staff sensitive read, and C15 stores opaque `imageRef`s whose documents live in I. Revisit in Phase 2 when I3 reference reads exist and a patient-facing document projection is specified.
+- E `AttachmentRefResolver`: kept as a port (fail closed) until I merges (Phase 2).
+- Test-only fix carried with this step: `clinical-procedures.test.ts` and `clinical-review-hardening-c12.test.ts` computed TODAY as the UTC date while the server checks the date of service in the location zone (America/New_York), so 21 C14 tests failed between 00:00 and 05:00 UTC; TODAY is now the New York date.
 
 ## Open items
 

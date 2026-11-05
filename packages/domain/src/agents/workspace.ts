@@ -185,7 +185,7 @@ export interface AgentToolInvoker {
 }
 
 /** An access record in the audit stream (copied to agent_audit_events for an agent actor); no outbox. */
-async function recordAccess(
+export async function recordAccess(
   tx: TenantTransaction,
   operation: string,
   resourceType: string,
@@ -416,7 +416,7 @@ export function createAgentWorkspace(base: AgentBase) {
             occurred_at: Date;
           }>(
             `SELECT event_ref, operation, resource_type, occurred_at FROM cuspatlas.agent_audit_events
-             WHERE agent_ref = $1 AND correlation_id = ANY ($2::uuid[]) ORDER BY occurred_at, event_ref LIMIT 200`,
+             WHERE agent_ref = $1 AND correlation_id = ANY ($2::uuid[]) ORDER BY occurred_at, seq LIMIT 200`,
             [s.agent_ref, calls.rows.map((c) => c.correlation_id)],
           );
           return {

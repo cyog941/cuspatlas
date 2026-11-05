@@ -48,7 +48,7 @@ export {
   type ProposalOwners,
 } from './proposals';
 export { AGENT_SESSION_IDLE_SECONDS } from './sessions';
-export { type AgentTaskClaim, type AgentToolInvoker, MEMORY_RETENTION_DAYS } from './workspace';
+export { type AgentTaskClaim, type AgentToolInvoker, MEMORY_RETENTION_DAYS, recordAccess } from './workspace';
 
 export type AgentServiceDeps = AgentBaseDeps & {
   /** A10: the owning services an approved proposal commits through (absent: 503 at commit). */

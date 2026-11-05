@@ -499,7 +499,7 @@ export function createAgentPrincipals(base: AgentBase) {
             `SELECT event_ref, agent_ref, sponsor_ref, operation, resource_type, resource_ref, resource_version,
                correlation_id, occurred_at
              FROM cuspatlas.agent_audit_events WHERE agent_ref = $1
-             ORDER BY occurred_at, event_ref LIMIT $2 OFFSET $3`,
+             ORDER BY occurred_at, seq LIMIT $2 OFFSET $3`,
             [query.agentRef, pg.limit, pg.offset],
           );
           return {

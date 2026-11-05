@@ -51,8 +51,11 @@ export async function recordCommand(
   event: OutboxPayload,
 ): Promise<void> {
   const { ctx } = tx;
-  // Schema validation only: both rows are stamped with the transaction's now(), the clock of every
-  // other stamp of the committed change, so an audit instant is comparable with them (clock audit).
+  // Schema validation only. The audit row is stamped with clock_timestamp(): database wall time at the
+  // statement, monotonic within the transaction and never earlier than its now()-stamped facts (a
+  // downtime entry's logged_at, for example), the same clock as recordAccess and security attempts;
+  // audit_events.seq breaks any remaining tie in statement order. The outbox row keeps now(), one event
+  // instant per committed transaction (outbox order is created_at, id) (clock audit review).
   const occurredAt = new Date().toISOString();
   const auditEvent: AuditEvent = {
     eventRef: randomUUID(),
@@ -77,7 +80,7 @@ export async function recordCommand(
        operation, resource_type, resource_ref, resource_version, correlation_id, trace_id, span_id,
        occurred_at)
      VALUES ($1, $2, cuspatlas.current_tenant_id(), cuspatlas.current_actor_id(), $3, $4, $5, $6, $7,
-       $8, $9, $10, now())`,
+       $8, $9, $10, clock_timestamp())`,
     [
       auditEvent.eventRef,
       AUDIT_EVENT_VERSION,

@@ -7462,7 +7462,7 @@ export type SyntheticReadComponent = {
   readonly "freshness"?: SyntheticReadFreshness;
   readonly "requiredAction"?: string;
   readonly "requiredScope"?: string;
-  readonly "reason"?: "producer_not_deployed" | "producer_failed";
+  readonly "reason"?: "producer_not_deployed" | "producer_failed" | "record_missing";
   readonly "data"?: unknown;
   readonly [k: string]: unknown;
 };

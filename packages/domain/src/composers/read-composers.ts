@@ -139,7 +139,7 @@ export function createReadComposers(base: ComposerBase, producers: ComposerProdu
               live(now),
             ),
           );
-        }
+        } else patients.set(ref, unavailable(COMPONENTS.patient, 'record_missing'));
       } else patients.set(ref, restricted(COMPONENTS.patient));
 
       if (!allowed.get('coverage')) coverage.set(ref, restricted(COMPONENTS.coverage));

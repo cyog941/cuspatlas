@@ -177,7 +177,7 @@ async function readiness(
             { legalName: s.legalName, preferredName: s.preferredName, status: s.status },
             live(now),
           )
-        : restricted(FLAGS.patient);
+        : unavailable(FLAGS.patient, 'record_missing');
     } else flags.patient = restricted(FLAGS.patient);
     if (allowed.get('eligibility')) {
       const list = await coverageSummariesFor(tx, [a.patientRef], onDate);

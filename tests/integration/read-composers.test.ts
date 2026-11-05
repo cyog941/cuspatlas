@@ -298,3 +298,21 @@ describe('A21 appointment detail (OR-10)', () => {
     expect(await count(db, 'sensitive_read_events')).toBe(reads + 4);
   });
 });
+
+describe('A batch 3 hardening: appointment detail', () => {
+  it('reports a missing patient row as unavailable, not restricted, when patients.read is held', async () => {
+    const c = await db.admin.connect();
+    try {
+      await c.query('BEGIN');
+      await c.query('SET LOCAL session_replication_role = replica');
+      await c.query('DELETE FROM cuspatlas.patients WHERE id = $1', [patient]);
+      await c.query('COMMIT');
+    } finally {
+      c.release();
+    }
+    // a4 holds patients.read only (no billing or coverage producer runs against the missing row).
+    const v = h.ok<{ data: Json }>(await h.call('a4', 'GET', VIEW)).data;
+    const a = v.appointments.find((x: Json) => x.appointmentRef === appointment);
+    expect(a.patient).toMatchObject({ status: 'unavailable', owner: 'S4' });
+  });
+});

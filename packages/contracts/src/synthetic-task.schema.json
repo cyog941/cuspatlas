@@ -612,7 +612,7 @@
           "type": "string"
         },
         "reason": {
-          "enum": ["producer_not_deployed", "producer_failed"]
+          "enum": ["producer_not_deployed", "producer_failed", "record_missing"]
         },
         "data": {}
       }

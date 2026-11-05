@@ -31,7 +31,7 @@ export type Component<T> =
   | {
       readonly status: 'unavailable';
       readonly owner: string;
-      readonly reason: 'producer_not_deployed' | 'producer_failed';
+      readonly reason: 'producer_not_deployed' | 'producer_failed' | 'record_missing';
     };
 
 export interface ComponentSpec {
@@ -56,7 +56,7 @@ export const restricted = <T>(spec: ComponentSpec): Component<T> => ({
 });
 export const unavailable = <T>(
   spec: ComponentSpec,
-  reason: 'producer_not_deployed' | 'producer_failed' = 'producer_not_deployed',
+  reason: 'producer_not_deployed' | 'producer_failed' | 'record_missing' = 'producer_not_deployed',
 ): Component<T> => ({
   status: 'unavailable',
   owner: spec.owner,

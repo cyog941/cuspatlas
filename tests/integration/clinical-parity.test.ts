@@ -74,6 +74,24 @@ function harnessRows(): Map<string, string[]> {
       const fn = functions.get(e.expression.expression.text);
       if (!fn) throw new Error(`negative harness row function ${e.expression.expression.text} not found`);
       rowsIn(fn);
+    } else if (ts.isSpreadElement(e)) {
+      // Workstream B rows: a spread of [operation, tool, ...] tuples mapped to harness rows.
+      const tuples = (n: ts.Node) => {
+        if (ts.isArrayLiteralExpression(n)) {
+          const [op, tool] = n.elements;
+          if (
+            op &&
+            tool &&
+            ts.isStringLiteral(op) &&
+            ts.isStringLiteral(tool) &&
+            /^[a-z]+.[A-Za-z.]+$/.test(op.text)
+          )
+            rows.set(op.text, [...(rows.get(op.text) ?? []), tool.text]);
+        }
+        ts.forEachChild(n, tuples);
+      };
+      rowsIn(e);
+      tuples(e);
     } else throw new Error('unrecognized element in the negative harness COMMANDS table');
   }
   return rows;

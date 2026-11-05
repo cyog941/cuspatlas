@@ -1,4 +1,7 @@
 export * from './action-proposal';
+export * from './billing';
+export * from './billing-export';
+export * from './billing-rcm';
 export * from './clinical';
 export * from './clinical-care';
 export * from './clinical-chart';
@@ -6,6 +9,7 @@ export * from './clinical-notes';
 export * from './context';
 export * from './engagement';
 export * from './imaging';
+export * from './money';
 export * from './patient';
 export * from './ports';
 export * from './scheduling';

@@ -89,6 +89,95 @@ export const ACTION_POLICIES = {
   'scheduling.attendance.list': { scope: 'scheduling.read', principals: ['human', 'service'] },
   'scheduling.attendance.visitStatus': { scope: 'scheduling.read', principals: ['human', 'service'] },
   'scheduling.worklist.daily': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  // B1 journal (ADR 0008, recommended-pending-billing-approval). Posting is billing.write (human or
+  // service: C14 will post charges as a service). Every correction (reversal) is human-only
+  // billing.correct. Reads need the registry's report scope ledger.read, never patients.read alone.
+  'billing.charges.post': { scope: 'billing.write', principals: ['human', 'service'] },
+  'billing.charges.read': { scope: 'ledger.read', principals: ['human', 'service'] },
+  'billing.entries.read': { scope: 'ledger.read', principals: ['human', 'service'] },
+  'billing.entries.reverse': { scope: 'billing.correct', principals: ['human'] },
+  'billing.ledger.list': { scope: 'ledger.read', principals: ['human', 'service'] },
+  'billing.balances.read': { scope: 'ledger.read', principals: ['human', 'service'] },
+  // B2 payments and allocations. Recording, settling, reconciling and allocating are billing.write
+  // (a deterministic rule may post them as a service). Refunds and transfers of funds between
+  // patients are corrections: human-only billing.correct. Payment reads need paymentDistribution.read
+  // and the undistributed-funds worklist undistributedFunds.read (registry report scopes).
+  'billing.payments.record': { scope: 'billing.write', principals: ['human', 'service'] },
+  'billing.payments.read': { scope: 'paymentDistribution.read', principals: ['human', 'service'] },
+  'billing.payments.settle': { scope: 'billing.write', principals: ['human', 'service'] },
+  'billing.payments.reconcile': { scope: 'billing.write', principals: ['human', 'service'] },
+  'billing.payments.allocate': { scope: 'billing.write', principals: ['human', 'service'] },
+  'billing.payments.refund': { scope: 'billing.correct', principals: ['human'] },
+  'billing.funds.transfer': { scope: 'billing.correct', principals: ['human'] },
+  'billing.responsibility.transfer': { scope: 'billing.write', principals: ['human', 'service'] },
+  'billing.worklist.list': { scope: 'undistributedFunds.read', principals: ['human', 'service'] },
+  // B3 payment plans. Creating, authorizing (recording the signed-agreement fact), amending, auto-pay
+  // and collection are billing.write (a scheduler may collect as a service). Voiding or defaulting a
+  // plan is a human-only billing.correct decision. Reads and the plan worklist need receivables.read.
+  'billing.plans.create': { scope: 'billing.write', principals: ['human', 'service'] },
+  'billing.plans.read': { scope: 'receivables.read', principals: ['human', 'service'] },
+  'billing.plans.authorize': { scope: 'billing.write', principals: ['human', 'service'] },
+  'billing.plans.amend': { scope: 'billing.write', principals: ['human', 'service'] },
+  'billing.plans.autopay': { scope: 'billing.write', principals: ['human', 'service'] },
+  'billing.plans.collect': { scope: 'billing.write', principals: ['human', 'service'] },
+  'billing.plans.close': { scope: 'billing.correct', principals: ['human'] },
+  'billing.plans.worklist': { scope: 'receivables.read', principals: ['human', 'service'] },
+  // B4 statements. Generation is billing.write (a scheduled statement run may be a service); reading a
+  // statement with its derived freshness needs receivables.read. Delivery is E7's.
+  'billing.statements.generate': { scope: 'billing.write', principals: ['human', 'service'] },
+  'billing.statements.read': { scope: 'receivables.read', principals: ['human', 'service'] },
+  // B5 coverage and eligibility (registry scopes coverage.read / coverage.write). Front desk and billing
+  // record coverage and eligibility; C (estimates) and S read coverage state, never compute it.
+  'rcm.coverages.record': { scope: 'coverage.write', principals: ['human', 'service'] },
+  'rcm.coverages.change': { scope: 'coverage.write', principals: ['human', 'service'] },
+  'rcm.coverages.read': { scope: 'coverage.read', principals: ['human', 'service'] },
+  'rcm.coverages.resolve': { scope: 'coverage.read', principals: ['human', 'service'] },
+  'rcm.eligibility.record': { scope: 'coverage.write', principals: ['human', 'service'] },
+  // B9 fee schedules (configuration: human billing.write), the fee read C12 estimates use, the C14 ->
+  // B consumer (service only: the worker principal), adjustments (contractual by billing.write; a
+  // courtesy or write-off decision is a human-only correction) and the receivables report.
+  'billing.feeSchedules.publish': { scope: 'billing.write', principals: ['human'] },
+  'billing.fees.resolve': { scope: 'ledger.read', principals: ['human', 'service'] },
+  'billing.procedures.consume': { scope: 'billing.write', principals: ['service'] },
+  'billing.adjustments.post': { scope: 'billing.write', principals: ['human'] },
+  'billing.adjustments.decide': { scope: 'billing.correct', principals: ['human'] },
+  'billing.reports.receivables': { scope: 'receivables.read', principals: ['human', 'service'] },
+  // B6 claims (fake clearinghouse only): reads need openClaims.read; preparation, validation,
+  // versions, submission and polling are billing.write (a qualified standing policy lets a service
+  // submit); appeal review and standing policies are human-only billing.correct.
+  'rcm.claims.prepare': { scope: 'billing.write', principals: ['human', 'service'] },
+  'rcm.claims.validate': { scope: 'billing.write', principals: ['human', 'service'] },
+  'rcm.claims.attach': { scope: 'billing.write', principals: ['human', 'service'] },
+  'rcm.claims.replace': { scope: 'billing.write', principals: ['human'] },
+  'rcm.claims.submit': { scope: 'billing.write', principals: ['human', 'service'] },
+  'rcm.claims.poll': { scope: 'billing.write', principals: ['human', 'service'] },
+  'rcm.claims.prepareSecondary': { scope: 'billing.write', principals: ['human', 'service'] },
+  'rcm.claims.read': { scope: 'openClaims.read', principals: ['human', 'service'] },
+  'rcm.claims.worklist': { scope: 'openClaims.read', principals: ['human', 'service'] },
+  'rcm.appeals.draft': { scope: 'billing.write', principals: ['human'] },
+  'rcm.appeals.review': { scope: 'billing.correct', principals: ['human'] },
+  'rcm.submissionPolicies.create': { scope: 'billing.correct', principals: ['human'] },
+  'rcm.submissionPolicies.revoke': { scope: 'billing.correct', principals: ['human'] },
+  // B7 remittance: ingestion and settlement are billing.write (a service may ingest); reversal is a
+  // human-only correction; reads need paymentDistribution.read.
+  'rcm.remittances.ingest': { scope: 'billing.write', principals: ['human', 'service'] },
+  'rcm.remittances.settle': { scope: 'billing.write', principals: ['human'] },
+  'rcm.remittances.reverse': { scope: 'billing.correct', principals: ['human'] },
+  'rcm.remittances.read': { scope: 'paymentDistribution.read', principals: ['human', 'service'] },
+  // B7 review-line resolution (a second human approves adjustments and write-offs) and B8/CL policy data.
+  'rcm.remittances.resolveLine': { scope: 'billing.write', principals: ['human'] },
+  'rcm.remittances.decideResolution': { scope: 'billing.correct', principals: ['human'] },
+  'rcm.workflowPolicies.publish': { scope: 'billing.correct', principals: ['human'] },
+  // Closed-loop claims workflow (CL-01..CL-12): drives only the owning commands, which authorize again.
+  'rcm.claims.packageAttachments': { scope: 'billing.write', principals: ['human', 'service'] },
+  'rcm.workflows.start': { scope: 'billing.write', principals: ['human', 'service'] },
+  'rcm.workflows.advance': { scope: 'billing.write', principals: ['human', 'service'] },
+  'rcm.workflows.read': { scope: 'openClaims.read', principals: ['human', 'service'] },
+  'rcm.workflows.close': { scope: 'billing.correct', principals: ['human'] },
+  'rcm.workflows.fireTimer': { scope: 'billing.write', principals: ['service'] },
+  'rcm.visits.prepare': { scope: 'coverage.read', principals: ['human', 'service'] },
+  // B10 billing export: a tenant-wide human administrator only (sensitive-read logged), like S17.
+  'billing.export': { scope: 'admin.configure', principals: ['human'] },
   // C5 encounters and clinical authorship (recommended-pending-clinical-approval). Clinical
   // mutations are human-only: a model or integration is never a clinical author. Every mutation
   // additionally needs a resolvable clinical author profile (clinical/authorship.ts). Reads are

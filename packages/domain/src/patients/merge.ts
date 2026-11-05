@@ -333,6 +333,41 @@ export const MERGE_EXCLUDED_REFERENCES: readonly { table: string; column: string
     column: 'merged_patient_id',
     why: 'merge history keeps both source identifiers',
   },
+  // B1 (ADR 0008 M-11): posted financial history is never relinked; the account follows the merge
+  // at read time (billing mergeSet) and BILLING_POST_MERGE_PROBE gates the unmerge.
+  { table: 'billing_charges', column: 'patient_id', why: 'posted financial facts are never relinked' },
+  // B6: a claim names the account (merge root) it was prepared for; submitted facts are never relinked.
+  { table: 'rcm_claims', column: 'patient_id', why: 'submitted claim facts are never relinked' },
+  { table: 'billing_journal_lines', column: 'patient_id', why: 'posted financial facts are never relinked' },
+  // B2: payment and attempt facts keep the identity that tendered them; the account follows the merge.
+  { table: 'billing_payments', column: 'patient_id', why: 'posted financial facts are never relinked' },
+  { table: 'billing_payments', column: 'guarantor_id', why: 'posted financial facts are never relinked' },
+  {
+    table: 'billing_payment_attempts',
+    column: 'patient_id',
+    why: 'posted financial facts are never relinked',
+  },
+  {
+    table: 'billing_payment_attempts',
+    column: 'guarantor_id',
+    why: 'posted financial facts are never relinked',
+  },
+  // B3: a plan names the parties that agreed it; the account follows the merge at read time.
+  { table: 'billing_payment_plans', column: 'patient_id', why: 'agreed financial terms are never relinked' },
+  {
+    table: 'billing_payment_plans',
+    column: 'guarantor_id',
+    why: 'agreed financial terms are never relinked',
+  },
+  // B4: a statement is a snapshot addressed to the guarantor it was generated for.
+  { table: 'billing_statements', column: 'guarantor_id', why: 'a generated statement is never restated' },
+  // B5: coverage keeps the identity it was recorded for; resolution follows the merge set.
+  { table: 'rcm_coverages', column: 'patient_id', why: 'coverage history is never relinked' },
+  {
+    table: 'rcm_coverage_versions',
+    column: 'subscriber_patient_id',
+    why: 'coverage history is never relinked',
+  },
   {
     table: 'clinical_history_streams',
     column: 'origin_patient_id',

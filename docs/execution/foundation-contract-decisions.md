@@ -253,6 +253,56 @@ Additions only; no frozen row changed. Synthetic data only. Policy items come fr
 - Location visibility: other-location resources and locations named in a path are 404 for location-restricted callers (no same-tenant existence oracle); a location named in a body remains a 403 (the caller states it). Blocking-record references in S7/S9 conflicts require `scheduling.read`.
 - `patient_relationships_guard` freezes `revoked_by` with the rest of a revocation (migration `20261106030000_review_hardening_s.sql`).
 
+## Task record: B1 Money and the append-only journal (workstream B, branch codex/b-billing-1)
+
+Additions only; no frozen row changed. Decisions are ADR 0008 (recommended-pending-billing-approval). Synthetic data only.
+
+- Money: `packages/contracts/src/money.ts` implements the SHARED-CONTRACTS type (`{currency, minor}`) with BigInt-exact helpers; mixed currencies are refused (`currency_mismatch`), non-integers and unsafe results are refused, never rounded. The residual minor unit rule (B-D3) is largest remainder with a lower-index tie-break. A unit test fails on float parsing, formatting or rounding in any billing source and on float column types in billing migrations.
+- Refusals: no refusal code was added (the S4 rule). Domain rules are 422 `validation_failed` with `detail.reason` (`currency_mismatch`, `service_date_in_future`, `replacement_mismatch`, `malformed_entry`, `unbalanced_entry`); stored-state conflicts are terminal 409 `conflict` with `detail.reason` and, where useful, `blockingRefs` (`already_reversed`, `reversal_not_reversible`, `charge_already_posted`, `charge_already_replaced`, `replaced_charge_not_reversed`, `patient_merged`, `dependent_reversal_required`, `allocation_reversal_required`, `settlement_reversal_required`). The plan's `entry_not_found` and `tenant_mismatch` are the shared 404.
+- Storage (migration `20261120000000_billing_journal.sql`): `billing_settings` (per-tenant currency, default USD; runtime SELECT only), `billing_charges` (runtime SELECT/INSERT, UPDATE only on `version, updated_at`; a trigger freezes every other column and requires version +1; no DELETE), `billing_journal_entries` and `billing_journal_lines` (runtime SELECT/INSERT only; append-only trigger for every role that cannot disable triggers). Deferred constraint triggers check at commit, per entry: declared line count (so no line can be added later), at least two lines, zero sum, exact negation of the original for a reversal (no self foreign key: restore order), and per-dimension sign rules. One reversal per entry (unique index). Lines carry the entry's currency through a composite foreign key.
+- Concurrency: aggregates are the serialization points (journal rows are never locked because the runtime role cannot UPDATE them). Lock order: payments, then charges, each in id order, then the posting; the unique reversal index is the backstop (23505 maps to 409 `already_reversed`).
+- Merge (S6): posted billing rows are never relinked; `billing_charges.patient_id` and `billing_journal_lines.patient_id` are registered in `MERGE_EXCLUDED_REFERENCES`. Balances, ledgers and (B2) allocations resolve the merge set at read/command time from `patients.merged_into`. `BILLING_POST_MERGE_PROBE` (wired into the patient service of REST and MCP) counts entries posted after the merge, so an unmerge after a new financial fact needs the elevated reconciliation review.
+- Scopes: `billing.write` (post; human or service), `billing.correct` (reversals; human only); reads use the registry report scope `ledger.read`. Registered in SHARED-CONTRACTS.
+- Operations: `billing.charges.post|read`, `billing.entries.read|reverse`, `billing.ledger.list`, `billing.balances.read`; REST under `/v1/billing/...`, MCP `billing_*`, bodies in `packages/contracts/src/billing.schema.json` (`billing:` prefix in the drift check; `Version` and `IdempotencyKey` byte-identical to the task contract). Every command that posts an entry answers 201. Financial reads write sensitive-read rows (references and filter names only).
+- C14 seam: `billing.charges.post` takes a synthetic procedure reference (`syn-proc-...`) and synthetic code (`SYN-...`), source `synthetic_procedure_seam`; C14 replaces the reference with its rendered-procedure reference and drives the same command as a service principal.
+
+## Task record: B2 payments, allocations and undistributed funds (workstream B)
+
+Additions only; no frozen row changed. ADR 0008 (recommended-pending-billing-approval); provider execution blocked-on-discovery (B-S1).
+
+- Storage (migration `20261120010000_billing_payments.sql`): `billing_payments` (facts immutable, version only; unique per method and synthetic receipt) and `billing_payment_attempts` (capture outcome immutable; one resolution of an unknown outcome; unique provider key); the journal gains the payment foreign keys and the accounts `unapplied_credit` (per payment and holding patient), `undeposited_funds` and `settled_cash` (per payment), with the dimension CHECK and the sign-rule function replaced (no posted row is updated).
+- Provider port (`packages/domain/src/billing/payment-port.ts`): `capture` and side-effect-free `lookup` with a stable key (sha256 of the caller's idempotency scope); outcomes `confirmed | declined | unknown`; the only implementation is synthetic and deterministic. Unknown outcomes are open reconciliation items, resolved only by lookup (`billing.payments.reconcile`); still-unknown is a retryable 409, never a new capture.
+- Lock order (extends B1): patients `FOR SHARE` (record, transfer), then the payment `FOR UPDATE`, then charges `FOR UPDATE` in id order. Losers of a race see the committed result and get typed 409 refusals.
+- Operations: `billing.payments.record|read|settle|allocate|refund|reconcile`, `billing.funds.transfer`, `billing.responsibility.transfer`, `billing.worklist.list`. Refunds and cross-patient transfers are human-only `billing.correct`; reads use `paymentDistribution.read` and `undistributedFunds.read`.
+- Merge: `billing_payments.patient_id|guarantor_id` and `billing_payment_attempts.patient_id|guarantor_id` are deliberate exclusions; allocation resolves the charge's merge set.
+
+## Task record: B3 payment plans (workstream B)
+
+Additions only; no frozen row changed. ADR 0008 (recommended-pending-billing-approval); card and auto-pay execution blocked-on-discovery (B-S1).
+
+- Storage (migration `20261120020000_billing_payment_plans.sql`): `billing_payment_plans` (parties, currency, IANA zone; version only), `billing_payment_plan_terms` (one row per terms version), `billing_payment_plan_events` (authorization, auto-pay and closure facts; authorization reference unique per plan; one closure) and `billing_payment_plan_attempts` (unique per plan, terms version, period and attempt number; a blocked attempt has no provider attempt). All append-only; no balance, overdue, state or status column.
+- Operations: `billing.plans.create|read|authorize|amend|autopay|collect|close|worklist`. Close is human-only `billing.correct`; reads and the worklist use the registry scope `receivables.read`; the rest `billing.write`.
+- Collection reuses the B2 provider path: provider key bound to plan, terms version, period and attempt number; a confirmed capture posts an ordinary B2 card payment (unapplied until allocated); an unknown outcome is reconciled only through `billing.payments.reconcile`.
+- Merge: `billing_payment_plans.patient_id|guarantor_id` are deliberate exclusions.
+
+## Task record: B4 statements (workstream B)
+
+Additions only; no frozen row changed. ADR 0008 (recommended-pending-billing-approval).
+
+- Storage (migration `20261120030000_billing_statements.sql`): `billing_statements`, written once per generation (grants SELECT/INSERT, append-only trigger): guarantor, version chain (unique version and unique supersedes per guarantor; no self foreign key for restore order), cutoff, basis `posted_through_cutoff`, signed snapshot total with class, covered identities, canonical snapshot JSON (references, kinds, dates, integer amounts only) and its sha256 digest, delivery channel fixed to `none`.
+- Operations: `billing.statements.generate` (`billing.write`) and `billing.statements.read` (`receivables.read`); freshness is derived on read. Delivery is E7.
+- Merge: `billing_statements.guarantor_id` is a deliberate exclusion; covered identities are a snapshot array, not foreign keys.
+
+## Task record: B5 coverage and eligibility (workstream B)
+
+Additions only; no frozen row changed. ADR 0008 (recommended-pending-billing-approval); live eligibility blocked-on-discovery (B-S3).
+
+- Storage (migration `20261120040000_billing_rcm_coverage.sql`): `rcm_coverages` (patient, synthetic payer; version only), `rcm_coverage_versions` (rank, subscriber patient and relationship, synthetic member, group and fee schedule references, inclusive effective dates, overlap override reason) and `rcm_eligibility_records` (source `entered|fake_adapter`, state `verified|unverified|unknown|unparsed`, service date, capture instant, freshness window, field groups with provenance, raw evidence and digest); all append-only.
+- Journal seam: `billing_journal_lines.coverage_id` (FK to coverage); new insurer receivable lines must name a coverage (NOT VALID CHECK); the sign rule and reversal negation key on the coverage (functions replaced, no posted row updated). `billing.responsibility.transfer` takes `coverageRef`.
+- Operations: `rcm.coverages.record|change|read|resolve`, `rcm.eligibility.record` under the new registry scopes `coverage.read` / `coverage.write`. `rcm.coverages.resolve` is the coverage-status read for C12 (`entered|unknown|stale`; `paymentAssurance: none`).
+- Eligibility port (`packages/domain/src/rcm/coverage.ts`): stable request key, outcomes `confirmed|declined|unknown`; only a deterministic fake adapter exists.
+- Merge: `rcm_coverages.patient_id` and `rcm_coverage_versions.subscriber_patient_id` are deliberate exclusions; resolution follows the merge set.
+
 ## Task record: C5 encounters and clinical authorship (workstream C batch 1, branch codex/c-clinical-1)
 
 Additions only; no frozen row changed. Clinical semantics are recommended-pending-clinical-approval (ADR 0005, ADR 0006); nothing here is clinically validated. Synthetic data only.
@@ -521,3 +571,11 @@ Additions only; synthetic data; recommended-pending-approval throughout.
 - `ImagingWorkItem.kind` adds `acquisition_deferred`, `bridge_job_failed`, `bridge_outcome_unknown`, `bridge_late_result`, `bridge_lease_expired`, `device_unavailable`.
 - Imaging export `cuspatlas-imaging-export/1` (`IMAGING_EXPORT_TABLES` in foreign-key order, no tenant column, no storage key) and blob bundles `cuspatlas-imaging-blobs/1` (REST only); privileged synthetic re-import `importImagingExport` / `importImagingBlobs`; storage-layer backup of the synthetic store `backupObjectStore` / `restoreObjectStore` (tombstones carried forward).
 - Grant tokens: the MAC must be canonically base64url-encoded (a non-canonical last character is refused).
+
+## Task record: hardening of B3-B5 after independent review (workstream B, branch codex/b-billing-1)
+
+Additions only; no frozen row changed. Migration `20261120060000_billing_review_hardening_b3_b5.sql`.
+
+- New refusal reasons (409 `conflict`): `attempt_in_flight` (reconcile of a pending provider attempt inside its in-flight lease). `already_resolved` now also answers a lookup that does not change a premature `not_captured` resolution.
+- New statement stale reason `pre_cutoff_changed`. New coverage status value `inactive` on the billing resolution (`CoverageSummary.coverageStatus`); the C12 estimate status is unchanged.
+- Payment attempts gain `call_deadline`, `superseded_resolution`, `corrected_at`, `corrected_by` (one correction `not_captured` to `captured`). Runtime-role attempt inserts are `pending` only; a card payment must match its captured attempt. Insurer lines: reversal of a payer-only (pre-B5) line is allowed; other lines carry their coverage's payer. Plan authorization references are unique per tenant.

@@ -1,6 +1,7 @@
 import {
   ACTION_PROPOSAL_PROPERTIES,
   type ActorContext,
+  BILLING_PROPERTIES,
   CLINICAL_PROPERTIES,
   createAjv,
   ENGAGEMENT_PROPERTIES,
@@ -17,6 +18,7 @@ import {
   type AppointmentService,
   type AttemptRecordingDeps,
   type Authorize,
+  type BillingService,
   type ClinicalService,
   type EngagementService,
   type ImagingService,
@@ -96,6 +98,8 @@ export interface ToolDeps {
   readonly scheduling: SchedulingResourceService;
   /** S8/S10/S11 appointment requests, booking and attendance. */
   readonly appointments: AppointmentService;
+  /** B1/B2 billing journal, payments and allocations. */
+  readonly billing: BillingService;
   /** C5/C8 clinical record (workstream C). */
   readonly clinical: ClinicalService;
   /** Workstream E staff operations (portal principals, consent, suppression, delivery). */
@@ -137,6 +141,7 @@ const KNOWN_PROPERTIES: ReadonlySet<string> = new Set([
   ...ACTION_PROPOSAL_PROPERTIES,
   ...PATIENT_PROPERTIES,
   ...SCHEDULING_PROPERTIES,
+  ...BILLING_PROPERTIES,
   ...CLINICAL_PROPERTIES,
   ...ENGAGEMENT_PROPERTIES,
   ...IMAGING_PROPERTIES,
@@ -148,6 +153,10 @@ const KNOWN_PROPERTIES: ReadonlySet<string> = new Set([
   'requestRef',
   'appointmentRef',
   'holdRef',
+  'chargeRef',
+  'entryRef',
+  'paymentRef',
+  'attemptRef',
   'encounterRef',
   'itemRef',
   'historyVersionRef',

@@ -11,11 +11,13 @@ import type {
 import {
   type AttachmentRefResolver,
   type AttemptRecordingDeps,
+  BILLING_POST_MERGE_PROBE,
   CLINICAL_POST_MERGE_FACT_PROBES,
   type CommandExecutor,
   type CursorCodec,
   createAppointmentService,
   createAuthorize,
+  createBillingService,
   createClinicalService,
   createClinicalVisitContextProducers,
   createDurableExecutor,
@@ -55,6 +57,8 @@ import {
   registerAttendanceRoutes,
   registerBookingRoutes,
 } from './routes/appointments';
+import { registerBillingRoutes } from './routes/billing';
+import { registerBillingOpRoutes } from './routes/billing-ops-routes';
 import { registerClinicalRoutes } from './routes/clinical';
 import { registerClinicalRecordRoutes } from './routes/clinical-record';
 import { registerImagingRoutes } from './routes/imaging-routes';
@@ -254,7 +258,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       const patients = createPatientService({
         matchKeyPepper: resolveMatchKeyPepper(deps.env, deps.matchKeyPepper),
         // C5: clinical facts after a merge make an unmerge need the reconciliation review (S-D2).
-        postMergeFactProbes: CLINICAL_POST_MERGE_FACT_PROBES,
+        postMergeFactProbes: [...CLINICAL_POST_MERGE_FACT_PROBES, BILLING_POST_MERGE_PROBE],
         authorize,
         withTenantTransaction: deps.tenantTransactions,
         recording,
@@ -283,6 +287,14 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       registerAppointmentRoutes(app, { authenticator, appointments });
       registerBookingRoutes(app, { authenticator, appointments });
       registerAttendanceRoutes(app, { authenticator, appointments });
+      const billing = createBillingService({
+        authorize,
+        withTenantTransaction: deps.tenantTransactions,
+        recording,
+        execute,
+      });
+      registerBillingRoutes(app, { authenticator, billing });
+      registerBillingOpRoutes(app, { authenticator, billing });
       const clinical = createClinicalService({
         authorize,
         withTenantTransaction: deps.tenantTransactions,

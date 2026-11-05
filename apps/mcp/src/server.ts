@@ -27,11 +27,13 @@ import {
 import {
   type AttachmentRefResolver,
   type AttemptRecordingDeps,
+  BILLING_POST_MERGE_PROBE,
   CLINICAL_POST_MERGE_FACT_PROBES,
   type CommandExecutor,
   type CursorCodec,
   createAppointmentService,
   createAuthorize,
+  createBillingService,
   createClinicalService,
   createClinicalVisitContextProducers,
   createDurableExecutor,
@@ -61,6 +63,8 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { assertDistinctAudience, assertIdentityAllowed, createMcpAuthenticator } from './auth';
 import { APPOINTMENT_TOOLS } from './tools/appointments';
+import { BILLING_TOOLS } from './tools/billing';
+import { BILLING_OP_TOOLS } from './tools/billing-ops';
 import { CLINICAL_TOOLS } from './tools/clinical';
 import { CLINICAL_RECORD_TOOLS } from './tools/clinical-record';
 import { ENGAGEMENT_OP_TOOLS } from './tools/engagement-ops';
@@ -161,6 +165,8 @@ export const TOOLS: readonly ToolDefinition[] = [
   ...PATIENT_TOOLS,
   ...SCHEDULING_TOOLS,
   ...APPOINTMENT_TOOLS,
+  ...BILLING_TOOLS,
+  ...BILLING_OP_TOOLS,
   ...CLINICAL_TOOLS,
   ...CLINICAL_RECORD_TOOLS,
   ...SCHEDULING_OP_TOOLS,
@@ -180,7 +186,12 @@ const REF_PARAMS = [
   'requestRef',
   'appointmentRef',
   'holdRef',
+  'chargeRef',
+  'entryRef',
+  'paymentRef',
+  'attemptRef',
   'encounterRef',
+  // S12-S16 path parameters.
   'itemRef',
   'historyVersionRef',
   // C6/C7/C11 clinical record path references.
@@ -202,7 +213,6 @@ const REF_PARAMS = [
   // S12-S16 path parameters.
   'seriesRef',
   'intentRef',
-  'entryRef',
   'offerRef',
   'recoveryRef',
   'policyRef',
@@ -225,6 +235,11 @@ const REF_PARAMS = [
   'deviceRef',
   'jobRef',
   'deferralRef',
+  // B6/B7/B9 path parameters (UUID references).
+  'procedureRef',
+  'claimRef',
+  'appealRef',
+  'submissionRef',
 ] as const;
 const PLACEHOLDER_REF = '00000000-0000-4000-8000-000000000000';
 
@@ -316,7 +331,7 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
   const patients = createPatientService({
     matchKeyPepper: resolveMatchKeyPepper(deps.env, deps.matchKeyPepper),
     // C5: clinical facts after a merge make an unmerge need the reconciliation review (S-D2).
-    postMergeFactProbes: CLINICAL_POST_MERGE_FACT_PROBES,
+    postMergeFactProbes: [...CLINICAL_POST_MERGE_FACT_PROBES, BILLING_POST_MERGE_PROBE],
     authorize,
     withTenantTransaction: deps.tenantTransactions,
     recording,
@@ -339,6 +354,12 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     visitContextProducers: createClinicalVisitContextProducers({ authorize }),
     // S16 completed-procedure recall basis: the C14 read (S keeps recall policy and due computation).
     completedProcedures: readLatestCompletedProcedures,
+  });
+  const billing = createBillingService({
+    authorize,
+    withTenantTransaction: deps.tenantTransactions,
+    recording,
+    execute,
   });
   const clinical = createClinicalService({
     authorize,
@@ -380,6 +401,7 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     patients,
     scheduling,
     appointments,
+    billing,
     clinical,
     engagement,
     imaging,

@@ -17,6 +17,7 @@
     "backup": "tsx packages/db/src/backup-cli.ts",
     "restore": "tsx packages/db/src/restore-cli.ts",
     "contract:check": "tsx apps/api/src/contract-drift-cli.ts",
+    "openapi:billing": "tsx scripts/openapi-billing.ts",
     "start": "tsx apps/api/src/main.ts",
     "sbom": "node scripts/sbom.mjs",
     "scan:privacy": "node scripts/privacy-scan.mjs",

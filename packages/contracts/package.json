@@ -10,6 +10,7 @@
     "./action-proposal.schema.json": "./src/action-proposal.schema.json",
     "./patient.schema.json": "./src/patient.schema.json",
     "./scheduling.schema.json": "./src/scheduling.schema.json",
+    "./billing.schema.json": "./src/billing.schema.json",
     "./clinical.schema.json": "./src/clinical.schema.json",
     "./engagement.schema.json": "./src/engagement.schema.json",
     "./imaging.schema.json": "./src/imaging.schema.json"

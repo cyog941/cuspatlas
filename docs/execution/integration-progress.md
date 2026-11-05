@@ -16,7 +16,8 @@ Status values: not started, in progress, blocked with cause, verified (on synthe
 | 4. Keyed idempotency payload digest | verified | step 4 commit | migration `20261125020000` |
 | 5. Merge `codex/i-imaging-1` (4bf86c5) | verified | merge commit | 22 conflicted files; merge-registry mirror gains `imagingAssociation` (`20261125030000`) |
 | 6. I seams (C15 and E resolvers to I3, S+I+C+E import) | verified | step 6 commit | no migration |
-| 7. Merge `codex/b-billing-1` and B seams | not started | | |
+| 7. Merge `codex/b-billing-1` (344256f) | verified | merge commit | 11 conflicted files |
+| 8. B seams (C12 fees and coverage, CL-04 to I3, five-way round trip) | not started | | |
 
 ## 1. Merge of codex/e-portal-1
 
@@ -73,6 +74,12 @@ Test fix: `portal-requests.test.ts` asserted every table whose name contains `re
 - One import order S, I, C, E:  loads I9 documents (content key re-derived from the digest as in I's importer);  is a wrapper; bytes still go through .
 - Tests (, real I stack and object store): C15 links its own patient's current imageRef, 409  for another patient's, 404 for an unknown one; under a beta tenant transaction an alpha imageRef is  and not attachable by imageRef or objectRef; E5 staff thread attaches the patient's image by imageRef and objectRef and refuses another patient's; S17 + I9 + C18 + E9 exported, imported in reverse order plus blobs into a fresh database and store, all four exports identical, and the imported link resolves  through I3 in the target.
 - E2  view: still ; a patient-facing document projection needs a specification (which images a patient may see, grants) and is not invented here.
+
+## 7. Merge of codex/b-billing-1
+
+Merged at 99d7da6 and completed to 344256f (B8/CL/B10 review fixes, migration 20261120140000) before committing; one merge commit. B already contained S and C up to 4fbde64. Conflicts (both sides kept): billing, clinical, engagement and imaging schema exports, contract-drift (billing ref prefix in the same ternary chain as clinical, engagement and imaging; B's generated-block check kept), API, contracts and db index exports (B's  and  beside the integration modules), MCP path parameters, replay codecs ( in ; B's service runs the keyed durable executor like every other), runtime-role table list, task records. B's  helper in  is the same New York date fix and was taken. : B's histogram diff is additions only (info line, generated  block, two component blocks); applied to the integration version; the drift check passes.
+
+Test fixes: `portal-requests.test.ts` also excludes `billing_`/`rcm_` tables from the appointment-request check; `clinical-parity.test.ts` (C's parser of the negative-harness COMMANDS table) now reads B's spread of `[operation, tool, ...]` tuples instead of refusing it.
 
 ## Open items
 

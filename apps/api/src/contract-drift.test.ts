@@ -101,4 +101,18 @@ describe('contract drift check', () => {
       'synthetic-task.schema.json',
     );
   });
+
+  it('fails when the generated BILLING_OPS block differs from what scripts/openapi-billing.ts renders', () => {
+    const src = loadContractSources(root);
+    expect(src.openapiText).toContain('# BEGIN generated: BILLING_OPS (scripts/openapi-billing.ts)');
+    const marker = 'operationId: rcm.remittances.settle\n      description: >-\n';
+    const edited = src.openapiText.replace(marker, `${marker}        Hand edited.\n`);
+    expect(edited).not.toBe(src.openapiText);
+    expect(checkContractDrift({ ...src, openapiText: edited }).join('\n')).toMatch(/generated BILLING_OPS/);
+    const schema = JSON.parse(src.billingSchemaText);
+    schema.$defs.ClaimWorklistQuery.properties.extraProbe = { type: 'string' };
+    expect(checkContractDrift({ ...src, billingSchemaText: JSON.stringify(schema) }).join('\n')).toMatch(
+      /generated BILLING_OPS/,
+    );
+  });
 });

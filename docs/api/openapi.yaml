@@ -12,7 +12,8 @@ info:
     Hidden cross-tenant and missing resources return the same 404 body. Proposal bodies are defined
     by packages/contracts/src/action-proposal.schema.json. Patient bodies (S4-S6, synthetic data only) are
     defined by packages/contracts/src/patient.schema.json. Scheduling resource and availability
-    bodies (S7, S9) are defined by packages/contracts/src/scheduling.schema.json.
+    bodies (S7, S9) are defined by packages/contracts/src/scheduling.schema.json. Billing bodies (B1, B2;
+    synthetic data only; money is integer minor units) are defined by packages/contracts/src/billing.schema.json.
   license:
     name: AGPL-3.0-or-later
     identifier: AGPL-3.0-or-later
@@ -1560,6 +1561,917 @@ paths:
         '404':
           $ref: '#/components/responses/Refusal'
         '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/charges:
+    post:
+      operationId: billing.charges.post
+      description: >-
+        Post a charge (B1; the seam C14 will drive with rendered-procedure facts, synthetic procedure reference until then). Posts one balanced journal entry (Dr patient_receivable, Cr production_revenue) in the tenant currency (422 detail.reason currency_mismatch otherwise, never converted). One original charge per procedure (409 charge_already_posted); a correction is a reversal plus a replacement naming the reversed charge (409 replaced_charge_not_reversed / charge_already_replaced, 422 replacement_mismatch). A merged patient is 409 patient_merged; a patient of another tenant is 404. Requires billing.write (human or service). Synthetic data only; ADR 0008 pending billing approval.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ChargePost'
+      responses:
+        '201':
+          description: Charge and its journal entry posted (version 1).
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ChargeCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/charges/{chargeRef}:
+    get:
+      operationId: billing.charges.read
+      description: >-
+        Read one charge with open patient and insurer responsibility and the allocated amount, derived from journal lines. Hidden and missing are the same 404. Requires ledger.read.
+      parameters:
+        - $ref: '#/components/parameters/ChargeRef'
+      responses:
+        '200':
+          description: The charge.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ChargeRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/entries/{entryRef}:
+    get:
+      operationId: billing.entries.read
+      description: >-
+        Read one posted journal entry with signed lines (debit positive), currency and reversal links. Posted entries are never updated. Requires ledger.read.
+      parameters:
+        - $ref: '#/components/parameters/JournalEntryRef'
+      responses:
+        '200':
+          description: The entry.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/JournalEntryRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/entries/{entryRef}/reverse:
+    post:
+      operationId: billing.entries.reverse
+      description: >-
+        Correct a posted entry by a reversal that exactly negates it and names it (B1). Both stay readable. 409 already_reversed (with the existing reversal), reversal_not_reversible, or allocation_reversal_required / settlement_reversal_required / dependent_reversal_required naming the entries to reverse first. Requires billing.correct (human only).
+      parameters:
+        - $ref: '#/components/parameters/JournalEntryRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/EntryReverse'
+      responses:
+        '201':
+          description: Reversal entry posted; the version is the owning aggregate version.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ReversalCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/patients/{patientRef}/ledger:
+    get:
+      operationId: billing.ledger.list
+      description: >-
+        Journal entries touching the patient's account (the patient's merge set; merges never relink posted rows), oldest first, one bounded page at a time. Requires ledger.read.
+      parameters:
+        - $ref: '#/components/parameters/PatientRef'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/BillingCursor'
+      responses:
+        '200':
+          description: One page of entries.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/LedgerPage'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/patients/{patientRef}/balance:
+    get:
+      operationId: billing.balances.read
+      description: >-
+        readPatientBalance (B1): patient and insurer responsibility, unapplied credit and net balance derived from journal lines posted at or before asOf (default now). Never stored, never an estimate, reads no clinical table. A currency other than the tenant currency is 422 currency_mismatch. Requires ledger.read.
+      parameters:
+        - $ref: '#/components/parameters/PatientRef'
+        - $ref: '#/components/parameters/BillingCurrency'
+        - $ref: '#/components/parameters/BillingAsOf'
+      responses:
+        '200':
+          description: The derived balance.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/BalanceRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/payments:
+    post:
+      operationId: billing.payments.record
+      description: >-
+        recordPaymentIntent (B2): records patient money as a received fact (Dr undeposited_funds, Cr unapplied_credit) for cash or check, or calls the synthetic provider port for card_synthetic with a stable key derived from the idempotency scope. A declined attempt is recorded with no entry; an unknown outcome (timeout) is an open reconciliation item, never posted as collected and never retried automatically. A duplicate receipt is 409 duplicate_receipt; a guarantor must be the recorded guarantor (422 guarantor_unresolved). No card data, PAN or provider token is accepted (B-S1 blocked-on-discovery). Requires billing.write.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PaymentRecord'
+      responses:
+        '201':
+          description: The payment (outcome confirmed) or the provider attempt (declined, or unknown with a reconciliation item) is recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PaymentCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/payments/{paymentRef}:
+    get:
+      operationId: billing.payments.read
+      description: >-
+        Read one payment: allocations (with reversal links), unapplied funds per holding patient, refunded amount, and received versus settled cash, all derived from journal lines. Requires paymentDistribution.read.
+      parameters:
+        - $ref: '#/components/parameters/PaymentRef'
+      responses:
+        '200':
+          description: The payment with derived allocated, refunded, unapplied and settlement amounts.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PaymentRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/payments/{paymentRef}/settle:
+    post:
+      operationId: billing.payments.settle
+      description: >-
+        Record settlement of the payment's unsettled cash (Dr settled_cash, Cr undeposited_funds) with a synthetic deposit reference. Received is not settled (CL-10). 409 nothing_to_settle or payment_reversed. Requires billing.write.
+      parameters:
+        - $ref: '#/components/parameters/PaymentRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PaymentSettle'
+      responses:
+        '201':
+          description: Settlement entry posted.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/EntryCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/payments/{paymentRef}/allocations:
+    post:
+      operationId: billing.payments.allocate
+      description: >-
+        allocatePayment (B2): moves unapplied credit onto charges, in the caller's order, all or nothing. Concurrent allocations serialize on the payment and charge rows: 409 insufficient_funds or charge_overallocated for the loser, never an over-allocation. A charge of an unrelated account is 422 patient_mismatch; a charge of another tenant is 404. Requires billing.write.
+      parameters:
+        - $ref: '#/components/parameters/PaymentRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PaymentAllocate'
+      responses:
+        '201':
+          description: One allocation entry per charge, all or nothing.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/AllocationCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/payments/{paymentRef}/refunds:
+    post:
+      operationId: billing.payments.refund
+      description: >-
+        Record a refund of the original payer's unapplied money (unsettled cash first, then settled cash). A refund larger than collected and unapplied funds is 409 refund_exceeds_funds. Provider refund execution is blocked-on-discovery (B-S1). Requires billing.correct (human only).
+      parameters:
+        - $ref: '#/components/parameters/PaymentRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PaymentRefund'
+      responses:
+        '201':
+          description: Refund entry posted.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/EntryCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/payments/{paymentRef}/transfers:
+    post:
+      operationId: billing.funds.transfer
+      description: >-
+        moveUnappliedFunds (B2): moves part of a payment's unapplied money from one patient to another with a required reason; audited. 409 insufficient_funds, 422 same_patient, 404 for a patient of another tenant. Requires billing.correct (human only).
+      parameters:
+        - $ref: '#/components/parameters/PaymentRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/FundsTransfer'
+      responses:
+        '201':
+          description: Transfer entry posted.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/EntryCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/charges/{chargeRef}/responsibility:
+    post:
+      operationId: billing.responsibility.transfer
+      description: >-
+        Move open responsibility for a charge between the patient and a synthetic payer reference (until B5 coverage exists). Never beyond what is open: 409 responsibility_exceeded or charge_reversed. Requires billing.write.
+      parameters:
+        - $ref: '#/components/parameters/ChargeRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ResponsibilityTransfer'
+      responses:
+        '201':
+          description: Responsibility transfer entry posted.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/EntryCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/payment-attempts/{attemptRef}/reconcile:
+    post:
+      operationId: billing.payments.reconcile
+      description: >-
+        Resolve an unknown provider outcome by looking it up with the original key; never a new capture. Still unknown is a retryable 409 outcome_still_unknown; 409 already_resolved or not_reconcilable. Requires billing.write.
+      parameters:
+        - $ref: '#/components/parameters/AttemptRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/AttemptReconcile'
+      responses:
+        '200':
+          description: The unknown outcome is resolved (captured posts the payment; declined posts nothing).
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ReconcileCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/worklist:
+    get:
+      operationId: billing.worklist.list
+      description: >-
+        Exception-first worklist (B-D4): undistributed (unapplied) funds per payment and holder, and unknown provider outcomes awaiting reconciliation, each with owner, queue, reason, age basis, due time and suggested action. Derived, never stored; a bounded page states its total and whether it was truncated. Requires undistributedFunds.read.
+      parameters:
+        - $ref: '#/components/parameters/BillingWorklistKind'
+        - $ref: '#/components/parameters/BillingWorklistLimit'
+      responses:
+        '200':
+          description: Owned billing work items, ordered by due time, with total and truncation.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Worklist'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/payment-plans:
+    post:
+      operationId: billing.plans.create
+      description: >-
+        Create a payment plan (B3; synthetic data only; pending billing approval). Monthly installments split the contract total evenly, residue to the earliest. The guarantor, when named, must be the current S5 guarantor (422 guarantor_unresolved); 422 invalid_time_zone or currency_mismatch. The plan starts unsigned. Requires billing.write.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PlanCreate'
+      responses:
+        '201':
+          description: The plan and its first terms version.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PlanCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/payment-plans/{planRef}:
+    get:
+      operationId: billing.plans.read
+      description: >-
+        A derived plan view: terms history, schedule, collected, balance, overdue, next due date, authorization, auto-pay and card-expiry state, attempts and facts. Nothing in it is stored. Requires receivables.read.
+      parameters:
+        - $ref: '#/components/parameters/PlanRef'
+      responses:
+        '200':
+          description: The derived plan view.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PlanRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/payment-plans/{planRef}/authorizations:
+    post:
+      operationId: billing.plans.authorize
+      description: >-
+        Record the signed-agreement authorization fact (synthetic authorization and evidence references, each used once per plan) for the current terms. 409 already_authorized, plan_closed or stale_version. Requires billing.write.
+      parameters:
+        - $ref: '#/components/parameters/PlanRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PlanAuthorize'
+      responses:
+        '201':
+          description: The authorization fact.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PlanCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/payment-plans/{planRef}/amendments:
+    post:
+      operationId: billing.plans.amend
+      description: >-
+        Amend the plan as a new terms version; collected money becomes the basis of the new schedule and the new terms are unsigned until authorized. 422 amendment_below_collected; 409 attempt_in_flight, plan_closed or stale_version. Requires billing.write.
+      parameters:
+        - $ref: '#/components/parameters/PlanRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PlanAmend'
+      responses:
+        '201':
+          description: The new terms version.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PlanCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/payment-plans/{planRef}/autopay:
+    post:
+      operationId: billing.plans.autopay
+      description: >-
+        Enroll auto-pay with a synthetic instrument, card expiry month and a new authorization record (a reused one is 409 authorization_reused), or pause or resume it. 409 unsigned_authorization or instrument_absent; 422 instrument_incomplete. Requires billing.write.
+      parameters:
+        - $ref: '#/components/parameters/PlanRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PlanAutopay'
+      responses:
+        '201':
+          description: The auto-pay fact.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PlanCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/payment-plans/{planRef}/collections:
+    post:
+      operationId: billing.plans.collect
+      description: >-
+        Attempt one due installment period through the synthetic provider port (B-S1 blocked-on-discovery) with a key derived from the plan, terms version, period and attempt number. Declined and unknown outcomes and an expired card (blocked, no charge) are recorded attempts, not refusals. 409 duplicate_period (a further attempt needs retry), attempt_in_flight, unsigned_authorization, instrument_absent, autopay_paused, plan_voided, plan_defaulted or plan_completed; 422 period_not_found, period_not_due or amount_exceeds_installment. Requires billing.write.
+      parameters:
+        - $ref: '#/components/parameters/PlanRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PlanCollect'
+      responses:
+        '201':
+          description: The recorded installment attempt.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PlanCollectResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/payment-plans/{planRef}/close:
+    post:
+      operationId: billing.plans.close
+      description: >-
+        Void or default the plan (a human decision with a reason). History and collected money stay. 409 plan_closed, attempt_in_flight or stale_version. Requires billing.correct (human only).
+      parameters:
+        - $ref: '#/components/parameters/PlanRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PlanClose'
+      responses:
+        '201':
+          description: The closure fact.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PlanCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/payment-plan-worklist:
+    get:
+      operationId: billing.plans.worklist
+      description: >-
+        Owned payment-plan work items (missing signature, expired or expiring card, failed auto-pay, overdue installments), one per plan and problem, each with owner, queue, reason, due time, suggested action and evidence. Derived at read time. Requires receivables.read.
+      parameters:
+        - $ref: '#/components/parameters/PlanWorklistKind'
+        - $ref: '#/components/parameters/BillingWorklistLimit'
+      responses:
+        '200':
+          description: Plan work items ordered by due time, with total and truncation.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PlanWorklist'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/statements:
+    post:
+      operationId: billing.statements.generate
+      description: >-
+        Generate a statement as one audited command (B4; synthetic data only; pending billing approval): a canonical snapshot of the guarantor accounts (its dependents through the current S5 guarantor relationship, plus its own unless another guarantor holds it, each by merge set) from the journal at the cutoff, with its sha256 digest. The row is never updated; a regeneration is a new version that supersedes the latest. Credit and zero totals are classified explicitly. Delivery is E7 (channel none). 422 cutoff_in_future, guarantor_unresolved or statement_too_large; 409 patient_merged. Requires billing.write.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/StatementGenerate'
+      responses:
+        '201':
+          description: The generated statement version.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/StatementCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/statements/{statementRef}:
+    get:
+      operationId: billing.statements.read
+      description: >-
+        The stored snapshot with its digest check and freshness derived now (posted after cutoff, account membership changed, superseded); never restated. Requires receivables.read.
+      parameters:
+        - $ref: '#/components/parameters/StatementRef'
+      responses:
+        '200':
+          description: The statement and its derived freshness.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/StatementRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/coverages:
+    post:
+      operationId: rcm.coverages.record
+      description: >-
+        Record a coverage (B5; synthetic data only; pending billing approval): synthetic payer and member references, rank, subscriber (a separate patient; relationship self only for the patient), inclusive effective dates and an optional synthetic fee schedule reference. Overlap of one rank in the patient account is 409 overlapping_coverage unless overlapOverride names a reason; 422 subscriber_relationship_mismatch or invalid_effective_range; 409 patient_merged. Requires coverage.write.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/CoverageRecord'
+      responses:
+        '201':
+          description: The coverage and its first version.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/CoverageCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/coverages/{coverageRef}:
+    get:
+      operationId: rcm.coverages.read
+      description: >-
+        A coverage with its full version history and every eligibility record (source, capture instant, freshness window, field groups with provenance, raw evidence digest). Requires coverage.read.
+      parameters:
+        - $ref: '#/components/parameters/CoverageRef'
+      responses:
+        '200':
+          description: The coverage, its history and its eligibility records.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/CoverageRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/coverages/{coverageRef}/versions:
+    post:
+      operationId: rcm.coverages.change
+      description: >-
+        Record a new coverage version (changing coverage history); earlier versions are never rewritten and stay citable by version. 409 stale_version or overlapping_coverage. Requires coverage.write.
+      parameters:
+        - $ref: '#/components/parameters/CoverageRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/CoverageChange'
+      responses:
+        '201':
+          description: The new coverage version.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/CoverageCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/coverages/{coverageRef}/eligibility:
+    post:
+      operationId: rcm.eligibility.record
+      description: >-
+        Record eligibility for the current coverage version: staff-entered (always unverified) or one request through the fake adapter (B-S3 blocked-on-discovery): verified when mapped, unknown on timeout (never ineligible), unparsed with raw evidence when unmappable. Never a payment guarantee (CL-01). 422 retrieved_in_future, benefits_not_allowed or currency_mismatch. Requires coverage.write.
+      parameters:
+        - $ref: '#/components/parameters/CoverageRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/EligibilityRecord'
+      responses:
+        '201':
+          description: The eligibility record.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/EligibilityCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/patients/{patientRef}/coverage:
+    get:
+      operationId: rcm.coverages.resolve
+      description: >-
+        Coverages of the patient account (merge set) effective on the service date in benefit order, each with its latest usable eligibility record, its freshness for that date and the derived coverageStatus (entered, unknown, stale): the read C12 estimates use. Requires coverage.read.
+      parameters:
+        - $ref: '#/components/parameters/PatientRef'
+        - $ref: '#/components/parameters/RcmServiceDate'
+      responses:
+        '200':
+          description: The ordered coverages and their status for the service date.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/CoverageResolution'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
@@ -8843,6 +9755,1247 @@ paths:
         '503':
           $ref: '#/components/responses/Refusal'
   # --- end imaging ---
+  # BEGIN generated: BILLING_OPS (scripts/openapi-billing.ts)
+  /v1/billing/fee-schedules/versions:
+    post:
+      operationId: billing.feeSchedules.publish
+      description: >-
+        B9: publish a new version of a practice or allowance fee schedule (SYN- codes, integer minor units,
+        effective date). A version is never edited and never reprices a posted charge; a version effective
+        before the latest one is 409 effective_date_out_of_order.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/FeeSchedulePublish'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/FeeScheduleCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/fees:
+    get:
+      operationId: billing.fees.resolve
+      description: >-
+        B9 / C12 seam: the practice fee and (with a coverage) the payer allowance of one SYN- code on a
+        service date at a location. null means no configured fee, never a guessed amount.
+      parameters:
+        - name: codeRef
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/SyntheticProcedureCode'
+        - name: serviceDate
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/LocalDate'
+        - name: locationRef
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/LocationRef'
+        - name: coverageRef
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/FeeResolutionResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/procedure-events/{procedureRef}/consume:
+    post:
+      operationId: billing.procedures.consume
+      description: >-
+        C14 -> B consumer (service principals only; the worker calls the same function): posts the charge of
+        a rendered procedure or the reversal of a reversed one, idempotently per procedure event version.
+      parameters:
+        - name: procedureRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ProcedureConsumeResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/charges/{chargeRef}/adjustments:
+    post:
+      operationId: billing.adjustments.post
+      description: >-
+        B9: request a manual adjustment of one charge with a configured reason (human only). Every kind,
+        contractual (insurer, capped at billed less the payer allowance) included, creates a request that
+        another human must approve before any journal entry exists (no silent adjustment or write-off);
+        insurer contractual amounts post on their own only from remittance ingestion.
+      parameters:
+        - name: chargeRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ChargeRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/AdjustmentPost'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/AdjustmentCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/adjustment-requests/{requestRef}/decision:
+    post:
+      operationId: billing.adjustments.decide
+      description: >-
+        B9: approve (posts the entry) or reject an adjustment request. Human-only billing.correct; the
+        requester can never decide their own request.
+      parameters:
+        - name: requestRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/AdjustmentDecision'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/AdjustmentCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/reports/receivables:
+    get:
+      operationId: billing.reports.receivables
+      description: >-
+        B9 report scope: open patient and insurer receivables by charge location. Requires receivables.read;
+        a location-restricted reader sees only its locations.
+      parameters:
+        - name: locationRef
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/LocationRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ReceivablesReportResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/claims:
+    post:
+      operationId: rcm.claims.prepare
+      description: >-
+        B6: prepare a claim (version 1) only from C14 rendered procedures with posted charges, for one
+        coverage of the patient account. Lines carry SYN- codes, billed amounts and the coverage allowance.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimPrepare'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/claims/worklist:
+    get:
+      operationId: rcm.claims.worklist
+      description: >-
+        B6 (CL-08): open claim work with owner, reason, due time and next action: validation issues by
+        owner, submit, reconcile an unknown submission, correct a rejection, review a denial or appeal
+        draft, follow up a silent payer.
+      parameters:
+        - name: owner
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimWorklistQuery'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimWorklistResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/claims/{claimRef}:
+    get:
+      operationId: rcm.claims.read
+      description: >-
+        B6: one claim with every immutable version, validation (and whether it is still current),
+        submissions, distinct response events (with code source and version) and appeals.
+      parameters:
+        - name: claimRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimReadResult'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/claims/{claimRef}/validation:
+    post:
+      operationId: rcm.claims.validate
+      description: >-
+        B6 (CL-03): deterministic readiness rules naming each missing fact, its owner and source; bound to
+        the head version and its inputs (any change invalidates it).
+      parameters:
+        - name: claimRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimVersioned'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/claims/{claimRef}/attachments:
+    post:
+      operationId: rcm.claims.attach
+      description: >-
+        B6: attach an object reference (imaging is I-owned; no bytes) as a new immutable claim version; a
+        submitted version is never changed.
+      parameters:
+        - name: claimRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimAttach'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/claims/{claimRef}/replacement:
+    post:
+      operationId: rcm.claims.replace
+      description: >-
+        B6 (CL-06/CL-10): a corrective replacement version linked to the rejected or denied one; it needs
+        its own validation and submission.
+      parameters:
+        - name: claimRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimReplace'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/claims/{claimRef}/submissions:
+    post:
+      operationId: rcm.claims.submit
+      description: >-
+        B6 (CL-04/CL-05): submit the validated head version through the fake clearinghouse under explicit
+        human approval or a standing policy rechecked now; one submission per version; an unknown outcome is
+        reconciled, never resubmitted.
+      parameters:
+        - name: claimRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimSubmit'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/claims/{claimRef}/poll:
+    post:
+      operationId: rcm.claims.poll
+      description: >-
+        B6: reconcile an unknown submission by lookup and record new partner responses (acknowledgement,
+        rejection, adjudication, denial codes) once each.
+      parameters:
+        - name: claimRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/claims/{claimRef}/appeals:
+    post:
+      operationId: rcm.appeals.draft
+      description: >-
+        B6 (CL-07): draft an appeal package for a recorded denial; it is never sent before another human
+        reviews it; one appeal per basis.
+      parameters:
+        - name: claimRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/AppealDraft'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/AppealCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/appeals/{appealRef}/review:
+    post:
+      operationId: rcm.appeals.review
+      description: >-
+        B6: review an appeal draft (never by its drafter): approve and send through the fake clearinghouse,
+        or reject.
+      parameters:
+        - name: appealRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/AppealReview'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/AppealCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/submission-policies:
+    post:
+      operationId: rcm.submissionPolicies.create
+      description: >-
+        B6: a revocable standing submission policy (payer and billed limit), rechecked at every execution.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/SubmissionPolicyCreate'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PolicyCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/submission-policies/{policyRef}/revoke:
+    post:
+      operationId: rcm.submissionPolicies.revoke
+      description: >-
+        B6: revoke a standing submission policy; later submissions under it are refused.
+      parameters:
+        - name: policyRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/SubmissionPolicyRevoke'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PolicyCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/claims/{claimRef}/secondary:
+    post:
+      operationId: rcm.claims.prepareSecondary
+      description: >-
+        B8 (CL-11): prepare the secondary claim of a primary claim from its paid adjudication and posted
+        remittance (COB evidence by reference). It claims only the patient responsibility the primary left,
+        which stays off the patient while unresolved; its own lifecycle reuses B6. One per primary; tertiary
+        is refused.
+      parameters:
+        - name: claimRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/SecondaryClaimPrepare'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/remittances:
+    post:
+      operationId: rcm.remittances.ingest
+      description: >-
+        B7: ingest a synthetic ERA-like remittance from the fake clearinghouse (idempotent per reference).
+        Matched lines post insurer payment to clearing, contractual adjustment and patient responsibility;
+        unmatched, mismatched or underpaid lines, and a write-down with no allowance to verify it against,
+        go to review; an ERA is never cash.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/RemittanceIngest'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/RemittanceCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/remittances/{remittanceRef}:
+    get:
+      operationId: rcm.remittances.read
+      description: >-
+        B7: one remittance with its line statuses, the clearing balance (reported, not received) and the
+        settled cash.
+      parameters:
+        - name: remittanceRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/RemittanceRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/RemittanceReadResult'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/remittances/{remittanceRef}/settlements:
+    post:
+      operationId: rcm.remittances.settle
+      description: >-
+        B7: record the EFT/check settlement of a remittance (a separate fact). An amount that differs from
+        the open clearing balance is 409 settlement_mismatch, never posted.
+      parameters:
+        - name: remittanceRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/RemittanceRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/RemittanceSettle'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/RemittanceCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/remittances/{remittanceRef}/reversal:
+    post:
+      operationId: rcm.remittances.reverse
+      description: >-
+        B7: correct a remittance by reversing every posting it made (newest first, settlement included);
+        nothing is edited. Human-only billing.correct.
+      parameters:
+        - name: remittanceRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/RemittanceRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/RemittanceReverse'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/RemittanceCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/remittances/{remittanceRef}/lines/{lineNo}/resolutions:
+    post:
+      operationId: rcm.remittances.resolveLine
+      description: >-
+        B7 (CL-10): resolve one review line as a separate fact: match an unmatched line to a transmitted
+        claim line (posts), post the reported amounts with the residual as an adjustment or write it off
+        (both after another human approves; a write-off also under a workflow policy limit), or route it to
+        appeal (only the paid amount posts; the rest stays insurer responsibility). The line is never
+        edited.
+      parameters:
+        - name: remittanceRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/RemittanceRef'
+        - name: lineNo
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/RemittanceLineNo'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/RemittanceLineResolve'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/RemittanceResolutionCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/remittance-resolutions/{resolutionRef}/decision:
+    post:
+      operationId: rcm.remittances.decideResolution
+      description: >-
+        B7: approve (posts the reported amounts and the residual entry) or reject a residual adjustment or
+        write-off. Human-only billing.correct, never the requester; the write-off limit and balances are
+        rechecked now.
+      parameters:
+        - name: resolutionRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/RemittanceResolutionDecide'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/RemittanceResolutionCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/workflow-policies:
+    post:
+      operationId: rcm.workflowPolicies.publish
+      description: >-
+        CL-08 policy data: a new version of the claims-workflow deadlines (acknowledgement, payer follow-up,
+        exception due), bounded escalation and the residual write-off limit for one synthetic payer or the
+        tenant default. Earlier versions are never changed.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/WorkflowPolicyPublish'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/WorkflowPolicyCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/claims/{claimRef}/attachment-packages:
+    post:
+      operationId: rcm.claims.packageAttachments
+      description: >-
+        CL-04: bind the head claim version object references (I owns the bytes) and their digests into one
+        attachment package; each digest is checked now and again before dispatch (an altered original
+        refuses the submission).
+      parameters:
+        - name: claimRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/AttachmentPackageCreate'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/patients/{patientRef}/visit-preparation:
+    get:
+      operationId: rcm.visits.prepare
+      description: >-
+        CL-01: coverage status, eligibility freshness and source per coverage for a service date, and the
+        missing facts with their owner. Unknown or stale stays unknown or stale; payment is never implied.
+      parameters:
+        - name: patientRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PatientRef'
+        - name: serviceDate
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/LocalDate'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/VisitPreparationResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/workflows:
+    post:
+      operationId: rcm.workflows.start
+      description: >-
+        CL workflow: start the persistent workflow of a primary claim lineage, optionally under a standing
+        submission policy (the workflow then drives validate, submit, poll and the secondary through the
+        owning commands) and a workflow policy version (deadlines, escalation).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimWorkflowStart'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/WorkflowCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/workflows/{workflowRef}:
+    get:
+      operationId: rcm.workflows.read
+      description: >-
+        CL workflow: linked steps (by reference; input versions, authority, outcome, attempt, next expected
+        event), owned exceptions with escalation, durable timers, open responsibilities per charge and the
+        closure fact.
+      parameters:
+        - name: workflowRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimWorkflowReadResult'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/workflows/{workflowRef}/advance:
+    post:
+      operationId: rcm.workflows.advance
+      description: >-
+        CL workflow: under the standing policy drive the next owned claim work items (bounded attempts),
+        then record every new fact as a step, open or resolve one exception per underlying issue and
+        schedule the durable timers (including a bounded retry timer for an automated action that is still
+        pending). One advance of a workflow at a time. Idempotent: a repeat records nothing twice.
+      parameters:
+        - name: workflowRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/WorkflowAdvanceResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/workflows/{workflowRef}/closure:
+    post:
+      operationId: rcm.workflows.close
+      description: >-
+        CL-12: close the lineage only when every patient and insurer responsibility is zero and no exception
+        is open (409 closure_blocked naming each); the closure fact breaks each charge down into insurer
+        payment, patient payment, adjustments, write-off and transfers. No silent write-off.
+      parameters:
+        - name: workflowRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimWorkflowClose'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/WorkflowCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/workflow-timers/{timerRef}/fire:
+    post:
+      operationId: rcm.workflows.fireTimer
+      description: >-
+        CL-08 durable timer (service principals only; the outbox worker calls the same function): records
+        the firing once, escalates an open exception one bounded level or opens the payer follow-up, then
+        advances the workflow.
+      parameters:
+        - name: timerRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Uuid'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/WorkflowAdvanceResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/billing/export:
+    get:
+      operationId: billing.export
+      description: >-
+        B10: versioned JSON export of every billing and rcm record of the tenant (journal, payments, plans,
+        statements, coverage, eligibility, claims, remittances, workflows), references preserved, no tenant
+        field, every amount as Money. Tenant-wide human administrators only; sensitive-read logged.
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/BillingExportResult'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  # END generated: BILLING_OPS
 components:
   securitySchemes:
     bearer:
@@ -8857,6 +11010,36 @@ components:
         signed by the device's own key; claims iss, sub, aud urn:cuspatlas:bridge:v1, tid, iat, exp (at most
         120 s), single-use jti, htm and htu (the request it is for). Bridge routes only; never a staff token.
   parameters:
+    CoverageRef:
+      name: coverageRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/billing.schema.json#/$defs/CoverageRef'
+    RcmServiceDate:
+      name: serviceDate
+      in: query
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/billing.schema.json#/$defs/LocalDate'
+    StatementRef:
+      name: statementRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/billing.schema.json#/$defs/StatementRef'
+    PlanRef:
+      name: planRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PlanRef'
+    PlanWorklistKind:
+      name: kind
+      in: query
+      required: false
+      schema:
+        $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PlanWorklistKind'
     RecallTaskRef:
       name: recallTaskRef
       in: path
@@ -9005,6 +11188,62 @@ components:
       required: false
       schema:
         $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/Cursor'
+    ChargeRef:
+      name: chargeRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ChargeRef'
+    JournalEntryRef:
+      name: entryRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/billing.schema.json#/$defs/EntryRef'
+    BillingCursor:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Cursor'
+    BillingCurrency:
+      name: currency
+      in: query
+      required: false
+      schema:
+        $ref: '../../packages/contracts/src/billing.schema.json#/$defs/CurrencyCode'
+    BillingAsOf:
+      name: asOf
+      in: query
+      required: false
+      schema:
+        $ref: '../../packages/contracts/src/billing.schema.json#/$defs/Instant'
+    PaymentRef:
+      name: paymentRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/billing.schema.json#/$defs/PaymentRef'
+    AttemptRef:
+      name: attemptRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/billing.schema.json#/$defs/AttemptRef'
+    BillingWorklistKind:
+      name: kind
+      in: query
+      required: false
+      schema:
+        $ref: '../../packages/contracts/src/billing.schema.json#/$defs/WorklistKind'
+    BillingWorklistLimit:
+      name: limit
+      in: query
+      required: false
+      description: Page size 1-100 (default 50). Larger values are refused, not clamped.
+      schema:
+        type: string
+        pattern: '^([1-9]|[1-9][0-9]|100)$'
     EncounterRef:
       name: encounterRef
       in: path

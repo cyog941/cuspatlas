@@ -34,9 +34,14 @@ let loc: { locationRef: string; provider: string; operatory: string };
 let otherProvider: string;
 const LOC = 'loc-proc';
 const PLANS = '/v1/clinical/treatment-plans';
-// Today in the seeded location's own time zone (the server compares there; a UTC date is tomorrow
-// in New York for five hours a day).
-const TODAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date());
+// The location's own date (America/New_York): a UTC date is "in the future" there between 00:00 and
+// 05:00 UTC, which made this suite fail by time of day.
+const TODAY = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/New_York',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+}).format(new Date());
 
 beforeAll(async () => {
   db = await openTestDatabase('clinical_procedures');

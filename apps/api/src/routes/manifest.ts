@@ -1,4 +1,6 @@
 import { APPOINTMENT_ROUTES } from './appointment-manifest';
+import { BILLING_ROUTES } from './billing-manifest';
+import { BILLING_OP_ROUTES } from './billing-ops';
 import { CLINICAL_ROUTES } from './clinical-manifest';
 import { CLINICAL_RECORD_ROUTES } from './clinical-record-manifest';
 import { ENGAGEMENT_OP_ROUTES } from './engagement-ops';
@@ -19,7 +21,7 @@ export interface RouteContract {
   /**
    * `$defs` name in synthetic-task.schema.json, `proposal:<name>` for action-proposal.schema.json,
    * `patient:<name>` for patient.schema.json, `scheduling:<name>` for scheduling.schema.json,
-   * `clinical:<name>` for clinical.schema.json, or a
+   * `billing:<name>` for billing.schema.json, `clinical:<name>` for clinical.schema.json, or a
    * local `#/components/schemas/<name>`.
    */
   readonly requestBody?: string;
@@ -39,6 +41,7 @@ export const SCHEMA_FILE = 'synthetic-task.schema.json';
 export const PROPOSAL_SCHEMA_FILE = 'action-proposal.schema.json';
 export const PATIENT_SCHEMA_FILE = 'patient.schema.json';
 export const SCHEDULING_SCHEMA_FILE = 'scheduling.schema.json';
+export const BILLING_SCHEMA_FILE = 'billing.schema.json';
 export const CLINICAL_SCHEMA_FILE = 'clinical.schema.json';
 export const ENGAGEMENT_SCHEMA_FILE = 'engagement.schema.json';
 export const IMAGING_SCHEMA_FILE = 'imaging.schema.json';
@@ -343,6 +346,8 @@ export const ROUTES: readonly RouteContract[] = [
     refusals: ['400', '401', '403', '404', '422', '503'],
   },
   ...APPOINTMENT_ROUTES,
+  ...BILLING_ROUTES,
+  ...BILLING_OP_ROUTES(),
   ...CLINICAL_ROUTES,
   ...CLINICAL_RECORD_ROUTES,
   ...SCHEDULING_OP_ROUTES,

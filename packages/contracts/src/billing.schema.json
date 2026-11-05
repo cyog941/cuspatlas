@@ -1,0 +1,5283 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cuspatlas.invalid/schemas/billing/v1",
+  "title": "Billing journal, payments and allocations contract v1 (B1-B2; synthetic data only; ADR 0008 pending billing approval)",
+  "$defs": {
+    "Version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "IdempotencyKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$"
+    },
+    "Cursor": {
+      "type": "string",
+      "description": "Opaque, tenant-bound, HMAC-protected. Never parse it.",
+      "pattern": "^[A-Za-z0-9_-]{1,600}\\.[A-Za-z0-9_-]{22}$"
+    },
+    "PatientRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "ChargeRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "EntryRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "PaymentRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "PrincipalRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "CurrencyCode": {
+      "type": "string",
+      "description": "ISO 4217 alphabetic code; must equal the tenant billing currency (422 currency_mismatch).",
+      "pattern": "^[A-Z]{3}$"
+    },
+    "MinorUnits": {
+      "type": "integer",
+      "description": "Signed integer minor units. On journal lines debit is positive and credit negative.",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "PositiveMinorUnits": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 99999999999
+    },
+    "Money": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "SHARED-CONTRACTS Money: explicit currency and integer minor units. Never a float.",
+      "required": ["currency", "minor"],
+      "properties": {
+        "currency": {
+          "$ref": "#/$defs/CurrencyCode"
+        },
+        "minor": {
+          "$ref": "#/$defs/MinorUnits"
+        }
+      }
+    },
+    "PositiveMoney": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["currency", "minor"],
+      "properties": {
+        "currency": {
+          "$ref": "#/$defs/CurrencyCode"
+        },
+        "minor": {
+          "$ref": "#/$defs/PositiveMinorUnits"
+        }
+      }
+    },
+    "LocalDate": {
+      "type": "string",
+      "format": "date"
+    },
+    "Instant": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "ReasonCode": {
+      "type": "string",
+      "pattern": "^[a-z_]{1,64}$"
+    },
+    "SyntheticRef": {
+      "type": "string",
+      "description": "Synthetic opaque external reference (check number, deposit, refund). Never real data.",
+      "pattern": "^syn-[a-z0-9-]{1,60}$"
+    },
+    "SyntheticProcedureRef": {
+      "type": "string",
+      "description": "C14 seam: a synthetic rendered-procedure reference until C14 drives charge posting.",
+      "pattern": "^syn-proc-[a-z0-9-]{1,60}$"
+    },
+    "SyntheticProcedureCode": {
+      "type": "string",
+      "description": "Synthetic placeholder code only (SYN-, up to 40 characters with hyphens, the C14 code space); no licensed code set is bundled (B-S4).",
+      "pattern": "^SYN-[A-Z0-9-]{1,40}$"
+    },
+    "PayerRef": {
+      "type": "string",
+      "description": "Synthetic payer reference (B5 coverage records carry it; no carrier catalog).",
+      "pattern": "^syn-payer-[a-z0-9-]{1,40}$"
+    },
+    "EntryKind": {
+      "enum": [
+        "charge",
+        "patientPayment",
+        "insurerPayment",
+        "adjustment",
+        "refund",
+        "writeOff",
+        "transfer",
+        "openingBalance",
+        "allocation",
+        "settlement",
+        "responsibilityTransfer",
+        "insurerSettlement"
+      ]
+    },
+    "Account": {
+      "enum": [
+        "patient_receivable",
+        "insurer_receivable",
+        "production_revenue",
+        "unapplied_credit",
+        "undeposited_funds",
+        "settled_cash",
+        "adjustment_expense",
+        "insurer_clearing",
+        "insurer_cash"
+      ]
+    },
+    "ChargePost": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "B1 charge posting, the seam C14 will drive. Posts Dr patient_receivable / Cr production_revenue. A replacement names a fully reversed charge of the same patient and procedure.",
+      "required": ["patientRef", "procedureRef", "serviceDate", "amount"],
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "procedureRef": {
+          "$ref": "#/$defs/SyntheticProcedureRef"
+        },
+        "procedureCode": {
+          "$ref": "#/$defs/SyntheticProcedureCode"
+        },
+        "serviceDate": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "amount": {
+          "$ref": "#/$defs/PositiveMoney"
+        },
+        "replacesChargeRef": {
+          "$ref": "#/$defs/ChargeRef"
+        }
+      }
+    },
+    "EntryReverse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasonCode"],
+      "properties": {
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "LedgerQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "limit": {
+          "type": "string",
+          "pattern": "^([1-9]|[1-9][0-9]|100)$"
+        },
+        "cursor": {
+          "$ref": "#/$defs/Cursor"
+        }
+      }
+    },
+    "BalanceQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "currency": {
+          "$ref": "#/$defs/CurrencyCode"
+        },
+        "asOf": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "JournalLine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lineNo",
+        "account",
+        "amount",
+        "patientRef",
+        "chargeRef",
+        "paymentRef",
+        "payerRef",
+        "coverageRef"
+      ],
+      "properties": {
+        "lineNo": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
+        },
+        "account": {
+          "$ref": "#/$defs/Account"
+        },
+        "amount": {
+          "$ref": "#/$defs/Money"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "chargeRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChargeRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "paymentRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PaymentRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "payerRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PayerRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "coverageRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CoverageRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "JournalEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entryRef",
+        "kind",
+        "currency",
+        "chargeRef",
+        "paymentRef",
+        "reversesEntryRef",
+        "reversedByEntryRef",
+        "reasonCode",
+        "externalRef",
+        "serviceDate",
+        "postedAt",
+        "postedByRef",
+        "lines"
+      ],
+      "properties": {
+        "entryRef": {
+          "$ref": "#/$defs/EntryRef"
+        },
+        "kind": {
+          "$ref": "#/$defs/EntryKind"
+        },
+        "currency": {
+          "$ref": "#/$defs/CurrencyCode"
+        },
+        "chargeRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChargeRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "paymentRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PaymentRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reversesEntryRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EntryRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reversedByEntryRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EntryRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reasonCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "externalRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SyntheticRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "serviceDate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalDate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "postedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "postedByRef": {
+          "$ref": "#/$defs/PrincipalRef"
+        },
+        "lines": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/JournalLine"
+          }
+        }
+      }
+    },
+    "JournalEntryRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/JournalEntry"
+        }
+      }
+    },
+    "LedgerPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "nextCursor"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/JournalEntry"
+          }
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Cursor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "PayerAmount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["coverageRef", "payerRef", "amount"],
+      "properties": {
+        "coverageRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CoverageRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "payerRef": {
+          "$ref": "#/$defs/PayerRef"
+        },
+        "amount": {
+          "$ref": "#/$defs/Money"
+        }
+      }
+    },
+    "Charge": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Open responsibility and allocated amounts are derived from journal lines, never stored.",
+      "required": [
+        "chargeRef",
+        "patientRef",
+        "procedureRef",
+        "procedureCode",
+        "serviceDate",
+        "amount",
+        "entryRef",
+        "state",
+        "reversalEntryRef",
+        "replacesChargeRef",
+        "replacedByChargeRef",
+        "patientResponsibility",
+        "insurerResponsibility",
+        "allocated",
+        "version"
+      ],
+      "properties": {
+        "chargeRef": {
+          "$ref": "#/$defs/ChargeRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "procedureRef": {
+          "$ref": "#/$defs/ProcedureRef"
+        },
+        "procedureCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SyntheticProcedureCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "serviceDate": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "amount": {
+          "$ref": "#/$defs/Money"
+        },
+        "entryRef": {
+          "$ref": "#/$defs/EntryRef"
+        },
+        "state": {
+          "enum": ["posted", "reversed"]
+        },
+        "reversalEntryRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EntryRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "replacesChargeRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChargeRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "replacedByChargeRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChargeRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "patientResponsibility": {
+          "$ref": "#/$defs/Money"
+        },
+        "insurerResponsibility": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/$defs/PayerAmount"
+          }
+        },
+        "allocated": {
+          "$ref": "#/$defs/Money"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "ChargeRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/Charge"
+        }
+      }
+    },
+    "ChargeCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["chargeRef", "entryRef"],
+          "properties": {
+            "chargeRef": {
+              "$ref": "#/$defs/ChargeRef"
+            },
+            "entryRef": {
+              "$ref": "#/$defs/EntryRef"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ReversalCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["entryRef", "reversesEntryRef"],
+          "properties": {
+            "entryRef": {
+              "$ref": "#/$defs/EntryRef"
+            },
+            "reversesEntryRef": {
+              "$ref": "#/$defs/EntryRef"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "Balance": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Derived from journal lines posted at or before asOf; never stored. balance = patientResponsibility - unappliedCredit (negative is a credit balance). Covers the patient merge set; merges never relink posted rows.",
+      "required": [
+        "patientRef",
+        "accountPatientRef",
+        "coveredPatientRefs",
+        "currency",
+        "asOf",
+        "patientResponsibility",
+        "insurerResponsibility",
+        "unappliedCredit",
+        "balance",
+        "entryCount",
+        "lastPostedAt"
+      ],
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "accountPatientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "coveredPatientRefs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/PatientRef"
+          }
+        },
+        "currency": {
+          "$ref": "#/$defs/CurrencyCode"
+        },
+        "asOf": {
+          "$ref": "#/$defs/Instant"
+        },
+        "patientResponsibility": {
+          "$ref": "#/$defs/Money"
+        },
+        "insurerResponsibility": {
+          "$ref": "#/$defs/Money"
+        },
+        "unappliedCredit": {
+          "$ref": "#/$defs/Money"
+        },
+        "balance": {
+          "$ref": "#/$defs/Money"
+        },
+        "entryCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "lastPostedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "BalanceRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/Balance"
+        }
+      }
+    },
+    "AttemptRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "InstrumentRef": {
+      "type": "string",
+      "description": "Synthetic opaque instrument for the synthetic provider only (B-S1 blocked-on-discovery). Never card data or a provider token.",
+      "pattern": "^syn-card-[a-z0-9-]{1,40}$"
+    },
+    "PaymentMethod": {
+      "enum": ["cash", "check", "card_synthetic"]
+    },
+    "PaymentOutcome": {
+      "enum": ["confirmed", "declined", "unknown"]
+    },
+    "PaymentRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Records patient money as a received fact (Dr undeposited_funds / Cr unapplied_credit). card_synthetic needs instrumentRef and calls the synthetic provider; cash and check must not carry one.",
+      "required": ["patientRef", "amount", "method"],
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "amount": {
+          "$ref": "#/$defs/PositiveMoney"
+        },
+        "method": {
+          "$ref": "#/$defs/PaymentMethod"
+        },
+        "externalRef": {
+          "$ref": "#/$defs/SyntheticRef"
+        },
+        "instrumentRef": {
+          "$ref": "#/$defs/InstrumentRef"
+        },
+        "guarantorRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "receivedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "PaymentSettle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["settlementRef"],
+      "properties": {
+        "settlementRef": {
+          "$ref": "#/$defs/SyntheticRef"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "AllocationLine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["chargeRef", "amount"],
+      "properties": {
+        "chargeRef": {
+          "$ref": "#/$defs/ChargeRef"
+        },
+        "amount": {
+          "$ref": "#/$defs/PositiveMoney"
+        }
+      }
+    },
+    "PaymentAllocate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allocations"],
+      "properties": {
+        "allocations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/$defs/AllocationLine"
+          }
+        }
+      }
+    },
+    "PaymentRefund": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["amount", "reasonCode"],
+      "properties": {
+        "amount": {
+          "$ref": "#/$defs/PositiveMoney"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "refundRef": {
+          "$ref": "#/$defs/SyntheticRef"
+        }
+      }
+    },
+    "FundsTransfer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["toPatientRef", "amount", "reasonCode"],
+      "properties": {
+        "fromPatientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "toPatientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "amount": {
+          "$ref": "#/$defs/PositiveMoney"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "ResponsibilityTransfer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["direction", "coverageRef", "amount", "reasonCode"],
+      "properties": {
+        "direction": {
+          "enum": ["to_insurer", "to_patient"]
+        },
+        "coverageRef": {
+          "$ref": "#/$defs/CoverageRef"
+        },
+        "amount": {
+          "$ref": "#/$defs/PositiveMoney"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      },
+      "description": "Moves open responsibility for a charge between the patient and a coverage of the charge patient effective on its service date (B5 seam)."
+    },
+    "AttemptReconcile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "WorklistKind": {
+      "enum": ["unapplied_funds", "unknown_payment_outcome"]
+    },
+    "WorklistQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/WorklistKind"
+        },
+        "limit": {
+          "type": "string",
+          "pattern": "^([1-9]|[1-9][0-9]|100)$"
+        }
+      }
+    },
+    "PaymentCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["outcome", "paymentRef", "attemptRef", "entryRef"],
+          "properties": {
+            "outcome": {
+              "$ref": "#/$defs/PaymentOutcome"
+            },
+            "paymentRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/PaymentRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "attemptRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AttemptRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "entryRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/EntryRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "EntryCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["entryRef"],
+          "properties": {
+            "entryRef": {
+              "$ref": "#/$defs/EntryRef"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "AllocationCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["allocationRefs"],
+          "properties": {
+            "allocationRefs": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 20,
+              "items": {
+                "$ref": "#/$defs/EntryRef"
+              }
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "Allocation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allocationRef", "chargeRef", "patientRef", "amount", "allocatedAt", "reversedByEntryRef"],
+      "properties": {
+        "allocationRef": {
+          "$ref": "#/$defs/EntryRef"
+        },
+        "chargeRef": {
+          "$ref": "#/$defs/ChargeRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "amount": {
+          "$ref": "#/$defs/Money"
+        },
+        "allocatedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "reversedByEntryRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EntryRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "HolderAmount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["patientRef", "amount"],
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "amount": {
+          "$ref": "#/$defs/Money"
+        }
+      }
+    },
+    "Payment": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Allocated, refunded, unapplied and settlement amounts are derived from journal lines. Received is not settled; settlement is its own entry.",
+      "required": [
+        "paymentRef",
+        "patientRef",
+        "guarantorRef",
+        "method",
+        "amount",
+        "externalRef",
+        "attemptRef",
+        "receivedAt",
+        "entryRef",
+        "state",
+        "settlement",
+        "allocated",
+        "refunded",
+        "unapplied",
+        "unappliedByPatient",
+        "allocations",
+        "version"
+      ],
+      "properties": {
+        "paymentRef": {
+          "$ref": "#/$defs/PaymentRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "guarantorRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PatientRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "method": {
+          "$ref": "#/$defs/PaymentMethod"
+        },
+        "amount": {
+          "$ref": "#/$defs/Money"
+        },
+        "externalRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SyntheticRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "attemptRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AttemptRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "receivedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "entryRef": {
+          "$ref": "#/$defs/EntryRef"
+        },
+        "state": {
+          "enum": ["received", "reversed"]
+        },
+        "settlement": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["state", "settled", "unsettled"],
+          "properties": {
+            "state": {
+              "enum": ["received", "partially_settled", "settled"]
+            },
+            "settled": {
+              "$ref": "#/$defs/Money"
+            },
+            "unsettled": {
+              "$ref": "#/$defs/Money"
+            }
+          }
+        },
+        "allocated": {
+          "$ref": "#/$defs/Money"
+        },
+        "refunded": {
+          "$ref": "#/$defs/Money"
+        },
+        "unapplied": {
+          "$ref": "#/$defs/Money"
+        },
+        "unappliedByPatient": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/HolderAmount"
+          }
+        },
+        "allocations": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/Allocation"
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "PaymentRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/Payment"
+        }
+      }
+    },
+    "ReconcileCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["attemptRef", "outcome", "paymentRef", "entryRef"],
+          "properties": {
+            "attemptRef": {
+              "$ref": "#/$defs/AttemptRef"
+            },
+            "outcome": {
+              "enum": ["confirmed", "declined"]
+            },
+            "paymentRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/PaymentRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "entryRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/EntryRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "WorkItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "subjectRef",
+        "patientRef",
+        "amount",
+        "ageBasis",
+        "owner",
+        "queue",
+        "reasonCode",
+        "dueAt",
+        "overdue",
+        "suggestedAction"
+      ],
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/WorklistKind"
+        },
+        "subjectRef": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "amount": {
+          "$ref": "#/$defs/Money"
+        },
+        "ageBasis": {
+          "$ref": "#/$defs/Instant"
+        },
+        "owner": {
+          "enum": ["practice"]
+        },
+        "queue": {
+          "enum": ["billing"]
+        },
+        "reasonCode": {
+          "enum": ["unapplied_funds", "provider_outcome_unknown"]
+        },
+        "dueAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "overdue": {
+          "type": "boolean"
+        },
+        "suggestedAction": {
+          "enum": ["allocate_or_refund", "reconcile_attempt"]
+        }
+      }
+    },
+    "Worklist": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "totalCount", "truncated", "checkedAt"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/WorkItem"
+          }
+        },
+        "totalCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "checkedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "PlanRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "PlanAttemptRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "PlanEventRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "TimeZone": {
+      "type": "string",
+      "description": "IANA time zone name (Area/Location); unknown zones are 422 invalid_time_zone.",
+      "maxLength": 64,
+      "pattern": "^[A-Z][A-Za-z_+-]*(/[A-Za-z0-9_+-]+){1,2}$"
+    },
+    "AuthorizationRef": {
+      "type": "string",
+      "description": "Synthetic reference of a recorded authorization (signature) fact. Used once per plan.",
+      "pattern": "^syn-auth-[a-z0-9-]{1,60}$"
+    },
+    "EvidenceRef": {
+      "type": "string",
+      "description": "Synthetic reference of the signed-agreement evidence (no signature image is stored).",
+      "pattern": "^syn-evidence-[a-z0-9-]{1,60}$"
+    },
+    "CardExpiry": {
+      "type": "string",
+      "description": "Card expiry month (YYYY-MM); no other card data.",
+      "pattern": "^20[0-9]{2}-(0[1-9]|1[0-2])$"
+    },
+    "InstallmentCount": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 120
+    },
+    "PlanCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "B3 plan creation. Monthly installments split the contract total evenly (largest remainder to the earliest). The guarantor, when named, must be the current S5 guarantor.",
+      "required": ["patientRef", "contractTotal", "installmentCount", "firstDueOn", "timeZone"],
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "guarantorRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "contractTotal": {
+          "$ref": "#/$defs/PositiveMoney"
+        },
+        "installmentCount": {
+          "$ref": "#/$defs/InstallmentCount"
+        },
+        "firstDueOn": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "timeZone": {
+          "$ref": "#/$defs/TimeZone"
+        }
+      }
+    },
+    "PlanAuthorize": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "authorizationRef", "evidenceRef"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "authorizationRef": {
+          "$ref": "#/$defs/AuthorizationRef"
+        },
+        "evidenceRef": {
+          "$ref": "#/$defs/EvidenceRef"
+        }
+      }
+    },
+    "PlanAmend": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "contractTotal", "installmentCount", "firstDueOn", "reasonCode"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "contractTotal": {
+          "$ref": "#/$defs/PositiveMoney"
+        },
+        "installmentCount": {
+          "$ref": "#/$defs/InstallmentCount"
+        },
+        "firstDueOn": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "PlanAutopay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "state"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "state": {
+          "enum": ["active", "paused"]
+        },
+        "instrumentRef": {
+          "$ref": "#/$defs/InstrumentRef"
+        },
+        "cardExpiry": {
+          "$ref": "#/$defs/CardExpiry"
+        },
+        "authorizationRef": {
+          "$ref": "#/$defs/AuthorizationRef"
+        }
+      }
+    },
+    "PlanCollect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["periodNo"],
+      "properties": {
+        "periodNo": {
+          "$ref": "#/$defs/InstallmentCount"
+        },
+        "amount": {
+          "$ref": "#/$defs/PositiveMoney"
+        },
+        "retry": {
+          "type": "boolean"
+        }
+      }
+    },
+    "PlanClose": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "outcome", "reasonCode"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "outcome": {
+          "enum": ["voided", "defaulted"]
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "PlanWorklistKind": {
+      "enum": ["missing_signature", "expired_card", "failed_autopay", "overdue"]
+    },
+    "PlanWorklistQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/PlanWorklistKind"
+        },
+        "limit": {
+          "type": "string",
+          "pattern": "^([1-9]|[1-9][0-9]|100)$"
+        }
+      }
+    },
+    "PlanCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["planRef", "termsVersion", "eventRef"],
+          "properties": {
+            "planRef": {
+              "$ref": "#/$defs/PlanRef"
+            },
+            "termsVersion": {
+              "$ref": "#/$defs/Version"
+            },
+            "eventRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/PlanEventRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "PlanCollectResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["planRef", "planAttemptRef", "outcome", "attemptRef", "paymentRef"],
+          "properties": {
+            "planRef": {
+              "$ref": "#/$defs/PlanRef"
+            },
+            "planAttemptRef": {
+              "$ref": "#/$defs/PlanAttemptRef"
+            },
+            "outcome": {
+              "enum": ["confirmed", "declined", "unknown", "blocked"]
+            },
+            "attemptRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AttemptRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "paymentRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/PaymentRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "PlanInstallment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["periodNo", "dueOn", "amount", "collected", "state"],
+      "properties": {
+        "periodNo": {
+          "$ref": "#/$defs/InstallmentCount"
+        },
+        "dueOn": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "amount": {
+          "$ref": "#/$defs/Money"
+        },
+        "collected": {
+          "$ref": "#/$defs/Money"
+        },
+        "state": {
+          "enum": ["scheduled", "due", "overdue", "partially_paid", "paid"]
+        }
+      }
+    },
+    "PlanAttempt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "planAttemptRef",
+        "termsVersion",
+        "periodNo",
+        "attemptNo",
+        "outcome",
+        "blockReason",
+        "amount",
+        "attemptRef",
+        "paymentRef",
+        "attemptedAt"
+      ],
+      "properties": {
+        "planAttemptRef": {
+          "$ref": "#/$defs/PlanAttemptRef"
+        },
+        "termsVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "periodNo": {
+          "$ref": "#/$defs/InstallmentCount"
+        },
+        "attemptNo": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "outcome": {
+          "enum": ["confirmed", "declined", "unknown", "blocked"]
+        },
+        "blockReason": {
+          "anyOf": [
+            {
+              "enum": ["card_expired"]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "amount": {
+          "$ref": "#/$defs/Money"
+        },
+        "attemptRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AttemptRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "paymentRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PaymentRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "attemptedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "PlanEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eventRef",
+        "kind",
+        "termsVersion",
+        "authorizationRef",
+        "evidenceRef",
+        "instrumentRef",
+        "cardExpiry",
+        "reasonCode",
+        "actorRef",
+        "recordedAt"
+      ],
+      "properties": {
+        "eventRef": {
+          "$ref": "#/$defs/PlanEventRef"
+        },
+        "kind": {
+          "enum": [
+            "authorized",
+            "autopay_enrolled",
+            "autopay_paused",
+            "autopay_resumed",
+            "voided",
+            "defaulted"
+          ]
+        },
+        "termsVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "authorizationRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AuthorizationRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidenceRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EvidenceRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "instrumentRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InstrumentRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cardExpiry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CardExpiry"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reasonCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "actorRef": {
+          "$ref": "#/$defs/PrincipalRef"
+        },
+        "recordedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "PlanTerms": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "termsVersion",
+        "contractTotal",
+        "installmentCount",
+        "firstDueOn",
+        "collectedBasis",
+        "reasonCode",
+        "agreedAt"
+      ],
+      "properties": {
+        "termsVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "contractTotal": {
+          "$ref": "#/$defs/Money"
+        },
+        "installmentCount": {
+          "$ref": "#/$defs/InstallmentCount"
+        },
+        "firstDueOn": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "collectedBasis": {
+          "$ref": "#/$defs/Money"
+        },
+        "reasonCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "agreedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "PaymentPlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Derived plan view (B3): balance, overdue, states and the schedule are computed at read time from the terms, the facts, the attempts and the journal; none is stored.",
+      "required": [
+        "planRef",
+        "patientRef",
+        "guarantorRef",
+        "guarantorBasis",
+        "timeZone",
+        "termsVersion",
+        "contractTotal",
+        "installment",
+        "installmentCount",
+        "collected",
+        "balance",
+        "overdue",
+        "overdueSince",
+        "nextDueOn",
+        "authorizationState",
+        "autoPayState",
+        "cardExpiryState",
+        "cardExpiry",
+        "instrumentRef",
+        "planState",
+        "closedReasonCode",
+        "installments",
+        "attempts",
+        "events",
+        "terms",
+        "asOf",
+        "version"
+      ],
+      "properties": {
+        "planRef": {
+          "$ref": "#/$defs/PlanRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "guarantorRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "guarantorBasis": {
+          "enum": ["relationship", "self"]
+        },
+        "timeZone": {
+          "$ref": "#/$defs/TimeZone"
+        },
+        "termsVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "contractTotal": {
+          "$ref": "#/$defs/Money"
+        },
+        "installment": {
+          "$ref": "#/$defs/Money"
+        },
+        "installmentCount": {
+          "$ref": "#/$defs/InstallmentCount"
+        },
+        "collected": {
+          "$ref": "#/$defs/Money"
+        },
+        "balance": {
+          "$ref": "#/$defs/Money"
+        },
+        "overdue": {
+          "$ref": "#/$defs/Money"
+        },
+        "overdueSince": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalDate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "nextDueOn": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalDate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "authorizationState": {
+          "enum": ["unsigned", "authorized"]
+        },
+        "autoPayState": {
+          "enum": ["not_enrolled", "active", "paused", "failed", "blocked"]
+        },
+        "cardExpiryState": {
+          "enum": ["current", "expiring", "expired", "absent"]
+        },
+        "cardExpiry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CardExpiry"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "instrumentRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InstrumentRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "planState": {
+          "enum": ["open", "completed", "voided", "defaulted"]
+        },
+        "closedReasonCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "installments": {
+          "type": "array",
+          "maxItems": 120,
+          "items": {
+            "$ref": "#/$defs/PlanInstallment"
+          }
+        },
+        "attempts": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "$ref": "#/$defs/PlanAttempt"
+          }
+        },
+        "events": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "$ref": "#/$defs/PlanEvent"
+          }
+        },
+        "terms": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/PlanTerms"
+          }
+        },
+        "asOf": {
+          "$ref": "#/$defs/Instant"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "PlanRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/PaymentPlan"
+        }
+      }
+    },
+    "PlanWorkItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "planRef",
+        "patientRef",
+        "guarantorRef",
+        "amount",
+        "owner",
+        "queue",
+        "reasonCode",
+        "dueAt",
+        "overdue",
+        "suggestedAction",
+        "evidenceRefs"
+      ],
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/PlanWorklistKind"
+        },
+        "planRef": {
+          "$ref": "#/$defs/PlanRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "guarantorRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "amount": {
+          "$ref": "#/$defs/Money"
+        },
+        "owner": {
+          "const": "practice"
+        },
+        "queue": {
+          "const": "billing"
+        },
+        "reasonCode": {
+          "enum": [
+            "authorization_missing",
+            "card_expired",
+            "card_expiring",
+            "autopay_declined",
+            "installment_overdue"
+          ]
+        },
+        "dueAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "overdue": {
+          "type": "boolean"
+        },
+        "suggestedAction": {
+          "enum": [
+            "obtain_signed_authorization",
+            "obtain_new_instrument_and_authorization",
+            "contact_guarantor_or_retry",
+            "contact_guarantor"
+          ]
+        },
+        "evidenceRefs": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "ref"],
+            "properties": {
+              "kind": {
+                "enum": ["planAttempt", "paymentAttempt", "planEvent"]
+              },
+              "ref": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "PlanWorklist": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "totalCount", "truncated", "checkedAt"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/PlanWorkItem"
+          }
+        },
+        "totalCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "checkedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "StatementRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "SnapshotDigest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "StatementGenerate": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "B4 generation: an audited snapshot of the guarantor accounts from the journal at the cutoff (millisecond precision). Delivery is E7.",
+      "required": ["guarantorRef", "cutoffAt", "basis"],
+      "properties": {
+        "guarantorRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "cutoffAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "basis": {
+          "enum": ["posted_through_cutoff"]
+        }
+      }
+    },
+    "StatementCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["statementRef", "statementVersion", "snapshotDigest", "supersedesStatementRef"],
+          "properties": {
+            "statementRef": {
+              "$ref": "#/$defs/StatementRef"
+            },
+            "statementVersion": {
+              "$ref": "#/$defs/Version"
+            },
+            "snapshotDigest": {
+              "$ref": "#/$defs/SnapshotDigest"
+            },
+            "supersedesStatementRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/StatementRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "StatementLine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entryRef", "kind", "postedAt", "serviceDate", "chargeRef", "paymentRef", "amount"],
+      "properties": {
+        "entryRef": {
+          "$ref": "#/$defs/EntryRef"
+        },
+        "kind": {
+          "$ref": "#/$defs/EntryKind"
+        },
+        "postedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "serviceDate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalDate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "chargeRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChargeRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "paymentRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PaymentRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "amount": {
+          "$ref": "#/$defs/Money"
+        }
+      }
+    },
+    "StatementAccount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["accountPatientRef", "coveredPatientRefs", "total", "lines"],
+      "properties": {
+        "accountPatientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "coveredPatientRefs": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "#/$defs/PatientRef"
+          }
+        },
+        "total": {
+          "$ref": "#/$defs/Money"
+        },
+        "lines": {
+          "type": "array",
+          "maxItems": 2000,
+          "items": {
+            "$ref": "#/$defs/StatementLine"
+          }
+        }
+      }
+    },
+    "StatementFreshness": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Derived at read time from the snapshot and the journal; never stored.",
+      "required": ["state", "reasons", "currentTotal", "postedAfterCutoff", "lastPostedAt", "checkedAt"],
+      "properties": {
+        "state": {
+          "enum": ["fresh", "stale"]
+        },
+        "reasons": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "enum": ["posted_after_cutoff", "pre_cutoff_changed", "account_membership_changed", "superseded"]
+          }
+        },
+        "currentTotal": {
+          "$ref": "#/$defs/Money"
+        },
+        "postedAfterCutoff": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "lastPostedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "checkedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "Statement": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A generated statement (B4): the stored snapshot, its digest check and the derived freshness.",
+      "required": [
+        "statementRef",
+        "guarantorRef",
+        "statementVersion",
+        "cutoffAt",
+        "basis",
+        "currency",
+        "total",
+        "amountDue",
+        "creditBalance",
+        "totalClass",
+        "coveredPatientRefs",
+        "accounts",
+        "snapshotDigest",
+        "integrity",
+        "supersedesStatementRef",
+        "supersededByStatementRef",
+        "generatedAt",
+        "generatedByRef",
+        "delivery",
+        "freshness"
+      ],
+      "properties": {
+        "statementRef": {
+          "$ref": "#/$defs/StatementRef"
+        },
+        "guarantorRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "statementVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "cutoffAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "basis": {
+          "enum": ["posted_through_cutoff"]
+        },
+        "currency": {
+          "$ref": "#/$defs/CurrencyCode"
+        },
+        "total": {
+          "$ref": "#/$defs/Money"
+        },
+        "amountDue": {
+          "$ref": "#/$defs/Money"
+        },
+        "creditBalance": {
+          "$ref": "#/$defs/Money"
+        },
+        "totalClass": {
+          "enum": ["due", "zero", "credit"]
+        },
+        "coveredPatientRefs": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "#/$defs/PatientRef"
+          }
+        },
+        "accounts": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "#/$defs/StatementAccount"
+          }
+        },
+        "snapshotDigest": {
+          "$ref": "#/$defs/SnapshotDigest"
+        },
+        "integrity": {
+          "enum": ["verified", "mismatch"]
+        },
+        "supersedesStatementRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StatementRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "supersededByStatementRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StatementRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "generatedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "generatedByRef": {
+          "$ref": "#/$defs/PrincipalRef"
+        },
+        "delivery": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["channel", "state", "owner"],
+          "properties": {
+            "channel": {
+              "const": "none"
+            },
+            "state": {
+              "const": "not_requested"
+            },
+            "owner": {
+              "const": "E7"
+            }
+          }
+        },
+        "freshness": {
+          "$ref": "#/$defs/StatementFreshness"
+        }
+      }
+    },
+    "StatementRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/Statement"
+        }
+      }
+    },
+    "CoverageRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "EligibilityRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "BenefitRank": {
+      "enum": ["primary", "secondary", "tertiary"]
+    },
+    "SubscriberRelationship": {
+      "enum": ["self", "spouse", "child", "other"]
+    },
+    "MemberRef": {
+      "type": "string",
+      "description": "Synthetic member reference (never a real member id).",
+      "pattern": "^syn-member-[a-z0-9-]{1,40}$"
+    },
+    "GroupRef": {
+      "type": "string",
+      "pattern": "^syn-group-[a-z0-9-]{1,40}$"
+    },
+    "FeeScheduleRef": {
+      "type": "string",
+      "pattern": "^syn-fee-[a-z0-9-]{1,40}$"
+    },
+    "OverlapOverride": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasonCode"],
+      "properties": {
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "CoverageRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "B5 coverage: effective-dated (until inclusive), ranked, with the subscriber as a separate patient. Overlap of one rank is 409 unless overridden with a reason.",
+      "required": [
+        "patientRef",
+        "payerRef",
+        "rank",
+        "relationshipToSubscriber",
+        "memberRef",
+        "effectiveFrom"
+      ],
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "payerRef": {
+          "$ref": "#/$defs/PayerRef"
+        },
+        "rank": {
+          "$ref": "#/$defs/BenefitRank"
+        },
+        "subscriberRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "relationshipToSubscriber": {
+          "$ref": "#/$defs/SubscriberRelationship"
+        },
+        "memberRef": {
+          "$ref": "#/$defs/MemberRef"
+        },
+        "groupRef": {
+          "$ref": "#/$defs/GroupRef"
+        },
+        "feeScheduleRef": {
+          "$ref": "#/$defs/FeeScheduleRef"
+        },
+        "effectiveFrom": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "effectiveUntil": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "overlapOverride": {
+          "$ref": "#/$defs/OverlapOverride"
+        }
+      }
+    },
+    "CoverageChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A new coverage version (the full changeable field set); earlier versions are never rewritten. The payer is fixed per coverage.",
+      "required": [
+        "expectedVersion",
+        "rank",
+        "relationshipToSubscriber",
+        "memberRef",
+        "effectiveFrom",
+        "reasonCode"
+      ],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "rank": {
+          "$ref": "#/$defs/BenefitRank"
+        },
+        "subscriberRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "relationshipToSubscriber": {
+          "$ref": "#/$defs/SubscriberRelationship"
+        },
+        "memberRef": {
+          "$ref": "#/$defs/MemberRef"
+        },
+        "groupRef": {
+          "$ref": "#/$defs/GroupRef"
+        },
+        "feeScheduleRef": {
+          "$ref": "#/$defs/FeeScheduleRef"
+        },
+        "effectiveFrom": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "effectiveUntil": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "overlapOverride": {
+          "$ref": "#/$defs/OverlapOverride"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "EnteredBenefits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "activeStatus": {
+          "enum": ["active", "inactive", "unknown"]
+        },
+        "limits": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "amount"],
+            "properties": {
+              "kind": {
+                "enum": ["annual_maximum", "deductible", "remaining_maximum"]
+              },
+              "amount": {
+                "$ref": "#/$defs/Money"
+              }
+            }
+          }
+        },
+        "frequencies": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["categoryCode", "count", "periodMonths"],
+            "properties": {
+              "categoryCode": {
+                "$ref": "#/$defs/SyntheticProcedureCode"
+              },
+              "count": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 99
+              },
+              "periodMonths": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 120
+              }
+            }
+          }
+        }
+      }
+    },
+    "EligibilityRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "B5 eligibility: staff-entered (always unverified) or from the fake adapter (verified, unknown on timeout, unparsed when unmappable). Never a payment guarantee.",
+      "required": ["source", "serviceDate"],
+      "properties": {
+        "source": {
+          "enum": ["entered", "fake_adapter"]
+        },
+        "serviceDate": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "freshnessHours": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8760
+        },
+        "retrievedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "benefits": {
+          "$ref": "#/$defs/EnteredBenefits"
+        }
+      }
+    },
+    "CoverageQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["serviceDate"],
+      "properties": {
+        "serviceDate": {
+          "$ref": "#/$defs/LocalDate"
+        }
+      }
+    },
+    "CoverageCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["coverageRef", "coverageVersion"],
+          "properties": {
+            "coverageRef": {
+              "$ref": "#/$defs/CoverageRef"
+            },
+            "coverageVersion": {
+              "$ref": "#/$defs/Version"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "EligibilityCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["eligibilityRef", "state"],
+          "properties": {
+            "eligibilityRef": {
+              "$ref": "#/$defs/EligibilityRef"
+            },
+            "state": {
+              "enum": ["verified", "unverified", "unknown", "unparsed"]
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "Benefits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "status": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value", "provenance"],
+          "properties": {
+            "value": {
+              "enum": ["active", "inactive", "unknown"]
+            },
+            "provenance": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["source", "capturedAt", "recordedByRef", "receiptRef"],
+              "properties": {
+                "source": {
+                  "enum": ["entered", "fake_adapter"]
+                },
+                "capturedAt": {
+                  "$ref": "#/$defs/Instant"
+                },
+                "recordedByRef": {
+                  "$ref": "#/$defs/PrincipalRef"
+                },
+                "receiptRef": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^syn-elig-[a-z0-9]{1,64}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["items", "provenance"],
+          "properties": {
+            "items": {
+              "type": "array",
+              "maxItems": 10,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind", "amount"],
+                "properties": {
+                  "kind": {
+                    "enum": ["annual_maximum", "deductible", "remaining_maximum"]
+                  },
+                  "amount": {
+                    "$ref": "#/$defs/Money"
+                  }
+                }
+              }
+            },
+            "provenance": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["source", "capturedAt", "recordedByRef", "receiptRef"],
+              "properties": {
+                "source": {
+                  "enum": ["entered", "fake_adapter"]
+                },
+                "capturedAt": {
+                  "$ref": "#/$defs/Instant"
+                },
+                "recordedByRef": {
+                  "$ref": "#/$defs/PrincipalRef"
+                },
+                "receiptRef": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^syn-elig-[a-z0-9]{1,64}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "frequencies": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["items", "provenance"],
+          "properties": {
+            "items": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["categoryCode", "count", "periodMonths"],
+                "properties": {
+                  "categoryCode": {
+                    "$ref": "#/$defs/SyntheticProcedureCode"
+                  },
+                  "count": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 99
+                  },
+                  "periodMonths": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 120
+                  }
+                }
+              }
+            },
+            "provenance": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["source", "capturedAt", "recordedByRef", "receiptRef"],
+              "properties": {
+                "source": {
+                  "enum": ["entered", "fake_adapter"]
+                },
+                "capturedAt": {
+                  "$ref": "#/$defs/Instant"
+                },
+                "recordedByRef": {
+                  "$ref": "#/$defs/PrincipalRef"
+                },
+                "receiptRef": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^syn-elig-[a-z0-9]{1,64}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Eligibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eligibilityRef",
+        "coverageVersion",
+        "source",
+        "state",
+        "serviceDate",
+        "retrievedAt",
+        "freshUntil",
+        "freshnessHours",
+        "benefits",
+        "rawEvidenceDigest",
+        "recordedByRef"
+      ],
+      "properties": {
+        "eligibilityRef": {
+          "$ref": "#/$defs/EligibilityRef"
+        },
+        "coverageVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "source": {
+          "enum": ["entered", "fake_adapter"]
+        },
+        "state": {
+          "enum": ["verified", "unverified", "unknown", "unparsed"]
+        },
+        "serviceDate": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "retrievedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "freshUntil": {
+          "$ref": "#/$defs/Instant"
+        },
+        "freshnessHours": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8760
+        },
+        "benefits": {
+          "$ref": "#/$defs/Benefits"
+        },
+        "rawEvidenceDigest": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recordedByRef": {
+          "$ref": "#/$defs/PrincipalRef"
+        }
+      }
+    },
+    "CoverageVersion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "coverageVersion",
+        "rank",
+        "subscriberRef",
+        "relationshipToSubscriber",
+        "memberRef",
+        "groupRef",
+        "feeScheduleRef",
+        "effectiveFrom",
+        "effectiveUntil",
+        "overlapOverrideReasonCode",
+        "reasonCode",
+        "recordedAt",
+        "recordedByRef"
+      ],
+      "properties": {
+        "coverageVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "rank": {
+          "$ref": "#/$defs/BenefitRank"
+        },
+        "subscriberRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "relationshipToSubscriber": {
+          "$ref": "#/$defs/SubscriberRelationship"
+        },
+        "memberRef": {
+          "$ref": "#/$defs/MemberRef"
+        },
+        "groupRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GroupRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "feeScheduleRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FeeScheduleRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "effectiveFrom": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "effectiveUntil": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalDate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "overlapOverrideReasonCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reasonCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recordedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "recordedByRef": {
+          "$ref": "#/$defs/PrincipalRef"
+        }
+      }
+    },
+    "Coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["coverageRef", "patientRef", "payerRef", "current", "history", "eligibility", "version"],
+      "properties": {
+        "coverageRef": {
+          "$ref": "#/$defs/CoverageRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "payerRef": {
+          "$ref": "#/$defs/PayerRef"
+        },
+        "current": {
+          "$ref": "#/$defs/CoverageVersion"
+        },
+        "history": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "#/$defs/CoverageVersion"
+          }
+        },
+        "eligibility": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "#/$defs/Eligibility"
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "CoverageRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/Coverage"
+        }
+      }
+    },
+    "CoverageSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The coverage state C12 estimates read (EstimateView.coverageStatus): entered when a usable eligibility record of the current coverage version, checked for this service date, is inside its freshness window; inactive when that record verifies an inactive member; stale when the latest usable record is for another date, an earlier coverage version or outside its window; unknown otherwise. C12 maps inactive (its own status has no inactive value; seam recorded in billing-progress.md).",
+      "required": [
+        "coverageRef",
+        "coverageVersion",
+        "payerRef",
+        "rank",
+        "subscriberRef",
+        "relationshipToSubscriber",
+        "feeScheduleRef",
+        "effectiveFrom",
+        "effectiveUntil",
+        "coverageStatus",
+        "eligibility",
+        "latestAttempt",
+        "paymentAssurance"
+      ],
+      "properties": {
+        "coverageRef": {
+          "$ref": "#/$defs/CoverageRef"
+        },
+        "coverageVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "payerRef": {
+          "$ref": "#/$defs/PayerRef"
+        },
+        "rank": {
+          "$ref": "#/$defs/BenefitRank"
+        },
+        "subscriberRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "relationshipToSubscriber": {
+          "$ref": "#/$defs/SubscriberRelationship"
+        },
+        "feeScheduleRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FeeScheduleRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "effectiveFrom": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "effectiveUntil": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalDate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "coverageStatus": {
+          "enum": ["entered", "inactive", "unknown", "stale"]
+        },
+        "eligibility": {
+          "anyOf": [
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/Eligibility"
+                }
+              ],
+              "unevaluatedProperties": false,
+              "properties": {
+                "freshness": {
+                  "enum": ["current", "stale"]
+                }
+              },
+              "required": ["freshness"]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "latestAttempt": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["eligibilityRef", "state", "retrievedAt"],
+              "properties": {
+                "eligibilityRef": {
+                  "$ref": "#/$defs/EligibilityRef"
+                },
+                "state": {
+                  "enum": ["verified", "unverified", "unknown", "unparsed"]
+                },
+                "retrievedAt": {
+                  "$ref": "#/$defs/Instant"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "paymentAssurance": {
+          "const": "none",
+          "description": "Eligibility never implies that a claim will be paid (CL-01)."
+        }
+      }
+    },
+    "CoverageResolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["patientRef", "serviceDate", "coverages", "checkedAt"],
+          "properties": {
+            "patientRef": {
+              "$ref": "#/$defs/PatientRef"
+            },
+            "serviceDate": {
+              "$ref": "#/$defs/LocalDate"
+            },
+            "coverages": {
+              "type": "array",
+              "maxItems": 10,
+              "items": {
+                "$ref": "#/$defs/CoverageSummary"
+              }
+            },
+            "checkedAt": {
+              "$ref": "#/$defs/Instant"
+            }
+          }
+        }
+      }
+    },
+    "Uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "ProcedureRef": {
+      "description": "A C14 rendered procedure (UUID) or, for a non-clinical synthetic charge, a syn-proc- reference.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Uuid"
+        },
+        {
+          "$ref": "#/$defs/SyntheticProcedureRef"
+        }
+      ]
+    },
+    "LocationRef": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,64}$"
+    },
+    "FeeItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["codeRef", "fee"],
+      "properties": {
+        "codeRef": {
+          "$ref": "#/$defs/SyntheticProcedureCode"
+        },
+        "fee": {
+          "$ref": "#/$defs/Money"
+        }
+      }
+    },
+    "FeeSchedulePublish": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Publish a new version of a fee schedule (created on first publish). A practice schedule prices charges (tenant-wide or per location); an allowance schedule is a payer allowance named by a coverage fee_schedule_ref. A version is never edited; a later version never reprices a posted charge.",
+      "required": ["scheduleRef", "purpose", "effectiveFrom", "items"],
+      "properties": {
+        "scheduleRef": {
+          "$ref": "#/$defs/FeeScheduleRef"
+        },
+        "purpose": {
+          "enum": ["practice", "allowance"]
+        },
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "effectiveFrom": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 500,
+          "items": {
+            "$ref": "#/$defs/FeeItem"
+          }
+        }
+      }
+    },
+    "FeeScheduleCommandData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["feeScheduleRef", "versionRef", "versionNo"],
+      "properties": {
+        "feeScheduleRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "versionRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "versionNo": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "FeeResolveQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["codeRef", "serviceDate"],
+      "properties": {
+        "codeRef": {
+          "$ref": "#/$defs/SyntheticProcedureCode"
+        },
+        "serviceDate": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "coverageRef": {
+          "$ref": "#/$defs/Uuid"
+        }
+      }
+    },
+    "ResolvedFee": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["fee", "feeScheduleRef", "scheduleRef", "versionRef", "versionNo", "effectiveFrom"],
+          "properties": {
+            "fee": {
+              "$ref": "#/$defs/Money"
+            },
+            "feeScheduleRef": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "scheduleRef": {
+              "$ref": "#/$defs/FeeScheduleRef"
+            },
+            "versionRef": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "versionNo": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "effectiveFrom": {
+              "$ref": "#/$defs/LocalDate"
+            }
+          }
+        }
+      ]
+    },
+    "FeeResolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The C12 seam: the practice fee and (with a coverage) the payer allowance for one SYN- code on a service date. null means no configured fee; never a guessed amount.",
+      "required": ["codeRef", "serviceDate", "practice", "allowance"],
+      "properties": {
+        "codeRef": {
+          "$ref": "#/$defs/SyntheticProcedureCode"
+        },
+        "serviceDate": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "practice": {
+          "$ref": "#/$defs/ResolvedFee"
+        },
+        "allowance": {
+          "$ref": "#/$defs/ResolvedFee"
+        }
+      }
+    },
+    "ProcedureConsumeData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["procedureRef", "eventType", "chargeRef", "entryRef", "replayed"],
+      "properties": {
+        "procedureRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "eventType": {
+          "enum": ["procedure.rendered.v1", "procedure.reversed.v1"]
+        },
+        "chargeRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "entryRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "AdjustmentPost": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "An adjustment of one charge. Every manual adjustment is a request another human posts by approving it. A contractual adjustment names the adjudicated claim of its coverage and is capped at billed minus the payer allowance; courtesy and write-off need a configured reason. Service principals post contractual amounts only through remittance ingestion.",
+      "required": ["kind", "responsibility", "amount", "reasonCode"],
+      "properties": {
+        "kind": {
+          "enum": ["contractual", "courtesy", "writeOff"]
+        },
+        "responsibility": {
+          "enum": ["patient", "insurer"]
+        },
+        "coverageRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "amount": {
+          "$ref": "#/$defs/PositiveMoney"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "claimRef": {
+          "$ref": "#/$defs/Uuid"
+        }
+      }
+    },
+    "AdjustmentCommandData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outcome", "requestRef", "entryRef"],
+      "properties": {
+        "outcome": {
+          "enum": ["posted", "pending_approval", "rejected"]
+        },
+        "requestRef": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Uuid"
+            }
+          ]
+        },
+        "entryRef": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Uuid"
+            }
+          ]
+        }
+      }
+    },
+    "AdjustmentDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision"],
+      "properties": {
+        "decision": {
+          "enum": ["approved", "rejected"]
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "ReceivablesQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        }
+      }
+    },
+    "ReceivablesRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locationRef", "patientReceivable", "insurerReceivable", "charges"],
+      "properties": {
+        "locationRef": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/LocationRef"
+            }
+          ]
+        },
+        "patientReceivable": {
+          "$ref": "#/$defs/Money"
+        },
+        "insurerReceivable": {
+          "$ref": "#/$defs/Money"
+        },
+        "charges": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "ReceivablesReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Open receivables by charge location, derived from journal lines at read time. A location-restricted reader sees its locations only (null-location synthetic charges are tenant-wide).",
+      "required": ["rows", "scope", "checkedAt"],
+      "properties": {
+        "rows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ReceivablesRow"
+          }
+        },
+        "scope": {
+          "enum": ["all_locations", "assigned_locations"]
+        },
+        "checkedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "FeeScheduleCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/FeeScheduleCommandData"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "FeeResolutionResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/FeeResolution"
+        }
+      }
+    },
+    "ProcedureConsumeResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/ProcedureConsumeData"
+        }
+      }
+    },
+    "AdjustmentCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/AdjustmentCommandData"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ReceivablesReportResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/ReceivablesReport"
+        }
+      }
+    },
+    "ObjectRef": {
+      "type": "string",
+      "pattern": "^syn-(img|obj)-[a-z0-9-]{1,60}$"
+    },
+    "ClaimPrepare": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Prepare a claim (version 1) from C14 rendered procedures that have posted charges, for one coverage. Nothing typed by hand: lines are assembled from the procedure, its charge and the coverage allowance.",
+      "required": ["patientRef", "coverageRef", "procedureRefs"],
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "coverageRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "procedureRefs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 50,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/Uuid"
+          }
+        }
+      }
+    },
+    "ClaimVersioned": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "ClaimAttach": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "objectRef", "kind"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "objectRef": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "kind": {
+          "enum": ["radiograph", "photo", "narrative", "perio_chart"]
+        }
+      }
+    },
+    "ClaimReplace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "reasonCode"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "procedureRefs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 50,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/Uuid"
+          }
+        }
+      }
+    },
+    "ClaimSubmit": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Submit the validated head version through the fake clearinghouse, under the explicit approval of the human caller or a standing policy rechecked now. One submission per version: never a blind resubmission.",
+      "required": ["expectedVersion", "authorization"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "authorization": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["mode"],
+              "properties": {
+                "mode": {
+                  "const": "explicit"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["mode", "policyRef"],
+              "properties": {
+                "mode": {
+                  "const": "policy"
+                },
+                "policyRef": {
+                  "$ref": "#/$defs/Uuid"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "ClaimCommandData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claimRef", "versionRef", "versionNo", "outcome"],
+      "properties": {
+        "claimRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "versionRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "versionNo": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "outcome": {
+          "enum": [
+            "prepared",
+            "versioned",
+            "valid",
+            "invalid",
+            "transmitted",
+            "rejected",
+            "unknown",
+            "polled",
+            "packaged"
+          ]
+        },
+        "submissionRef": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Uuid"
+            }
+          ]
+        },
+        "issueCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "eventCount": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "ClaimIssue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "owner", "sourceRef"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,63}$"
+        },
+        "owner": {
+          "enum": ["billing", "front_office", "clinical"]
+        },
+        "sourceRef": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f-]{36}$"
+            }
+          ]
+        }
+      }
+    },
+    "ClaimLine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lineNo",
+        "procedureRef",
+        "chargeRef",
+        "codeRef",
+        "dateOfService",
+        "renderingProviderRef",
+        "billed",
+        "allowance"
+      ],
+      "properties": {
+        "lineNo": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "procedureRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "chargeRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "codeRef": {
+          "$ref": "#/$defs/SyntheticProcedureCode"
+        },
+        "dateOfService": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "renderingProviderRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "billed": {
+          "$ref": "#/$defs/Money"
+        },
+        "allowance": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Money"
+            }
+          ]
+        }
+      }
+    },
+    "ClaimView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claimRef",
+        "patientRef",
+        "coverageRef",
+        "payerRef",
+        "state",
+        "headVersionNo",
+        "versions",
+        "submissions",
+        "events",
+        "appeals",
+        "version",
+        "rank",
+        "primaryClaimRef"
+      ],
+      "properties": {
+        "claimRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "coverageRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "payerRef": {
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "prepared",
+            "validated",
+            "submission_pending",
+            "submission_unknown",
+            "transmitted",
+            "transport_rejected",
+            "payer_acknowledged",
+            "payer_rejected",
+            "paid",
+            "denied",
+            "replaced"
+          ]
+        },
+        "headVersionNo": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "versions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "versionRef",
+              "versionNo",
+              "reason",
+              "billedTotal",
+              "lines",
+              "attachments",
+              "validation"
+            ],
+            "properties": {
+              "versionRef": {
+                "$ref": "#/$defs/Uuid"
+              },
+              "versionNo": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "reason": {
+                "enum": ["prepared", "attachment", "replacement"]
+              },
+              "billedTotal": {
+                "$ref": "#/$defs/Money"
+              },
+              "lines": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/ClaimLine"
+                }
+              },
+              "attachments": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["objectRef", "kind"],
+                  "properties": {
+                    "objectRef": {
+                      "$ref": "#/$defs/ObjectRef"
+                    },
+                    "kind": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "validation": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["valid", "issues", "validatedAt", "current"],
+                    "properties": {
+                      "valid": {
+                        "type": "boolean"
+                      },
+                      "issues": {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/$defs/ClaimIssue"
+                        }
+                      },
+                      "validatedAt": {
+                        "$ref": "#/$defs/Instant"
+                      },
+                      "current": {
+                        "type": "boolean"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "submissions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["submissionRef", "versionNo", "mode", "outcome", "rejectionCode"],
+            "properties": {
+              "submissionRef": {
+                "$ref": "#/$defs/Uuid"
+              },
+              "versionNo": {
+                "type": "integer"
+              },
+              "mode": {
+                "enum": ["explicit", "policy"]
+              },
+              "outcome": {
+                "enum": ["pending", "transmitted", "rejected", "unknown"]
+              },
+              "rejectionCode": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["eventRef", "kind", "code", "codeSource", "codeVersion", "occurredAt"],
+            "properties": {
+              "eventRef": {
+                "$ref": "#/$defs/Uuid"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "code": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "codeSource": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "codeVersion": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "occurredAt": {
+                "$ref": "#/$defs/Instant"
+              }
+            }
+          }
+        },
+        "appeals": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["appealRef", "basisCode", "state"],
+            "properties": {
+              "appealRef": {
+                "$ref": "#/$defs/Uuid"
+              },
+              "basisCode": {
+                "type": "string"
+              },
+              "state": {
+                "enum": ["draft", "sent", "send_unknown", "rejected"]
+              }
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "rank": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3,
+          "description": "Benefit rank of the claim coverage (1 primary, 2 secondary)."
+        },
+        "primaryClaimRef": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Uuid"
+            }
+          ],
+          "description": "For a secondary claim, the primary claim whose adjudication it relies on."
+        }
+      }
+    },
+    "ClaimWorkItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "claimRef", "owner", "reasonCode", "dueAt", "overdue", "sourceRef"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,63}$"
+        },
+        "claimRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "owner": {
+          "enum": ["billing", "front_office", "clinical", "billing_manager"]
+        },
+        "reasonCode": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,63}$"
+        },
+        "dueAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "overdue": {
+          "type": "boolean"
+        },
+        "sourceRef": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    "ClaimWorklistQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "owner": {
+          "enum": ["billing", "front_office", "clinical", "billing_manager"]
+        }
+      }
+    },
+    "ClaimWorklist": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "totalCount", "checkedAt", "truncated"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ClaimWorkItem"
+          }
+        },
+        "totalCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "checkedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "truncated": {
+          "type": "boolean",
+          "description": "True when more open claims exist than one page (newest first) shows."
+        }
+      }
+    },
+    "AppealDraft": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["basisCode", "denialEventRef"],
+      "properties": {
+        "basisCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "denialEventRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "attachmentRefs": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/ObjectRef"
+          }
+        }
+      }
+    },
+    "AppealReview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision"],
+      "properties": {
+        "decision": {
+          "enum": ["approve_and_send", "reject"]
+        }
+      }
+    },
+    "AppealCommandData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["appealRef", "state"],
+      "properties": {
+        "appealRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "state": {
+          "enum": ["draft", "sent", "send_unknown", "rejected"]
+        }
+      }
+    },
+    "SubmissionPolicyCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maxBilled"],
+      "properties": {
+        "maxBilled": {
+          "$ref": "#/$defs/PositiveMoney"
+        },
+        "payerRef": {
+          "type": "string",
+          "pattern": "^syn-payer-[a-z0-9-]{1,40}$"
+        }
+      }
+    },
+    "SubmissionPolicyRevoke": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasonCode"],
+      "properties": {
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "PolicyCommandData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policyRef", "state"],
+      "properties": {
+        "policyRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "state": {
+          "enum": ["active", "revoked"]
+        }
+      }
+    },
+    "ClaimCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/ClaimCommandData"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ClaimReadResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/ClaimView"
+        }
+      }
+    },
+    "ClaimWorklistResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/ClaimWorklist"
+        }
+      }
+    },
+    "AppealCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/AppealCommandData"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "PolicyCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/PolicyCommandData"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "RemittanceRef": {
+      "$ref": "#/$defs/Uuid"
+    },
+    "RemittanceLineNo": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]{0,2}$"
+    },
+    "RemittanceIngest": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Ingest one synthetic ERA-like remittance from the fake clearinghouse by its reference (idempotent per reference: a duplicate changes nothing).",
+      "required": ["remittanceRef"],
+      "properties": {
+        "remittanceRef": {
+          "type": "string",
+          "pattern": "^syn-era-[a-z0-9-]{1,60}$"
+        }
+      }
+    },
+    "RemittanceSettle": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Record the EFT/check settlement of a remittance (a separate fact; an ERA alone is never cash). The amount must equal the open clearing balance.",
+      "required": ["settlementRef", "amount"],
+      "properties": {
+        "settlementRef": {
+          "type": "string",
+          "pattern": "^syn-(eft|chk)-[a-z0-9-]{1,60}$"
+        },
+        "amount": {
+          "$ref": "#/$defs/PositiveMoney"
+        }
+      }
+    },
+    "RemittanceReverse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasonCode"],
+      "properties": {
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "RemittanceCommandData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["remittanceRef", "outcome", "posted", "review", "denied"],
+      "properties": {
+        "remittanceRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "outcome": {
+          "enum": ["ingested", "duplicate", "settled", "reversed"]
+        },
+        "posted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "review": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "denied": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "RemittanceView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "remittanceRef",
+        "externalRef",
+        "payerRef",
+        "totalPaid",
+        "clearing",
+        "settled",
+        "reversed",
+        "lines"
+      ],
+      "properties": {
+        "remittanceRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "externalRef": {
+          "type": "string"
+        },
+        "payerRef": {
+          "type": "string"
+        },
+        "totalPaid": {
+          "$ref": "#/$defs/Money"
+        },
+        "clearing": {
+          "$ref": "#/$defs/Money"
+        },
+        "settled": {
+          "$ref": "#/$defs/Money"
+        },
+        "reversed": {
+          "type": "boolean"
+        },
+        "lines": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["lineNo", "claimRef", "status", "reviewReason", "denialCode", "resolution"],
+            "properties": {
+              "lineNo": {
+                "type": "integer"
+              },
+              "claimRef": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/$defs/Uuid"
+                  }
+                ]
+              },
+              "status": {
+                "enum": ["posted", "denied", "review"]
+              },
+              "reviewReason": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "denialCode": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "resolution": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["resolutionRef", "action", "state"],
+                    "properties": {
+                      "resolutionRef": {
+                        "$ref": "#/$defs/Uuid"
+                      },
+                      "action": {
+                        "enum": ["match_claim_line", "post_with_adjustment", "route_to_appeal", "write_off"]
+                      },
+                      "state": {
+                        "enum": ["posted", "pending_approval", "routed", "rejected"]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "RemittanceCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/RemittanceCommandData"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "RemittanceReadResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/RemittanceView"
+        }
+      }
+    },
+    "RemittanceAdvice": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Shape check of a synthetic ERA-like advice fetched from the fake clearinghouse (not X12): every amount a non-negative integer in minor units.",
+      "required": ["remittanceRef", "payerRef", "currency", "totalPaidMinor", "lines"],
+      "properties": {
+        "remittanceRef": {
+          "type": "string",
+          "pattern": "^syn-era-[a-z0-9-]{1,60}$"
+        },
+        "payerRef": {
+          "$ref": "#/$defs/PayerRef"
+        },
+        "currency": {
+          "$ref": "#/$defs/CurrencyCode"
+        },
+        "totalPaidMinor": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 99999999999
+        },
+        "lines": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 500,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "lineNo",
+              "claimRef",
+              "claimLineNo",
+              "paidMinor",
+              "contractualMinor",
+              "patientResponsibilityMinor"
+            ],
+            "properties": {
+              "lineNo": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 500
+              },
+              "claimRef": {
+                "type": "string",
+                "maxLength": 64
+              },
+              "claimLineNo": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 50
+              },
+              "paidMinor": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 99999999999
+              },
+              "contractualMinor": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 99999999999
+              },
+              "patientResponsibilityMinor": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 99999999999
+              },
+              "denialCode": {
+                "type": "string",
+                "pattern": "^SYN-DN-[0-9]{3}$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "NonNegativeMoney": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Money of zero or more minor units (a limit that may be zero).",
+      "required": ["currency", "minor"],
+      "properties": {
+        "currency": {
+          "$ref": "#/$defs/CurrencyCode"
+        },
+        "minor": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 99999999999
+        }
+      }
+    },
+    "RemittanceLineResolve": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Resolve one remittance review line as a separate fact. match_claim_line posts an unmatched line against the named transmitted claim line; post_with_adjustment and write_off post the reported amounts plus the residual (billed minus reported) once another human approves (write_off also needs a workflow policy limit); route_to_appeal posts only the paid amount and leaves the rest insurer responsibility.",
+      "required": ["action", "reasonCode"],
+      "properties": {
+        "action": {
+          "enum": ["match_claim_line", "post_with_adjustment", "route_to_appeal", "write_off"]
+        },
+        "claimRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "claimLineNo": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "RemittanceResolutionDecide": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Approve (posts) or reject a resolution that needs approval; never by its requester.",
+      "required": ["decision"],
+      "properties": {
+        "decision": {
+          "enum": ["approved", "rejected"]
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "RemittanceResolutionCommandData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resolutionRef", "remittanceRef", "lineNo", "action", "state", "entryRefs"],
+      "properties": {
+        "resolutionRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "remittanceRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "lineNo": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "action": {
+          "enum": ["match_claim_line", "post_with_adjustment", "route_to_appeal", "write_off"]
+        },
+        "state": {
+          "enum": ["posted", "pending_approval", "routed", "rejected"]
+        },
+        "entryRefs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Uuid"
+          }
+        }
+      }
+    },
+    "WorkflowPolicyPublish": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A new version of the claims-workflow policy data for one synthetic payer (or the tenant default): partner-aware deadlines in minutes, bounded escalation and the residual write-off limit. Earlier versions are never changed.",
+      "required": [
+        "acknowledgementDueMinutes",
+        "followUpMinutes",
+        "exceptionDueMinutes",
+        "maxEscalations",
+        "writeOffLimit"
+      ],
+      "properties": {
+        "payerRef": {
+          "$ref": "#/$defs/PayerRef"
+        },
+        "acknowledgementDueMinutes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 525600
+        },
+        "followUpMinutes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 525600
+        },
+        "exceptionDueMinutes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 525600
+        },
+        "maxEscalations": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "writeOffLimit": {
+          "$ref": "#/$defs/NonNegativeMoney"
+        }
+      }
+    },
+    "WorkflowPolicyCommandData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policyRef", "versionNo"],
+      "properties": {
+        "policyRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "versionNo": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "RemittanceResolutionRef": {
+      "$ref": "#/$defs/Uuid"
+    },
+    "RemittanceResolutionCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/RemittanceResolutionCommandData"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "WorkflowPolicyCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/WorkflowPolicyCommandData"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "SecondaryClaimPrepare": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "B8: prepare the secondary claim of a primary claim for a secondary-rank coverage of the patient. Needs the primary paid adjudication and posted remittance (COB evidence); claims only the patient responsibility the primary left.",
+      "required": ["coverageRef"],
+      "properties": {
+        "coverageRef": {
+          "$ref": "#/$defs/Uuid"
+        }
+      }
+    },
+    "WorkflowRef": {
+      "$ref": "#/$defs/Uuid"
+    },
+    "AttachmentPackageCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "CL-04: bind the head version's object references (I owns the bytes) and their content digests into one attachment package; rechecked before dispatch.",
+      "required": ["expectedVersion", "items"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["objectRef", "digest"],
+            "properties": {
+              "objectRef": {
+                "$ref": "#/$defs/ObjectRef"
+              },
+              "digest": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "ClaimWorkflowStart": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Start the closed-loop workflow of a primary claim lineage. A standing submission policy lets the workflow drive validate, submit, poll and secondary preparation through the owning commands; a workflow policy version fixes the deadlines (else the latest for the payer).",
+      "required": ["claimRef"],
+      "properties": {
+        "claimRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "workflowPolicyRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "submissionPolicyRef": {
+          "$ref": "#/$defs/Uuid"
+        }
+      }
+    },
+    "ClaimWorkflowClose": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "WorkflowCommandData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workflowRef", "outcome", "changes", "openExceptions"],
+      "properties": {
+        "workflowRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "outcome": {
+          "enum": ["started", "advanced", "closed"]
+        },
+        "changes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "openExceptions": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "VisitPreparationQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["serviceDate"],
+      "properties": {
+        "serviceDate": {
+          "$ref": "#/$defs/LocalDate"
+        }
+      }
+    },
+    "VisitPreparation": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "CL-01 visit preparation: coverage status, eligibility freshness and source per coverage for a service date, and the missing facts with their owner. Never implies payment.",
+      "required": [
+        "patientRef",
+        "serviceDate",
+        "coverages",
+        "missing",
+        "ready",
+        "paymentAssurance",
+        "checkedAt"
+      ],
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "serviceDate": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "coverages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "coverageRef",
+              "rank",
+              "payerRef",
+              "coverageStatus",
+              "eligibilityState",
+              "freshness",
+              "eligibilityRef"
+            ],
+            "properties": {
+              "coverageRef": {
+                "$ref": "#/$defs/Uuid"
+              },
+              "rank": {
+                "type": "string"
+              },
+              "payerRef": {
+                "type": "string"
+              },
+              "coverageStatus": {
+                "type": "string"
+              },
+              "eligibilityState": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "freshness": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "eligibilityRef": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "missing": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["code", "owner", "sourceRef"],
+            "properties": {
+              "code": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,63}$"
+              },
+              "owner": {
+                "enum": ["billing", "front_office", "clinical", "billing_manager"]
+              },
+              "sourceRef": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "ready": {
+          "type": "boolean"
+        },
+        "paymentAssurance": {
+          "const": "none"
+        },
+        "checkedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "ClaimWorkflowView": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The closed-loop workflow of one claim lineage: linked steps (by reference, never copied state), owned exceptions with escalation, durable timers, open responsibilities per charge and the closure fact.",
+      "required": [
+        "workflowRef",
+        "claimRef",
+        "workflowPolicyRef",
+        "submissionPolicyRef",
+        "claims",
+        "steps",
+        "exceptions",
+        "timers",
+        "responsibilities",
+        "closure",
+        "version"
+      ],
+      "properties": {
+        "workflowRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "claimRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "workflowPolicyRef": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Uuid"
+            }
+          ]
+        },
+        "submissionPolicyRef": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Uuid"
+            }
+          ]
+        },
+        "claims": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["claimRef", "rank", "state"],
+            "properties": {
+              "claimRef": {
+                "$ref": "#/$defs/Uuid"
+              },
+              "rank": {
+                "type": "integer"
+              },
+              "state": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "step",
+              "subjectKind",
+              "subjectRef",
+              "outcome",
+              "attempt",
+              "inputVersions",
+              "authority",
+              "nextExpected",
+              "recordedAt"
+            ],
+            "properties": {
+              "step": {
+                "type": "string"
+              },
+              "subjectKind": {
+                "type": "string"
+              },
+              "subjectRef": {
+                "type": "string"
+              },
+              "outcome": {
+                "type": "string"
+              },
+              "attempt": {
+                "type": "integer"
+              },
+              "inputVersions": {
+                "type": "object"
+              },
+              "authority": {
+                "type": "object"
+              },
+              "nextExpected": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "recordedAt": {
+                "$ref": "#/$defs/Instant"
+              }
+            }
+          }
+        },
+        "exceptions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "exceptionRef",
+              "issueKey",
+              "occurrence",
+              "reasonCode",
+              "owner",
+              "owedBy",
+              "sourceRef",
+              "state",
+              "escalationLevel",
+              "openedAt",
+              "dueAt"
+            ],
+            "properties": {
+              "exceptionRef": {
+                "$ref": "#/$defs/Uuid"
+              },
+              "issueKey": {
+                "type": "string"
+              },
+              "occurrence": {
+                "type": "integer"
+              },
+              "reasonCode": {
+                "type": "string"
+              },
+              "owner": {
+                "enum": ["billing", "front_office", "clinical", "billing_manager"]
+              },
+              "owedBy": {
+                "enum": ["practice", "patient", "payer", "platform"]
+              },
+              "sourceRef": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "state": {
+                "enum": ["open", "resolved"]
+              },
+              "escalationLevel": {
+                "type": "integer"
+              },
+              "openedAt": {
+                "$ref": "#/$defs/Instant"
+              },
+              "dueAt": {
+                "$ref": "#/$defs/Instant"
+              }
+            }
+          }
+        },
+        "timers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["timerRef", "kind", "subjectRef", "level", "dueAt", "firedOutcome"],
+            "properties": {
+              "timerRef": {
+                "$ref": "#/$defs/Uuid"
+              },
+              "kind": {
+                "enum": ["payer_follow_up", "exception_escalation", "automation_retry"]
+              },
+              "subjectRef": {
+                "type": "string"
+              },
+              "level": {
+                "type": "integer"
+              },
+              "dueAt": {
+                "$ref": "#/$defs/Instant"
+              },
+              "firedOutcome": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responsibilities": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["chargeRef", "patient", "insurer"],
+            "properties": {
+              "chargeRef": {
+                "$ref": "#/$defs/Uuid"
+              },
+              "patient": {
+                "$ref": "#/$defs/Money"
+              },
+              "insurer": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["coverageRef", "amount"],
+                  "properties": {
+                    "coverageRef": {
+                      "anyOf": [
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "$ref": "#/$defs/Uuid"
+                        }
+                      ]
+                    },
+                    "amount": {
+                      "$ref": "#/$defs/Money"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "closure": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["closedAt", "breakdown"],
+              "properties": {
+                "closedAt": {
+                  "$ref": "#/$defs/Instant"
+                },
+                "breakdown": {
+                  "type": "array"
+                }
+              }
+            }
+          ]
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "WorkflowCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/WorkflowCommandData"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "WorkflowAdvanceResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/WorkflowCommandData"
+        }
+      }
+    },
+    "ClaimWorkflowReadResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/ClaimWorkflowView"
+        }
+      }
+    },
+    "VisitPreparationResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/VisitPreparation"
+        }
+      }
+    },
+    "BillingExport": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "B10 versioned billing export: one array of rows per billing and rcm table, references preserved, no tenant field, every *_minor amount as Money.",
+      "required": ["format", "exportedAt", "currency", "tables"],
+      "properties": {
+        "format": {
+          "const": "cuspatlas-billing-export/1"
+        },
+        "exportedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "currency": {
+          "$ref": "#/$defs/CurrencyCode"
+        },
+        "tables": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    },
+    "BillingExportResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/BillingExport"
+        }
+      }
+    }
+  }
+}

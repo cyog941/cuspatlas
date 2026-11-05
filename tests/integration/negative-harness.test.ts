@@ -11,6 +11,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { seedBillingScopes } from './support/billing-fixtures';
 // Workstream C (clinical record) rows are appended below with their own fixtures.
 import { seedClinicalScopes, seedDispositions, seedPerioConfiguration } from './support/clinical-fixtures';
 import { openTestDatabase, type TestDatabase } from './support/db';
@@ -720,6 +721,358 @@ export const COMMANDS: HarnessCommand[] = [
       status: 200,
     }),
     mcpArgs: (f) => ({ locationRef: f.alphaLocation, date: '2030-01-07' }),
+  },
+  // B1 billing journal. Corrections are human-only (billing.correct); reads need ledger.read.
+  {
+    operation: 'billing.charges.post',
+    tool: 'billing_charges_post',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: '/v1/billing/charges',
+      body: chargeBody(f),
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({ ...chargeBody(f), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'billing.charges.read',
+    tool: 'billing_charges_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({ method: 'GET', url: `/v1/billing/charges/${f.alphaCharge}`, keyed: false, status: 200 }),
+    mcpArgs: (f) => ({ chargeRef: f.alphaCharge }),
+  },
+  {
+    operation: 'billing.entries.read',
+    tool: 'billing_entries_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/billing/entries/${f.alphaJournalEntry}`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ entryRef: f.alphaJournalEntry }),
+  },
+  {
+    operation: 'billing.entries.reverse',
+    tool: 'billing_entries_reverse',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/billing/entries/${f.alphaJournalEntry}/reverse`,
+      body: { reasonCode: 'posted_in_error' },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      entryRef: f.alphaJournalEntry,
+      reasonCode: 'posted_in_error',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'billing.ledger.list',
+    tool: 'billing_ledger_list',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({ method: 'GET', url: `/v1/billing/patients/${P(f)}/ledger`, keyed: false, status: 200 }),
+    mcpArgs: (f) => ({ patientRef: P(f) }),
+  },
+  {
+    operation: 'billing.balances.read',
+    tool: 'billing_balances_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({ method: 'GET', url: `/v1/billing/patients/${P(f)}/balance`, keyed: false, status: 200 }),
+    mcpArgs: (f) => ({ patientRef: P(f) }),
+  },
+  // B2 payments, allocations and the undistributed-funds worklist. Refunds and transfers between
+  // patients are human-only corrections (billing.correct).
+  {
+    operation: 'billing.payments.record',
+    tool: 'billing_payments_record',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({ method: 'POST', url: PAYMENTS, body: paymentBody(f), keyed: true, status: 201 }),
+    mcpArgs: (f) => ({ ...paymentBody(f), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'billing.payments.read',
+    tool: 'billing_payments_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({ method: 'GET', url: `${PAYMENTS}/${f.alphaPayment}`, keyed: false, status: 200 }),
+    mcpArgs: (f) => ({ paymentRef: f.alphaPayment }),
+  },
+  {
+    operation: 'billing.payments.settle',
+    tool: 'billing_payments_settle',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `${PAYMENTS}/${f.alphaPayment}/settle`,
+      body: { settlementRef: 'syn-deposit-harness' },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      paymentRef: f.alphaPayment,
+      settlementRef: 'syn-deposit-harness',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'billing.payments.allocate',
+    tool: 'billing_payments_allocate',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `${PAYMENTS}/${f.alphaPayment}/allocations`,
+      body: allocationBody(f),
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({ paymentRef: f.alphaPayment, ...allocationBody(f), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'billing.payments.refund',
+    tool: 'billing_payments_refund',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `${PAYMENTS}/${f.alphaPayment}/refunds`,
+      body: { amount: { currency: 'USD', minor: 100 }, reasonCode: 'overpayment' },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      paymentRef: f.alphaPayment,
+      amount: { currency: 'USD', minor: 100 },
+      reasonCode: 'overpayment',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'billing.funds.transfer',
+    tool: 'billing_funds_transfer',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `${PAYMENTS}/${f.alphaPayment}/transfers`,
+      body: transferBody(f),
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({ paymentRef: f.alphaPayment, ...transferBody(f), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'billing.responsibility.transfer',
+    tool: 'billing_responsibility_transfer',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/billing/charges/${f.alphaCharge}/responsibility`,
+      body: responsibilityBody(f),
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({ chargeRef: f.alphaCharge, ...responsibilityBody(f), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'billing.payments.reconcile',
+    tool: 'billing_payments_reconcile',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/billing/payment-attempts/${f.alphaAttempt}/reconcile`,
+      body: {},
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ attemptRef: f.alphaAttempt, idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'billing.worklist.list',
+    tool: 'billing_worklist_list',
+    crossTenant: 'empty_page',
+    downgradedTo: 'noPatientScopes',
+    rest: () => ({ method: 'GET', url: '/v1/billing/worklist', keyed: false, status: 200 }),
+    mcpArgs: () => ({}),
+  },
+  // B3 payment plans. Voiding or defaulting is a human-only correction (billing.correct).
+  {
+    operation: 'billing.plans.create',
+    tool: 'billing_plans_create',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({ method: 'POST', url: PLANS, body: planBody(f), keyed: true, status: 201 }),
+    mcpArgs: (f) => ({ ...planBody(f), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'billing.plans.read',
+    tool: 'billing_plans_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({ method: 'GET', url: `${PLANS}/${f.alphaPaymentPlan}`, keyed: false, status: 200 }),
+    mcpArgs: (f) => ({ planRef: f.alphaPaymentPlan }),
+  },
+  ...(
+    [
+      [
+        'billing.plans.authorize',
+        'billing_plans_authorize',
+        'authorizations',
+        () => ({
+          expectedVersion: 1,
+          authorizationRef: 'syn-auth-harness',
+          evidenceRef: 'syn-evidence-harness',
+        }),
+      ],
+      [
+        'billing.plans.amend',
+        'billing_plans_amend',
+        'amendments',
+        () => ({
+          expectedVersion: 1,
+          contractTotal: { currency: 'USD', minor: 900 },
+          installmentCount: 2,
+          firstDueOn: '2026-12-01',
+          reasonCode: 'hardship',
+        }),
+      ],
+      [
+        'billing.plans.autopay',
+        'billing_plans_autopay',
+        'autopay',
+        () => ({ expectedVersion: 1, state: 'paused' }),
+      ],
+      ['billing.plans.collect', 'billing_plans_collect', 'collections', () => ({ periodNo: 1 })],
+      [
+        'billing.plans.close',
+        'billing_plans_close',
+        'close',
+        () => ({
+          expectedVersion: 1,
+          outcome: 'voided',
+          reasonCode: 'patient_request',
+        }),
+      ],
+    ] as const
+  ).map(
+    ([operation, tool, suffix, body]): HarnessCommand => ({
+      operation,
+      tool,
+      crossTenant: 'not_found',
+      downgradedTo: 'readOnly',
+      rest: (f) => ({
+        method: 'POST',
+        url: `${PLANS}/${f.alphaPaymentPlan}/${suffix}`,
+        body: body(),
+        keyed: true,
+        status: 201,
+      }),
+      mcpArgs: (f) => ({ planRef: f.alphaPaymentPlan, ...body(), idempotencyKey: randomUUID() }),
+    }),
+  ),
+  // B4 statements.
+  {
+    operation: 'billing.statements.generate',
+    tool: 'billing_statements_generate',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({ method: 'POST', url: STATEMENTS, body: statementBody(f), keyed: true, status: 201 }),
+    mcpArgs: (f) => ({ ...statementBody(f), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'billing.statements.read',
+    tool: 'billing_statements_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({ method: 'GET', url: `${STATEMENTS}/${f.alphaStatement}`, keyed: false, status: 200 }),
+    mcpArgs: (f) => ({ statementRef: f.alphaStatement }),
+  },
+  // B5 coverage and eligibility.
+  {
+    operation: 'rcm.coverages.record',
+    tool: 'rcm_coverages_record',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({ method: 'POST', url: COVERAGES, body: coverageBody(f), keyed: true, status: 201 }),
+    mcpArgs: (f) => ({ ...coverageBody(f), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'rcm.coverages.read',
+    tool: 'rcm_coverages_get',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({ method: 'GET', url: `${COVERAGES}/${f.alphaCoverage}`, keyed: false, status: 200 }),
+    mcpArgs: (f) => ({ coverageRef: f.alphaCoverage }),
+  },
+  {
+    operation: 'rcm.coverages.change',
+    tool: 'rcm_coverages_change',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `${COVERAGES}/${f.alphaCoverage}/versions`,
+      body: coverageChangeBody(),
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({ coverageRef: f.alphaCoverage, ...coverageChangeBody(), idempotencyKey: randomUUID() }),
+  },
+  {
+    operation: 'rcm.eligibility.record',
+    tool: 'rcm_eligibility_record',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `${COVERAGES}/${f.alphaCoverage}/eligibility`,
+      body: { source: 'entered', serviceDate: '2026-10-01' },
+      keyed: true,
+      status: 201,
+    }),
+    mcpArgs: (f) => ({
+      coverageRef: f.alphaCoverage,
+      source: 'entered',
+      serviceDate: '2026-10-01',
+      idempotencyKey: randomUUID(),
+    }),
+  },
+  {
+    operation: 'rcm.coverages.resolve',
+    tool: 'rcm_coverages_resolve',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'GET',
+      url: `/v1/rcm/patients/${P(f)}/coverage?serviceDate=2026-10-01`,
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({ patientRef: P(f), serviceDate: '2026-10-01' }),
+  },
+  {
+    operation: 'billing.plans.worklist',
+    tool: 'billing_plans_worklist',
+    crossTenant: 'empty_page',
+    downgradedTo: 'noPatientScopes',
+    rest: () => ({ method: 'GET', url: '/v1/billing/payment-plan-worklist', keyed: false, status: 200 }),
+    mcpArgs: () => ({}),
   },
   // C5 encounters and clinical authorship (workstream C).
   {
@@ -2184,6 +2537,79 @@ export const COMMANDS: HarnessCommand[] = [
   },
 ];
 
+const PLANS = '/v1/billing/payment-plans';
+const STATEMENTS = '/v1/billing/statements';
+const COVERAGES = '/v1/rcm/coverages';
+function coverageBody(f: HarnessFixture) {
+  return {
+    patientRef: P(f),
+    payerRef: 'syn-payer-harness',
+    rank: 'secondary',
+    relationshipToSubscriber: 'self',
+    memberRef: 'syn-member-harness',
+    effectiveFrom: '2027-01-01',
+  };
+}
+function coverageChangeBody() {
+  return {
+    expectedVersion: 1,
+    rank: 'primary',
+    relationshipToSubscriber: 'self',
+    memberRef: 'syn-member-harness-2',
+    effectiveFrom: '2026-01-01',
+    reasonCode: 'plan_year_end',
+  };
+}
+function statementBody(f: HarnessFixture) {
+  return {
+    guarantorRef: f.alphaCounterparty,
+    cutoffAt: new Date().toISOString(),
+    basis: 'posted_through_cutoff',
+  };
+}
+function planBody(f: HarnessFixture) {
+  return {
+    patientRef: P(f),
+    contractTotal: { currency: 'USD', minor: 1200 },
+    installmentCount: 3,
+    firstDueOn: '2026-08-01',
+    timeZone: 'America/New_York',
+  };
+}
+
+const PAYMENTS = '/v1/billing/payments';
+function paymentBody(f: HarnessFixture) {
+  return { patientRef: P(f), amount: { currency: 'USD', minor: 2500 }, method: 'cash' };
+}
+function allocationBody(f: HarnessFixture) {
+  return { allocations: [{ chargeRef: f.alphaCharge, amount: { currency: 'USD', minor: 100 } }] };
+}
+function transferBody(f: HarnessFixture) {
+  return {
+    toPatientRef: f.alphaCounterparty,
+    amount: { currency: 'USD', minor: 100 },
+    reasonCode: 'family_account',
+  };
+}
+function responsibilityBody(f: HarnessFixture) {
+  return {
+    direction: 'to_insurer',
+    coverageRef: f.alphaCoverage,
+    amount: { currency: 'USD', minor: 100 },
+    reasonCode: 'coverage_expected',
+  };
+}
+
+/** B1 charge body: a fresh synthetic procedure per call so a success could never collide. */
+function chargeBody(f: HarnessFixture) {
+  return {
+    patientRef: P(f),
+    procedureRef: `syn-proc-harness-${randomUUID().slice(0, 8)}`,
+    serviceDate: '2026-10-01',
+    amount: { currency: 'USD', minor: 1500 },
+  };
+}
+
 const DIGEST_A = `sha256:${'a'.repeat(64)}`;
 const randomDigest = () => `sha256:${randomUUID().replaceAll('-', '')}${randomUUID().replaceAll('-', '')}`;
 
@@ -2713,6 +3139,7 @@ beforeAll(async () => {
   await seedTenancy(db.admin);
   await seedPatientScopes(db.admin);
   await seedSchedulingScopes(db.admin);
+  await seedBillingScopes(db.admin);
   await seedClinicalScopes(db.admin);
   await seedNoteScopes(db.admin);
   await seedDispositions(db.admin, T_ALPHA, ['completed_as_planned']);
@@ -2893,6 +3320,34 @@ beforeAll(async () => {
     ttlMinutes: 1440,
   });
   expect(hold.statusCode).toBe(201);
+  // B5: one primary coverage for the alpha patient (the insurer dimension of responsibility moves).
+  const coverage = await owner(COVERAGES, {
+    ...coverageBody({ alphaPatient } as HarnessFixture),
+    rank: 'primary',
+    effectiveFrom: '2026-01-01',
+  });
+  expect(coverage.statusCode).toBe(201);
+  // B1: one posted charge for the alpha patient.
+  const charge = await owner('/v1/billing/charges', chargeBody({ alphaPatient } as HarnessFixture));
+  expect(charge.statusCode).toBe(201);
+  // B2: one cash payment and one unknown-outcome provider attempt for the alpha patient.
+  const cashPayment = await owner('/v1/billing/payments', paymentBody({ alphaPatient } as HarnessFixture));
+  expect(cashPayment.statusCode).toBe(201);
+  const attempt = await owner('/v1/billing/payments', {
+    ...paymentBody({ alphaPatient } as HarnessFixture),
+    method: 'card_synthetic',
+    instrumentRef: 'syn-card-timeout-pending',
+  });
+  expect(attempt.json().data.outcome).toBe('unknown');
+  // B3: one unsigned payment plan for the alpha patient.
+  const paymentPlan = await owner(PLANS, planBody({ alphaPatient } as HarnessFixture));
+  expect(paymentPlan.statusCode).toBe(201);
+  // B4: one statement for the alpha guarantor (the counterparty guarantees the alpha patient).
+  const statement = await owner(
+    STATEMENTS,
+    statementBody({ alphaPatient, alphaCounterparty } as HarnessFixture),
+  );
+  expect(statement.statusCode).toBe(201);
   // C5: an open alpha encounter for the alpha appointment (version 1).
   const encounter = await owner('/v1/clinical/encounters', {
     patientRef: alphaPatient,
@@ -3133,6 +3588,13 @@ beforeAll(async () => {
   });
   expect(recallTask.statusCode).toBe(201);
   fixture = {
+    alphaPaymentPlan: paymentPlan.json().data.planRef,
+    alphaCoverage: coverage.json().data.coverageRef,
+    alphaStatement: statement.json().data.statementRef,
+    alphaPayment: cashPayment.json().data.paymentRef,
+    alphaAttempt: attempt.json().data.attemptRef,
+    alphaCharge: charge.json().data.chargeRef,
+    alphaJournalEntry: charge.json().data.entryRef,
     alphaPlan: plan.json().data.plan.planRef,
     alphaPlanVersion: planVersion,
     alphaPlanDetail: planDetail.json().data.targetRef,
@@ -3288,6 +3750,19 @@ async function state(): Promise<string> {
     await q('SELECT count(*)::int AS n FROM cuspatlas.appointment_overrides'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.appointment_lifecycle_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.appointment_attendance_transitions'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.billing_charges'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.billing_journal_entries'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.billing_journal_lines'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.billing_payments'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.billing_payment_attempts'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.billing_payment_plans'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.billing_payment_plan_terms'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.billing_payment_plan_events'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.billing_payment_plan_attempts'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.billing_statements'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.rcm_coverages'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.rcm_coverage_versions'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.rcm_eligibility_records'),
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_author_profiles'),
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.clinical_encounters'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.clinical_encounter_assignments'),

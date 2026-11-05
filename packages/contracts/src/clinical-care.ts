@@ -2,6 +2,7 @@ import type { ValidateFunction } from 'ajv/dist/2020.js';
 import type { ClinicalAuthor } from './clinical';
 import schema from './clinical.schema.json' with { type: 'json' };
 import type { PlanVersionState, ToothInput, ToothRef } from './clinical-chart';
+import type { Money } from './money';
 import { createAjv } from './validation';
 
 /**
@@ -9,10 +10,8 @@ import { createAjv } from './validation';
  * procedures) definitions of clinical.schema.json. The JSON Schema is authoritative. Synthetic data
  * only; semantics recommended-pending-clinical-approval. Money is the SHARED-CONTRACTS shape.
  */
-export interface Money {
-  readonly currency: string;
-  readonly minor: number;
-}
+// Money is the shared definition (money.ts), merged with workstream B.
+export type { Money };
 
 export type CoverageStatus = 'entered' | 'unknown' | 'stale';
 export type EstimateAssumptionKind = 'coverage' | 'discount';

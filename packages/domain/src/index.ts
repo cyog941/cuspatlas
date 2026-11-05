@@ -1,3 +1,4 @@
+export * from './billing';
 export * from './clinical';
 export * from './commands/boundary';
 export * from './commands/digest';

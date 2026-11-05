@@ -12,6 +12,7 @@ import {
   type SecurityReasonCode,
   type TenantTransaction,
 } from '@cuspatlas/contracts';
+import { BILLING_REPLAY_CODECS } from '../billing/codecs';
 import { CLINICAL_REPLAY_CODECS } from '../clinical/codecs';
 import { ENGAGEMENT_REPLAY_CODECS } from '../engagement/codecs';
 import { IMAGING_REPLAY_CODECS } from '../imaging/codecs';
@@ -263,6 +264,7 @@ const ALL_CODECS: Readonly<Record<string, ReplayCodec<any>>> = {
   ...PATIENT_REPLAY_CODECS,
   ...SCHEDULING_REPLAY_CODECS,
   ...APPOINTMENT_REPLAY_CODECS,
+  ...BILLING_REPLAY_CODECS,
   ...CLINICAL_REPLAY_CODECS,
   ...EXTENDED_SCHEDULING_CODECS,
   ...ENGAGEMENT_REPLAY_CODECS,

@@ -94,10 +94,11 @@ describe('E3 acceptance', () => {
     expect(audit.rows).toStrictEqual([
       { operation: 'scheduling.requests.create', principal: 'portal', actor_id: adultP },
     ]);
-    // No second appointment-request table exists (I8 imaging deletion requests are an imaging record).
+    // No second appointment-request table exists (I8 deletion requests and B adjustment requests are
+    // imaging and billing records).
     const tables = await db.admin.query(
       `SELECT table_name FROM information_schema.tables WHERE table_schema = 'cuspatlas' AND table_name ~ 'request'
-         AND table_name !~ '^imaging_'
+         AND table_name !~ '^(imaging|billing|rcm)_'
        ORDER BY 1`,
     );
     expect(tables.rows.map((r) => r.table_name)).toStrictEqual([

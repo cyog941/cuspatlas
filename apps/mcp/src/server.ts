@@ -66,6 +66,7 @@ import {
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
 import { assertDistinctAudience, assertIdentityAllowed, createMcpAuthenticator } from './auth';
+import { toolCatalogDrift } from './catalog';
 import { APPOINTMENT_TOOLS } from './tools/appointments';
 import { BILLING_TOOLS } from './tools/billing';
 import { BILLING_OP_TOOLS } from './tools/billing-ops';
@@ -294,6 +295,10 @@ async function readBody(req: IncomingMessage): Promise<unknown> {
 export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
   if (!RUNTIME_ENVIRONMENTS.includes(deps.env)) throw new Error('Unsupported runtime environment');
   assertIdentityAllowed(deps.env, deps.identity);
+  const drift = toolCatalogDrift(TOOLS);
+  if (drift.length > 0) {
+    throw new Error(`Refusing to start: MCP tools disagree with the operation catalog: ${drift.join('; ')}`);
+  }
   assertDistinctAudience({
     identity: deps.identity,
     ...(deps.restAudience === undefined ? {} : { restAudience: deps.restAudience }),

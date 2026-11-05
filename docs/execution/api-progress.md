@@ -13,6 +13,7 @@ Branch `codex/a-api-1`, based on the integrated F+S+C+E+I+B head `6871689`.
 | A3 scope registry and new-operation procedure | tested (synthetic); grants pending A-D2 | `tests/integration/api-scopes.test.ts` |
 | A1 contract pipeline, generated client, representation conformance | tested (synthetic) | `tests/integration/api-contract-gate.test.ts`, ADR 0007 |
 | A5 change control, deprecation and sunset record | tested (synthetic); window length pending A-D1 | `tests/integration/api-change-control.test.ts` |
+| A6 MCP parity from the catalog | tested (local synthetic transport); remote blocked on A-S1; disable list pending A-D3 | `tests/integration/api-mcp-catalog-parity.test.ts` |
 
 ### A4: operation catalog
 
@@ -90,3 +91,18 @@ Branch `codex/a-api-1`, based on the integrated F+S+C+E+I+B head `6871689`.
   empty, so no operation is deprecated at this head.
 - `docs/api/sunset-register.md` is generated from the entries and checked against the catalog.
 - Open: the deprecation window length (A-D1) is a human decision; no default is asserted.
+
+### A6: MCP parity from the catalog
+
+- The tool list is asserted equal to the catalog (not regenerated from it: tool handlers stay in the
+  per-workstream tables). `toolCatalogDrift` (apps/mcp/src/catalog.ts) runs in `buildMcpServer`: a
+  hand-added, off-catalog, remapped, duplicate or non-staff tool, a read-only hint that contradicts
+  the catalog kind, or a missing catalog tool refuses startup. 326 tools at this head.
+- `tools/list` through the real transport equals the catalog MCP operations with matching read-only
+  hints. One matrix over all workstreams (B 64, C 88, E 58, F 12, I 54, S 79 operations) checks REST
+  registration, MCP listing, policy, OpenAPI and harness rows for every operation; the five
+  per-workstream matrices (S17, C18, E9, I9, B10) keep their specific assertions unchanged.
+- The same command through REST and MCP (`patients.create`) yields the same result shape and version;
+  a REST-audience credential is refused by the MCP transport before any tool runs. Identical refusals
+  per operation are proven by the A7 matrix.
+- `docs/api/mcp-surface.md` lists the REST-only operations and the candidate disable list (A-D3, open).

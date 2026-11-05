@@ -408,7 +408,10 @@ describe('A2 applied-command link at the database clock (clock audit)', () => {
     for (const skewMs of [-5_000, 5_000]) {
       vi.useFakeTimers({ toFake: ['Date'], now: Date.now() + skewMs });
       try {
-        const logged = await log('owner', entryBody(windowRef, { capturedAt: ago(5), paperRef: `SKEW-${skewMs}` }));
+        const logged = await log(
+          'owner',
+          entryBody(windowRef, { capturedAt: ago(5), paperRef: `SKEW-${skewMs}` }),
+        );
         expect(logged.status).toBe(201);
         const created = await s.command('owner', '/v1/patients', patientBody(`Downtime Skew ${skewMs}`));
         expect(created.status).toBe(201);

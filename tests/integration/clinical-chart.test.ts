@@ -11,8 +11,8 @@ import {
   T_ALPHA,
 } from './support/appointment-fixtures';
 import { seedClinicalScopes, seedDispositions } from './support/clinical-fixtures';
-import { dbNow } from './support/db-clock';
 import { openTestDatabase, type TestDatabase } from './support/db';
+import { dbNow } from './support/db-clock';
 import { MARKER } from './support/marker';
 
 /**

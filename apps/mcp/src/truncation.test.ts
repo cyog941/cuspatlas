@@ -18,7 +18,7 @@ describe('resumeCursor advertisement', () => {
     const readOnly = TOOLS.filter((t) => t.readOnly);
     expect(readOnly.length).toBeGreaterThan(100);
     for (const t of readOnly) {
-      const a = advertisedTool(t, t.description);
+      const a = advertisedTool(t, t.description, { agent: true });
       const props = a.inputSchema.properties as Record<string, unknown>;
       expect([t.name, props.resumeCursor]).toStrictEqual([t.name, RESUME_CURSOR_PROPERTY]);
       expect([t.name, a.inputSchema.required?.includes('resumeCursor')]).toStrictEqual([t.name, false]);
@@ -29,7 +29,7 @@ describe('resumeCursor advertisement', () => {
 
   it('commands advertise neither, and the registered (validated) schema is unchanged', () => {
     for (const t of TOOLS) {
-      const a = advertisedTool(t, t.description);
+      const a = advertisedTool(t, t.description, { agent: true });
       if (!t.readOnly) {
         expect([t.name, Object.keys(a.inputSchema.properties ?? {})]).not.toContainEqual(
           expect.arrayContaining(['resumeCursor']),
@@ -38,6 +38,17 @@ describe('resumeCursor advertisement', () => {
       }
       expect(Object.keys(t.inputSchema.properties ?? {})).not.toContain('resumeCursor');
       expect(a.annotations).toStrictEqual({ readOnlyHint: t.readOnly, openWorldHint: false });
+    }
+  });
+
+  it('a non-agent caller (never truncated) is advertised neither the cursor nor the truncation output', () => {
+    for (const t of TOOLS) {
+      const a = advertisedTool(t, t.description, { agent: false });
+      expect([t.name, Object.keys(a.inputSchema.properties ?? {})]).not.toContainEqual(
+        expect.arrayContaining(['resumeCursor']),
+      );
+      expect([t.name, a._meta]).toStrictEqual([t.name, undefined]);
+      expect(a.inputSchema).toStrictEqual(t.inputSchema);
     }
   });
 

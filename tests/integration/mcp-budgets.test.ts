@@ -149,6 +149,20 @@ describe('A9 budgets', () => {
     // A cursor for another operation or other arguments is refused, never applied.
     const bad = await s.agentTool(a, 'synthetic_tasks_list', { resumeCursor: 'not-a-cursor' });
     expect(bad.body.code).toBe('invalid_request');
+    // Closeout C review: the agent (the only caller ever truncated) is advertised the cursor input and
+    // the _meta.truncated schema on every read-only tool, and on no command.
+    const { tools } = await (await s.agentClient(a.agentRef, a.credentialRef)).listTools();
+    for (const tool of tools) {
+      const resumable = tool.annotations?.readOnlyHint === true;
+      expect([tool.name, 'resumeCursor' in (tool.inputSchema.properties ?? {})]).toStrictEqual([
+        tool.name,
+        resumable,
+      ]);
+      expect([tool.name, tool._meta?.['cuspatlas/truncation'] !== undefined]).toStrictEqual([
+        tool.name,
+        resumable,
+      ]);
+    }
   });
 
   it('the period record budget still refuses once exhausted, even with truncation', async () => {

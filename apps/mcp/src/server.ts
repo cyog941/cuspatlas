@@ -777,11 +777,13 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
       { capabilities: { tools: {} } },
     );
     server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      // Closeout C: truncatable (read-only) tools advertise resumeCursor and the _meta.truncated schema.
+      // Closeout C: for an agent, truncatable (read-only) tools advertise resumeCursor and the
+      // _meta.truncated schema; a non-agent caller is never truncated and is advertised neither.
       tools: TOOLS.map((t) => {
         const a = advertisedTool(
           t,
           notices.has(t.name) ? `${t.description} ${notices.get(t.name)?.notice}` : t.description,
+          { agent: actor.agent !== undefined },
         );
         return { ...a, inputSchema: a.inputSchema as never };
       }),

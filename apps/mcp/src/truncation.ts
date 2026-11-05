@@ -5,8 +5,8 @@ import type { ToolDefinition } from './tools/synthetic-tasks';
  * read-only tool call of an agent through `settleQuery`; a list answer over a per-call record or PHI
  * budget comes back shortened, with `_meta.truncated` (schema below). Passing its `resumeCursor` with
  * the same arguments reruns the query and skips the records already returned. The cursor is a
- * transport argument stripped before validation, so the registered (validated) tool schema never
- * contains it; only the advertised copy does.
+ * transport argument of agent calls, stripped before validation, so the registered (validated) tool
+ * schema never contains it; only the copy advertised to an agent does.
  */
 export const TRUNCATION_META_KEY = 'cuspatlas/truncation';
 
@@ -44,14 +44,22 @@ export const TRUNCATION_RESULT_SCHEMA = {
 /** True for every tool whose agent answers the server may truncate (every read-only tool). */
 export const isTruncatable = (tool: Pick<ToolDefinition, 'readOnly'>): boolean => tool.readOnly;
 
-/** The `tools/list` entry of a tool: truncatable tools also advertise the cursor input and output. */
-export function advertisedTool(tool: ToolDefinition, description: string) {
+/**
+ * The `tools/list` entry of a tool. For an agent caller (the only caller the server ever truncates)
+ * truncatable tools also advertise the cursor input and output; any other caller is listed the
+ * registered schema only, so a cursor it sends is refused like any unknown argument.
+ */
+export function advertisedTool(
+  tool: ToolDefinition,
+  description: string,
+  caller: { readonly agent: boolean },
+) {
   const base = {
     name: tool.name,
     description,
     annotations: { readOnlyHint: tool.readOnly, openWorldHint: false },
   };
-  if (!isTruncatable(tool))
+  if (!caller.agent || !isTruncatable(tool))
     return { ...base, inputSchema: tool.inputSchema } as typeof base & {
       inputSchema: ToolDefinition['inputSchema'];
       _meta?: Record<string, unknown>;

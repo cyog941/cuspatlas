@@ -58,7 +58,8 @@ describe('clock audit guard', () => {
     const present = new Set(found.map(key));
     const stale = CLOCK_ALLOWLIST.filter((e) => !present.has(key(e))).map(key);
     expect({ unaudited, stale }).toStrictEqual({ unaudited: [], stale: [] });
-  });
+    // Parses every scanned source file: allow for a loaded runner.
+  }, 60_000);
 
   it('entries are unique and each states a class and a reason', () => {
     const keys = CLOCK_ALLOWLIST.map(key);

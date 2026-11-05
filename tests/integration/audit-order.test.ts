@@ -175,17 +175,29 @@ describe('audit statement order within one transaction (clock audit review)', ()
     expect(
       await code('UPDATE cuspatlas.agent_audit_events SET seq = seq + 1000 WHERE resource_ref = $1', [ref]),
     ).toBe('42501');
-    // A caller-chosen sequence is ignored: the database assigns the next value.
+    // A caller-chosen sequence is ignored, even with the restore-load flag set (the runtime role does
+    // not bypass RLS): the database assigns the next value.
     const forged = randomUUID();
-    await s.tenantTransactions(ctx, (tx) =>
-      tx.query(
+    // A raw runtime-role connection (the domain runner refuses set_config), tenant context as the runner sets it.
+    const c = await s.db.app.connect();
+    try {
+      await c.query('BEGIN');
+      await c.query(
+        `SELECT set_config('cuspatlas.tenant_id', $1, true), set_config('cuspatlas.actor_id', $2, true),
+           set_config('cuspatlas.restore_load', 'on', true)`,
+        [T_ALPHA, a.agentRef],
+      );
+      await c.query(
         `INSERT INTO cuspatlas.audit_events (event_ref, event_version, tenant_id, actor_id, principal, operation,
            resource_type, resource_ref, resource_version, correlation_id, trace_id, span_id, occurred_at, seq)
          VALUES (gen_random_uuid(), 1, cuspatlas.current_tenant_id(), cuspatlas.current_actor_id(), 'service',
            'clockOrder.stepb', 'clockOrder', $1, 1, $2, $3, '0123456789abcdef', clock_timestamp(), 1)`,
         [forged, correlationId, correlationId.replaceAll('-', '')],
-      ),
-    );
+      );
+      await c.query('COMMIT');
+    } finally {
+      c.release();
+    }
     const f = await s.db.admin.query<{ later: boolean }>(
       `SELECT (SELECT seq FROM cuspatlas.audit_events WHERE resource_ref = $1)
          > (SELECT seq FROM cuspatlas.audit_events WHERE resource_ref = $2) AS later`,

@@ -11,6 +11,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createPatient, T_ALPHA } from './support/appointment-fixtures';
 import { BILLING_ALL, usd } from './support/billing-fixtures';
 import { openTestDatabase, type TestDatabase } from './support/db';
+import { dbNow } from './support/db-clock';
 import { FakeProvider } from './support/fake-provider';
 import { ctxFor, SVC_A1, USER_A1 } from './support/fixtures';
 import { openRcmHarness, type RcmHarness, SVC_BILLING_WORKER, today } from './support/rcm-fixtures';
@@ -135,10 +136,10 @@ const submissionPolicy = async () =>
     .data.policyRef;
 const openKeys = async (wf: string) =>
   (await svc.getClaimWorkflow(a1(), wf)).exceptions.filter((x) => x.state === 'open').map((x) => x.issueKey);
-const statement = (patient: string) =>
+const statement = async (patient: string) =>
   r.h.call('a1', 'POST', '/v1/billing/statements', {
     guarantorRef: patient,
-    cutoffAt: new Date().toISOString(),
+    cutoffAt: await dbNow(db.admin),
     basis: 'posted_through_cutoff',
   });
 const worker = () =>

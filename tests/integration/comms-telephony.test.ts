@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { validateCallRead } from '@cuspatlas/contracts';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { openTestDatabase, type TestDatabase } from './support/db';
+import { dbNow } from './support/db-clock';
 import {
   type EngagementHarness,
   openEngagementHarness,
@@ -192,7 +193,7 @@ describe('E8 call references', () => {
       await h.call('a1', 'GET', `/v1/telephony/handling?at=${encodeURIComponent(at)}`),
     ).data;
     const now = h.ok<{ data: { sourceVersion: number } }>(
-      await h.call('a1', 'GET', `/v1/telephony/handling?at=${encodeURIComponent(new Date().toISOString())}`),
+      await h.call('a1', 'GET', `/v1/telephony/handling?at=${encodeURIComponent(await dbNow(db.admin))}`),
     ).data;
     expect([then.sourceVersion, now.sourceVersion]).toStrictEqual([1, 2]);
     // Metadata only: the full caller number is stored nowhere and nothing is a recording.

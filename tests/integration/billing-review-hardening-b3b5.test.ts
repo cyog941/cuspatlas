@@ -28,6 +28,7 @@ import {
   usd,
 } from './support/billing-fixtures';
 import { openTestDatabase, type TestDatabase } from './support/db';
+import { dbNow } from './support/db-clock';
 import { ctxFor, USER_A1 } from './support/fixtures';
 
 /**
@@ -407,7 +408,7 @@ describe('S1: a pre-cutoff entry committed after the statement makes it stale', 
     const st = h.ok<{ data: { statementRef: string } }>(
       await h.call('a1', 'POST', '/v1/billing/statements', {
         guarantorRef: patient,
-        cutoffAt: new Date().toISOString(),
+        cutoffAt: await dbNow(db.admin),
         basis: 'posted_through_cutoff',
       }),
       201,

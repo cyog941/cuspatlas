@@ -45,6 +45,7 @@ interface ReleaseRow extends Record<string, unknown> {
 interface PortalStatementRow extends Record<string, unknown> {
   release_id: string;
   released_at: Date;
+  statement_id: string;
   statement_version: number;
   cutoff_at: Date;
   currency: string;
@@ -55,7 +56,7 @@ interface PortalStatementRow extends Record<string, unknown> {
   snapshot_digest: string;
 }
 
-const STATEMENT_SELECT = `SELECT r.id AS release_id, r.released_at, s.statement_version, s.cutoff_at, s.currency,
+const STATEMENT_SELECT = `SELECT r.id AS release_id, r.released_at, s.id AS statement_id, s.statement_version, s.cutoff_at, s.currency,
     s.snapshot_total_minor::text AS total, s.total_class, s.snapshot, s.snapshot_digest,
     EXISTS (SELECT 1 FROM cuspatlas.billing_statements n WHERE n.supersedes_id = s.id) AS superseded
   FROM cuspatlas.portal_document_releases r
@@ -96,7 +97,8 @@ export async function portalStatementsView(tx: TenantTransaction, patientRef: st
 /**
  * One released statement of the patient, projected for the portal from the stored snapshot. The
  * snapshot is checked against its recorded digest first (409 `statement_integrity_failed`); a
- * revoked, unknown or another patient's release is one 404.
+ * revoked, unknown or another patient's release is one 404. `statementRef` (the exact statement
+ * version read; never sent to the portal) is returned for the caller's sensitive-read record only.
  */
 export async function portalStatementRead(tx: TenantTransaction, patientRef: string, releaseRef: string) {
   assertRef(releaseRef);
@@ -108,7 +110,7 @@ export async function portalStatementRead(tx: TenantTransaction, patientRef: str
   if (!row) throw notFound();
   if (sha256Hex(canonicalJson(row.snapshot)) !== row.snapshot_digest)
     throw conflict('statement_integrity_failed');
-  return {
+  const statement = {
     releaseRef: row.release_id,
     statementVersion: row.statement_version,
     cutoffAt: row.cutoff_at.toISOString(),
@@ -130,6 +132,7 @@ export async function portalStatementRead(tx: TenantTransaction, patientRef: str
       })),
     })),
   };
+  return { statement, statementRef: row.statement_id };
 }
 
 export function createStatementReleaseOperations(base: BillingBase) {

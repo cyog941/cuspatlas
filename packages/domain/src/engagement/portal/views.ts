@@ -7,7 +7,11 @@ import {
   type TenantTransaction,
   validateEmptyQuery,
 } from '@cuspatlas/contracts';
-import { portalStatementRead, portalStatementsView } from '../../billing/portal-statements';
+import {
+  portalStatementRead,
+  portalStatementsView,
+  STATEMENT_RELEASE_RESOURCE,
+} from '../../billing/portal-statements';
 import { recordSensitiveRead } from '../../events/record-sensitive-read';
 import { portalDocumentsView } from '../../imaging/portal-documents';
 import type { EngagementBase } from '../common';
@@ -252,11 +256,12 @@ export function createPortalViewOperations(base: EngagementBase) {
         assertValid(validateEmptyQuery, query, ENGAGEMENT_PROPERTIES);
         return deps.withTenantTransaction(ctx, async (tx) => {
           const access = await requirePortalAccess(tx, patientRef, ['financial']);
-          const statement = await portalStatementRead(tx, access.patientRef, releaseRef);
+          const { statement, statementRef } = await portalStatementRead(tx, access.patientRef, releaseRef);
+          // Names the release, the exact statement version read (its immutable statement ref) and the patient.
           await recordSensitiveRead(tx, {
             operation: 'portal.statements.read',
-            resourceType: 'patient',
-            resourceRefs: [access.patientRef],
+            resourceType: STATEMENT_RELEASE_RESOURCE,
+            resourceRefs: [statement.releaseRef, statementRef, access.patientRef],
             queryFields: [],
           });
           return statement;

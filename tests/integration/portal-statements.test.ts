@@ -124,6 +124,16 @@ describe('Closeout C: B4 statements on the portal', () => {
       "SELECT count(*)::int AS n FROM cuspatlas.sensitive_read_events WHERE operation = 'portal.statements.read'",
     );
     expect(reads.rows[0].n).toBeGreaterThanOrEqual(2);
+    // Each read names the release, the exact statement version read (its statement ref) and the patient.
+    const named = await db.admin.query(
+      `SELECT resource_type, resource_refs FROM cuspatlas.sensitive_read_events
+       WHERE operation = 'portal.statements.read' AND $1 = ANY(resource_refs) ORDER BY occurred_at`,
+      [r.releaseRef],
+    );
+    expect(named.rows).toStrictEqual([
+      { resource_type: 'portalStatementRelease', resource_refs: [r.releaseRef, statementRef, guarantor] },
+      { resource_type: 'portalStatementRelease', resource_refs: [r.releaseRef, statementRef, guarantor] },
+    ]);
     // A second live release of the same statement is refused.
     expect((await release(statementRef)).json().detail?.reason).toBe('already_released');
   });

@@ -5,10 +5,11 @@
  */
 
 /**
- * `portal` (E1): a patient, guardian or proxy authenticated on the portal audience. It never holds
- * a staff membership (the database refuses one) and no staff action policy admits it.
+ * `portal` (E1): a patient, guardian or proxy authenticated on the portal audience. `device` (I6): a
+ * paired imaging bridge authenticated by its own Ed25519 key on the bridge audience. Neither ever holds
+ * a staff membership (the database refuses one) and no staff action policy admits either.
  */
-export type PrincipalKind = 'human' | 'service' | 'portal';
+export type PrincipalKind = 'human' | 'service' | 'portal' | 'device';
 
 /** Built server-side from a verified token plus a live membership row. Never from caller input. */
 export interface ActorContext {
@@ -166,6 +167,20 @@ export const SECURITY_REASON_CODES = [
   'portal_self_below_majority',
   // E3: portal abuse bounds (open requests per patient, submissions per principal per day).
   'portal_rate_limited',
+  // I (imaging): every imaging refusal leaves an attempt row; integrity and grant failures are named.
+  'imaging_refused',
+  'object_token_invalid',
+  'object_integrity_failed',
+  'upload_gated',
+  // I6: device principals (their own audience and kind; never staff). Pairing failures carry no tenant.
+  'device_pairing_invalid',
+  'device_pairing_expired',
+  'device_pairing_used',
+  'device_assertion_invalid',
+  'device_assertion_replayed',
+  'device_revoked',
+  'device_unpaired',
+  'device_signature_invalid',
 ] as const;
 export type SecurityReasonCode = (typeof SECURITY_REASON_CODES)[number];
 
@@ -224,6 +239,8 @@ export interface RefusalDetail {
   };
   /** S13 addition: the published configuration limit a request exceeded. */
   readonly limit?: { readonly name: string; readonly value: number };
+  /** I8 addition: the computed earliest instant an imaging deletion would be allowed. */
+  readonly earliestAllowedAt?: string;
   /** S13 addition: per-occurrence conflicts of a refused series (at most 52). */
   readonly occurrences?: readonly {
     readonly index: number;
@@ -331,7 +348,7 @@ export const auditEventSchema = {
     eventRef: { type: 'string', pattern: UUID_PATTERN },
     tenantId: { type: 'string', pattern: UUID_PATTERN },
     actorId: { type: 'string', pattern: UUID_PATTERN },
-    principal: { enum: ['human', 'service', 'portal'] },
+    principal: { enum: ['human', 'service', 'portal', 'device'] },
     operation: { type: 'string', pattern: OPERATION_PATTERN },
     resourceType: { type: 'string', pattern: '^[a-z][A-Za-z]{0,63}$' },
     resourceRef: { type: 'string', pattern: UUID_PATTERN },

@@ -16,7 +16,9 @@ import {
 import {
   type ActorContext,
   type DomainRefusal,
+  type MalwareScannerPort,
   type MembershipSource,
+  type ObjectStorePort,
   REFUSAL_HTTP_STATUS,
   RefusalError,
   type SecurityAttemptSink,
@@ -34,14 +36,18 @@ import {
   createClinicalVisitContextProducers,
   createDurableExecutor,
   createEngagementService,
+  createImagingService,
   createPatientService,
   createProposalService,
   createSchedulingResourceService,
   createSyntheticTaskService,
   type ImageRefResolver,
+  type ImagingLimits,
   readLatestCompletedProcedures,
   resolveIdempotencyDigestKey,
+  resolveImagingTokenSecret,
   resolveMatchKeyPepper,
+  type StagingMaintenance,
 } from '@cuspatlas/domain';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -56,6 +62,7 @@ import { APPOINTMENT_TOOLS } from './tools/appointments';
 import { CLINICAL_TOOLS } from './tools/clinical';
 import { CLINICAL_RECORD_TOOLS } from './tools/clinical-record';
 import { ENGAGEMENT_OP_TOOLS } from './tools/engagement-ops';
+import { IMAGING_TOOLS } from './tools/imaging-ops';
 import { PATIENT_TOOLS } from './tools/patients';
 import { PROPOSAL_TOOLS } from './tools/proposals';
 import { SCHEDULING_TOOLS } from './tools/scheduling';
@@ -127,6 +134,13 @@ export interface McpServerDeps {
    * names and the host of `resourceMetadataUrl`; anything else is refused with 421 (DNS rebinding).
    */
   readonly allowedHosts?: readonly string[];
+  /** I imaging: object store (metadata tools work without it; byte-touching commands are 503). */
+  readonly objectStore?: ObjectStorePort;
+  readonly stagingMaintenance?: StagingMaintenance;
+  readonly scanner?: MalwareScannerPort;
+  /** I1 read-grant secret; optional only under synthetic-test. */
+  readonly imagingTokenSecret?: Uint8Array;
+  readonly imagingLimits?: ImagingLimits;
 }
 
 export interface McpServerHandle {
@@ -149,6 +163,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   ...CLINICAL_RECORD_TOOLS,
   ...SCHEDULING_OP_TOOLS,
   ...ENGAGEMENT_OP_TOOLS,
+  ...IMAGING_TOOLS,
 ];
 
 /** Path parameters of the REST twin. A malformed one is a 404 there, decided by the domain. */
@@ -195,6 +210,19 @@ const REF_PARAMS = [
   'templateRef',
   'decisionRef',
   'messageRef',
+  // I imaging path parameters.
+  'objectRef',
+  'grantRef',
+  'ingressRef',
+  'imageRef',
+  'mountRef',
+  'annotationRef',
+  'legalHoldRef',
+  'deletionRef',
+  // I6/I7 bridge path parameters.
+  'deviceRef',
+  'jobRef',
+  'deferralRef',
 ] as const;
 const PLACEHOLDER_REF = '00000000-0000-4000-8000-000000000000';
 
@@ -329,6 +357,19 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     recording,
     execute,
   });
+  const imaging = createImagingService({
+    authorize,
+    withTenantTransaction: deps.tenantTransactions,
+    recording,
+    execute,
+    tokenSecret: resolveImagingTokenSecret(deps.env, deps.imagingTokenSecret),
+    matchKeyPepper: resolveMatchKeyPepper(deps.env, deps.matchKeyPepper),
+    ...(deps.objectStore ? { objectStore: deps.objectStore } : {}),
+    ...(deps.stagingMaintenance ? { stagingMaintenance: deps.stagingMaintenance } : {}),
+    ...(deps.scanner ? { scanner: deps.scanner } : {}),
+    ...(deps.imagingLimits ? { limits: deps.imagingLimits } : {}),
+    alert: (code) => write({ level: 'error', msg: 'imaging alert', alert: code }),
+  });
   const toolDeps: ToolDeps = {
     service,
     proposals,
@@ -337,6 +378,7 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     appointments,
     clinical,
     engagement,
+    imaging,
     authorize,
     recording,
   };

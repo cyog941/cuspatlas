@@ -61,7 +61,8 @@ export interface MergeRecordClass {
     | 'waitlist_entries'
     // C16 lab cases and C17 referrals (workstream C batch 4).
     | 'clinical_lab_cases'
-    | 'clinical_referrals';
+    | 'clinical_referrals'
+    | 'imaging_match_decisions';
   readonly column: 'subject_patient_id' | 'counterparty_patient_id';
   /** Public name of the reference in the record's contract. */
   readonly referenceField: string;
@@ -276,6 +277,17 @@ export const MERGE_RECORD_CLASSES: readonly MergeRecordClass[] = [
     factKind: 'clinical',
     digestExclude: ['subject_patient_id', 'state', 'version', 'updated_at'],
   },
+  // I3: an image association decision (current or superseded) follows its patient. The digest covers
+  // the object, basis, reason, decider and decision time; supersession bookkeeping is lifecycle. The
+  // image bytes and their digest live on imaging_objects and are never touched by a merge.
+  {
+    recordClass: 'imagingAssociation',
+    table: 'imaging_match_decisions',
+    column: 'subject_patient_id',
+    referenceField: 'patientRef',
+    factKind: 'clinical',
+    digestExclude: ['subject_patient_id', 'superseded_by_id', 'superseded_at', 'version', 'updated_at'],
+  },
 ];
 
 /** Foreign keys to patients that a merge deliberately does not move, with the reason. */
@@ -286,6 +298,26 @@ export const MERGE_EXCLUDED_REFERENCES: readonly { table: string; column: string
     why: 'a recall contact task stays with the identity it was created for; the follow-up worklist flags it (patient_merged) and recall is recomputed for the survivor',
   },
   { table: 'patients', column: 'merged_into', why: 'the merge link itself' },
+  {
+    table: 'imaging_acquisition_deferrals',
+    column: 'intended_patient_id',
+    why: 'I7: the patient named when the acquisition was deferred; a later change or merge needs re-confirmation at release (never relinked silently)',
+  },
+  {
+    table: 'imaging_bridge_jobs',
+    column: 'intended_patient_id',
+    why: 'I6: the patient named when the bridge job was queued (becomes the ingress dedupe scope, never an association)',
+  },
+  {
+    table: 'imaging_ingress_sessions',
+    column: 'intended_patient_id',
+    why: 'I2: what the uploader named at upload time (a match candidate, never an association); the association decision is the record that follows the patient',
+  },
+  {
+    table: 'imaging_objects',
+    column: 'dedupe_patient_id',
+    why: 'I2: the dedupe scope recorded at ingress; the association decision is the record that follows the patient',
+  },
   {
     table: 'patient_status_history',
     column: 'patient_id',

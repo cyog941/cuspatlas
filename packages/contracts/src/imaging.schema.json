@@ -1,0 +1,3564 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cuspatlas.invalid/schemas/imaging/v1",
+  "title": "Imaging contract v1 (I1-I4, I8; synthetic data only, no device or DICOM qualified)",
+  "$defs": {
+    "IdempotencyKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$"
+    },
+    "Version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "EntityRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "ObjectRef": {
+      "$ref": "#/$defs/EntityRef",
+      "description": "Opaque image object reference (an original or a derived object). Never a storage path."
+    },
+    "GrantRef": {
+      "$ref": "#/$defs/EntityRef",
+      "description": "Opaque reference of a short-lived read grant."
+    },
+    "PatientRef": {
+      "$ref": "#/$defs/EntityRef",
+      "description": "Opaque patient reference owned by workstream S."
+    },
+    "Instant": {
+      "type": "string",
+      "description": "RFC 3339 instant with an explicit offset; stored and returned in UTC.",
+      "format": "date-time",
+      "maxLength": 40
+    },
+    "ReasonCode": {
+      "type": "string",
+      "pattern": "^[a-z_]{1,64}$",
+      "description": "Server-checked reason enumeration value; never free text."
+    },
+    "TimeZone": {
+      "type": "string",
+      "description": "IANA time zone name. The server also requires its zone database to know it.",
+      "maxLength": 64,
+      "pattern": "^(UTC|[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+){1,2})$"
+    },
+    "Sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Lower-case hex SHA-256 of the exact object bytes."
+    },
+    "ContentType": {
+      "enum": ["image/png", "image/jpeg", "image/tiff", "application/pdf", "application/dicom"],
+      "description": "Accepted media types. The server sniffs magic bytes and never trusts a declared type or file extension. application/dicom is stored opaquely (I5 deferred; no parsing)."
+    },
+    "ObjectState": {
+      "enum": ["available", "quarantined", "deleted"],
+      "description": "available: verified and servable; quarantined: retained for investigation, never served; deleted: tombstone, bytes removed."
+    },
+    "ObjectKind": {
+      "enum": ["original", "derived"]
+    },
+    "ProvenanceSource": {
+      "enum": ["operatorUpload", "bridgeImport", "migrationArchive"]
+    },
+    "OriginalFilename": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^/\\\\\\u0000-\\u001f\\u007f]+$",
+      "description": "Display name supplied by the uploader. Never used as a storage path; separators, control characters and dot-only names are refused."
+    },
+    "DeviceRef": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,64}$",
+      "description": "Placeholder device identifier (no device is qualified; I-S1)."
+    },
+    "CaptureSoftware": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,64}$",
+      "description": "Placeholder acquisition-software code (no acquisition software is qualified; I-S1)."
+    },
+    "ProvenanceInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source"],
+      "description": "Recorded once per ingress and never rewritten. The uploader is the authenticated actor, never a body field.",
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/ProvenanceSource"
+        },
+        "deviceRef": {
+          "$ref": "#/$defs/DeviceRef"
+        },
+        "captureSoftware": {
+          "$ref": "#/$defs/CaptureSoftware"
+        },
+        "originalFilename": {
+          "$ref": "#/$defs/OriginalFilename"
+        },
+        "acquiredAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "acquiredTimeZone": {
+          "$ref": "#/$defs/TimeZone"
+        }
+      }
+    },
+    "Provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provenanceRef",
+        "source",
+        "operatorRef",
+        "deviceRef",
+        "captureSoftware",
+        "originalFilename",
+        "acquiredAt",
+        "acquiredTimeZone",
+        "ingressRef",
+        "recordedAt"
+      ],
+      "properties": {
+        "provenanceRef": {
+          "$ref": "#/$defs/EntityRef"
+        },
+        "source": {
+          "$ref": "#/$defs/ProvenanceSource"
+        },
+        "operatorRef": {
+          "$ref": "#/$defs/EntityRef"
+        },
+        "deviceRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DeviceRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "captureSoftware": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CaptureSoftware"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "originalFilename": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OriginalFilename"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "acquiredAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "acquiredTimeZone": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeZone"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ingressRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EntityRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recordedAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "ImageObject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "objectRef",
+        "kind",
+        "state",
+        "contentType",
+        "byteLength",
+        "digestSha256",
+        "receivedAt",
+        "quarantineReason",
+        "version",
+        "provenance"
+      ],
+      "description": "Object metadata. The storage key is internal and never returned; bytes are read only through a short-lived read grant on REST.",
+      "properties": {
+        "objectRef": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "kind": {
+          "$ref": "#/$defs/ObjectKind"
+        },
+        "state": {
+          "$ref": "#/$defs/ObjectState"
+        },
+        "contentType": {
+          "$ref": "#/$defs/ContentType"
+        },
+        "byteLength": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "digestSha256": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "receivedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "quarantineReason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "provenance": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/Provenance"
+          }
+        },
+        "association": {
+          "$ref": "#/$defs/Association"
+        },
+        "derivation": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "derivationRef",
+                "sourceObjectRef",
+                "sourceDigestSha256",
+                "transform",
+                "authorRef",
+                "derivedAt"
+              ],
+              "properties": {
+                "derivationRef": {
+                  "$ref": "#/$defs/EntityRef"
+                },
+                "sourceObjectRef": {
+                  "$ref": "#/$defs/ObjectRef"
+                },
+                "sourceDigestSha256": {
+                  "$ref": "#/$defs/Sha256"
+                },
+                "transform": {
+                  "$ref": "#/$defs/Transform"
+                },
+                "authorRef": {
+                  "$ref": "#/$defs/EntityRef"
+                },
+                "derivedAt": {
+                  "$ref": "#/$defs/Instant"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "derivedObjects": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/ObjectRef"
+          }
+        },
+        "annotationCount": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "ImageObjectRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/ImageObject"
+        }
+      }
+    },
+    "ObjectListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "state": {
+          "$ref": "#/$defs/ObjectState"
+        },
+        "limit": {
+          "type": "string",
+          "pattern": "^([1-9]|[1-9][0-9]|100)$"
+        }
+      }
+    },
+    "ImageObjectList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/ImageObject"
+          }
+        }
+      }
+    },
+    "ReadGrantRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ttlSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 300,
+          "description": "Grant lifetime; default 60 s, at most 300 s."
+        }
+      }
+    },
+    "ReadGrant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["grantRef", "objectRef", "token", "expiresAt", "contentPath"],
+      "properties": {
+        "grantRef": {
+          "$ref": "#/$defs/GrantRef"
+        },
+        "objectRef": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "token": {
+          "type": "string",
+          "pattern": "^v1\\.[0-9a-f-]{36}\\.[0-9]{10}\\.[A-Za-z0-9_-]{43}$",
+          "description": "HMAC token bound to tenant, principal, object, grant and expiry. Sent in the x-object-read-token header with the caller's own bearer token; useless to any other principal. Never logged."
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "contentPath": {
+          "type": "string",
+          "maxLength": 120
+        }
+      }
+    },
+    "ReadGrantResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/ReadGrant"
+        }
+      }
+    },
+    "ReadGrantRevoke": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "ReadGrantCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["grantRef", "objectRef", "state"],
+          "properties": {
+            "grantRef": {
+              "$ref": "#/$defs/GrantRef"
+            },
+            "objectRef": {
+              "$ref": "#/$defs/ObjectRef"
+            },
+            "state": {
+              "enum": ["revoked"]
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ObjectBytes": {
+      "type": "string",
+      "description": "Raw object bytes (application/octet-stream on the wire). REST only; MCP never carries bytes."
+    },
+    "StorageReconcile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "StorageReconcileResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["checked", "quarantined", "tombstoned", "abandonedIngress", "bytesRemoved", "more"],
+          "properties": {
+            "checked": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "quarantined": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "tombstoned": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "abandonedIngress": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "bytesRemoved": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "more": {
+              "type": "boolean"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "IngressRef": {
+      "$ref": "#/$defs/EntityRef",
+      "description": "Opaque ingress session reference (staging; never an object)."
+    },
+    "ScanVerdict": {
+      "enum": ["clean", "infected", "unknown"],
+      "description": "Malware gate verdict. unknown is never clean."
+    },
+    "IngressState": {
+      "enum": ["awaiting_bytes", "staged", "accepted", "quarantined", "abandoned"]
+    },
+    "IngressBegin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contentType", "byteLength", "declaredDigest", "provenance"],
+      "properties": {
+        "contentType": {
+          "$ref": "#/$defs/ContentType"
+        },
+        "byteLength": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "declaredDigest": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "provenance": {
+          "$ref": "#/$defs/ProvenanceInput"
+        },
+        "intendedPatientRef": {
+          "$ref": "#/$defs/PatientRef",
+          "description": "Patient the uploader names (scopes dedupe and becomes a match candidate); never an association by itself."
+        },
+        "patientHints": {
+          "$ref": "#/$defs/PatientHints"
+        }
+      },
+      "description": "Begin an ingress: declare the media type, exact length and SHA-256; the server checks them all again against the bytes."
+    },
+    "IngressBeginResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ingressRef", "state", "maxBytes", "expiresAt"],
+          "properties": {
+            "ingressRef": {
+              "$ref": "#/$defs/IngressRef"
+            },
+            "state": {
+              "const": "awaiting_bytes"
+            },
+            "maxBytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "expiresAt": {
+              "$ref": "#/$defs/Instant"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "IngressUploadResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ingressRef", "state", "observedDigest", "byteLength"],
+          "properties": {
+            "ingressRef": {
+              "$ref": "#/$defs/IngressRef"
+            },
+            "state": {
+              "const": "staged"
+            },
+            "observedDigest": {
+              "$ref": "#/$defs/Sha256"
+            },
+            "byteLength": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "IngressComplete": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["observedDigest"],
+      "properties": {
+        "observedDigest": {
+          "$ref": "#/$defs/Sha256"
+        }
+      }
+    },
+    "IngressCompleteResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ingressRef", "objectRef", "state", "deduplicated", "provenanceRef"],
+          "properties": {
+            "ingressRef": {
+              "$ref": "#/$defs/IngressRef"
+            },
+            "objectRef": {
+              "$ref": "#/$defs/ObjectRef"
+            },
+            "state": {
+              "const": "available"
+            },
+            "deduplicated": {
+              "type": "boolean"
+            },
+            "provenanceRef": {
+              "$ref": "#/$defs/EntityRef"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "IngressData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ingressRef",
+        "state",
+        "declaredContentType",
+        "declaredByteLength",
+        "declaredDigest",
+        "observedDigest",
+        "observedByteLength",
+        "scan",
+        "quarantineReason",
+        "objectRef",
+        "createdAt",
+        "version"
+      ],
+      "properties": {
+        "ingressRef": {
+          "$ref": "#/$defs/IngressRef"
+        },
+        "state": {
+          "$ref": "#/$defs/IngressState"
+        },
+        "declaredContentType": {
+          "$ref": "#/$defs/ContentType"
+        },
+        "declaredByteLength": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "declaredDigest": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "observedDigest": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "observedByteLength": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scan": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ScanVerdict"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "quarantineReason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "objectRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ObjectRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "IngressRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/IngressData"
+        }
+      }
+    },
+    "ImagingWorkItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workItemRef",
+        "kind",
+        "reasonCode",
+        "explanation",
+        "evidenceRefs",
+        "owner",
+        "nextActionOwedBy",
+        "dueAt",
+        "priority",
+        "priorityRationale",
+        "suggestedNextAction",
+        "blockingDependencies"
+      ],
+      "properties": {
+        "workItemRef": {
+          "$ref": "#/$defs/EntityRef"
+        },
+        "kind": {
+          "enum": [
+            "ingress_quarantined",
+            "ingress_scan_pending",
+            "ingress_incomplete",
+            "image_unmatched",
+            "acquisition_deferred",
+            "bridge_job_failed",
+            "bridge_outcome_unknown",
+            "bridge_late_result",
+            "bridge_lease_expired",
+            "device_unavailable"
+          ]
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "explanation": {
+          "type": "string",
+          "maxLength": 300,
+          "description": "Server-authored; never caller text."
+        },
+        "evidenceRefs": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "ref"],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "pattern": "^[a-z][A-Za-z]{0,63}$"
+              },
+              "ref": {
+                "$ref": "#/$defs/EntityRef"
+              }
+            }
+          }
+        },
+        "owner": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["queue", "principalRef"],
+          "properties": {
+            "queue": {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            "principalRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/EntityRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "nextActionOwedBy": {
+          "enum": ["practice", "patient", "payer", "vendor", "platform"]
+        },
+        "dueAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "priority": {
+          "enum": ["routine", "elevated", "urgent"]
+        },
+        "priorityRationale": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "suggestedNextAction": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "blockingDependencies": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "$ref": "#/$defs/ReasonCode"
+          }
+        },
+        "ageHours": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "description": "Imaging work item: the same exception-first shape as the S proposed WorkItem, with imaging kinds."
+    },
+    "ImagingWorkItemList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["asOf", "coverage", "count", "items"],
+          "properties": {
+            "asOf": {
+              "$ref": "#/$defs/Instant"
+            },
+            "coverage": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["status"],
+                  "properties": {
+                    "status": {
+                      "const": "available"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["status", "reason", "owner"],
+                  "properties": {
+                    "status": {
+                      "const": "unavailable"
+                    },
+                    "reason": {
+                      "$ref": "#/$defs/ReasonCode"
+                    },
+                    "owner": {
+                      "type": "string",
+                      "pattern": "^[A-Z][A-Z0-9-]{0,15}$"
+                    }
+                  }
+                }
+              ]
+            },
+            "count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "items": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "$ref": "#/$defs/ImagingWorkItem"
+              }
+            }
+          }
+        }
+      }
+    },
+    "IngressFailureQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {}
+    },
+    "PatientHints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "familyName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "givenName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "birthDate": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
+        },
+        "identifier": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "issuer", "value"],
+          "properties": {
+            "type": {
+              "enum": ["chart_number", "prior_system", "external_record"]
+            },
+            "issuer": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._:-]{1,64}$"
+            },
+            "value": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._:/-]{1,64}$"
+            }
+          }
+        },
+        "phone": {
+          "type": "string",
+          "pattern": "^\\+?[0-9 ().-]{7,24}$"
+        }
+      },
+      "description": "Patient metadata an upload carried (for example from an acquisition-software export). Stored only as tenant-bound HMAC match keys, never as text, and never an association by itself."
+    },
+    "DecisionRef": {
+      "$ref": "#/$defs/EntityRef",
+      "description": "Opaque match decision reference."
+    },
+    "ImageRef": {
+      "$ref": "#/$defs/EntityRef",
+      "description": "Opaque, stable image handle minted at the first association (the only image identifier C stores)."
+    },
+    "MatchBasis": {
+      "enum": ["operatorSelected", "metadataExact", "metadataAssisted"]
+    },
+    "Association": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status"],
+          "properties": {
+            "status": {
+              "const": "unassociated"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "decisionRef", "patientRef", "imageRef", "basis", "decidedAt", "inherited"],
+          "properties": {
+            "status": {
+              "const": "associated"
+            },
+            "decisionRef": {
+              "$ref": "#/$defs/DecisionRef"
+            },
+            "patientRef": {
+              "$ref": "#/$defs/PatientRef"
+            },
+            "imageRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ImageRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "basis": {
+              "$ref": "#/$defs/MatchBasis"
+            },
+            "decidedAt": {
+              "$ref": "#/$defs/Instant"
+            },
+            "inherited": {
+              "type": "boolean",
+              "description": "True for a derived object, which follows its source original."
+            }
+          }
+        }
+      ]
+    },
+    "MatchCandidateList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["objectRef", "candidates", "limitations", "autoAssociated"],
+          "properties": {
+            "objectRef": {
+              "$ref": "#/$defs/ObjectRef"
+            },
+            "candidates": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["patientRef", "reasons", "suggestedBasis", "exact"],
+                "properties": {
+                  "patientRef": {
+                    "$ref": "#/$defs/PatientRef"
+                  },
+                  "reasons": {
+                    "type": "array",
+                    "maxItems": 5,
+                    "items": {
+                      "enum": [
+                        "operator_selected",
+                        "same_identifier",
+                        "same_legal_name",
+                        "same_birth_date",
+                        "same_phone"
+                      ]
+                    }
+                  },
+                  "suggestedBasis": {
+                    "$ref": "#/$defs/MatchBasis"
+                  },
+                  "exact": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            },
+            "limitations": {
+              "type": "array",
+              "maxItems": 5,
+              "items": {
+                "$ref": "#/$defs/ReasonCode"
+              }
+            },
+            "autoAssociated": {
+              "const": false
+            }
+          }
+        }
+      }
+    },
+    "AssociationConfirm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["patientRef", "basis"],
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "basis": {
+          "$ref": "#/$defs/MatchBasis"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "AssociationCorrect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["patientRef", "reasonCode"],
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "AssociationCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["decisionRef", "imageRef", "objectRef", "patientRef"],
+          "properties": {
+            "decisionRef": {
+              "$ref": "#/$defs/DecisionRef"
+            },
+            "imageRef": {
+              "$ref": "#/$defs/ImageRef"
+            },
+            "objectRef": {
+              "$ref": "#/$defs/ObjectRef"
+            },
+            "patientRef": {
+              "$ref": "#/$defs/PatientRef"
+            },
+            "basis": {
+              "$ref": "#/$defs/MatchBasis"
+            },
+            "supersededRef": {
+              "$ref": "#/$defs/DecisionRef"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "MatchDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decisionRef",
+        "objectRef",
+        "patientRef",
+        "basis",
+        "confidence",
+        "reasonCode",
+        "decidedBy",
+        "decidedAt",
+        "supersedes",
+        "supersededBy",
+        "supersededAt"
+      ],
+      "properties": {
+        "decisionRef": {
+          "$ref": "#/$defs/DecisionRef"
+        },
+        "objectRef": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "basis": {
+          "$ref": "#/$defs/MatchBasis"
+        },
+        "confidence": {
+          "const": "confirmed"
+        },
+        "reasonCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "decidedBy": {
+          "$ref": "#/$defs/EntityRef"
+        },
+        "decidedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "supersedes": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DecisionRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "supersededBy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DecisionRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "supersededAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "AssociationHistory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["objectRef", "imageRef", "decisions"],
+          "properties": {
+            "objectRef": {
+              "$ref": "#/$defs/ObjectRef"
+            },
+            "imageRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ImageRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "decisions": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "$ref": "#/$defs/MatchDecision"
+              }
+            }
+          }
+        }
+      }
+    },
+    "ImageRefQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedPatientRef"],
+      "properties": {
+        "expectedPatientRef": {
+          "$ref": "#/$defs/PatientRef"
+        }
+      }
+    },
+    "BridgeDeviceRef": {
+      "$ref": "#/$defs/EntityRef",
+      "description": "Opaque device (bridge) principal reference."
+    },
+    "JobRef": {
+      "$ref": "#/$defs/EntityRef",
+      "description": "Opaque bridge job reference."
+    },
+    "BridgeJobKind": {
+      "enum": ["acquire", "import", "probe"]
+    },
+    "BridgePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240,
+      "description": "Relative bridge path resolved by the bridge inside its own import root. The server refuses traversal, absolute, drive, backslash and control-character paths (422 path_traversal) and paths outside the device allowlist (409 path_outside_import_root)."
+    },
+    "DeviceLabel": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9 ._-]{1,64}$"
+    },
+    "DeviceRegister": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "allowedJobKinds", "allowedPathPrefixes"],
+      "properties": {
+        "label": {
+          "$ref": "#/$defs/DeviceLabel"
+        },
+        "allowedJobKinds": {
+          "type": "array",
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/BridgeJobKind"
+          }
+        },
+        "allowedPathPrefixes": {
+          "type": "array",
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/BridgePath"
+          }
+        }
+      }
+    },
+    "DeviceCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["deviceRef", "state", "version"],
+          "properties": {
+            "deviceRef": {
+              "$ref": "#/$defs/BridgeDeviceRef"
+            },
+            "state": {
+              "enum": ["pending", "active", "revoked"]
+            },
+            "version": {
+              "$ref": "#/$defs/Version"
+            },
+            "deniedJobs": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "PairingCodeIssue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "ttlSeconds": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 3600
+        }
+      }
+    },
+    "PairingCodeResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["deviceRef", "pairingRef", "pairingCode", "expiresAt"],
+          "properties": {
+            "deviceRef": {
+              "$ref": "#/$defs/BridgeDeviceRef"
+            },
+            "pairingRef": {
+              "$ref": "#/$defs/EntityRef"
+            },
+            "pairingCode": {
+              "type": "string",
+              "maxLength": 200,
+              "description": "One-time pairing code, shown once; only its SHA-256 is stored. Never logged."
+            },
+            "expiresAt": {
+              "$ref": "#/$defs/Instant"
+            }
+          }
+        }
+      }
+    },
+    "DeviceCapabilitiesSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "allowedJobKinds", "allowedPathPrefixes"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "allowedJobKinds": {
+          "type": "array",
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/BridgeJobKind"
+          }
+        },
+        "allowedPathPrefixes": {
+          "type": "array",
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/BridgePath"
+          }
+        }
+      }
+    },
+    "DeviceRevoke": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasonCode"],
+      "properties": {
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "DeviceAvailability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "asOf", "lastHeartbeatAt", "jobsVisible"],
+      "properties": {
+        "state": {
+          "enum": ["available", "stale", "offline", "unpaired", "revoked"]
+        },
+        "asOf": {
+          "$ref": "#/$defs/Instant"
+        },
+        "lastHeartbeatAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "jobsVisible": {
+          "enum": ["complete", "unknown_since_last_heartbeat"],
+          "description": "Unavailable is not empty: for a device that is not available the job picture is unknown."
+        }
+      }
+    },
+    "DeviceView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "deviceRef",
+        "label",
+        "state",
+        "allowedJobKinds",
+        "allowedPathPrefixes",
+        "keyVersion",
+        "availability",
+        "revokedAt",
+        "revokeReason",
+        "version",
+        "createdAt"
+      ],
+      "properties": {
+        "deviceRef": {
+          "$ref": "#/$defs/BridgeDeviceRef"
+        },
+        "label": {
+          "$ref": "#/$defs/DeviceLabel"
+        },
+        "state": {
+          "enum": ["pending", "active", "revoked"]
+        },
+        "allowedJobKinds": {
+          "type": "array",
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/BridgeJobKind"
+          }
+        },
+        "allowedPathPrefixes": {
+          "type": "array",
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/BridgePath"
+          }
+        },
+        "keyVersion": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "availability": {
+          "$ref": "#/$defs/DeviceAvailability"
+        },
+        "revokedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "revokeReason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "DeviceRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/DeviceView"
+        }
+      }
+    },
+    "DeviceList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/DeviceView"
+          }
+        }
+      }
+    },
+    "BridgeJobEnqueue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["deviceRef", "kind"],
+      "properties": {
+        "deviceRef": {
+          "$ref": "#/$defs/BridgeDeviceRef"
+        },
+        "kind": {
+          "$ref": "#/$defs/BridgeJobKind"
+        },
+        "importPath": {
+          "$ref": "#/$defs/BridgePath"
+        },
+        "intendedPatientRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "expiresInSeconds": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 86400
+        }
+      }
+    },
+    "BridgeJobCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["jobRef", "state", "expiresAt"],
+          "properties": {
+            "jobRef": {
+              "$ref": "#/$defs/JobRef"
+            },
+            "state": {
+              "enum": ["queued"]
+            },
+            "expiresAt": {
+              "$ref": "#/$defs/Instant"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "BridgeJobState": {
+      "enum": [
+        "queued",
+        "claimed",
+        "transferring",
+        "completed",
+        "failed",
+        "expired",
+        "denied",
+        "outcome_unknown",
+        "cancelled"
+      ]
+    },
+    "BridgeJobView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "jobRef",
+        "deviceRef",
+        "kind",
+        "scopePath",
+        "intendedPatientRef",
+        "state",
+        "attempts",
+        "maxAttempts",
+        "leaseExpiresAt",
+        "nextAttemptAt",
+        "expiresAt",
+        "objectRef",
+        "failureReason",
+        "duplicateReports",
+        "lateReportAt",
+        "deferralRef",
+        "version",
+        "createdAt"
+      ],
+      "properties": {
+        "jobRef": {
+          "$ref": "#/$defs/JobRef"
+        },
+        "deviceRef": {
+          "$ref": "#/$defs/BridgeDeviceRef"
+        },
+        "kind": {
+          "$ref": "#/$defs/BridgeJobKind"
+        },
+        "scopePath": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BridgePath"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "intendedPatientRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PatientRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "$ref": "#/$defs/BridgeJobState"
+        },
+        "attempts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxAttempts": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "leaseExpiresAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "nextAttemptAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "objectRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ObjectRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "failureReason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "duplicateReports": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "lateReportAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "deferralRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EntityRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "BridgeJobRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/BridgeJobView"
+        }
+      }
+    },
+    "BridgePair": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pairingCode", "publicKey", "proof"],
+      "properties": {
+        "pairingCode": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "publicKey": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "proof": {
+          "type": "string",
+          "maxLength": 128
+        }
+      }
+    },
+    "BridgePairResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "deviceRef",
+            "keyVersion",
+            "audience",
+            "jobSigningKey",
+            "jobSigningKeyId",
+            "assertionMaxSeconds",
+            "version"
+          ],
+          "properties": {
+            "deviceRef": {
+              "$ref": "#/$defs/BridgeDeviceRef"
+            },
+            "keyVersion": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "audience": {
+              "const": "urn:cuspatlas:bridge:v1"
+            },
+            "jobSigningKey": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{43}$"
+            },
+            "jobSigningKeyId": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            },
+            "assertionMaxSeconds": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "version": {
+              "$ref": "#/$defs/Version"
+            }
+          }
+        }
+      }
+    },
+    "BridgeClaim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {}
+    },
+    "BridgeClaimResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["envelope", "jobRef"],
+          "properties": {
+            "envelope": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 8192,
+                  "description": "Compact JWS (EdDSA, typ cuspatlas-bridge-job+jws) signed by the server bridge key."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "jobRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/JobRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "BridgeContentResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["jobRef", "state", "observedDigest", "byteLength"],
+          "properties": {
+            "jobRef": {
+              "$ref": "#/$defs/JobRef"
+            },
+            "state": {
+              "enum": ["transferring"]
+            },
+            "observedDigest": {
+              "$ref": "#/$defs/Sha256"
+            },
+            "byteLength": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        }
+      }
+    },
+    "BridgeResultReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["result"],
+      "properties": {
+        "result": {
+          "type": "string",
+          "maxLength": 8192,
+          "description": "Compact JWS (EdDSA, typ cuspatlas-bridge-result+jws) signed by the device key."
+        }
+      }
+    },
+    "BridgeResultAck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["jobRef", "state", "objectRef", "deduplicated"],
+          "properties": {
+            "jobRef": {
+              "$ref": "#/$defs/JobRef"
+            },
+            "state": {
+              "$ref": "#/$defs/BridgeJobState"
+            },
+            "objectRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ObjectRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "deduplicated": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "BridgeHeartbeat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {}
+    },
+    "BridgeHeartbeatResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["deviceRef", "at"],
+          "properties": {
+            "deviceRef": {
+              "$ref": "#/$defs/BridgeDeviceRef"
+            },
+            "at": {
+              "$ref": "#/$defs/Instant"
+            }
+          }
+        }
+      }
+    },
+    "BridgeKeyRotate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["publicKey", "proof"],
+      "properties": {
+        "publicKey": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "proof": {
+          "type": "string",
+          "maxLength": 128
+        }
+      }
+    },
+    "BridgeKeyRotateResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["deviceRef", "keyVersion", "version"],
+          "properties": {
+            "deviceRef": {
+              "$ref": "#/$defs/BridgeDeviceRef"
+            },
+            "keyVersion": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "version": {
+              "$ref": "#/$defs/Version"
+            }
+          }
+        }
+      }
+    },
+    "DeferralRef": {
+      "$ref": "#/$defs/EntityRef",
+      "description": "Opaque deferred-acquisition reference."
+    },
+    "AcquisitionRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["deviceRef", "kind"],
+      "properties": {
+        "deviceRef": {
+          "$ref": "#/$defs/BridgeDeviceRef"
+        },
+        "kind": {
+          "enum": ["acquire", "import"]
+        },
+        "importPath": {
+          "$ref": "#/$defs/BridgePath"
+        },
+        "intendedPatientRef": {
+          "$ref": "#/$defs/PatientRef"
+        }
+      }
+    },
+    "AcquisitionCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["state", "jobRef", "deferralRef", "deferReason"],
+          "properties": {
+            "state": {
+              "enum": ["queued", "deferred"]
+            },
+            "jobRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/JobRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "deferralRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/DeferralRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "deferReason": {
+              "anyOf": [
+                {
+                  "enum": ["device_offline", "device_stale"]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "DeferralResolve": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action"],
+      "properties": {
+        "action": {
+          "enum": ["release", "cancel"]
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "patientReconfirmed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "DeferralCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "deferralRef",
+            "deviceRef",
+            "state",
+            "deferReason",
+            "jobRef",
+            "resolutionReason",
+            "version"
+          ],
+          "properties": {
+            "deferralRef": {
+              "$ref": "#/$defs/DeferralRef"
+            },
+            "deviceRef": {
+              "$ref": "#/$defs/BridgeDeviceRef"
+            },
+            "state": {
+              "enum": ["deferred", "released", "cancelled"]
+            },
+            "deferReason": {
+              "enum": ["device_offline", "device_stale"]
+            },
+            "jobRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/JobRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "resolutionReason": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ReasonCode"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "version": {
+              "$ref": "#/$defs/Version"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "BridgeJobReconcile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "reasonCode"],
+      "properties": {
+        "action": {
+          "enum": ["requeue", "cancel"]
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "BridgeJobReconcileResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["jobRef", "state", "version"],
+          "properties": {
+            "jobRef": {
+              "$ref": "#/$defs/JobRef"
+            },
+            "state": {
+              "enum": ["queued", "cancelled"]
+            },
+            "version": {
+              "$ref": "#/$defs/Version"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "BridgeWorklist": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["asOf", "coverage", "count", "items"],
+          "properties": {
+            "asOf": {
+              "$ref": "#/$defs/Instant"
+            },
+            "coverage": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["status", "unavailableDevices"],
+              "properties": {
+                "status": {
+                  "enum": ["available", "partial"]
+                },
+                "unavailableDevices": {
+                  "type": "array",
+                  "maxItems": 100,
+                  "items": {
+                    "$ref": "#/$defs/BridgeDeviceRef"
+                  }
+                }
+              }
+            },
+            "count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "items": {
+              "type": "array",
+              "maxItems": 400,
+              "items": {
+                "$ref": "#/$defs/ImagingWorkItem"
+              }
+            }
+          }
+        }
+      }
+    },
+    "ImagingExportDocument": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["format", "exportedAt", "tables", "blobs"],
+      "properties": {
+        "format": {
+          "const": "cuspatlas-imaging-export/1"
+        },
+        "exportedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "tables": {
+          "type": "object",
+          "description": "Rows per exported table in foreign-key order, tenant column removed (raw column names).",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "blobs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["digestSha256", "byteLength"],
+            "properties": {
+              "digestSha256": {
+                "$ref": "#/$defs/Sha256"
+              },
+              "byteLength": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          },
+          "description": "Content-addressed manifest of the bytes of every available object."
+        }
+      },
+      "description": "I9 versioned imaging export (synthetic round trip; M owns the full migration contract)."
+    },
+    "ImagingExportRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/ImagingExportDocument"
+        }
+      }
+    },
+    "ImagingExportBlobsQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "after": {
+          "$ref": "#/$defs/Sha256"
+        }
+      }
+    },
+    "ImagingBlobBundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["format", "blobs", "next"],
+          "properties": {
+            "format": {
+              "const": "cuspatlas-imaging-blobs/1"
+            },
+            "blobs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["digestSha256", "byteLength", "contentBase64"],
+                "properties": {
+                  "digestSha256": {
+                    "$ref": "#/$defs/Sha256"
+                  },
+                  "byteLength": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "contentBase64": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "next": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Sha256"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "ContainerInspection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "description": "I5 DICOM boundary (I-S2 blocked-on-discovery): marker recognition and the pinned parsing refusal. Never a summary, identifier or element.",
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "objectRef",
+            "digestSha256",
+            "container",
+            "markerRecognized",
+            "supported",
+            "parsing",
+            "limitation",
+            "blockedOn",
+            "summary"
+          ],
+          "properties": {
+            "objectRef": { "$ref": "#/$defs/ObjectRef" },
+            "digestSha256": { "$ref": "#/$defs/Sha256" },
+            "container": { "enum": ["dicom", "none"] },
+            "markerRecognized": { "type": "boolean" },
+            "supported": { "const": false },
+            "parsing": { "const": "refused" },
+            "limitation": { "enum": ["dicom_parser_not_qualified", "not_a_container"] },
+            "blockedOn": { "const": "I-S2" },
+            "summary": { "type": "null" }
+          }
+        }
+      }
+    },
+    "ImageRefRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "imageRef",
+            "objectRef",
+            "objectState",
+            "contentType",
+            "byteLength",
+            "digestSha256",
+            "mintedAt",
+            "association",
+            "decisionCount",
+            "matchesExpected"
+          ],
+          "properties": {
+            "imageRef": {
+              "$ref": "#/$defs/ImageRef"
+            },
+            "objectRef": {
+              "$ref": "#/$defs/ObjectRef"
+            },
+            "objectState": {
+              "$ref": "#/$defs/ObjectState"
+            },
+            "contentType": {
+              "$ref": "#/$defs/ContentType"
+            },
+            "byteLength": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "digestSha256": {
+              "$ref": "#/$defs/Sha256"
+            },
+            "mintedAt": {
+              "$ref": "#/$defs/Instant"
+            },
+            "association": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["status"],
+                  "properties": {
+                    "status": {
+                      "const": "unassociated"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["status", "decisionRef", "patientRef", "basis", "decidedAt"],
+                  "properties": {
+                    "status": {
+                      "const": "associated"
+                    },
+                    "decisionRef": {
+                      "$ref": "#/$defs/DecisionRef"
+                    },
+                    "patientRef": {
+                      "$ref": "#/$defs/PatientRef"
+                    },
+                    "basis": {
+                      "$ref": "#/$defs/MatchBasis"
+                    },
+                    "decidedAt": {
+                      "$ref": "#/$defs/Instant"
+                    }
+                  }
+                }
+              ]
+            },
+            "decisionCount": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "matchesExpected": {
+              "type": "boolean",
+              "description": "Always checked against the required expectedPatientRef. False when the association moved or the object is no longer available: a consumer (C15, CL-04) must not use it."
+            }
+          },
+          "description": "Reference read consumed by C15 and B attachment packages: a hash-bound image handle and its current association."
+        }
+      }
+    },
+    "MountRef": {
+      "$ref": "#/$defs/EntityRef",
+      "description": "Opaque mount reference."
+    },
+    "AnnotationRef": {
+      "$ref": "#/$defs/EntityRef",
+      "description": "Opaque annotation reference (one lineage of versions)."
+    },
+    "MountTemplate": {
+      "enum": ["pa-1", "pano-1", "bitewing-2", "bitewing-4", "photo-8", "fmx-18"],
+      "description": "Configured mount templates (imaging-mount-templates.pending-approval.1); the number is the slot count."
+    },
+    "MountSlot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["slot", "objectRef"],
+      "properties": {
+        "slot": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
+        },
+        "objectRef": {
+          "$ref": "#/$defs/ObjectRef"
+        }
+      }
+    },
+    "MountCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["template", "slots"],
+      "properties": {
+        "template": {
+          "$ref": "#/$defs/MountTemplate"
+        },
+        "slots": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 18,
+          "items": {
+            "$ref": "#/$defs/MountSlot"
+          }
+        }
+      }
+    },
+    "MountRevise": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "slots"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "slots": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 18,
+          "items": {
+            "$ref": "#/$defs/MountSlot"
+          }
+        }
+      }
+    },
+    "MountCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mountRef", "version", "template", "slotCount"],
+          "properties": {
+            "mountRef": {
+              "$ref": "#/$defs/MountRef"
+            },
+            "version": {
+              "$ref": "#/$defs/Version"
+            },
+            "template": {
+              "$ref": "#/$defs/MountTemplate"
+            },
+            "slotCount": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "MountQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "version": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,8}$"
+        }
+      }
+    },
+    "MountRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mountRef",
+            "template",
+            "version",
+            "currentVersion",
+            "patientRef",
+            "mixedAssociation",
+            "slots",
+            "createdAt",
+            "createdBy"
+          ],
+          "properties": {
+            "mountRef": {
+              "$ref": "#/$defs/MountRef"
+            },
+            "template": {
+              "$ref": "#/$defs/MountTemplate"
+            },
+            "version": {
+              "$ref": "#/$defs/Version"
+            },
+            "currentVersion": {
+              "$ref": "#/$defs/Version"
+            },
+            "patientRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/PatientRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "mixedAssociation": {
+              "type": "boolean",
+              "description": "True when slot objects are now associated with different patients (or none)."
+            },
+            "slots": {
+              "type": "array",
+              "maxItems": 18,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["slot", "objectRef", "state", "patientRef", "digestSha256"],
+                "properties": {
+                  "slot": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "objectRef": {
+                    "$ref": "#/$defs/ObjectRef"
+                  },
+                  "state": {
+                    "enum": ["present", "unavailable", "missing"],
+                    "description": "missing: the object was deleted (I8); the mount version stays readable."
+                  },
+                  "patientRef": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/PatientRef"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "digestSha256": {
+                    "$ref": "#/$defs/Sha256"
+                  }
+                }
+              }
+            },
+            "createdAt": {
+              "$ref": "#/$defs/Instant"
+            },
+            "createdBy": {
+              "$ref": "#/$defs/EntityRef"
+            }
+          }
+        }
+      }
+    },
+    "AnnotationKind": {
+      "enum": ["marker", "region", "line", "label"]
+    },
+    "Geometry": {
+      "description": "Normalized coordinates (0..1) over the object; never burned into the original.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "x", "y"],
+          "properties": {
+            "kind": {
+              "const": "point"
+            },
+            "x": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "y": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "x", "y", "width", "height"],
+          "properties": {
+            "kind": {
+              "const": "rect"
+            },
+            "x": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "y": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "width": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "height": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "points"],
+          "properties": {
+            "kind": {
+              "const": "polyline"
+            },
+            "points": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 50,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["x", "y"],
+                "properties": {
+                  "x": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "y": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "AnnotationLabel": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "AnnotationCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "geometry"],
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/AnnotationKind"
+        },
+        "geometry": {
+          "$ref": "#/$defs/Geometry"
+        },
+        "label": {
+          "$ref": "#/$defs/AnnotationLabel"
+        }
+      }
+    },
+    "AnnotationSupersede": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "reasonCode"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "geometry": {
+          "$ref": "#/$defs/Geometry"
+        },
+        "label": {
+          "$ref": "#/$defs/AnnotationLabel"
+        }
+      },
+      "description": "With a geometry: a new version replaces the current one. Without: the annotation is withdrawn (a new version in state withdrawn)."
+    },
+    "AnnotationCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["annotationRef", "objectRef", "version", "state"],
+          "properties": {
+            "annotationRef": {
+              "$ref": "#/$defs/AnnotationRef"
+            },
+            "objectRef": {
+              "$ref": "#/$defs/ObjectRef"
+            },
+            "version": {
+              "$ref": "#/$defs/Version"
+            },
+            "state": {
+              "enum": ["current", "withdrawn"]
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "Annotation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "annotationRef",
+        "objectRef",
+        "version",
+        "state",
+        "kind",
+        "geometry",
+        "label",
+        "reasonCode",
+        "authorRef",
+        "createdAt"
+      ],
+      "properties": {
+        "annotationRef": {
+          "$ref": "#/$defs/AnnotationRef"
+        },
+        "objectRef": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "state": {
+          "enum": ["current", "superseded", "withdrawn"]
+        },
+        "kind": {
+          "$ref": "#/$defs/AnnotationKind"
+        },
+        "geometry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Geometry"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "label": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AnnotationLabel"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reasonCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "authorRef": {
+          "$ref": "#/$defs/EntityRef"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "AnnotationList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["objectRef", "annotations"],
+          "properties": {
+            "objectRef": {
+              "$ref": "#/$defs/ObjectRef"
+            },
+            "annotations": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "$ref": "#/$defs/Annotation"
+              }
+            }
+          }
+        }
+      }
+    },
+    "Transform": {
+      "description": "Server-side transform producing a new derived object; the source is never modified. PNG sources only in this batch.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "x", "y", "width", "height"],
+          "properties": {
+            "kind": {
+              "const": "crop"
+            },
+            "x": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 8192
+            },
+            "y": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 8192
+            },
+            "width": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 8192
+            },
+            "height": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 8192
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "degrees"],
+          "properties": {
+            "kind": {
+              "const": "rotate"
+            },
+            "degrees": {
+              "enum": [90, 180, 270]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": {
+            "kind": {
+              "const": "invert"
+            }
+          }
+        }
+      ]
+    },
+    "DerivedCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["transform"],
+      "properties": {
+        "transform": {
+          "$ref": "#/$defs/Transform"
+        }
+      }
+    },
+    "DerivedCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["objectRef", "sourceObjectRef", "digestSha256", "created", "derivationRef"],
+          "properties": {
+            "objectRef": {
+              "$ref": "#/$defs/ObjectRef"
+            },
+            "sourceObjectRef": {
+              "$ref": "#/$defs/ObjectRef"
+            },
+            "digestSha256": {
+              "$ref": "#/$defs/Sha256"
+            },
+            "created": {
+              "type": "boolean"
+            },
+            "derivationRef": {
+              "$ref": "#/$defs/EntityRef"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "LegalHoldRef": {
+      "$ref": "#/$defs/EntityRef",
+      "description": "Opaque legal hold reference."
+    },
+    "DeletionRef": {
+      "$ref": "#/$defs/EntityRef",
+      "description": "Opaque deletion request reference."
+    },
+    "RecordClass": {
+      "enum": ["associated_original", "unassociated_original", "derived"],
+      "description": "Retention record class of an image object (an original ever associated with a patient, never associated, or derived)."
+    },
+    "RetentionPolicySet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["recordClass", "minimumRetentionMonths", "basisCode", "jurisdictionCode"],
+      "properties": {
+        "recordClass": {
+          "$ref": "#/$defs/RecordClass"
+        },
+        "minimumRetentionMonths": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1200
+        },
+        "basisCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "jurisdictionCode": {
+          "type": "string",
+          "pattern": "^[a-z]{2}(-[a-z0-9]{1,16})?$"
+        }
+      },
+      "description": "A new version of the retention policy of one record class. Values need legal review: every policy is recorded as recommended_pending_approval. No universal default ships."
+    },
+    "RetentionPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policyRef",
+        "recordClass",
+        "version",
+        "minimumRetentionMonths",
+        "basisCode",
+        "jurisdictionCode",
+        "approvalStatus",
+        "createdAt"
+      ],
+      "properties": {
+        "policyRef": {
+          "$ref": "#/$defs/EntityRef"
+        },
+        "recordClass": {
+          "$ref": "#/$defs/RecordClass"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "minimumRetentionMonths": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "basisCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "jurisdictionCode": {
+          "type": "string"
+        },
+        "approvalStatus": {
+          "const": "recommended_pending_approval"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "RetentionPolicyCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["policyRef", "recordClass", "version", "approvalStatus"],
+          "properties": {
+            "policyRef": {
+              "$ref": "#/$defs/EntityRef"
+            },
+            "recordClass": {
+              "$ref": "#/$defs/RecordClass"
+            },
+            "version": {
+              "$ref": "#/$defs/Version"
+            },
+            "approvalStatus": {
+              "const": "recommended_pending_approval"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "RetentionPolicyList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/RetentionPolicy"
+          }
+        }
+      }
+    },
+    "LegalHoldPlace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["subject", "reasonCode"],
+      "properties": {
+        "subject": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "ref"],
+          "properties": {
+            "kind": {
+              "enum": ["object", "patient"]
+            },
+            "ref": {
+              "$ref": "#/$defs/EntityRef"
+            }
+          }
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      },
+      "description": "A legal hold on one object or on every image ever associated with a patient (including identities merged into it)."
+    },
+    "LegalHoldRelease": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasonCode"],
+      "properties": {
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "LegalHoldCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["legalHoldRef", "state"],
+          "properties": {
+            "legalHoldRef": {
+              "$ref": "#/$defs/LegalHoldRef"
+            },
+            "state": {
+              "enum": ["active", "released"]
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "LegalHold": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "legalHoldRef",
+        "subjectKind",
+        "subjectRef",
+        "state",
+        "reasonCode",
+        "placedBy",
+        "placedAt",
+        "releasedBy",
+        "releasedAt",
+        "releaseReason"
+      ],
+      "properties": {
+        "legalHoldRef": {
+          "$ref": "#/$defs/LegalHoldRef"
+        },
+        "subjectKind": {
+          "enum": ["object", "patient"]
+        },
+        "subjectRef": {
+          "$ref": "#/$defs/EntityRef"
+        },
+        "state": {
+          "enum": ["active", "released"]
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "placedBy": {
+          "$ref": "#/$defs/EntityRef"
+        },
+        "placedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "releasedBy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EntityRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "releasedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "releaseReason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "LegalHoldList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/LegalHold"
+          }
+        }
+      }
+    },
+    "DeletionRequestCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasonCode"],
+      "properties": {
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "DeletionRequestCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["deletionRef", "objectRef", "state", "requiresSecondActor", "recordClass"],
+          "properties": {
+            "deletionRef": {
+              "$ref": "#/$defs/DeletionRef"
+            },
+            "objectRef": {
+              "$ref": "#/$defs/ObjectRef"
+            },
+            "state": {
+              "const": "pending"
+            },
+            "requiresSecondActor": {
+              "type": "boolean"
+            },
+            "recordClass": {
+              "$ref": "#/$defs/RecordClass"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "DeletionExecute": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {}
+    },
+    "DeletionExecuteResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["deletionRef", "objectRef", "state", "deletedObjects", "bytes"],
+          "properties": {
+            "deletionRef": {
+              "$ref": "#/$defs/DeletionRef"
+            },
+            "objectRef": {
+              "$ref": "#/$defs/ObjectRef"
+            },
+            "state": {
+              "const": "executed"
+            },
+            "deletedObjects": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "bytes": {
+              "enum": ["removed", "retained_shared", "pending"],
+              "description": "pending: removal is retried by the next execute or reconcile."
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "DeletionEvaluation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "deletionRef",
+            "objectRef",
+            "state",
+            "blocked",
+            "rule",
+            "earliestAllowedAt",
+            "blockingRefs",
+            "requiresSecondActor",
+            "recordClass",
+            "requestedBy",
+            "requestedAt"
+          ],
+          "properties": {
+            "deletionRef": {
+              "$ref": "#/$defs/DeletionRef"
+            },
+            "objectRef": {
+              "$ref": "#/$defs/ObjectRef"
+            },
+            "state": {
+              "enum": ["pending", "executed"]
+            },
+            "blocked": {
+              "type": "boolean"
+            },
+            "rule": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ReasonCode"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "earliestAllowedAt": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Instant"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "blockingRefs": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind", "ref"],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "pattern": "^[a-z][A-Za-z]{0,63}$"
+                  },
+                  "ref": {
+                    "$ref": "#/$defs/EntityRef"
+                  }
+                }
+              }
+            },
+            "requiresSecondActor": {
+              "type": "boolean"
+            },
+            "recordClass": {
+              "$ref": "#/$defs/RecordClass"
+            },
+            "requestedBy": {
+              "$ref": "#/$defs/EntityRef"
+            },
+            "requestedAt": {
+              "$ref": "#/$defs/Instant"
+            }
+          }
+        }
+      }
+    }
+  }
+}

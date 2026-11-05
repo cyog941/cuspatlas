@@ -14,7 +14,9 @@ Status values: not started, in progress, blocked with cause, verified (on synthe
 | 2. Integration seams (E4 to C8, E2 `clinical_read`, E attachment port, E6 over C14) | verified (E4 to C8, E6 over C14); E2 documents and E attachments recorded as ports | step 2 commit | migration `20261125000000` |
 | 3. S-table relink guard | verified | step 3 commit | migration `20261125010000` |
 | 4. Keyed idempotency payload digest | verified | step 4 commit | migration `20261125020000` |
-| Phase 2: merge I and B, resolver and fee/coverage seams | not started (waiting for the I and B branches) | | |
+| 5. Merge `codex/i-imaging-1` (4bf86c5) | verified | merge commit | 22 conflicted files; merge-registry mirror gains `imagingAssociation` (`20261125030000`) |
+| 6. I seams (C15 and E resolvers to I3, S+C+E+I import) | not started | | |
+| 7. Merge `codex/b-billing-1` and B seams | not started | | |
 
 ## 1. Merge of codex/e-portal-1
 
@@ -56,6 +58,14 @@ Platform finding held earlier: `command_idempotency.payload_digest` was an unkey
 Comparison semantics are unchanged (equal canonical payload within a tenant and key, equal digest). Migration `20261125020000_integration_idempotency_digest_key.sql` adds `payload_digest_scheme` (existing rows 1, new rows 2): legacy scheme 1 rows (synthetic only) are still compared by their own unkeyed scheme until they expire (7 days, purged by maintenance); a takeover rewrites them as scheme 2. Action proposals keep the unkeyed digest: the payload is stored beside it and the client submits it for approval.
 
 Tests: `idempotency.test.ts` (stored digest differs from a plain SHA-256 of the payload and equals the tenant-bound HMAC; tenant binding; replay and conflict unchanged; a legacy scheme 1 row conflicts on another body and is taken over as scheme 2 with the same body; existing raw-row tests use the keyed digest), `digest.test.ts` (HMAC properties, key resolution and refusals, fail-closed without a key, no second key).
+
+## 5. Merge of codex/i-imaging-1
+
+Conflicts (both sides kept): `PrincipalKind` is `human | service | portal | device` (E's portal and I's device; the DB constraints already listed both) and the audit-event schema enum agrees; the tenant transaction rechecks a portal principal's live enrolment and a device principal's live device row instead of a membership; schema exports, contract-drift checks (clinical, engagement and imaging schema files and closed-body checks), routes, MCP tools and known path parameters, reason codes, action policies, replay codecs (`ALL_CODECS` now includes `IMAGING_REPLAY_CODECS`; I's service runs the keyed durable executor like every other), server env (idempotency key and I's object store, token secret and bridge key), runtime-role table list, MCP tool list, restore-smoke cleanup retries (I's stabilised values), docs. `docs/api/openapi.yaml` (34 hunks, generated blocks interleaved) was rebuilt as the integration version plus I's generated imaging block and `deviceAssertion` scheme, verbatim; the drift check passes.
+
+Merge registry: I added `imagingAssociation` (`imaging_match_decisions.subject_patient_id`) to `MERGE_RECORD_CLASSES` on a base without C's SQL mirror. Migration `20261125030000_integration_imaging_merge_registry.sql` restates `merge_class_table` and `merge_class_digest_exclude` with all 14 classes and adds the S6 observation trigger on the decision's patient (I keeps its own relink guard from `20261111050000`); the regression pin passes.
+
+Test fix: `portal-requests.test.ts` asserted every table whose name contains `request` is an appointment-request table; I8's `imaging_deletion_requests` is excluded by prefix.
 
 ## Open items
 

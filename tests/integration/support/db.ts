@@ -20,6 +20,28 @@ function env(name: string): string {
   return v;
 }
 
+/**
+ * I9 restore drill: pools over an existing synthetic database (for example one a restore created). Its
+ * close() drops it like any test database.
+ */
+export function attachTestDatabase(name: string): TestDatabase {
+  assertSyntheticDatabaseName(name);
+  const port = Number(env('CUSPATLAS_TEST_PG_PORT'));
+  const admin = {
+    host: '127.0.0.1',
+    port,
+    user: 'postgres',
+    password: env('CUSPATLAS_TEST_PG_ADMIN_PASSWORD'),
+  };
+  const app = {
+    host: '127.0.0.1',
+    port,
+    user: 'cuspatlas_app',
+    password: env('CUSPATLAS_TEST_PG_APP_PASSWORD'),
+  };
+  return poolsFor(name, admin, app);
+}
+
 /** Clones the migrated template into a fresh database whose name carries the synthetic marker. */
 export async function openTestDatabase(label: string): Promise<TestDatabase> {
   const port = Number(env('CUSPATLAS_TEST_PG_PORT'));
@@ -43,6 +65,10 @@ export async function openTestDatabase(label: string): Promise<TestDatabase> {
   await root.query(`CREATE DATABASE ${name} TEMPLATE ${env('CUSPATLAS_TEST_PG_TEMPLATE')}`);
   await root.end();
 
+  return poolsFor(name, admin, app);
+}
+
+function poolsFor(name: string, admin: pg.ClientConfig, app: pg.ClientConfig): TestDatabase {
   const pools: pg.Pool[] = [];
   const make = (cfg: pg.PoolConfig) => {
     const p = new pg.Pool({ ...cfg, database: name });

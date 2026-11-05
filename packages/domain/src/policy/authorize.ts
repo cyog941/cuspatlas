@@ -328,6 +328,78 @@ export const ACTION_POLICIES = {
   'telephony.calls.link': { scope: 'communications.write', principals: ['human'] },
   // E9 minimal engagement export: a tenant-wide human administrator only (sensitive-read logged).
   'communications.export': { scope: 'admin.configure', principals: ['human'] },
+  // I1 imaging objects (workstream I, synthetic; scope decisions pending approval). Metadata reads and
+  // short-lived read grants need imaging.read; bytes are read only with a grant (REST only).
+  'imaging.objects.read': { scope: 'imaging.read', principals: ['human', 'service'] },
+  'imaging.objects.list': { scope: 'imaging.read', principals: ['human', 'service'] },
+  'imaging.objects.grantRead': { scope: 'imaging.read', principals: ['human', 'service'] },
+  'imaging.objects.content': { scope: 'imaging.read', principals: ['human', 'service'] },
+  'imaging.objects.revokeGrant': { scope: 'imaging.read', principals: ['human', 'service'] },
+  // Capability probe: revoking another principal's grant needs imaging.write.
+  'imaging.grants.revokeAny': { scope: 'imaging.write', principals: ['human', 'service'] },
+  'imaging.storage.reconcile': { scope: 'admin.configure', principals: ['human', 'service'] },
+  // I2 ingress: staging and completing an upload is imaging work (a bridge may be a service principal).
+  'imaging.ingress.begin': { scope: 'imaging.write', principals: ['human', 'service'] },
+  'imaging.ingress.upload': { scope: 'imaging.write', principals: ['human', 'service'] },
+  'imaging.ingress.complete': { scope: 'imaging.write', principals: ['human', 'service'] },
+  'imaging.ingress.read': { scope: 'imaging.read', principals: ['human', 'service'] },
+  'imaging.ingress.failures': { scope: 'imaging.read', principals: ['human', 'service'] },
+  // I3 patient association: reviewing candidates and recording or correcting a decision is a human
+  // decision (imaging.associate); the history, the unmatched worklist and the imageRef read need
+  // imaging.read (C15 and B attachment packages consume the imageRef read).
+  'imaging.associations.candidates': { scope: 'imaging.associate', principals: ['human'] },
+  'imaging.associations.confirm': { scope: 'imaging.associate', principals: ['human'] },
+  'imaging.associations.correct': { scope: 'imaging.associate', principals: ['human'] },
+  'imaging.associations.history': { scope: 'imaging.read', principals: ['human', 'service'] },
+  'imaging.associations.unmatched': { scope: 'imaging.read', principals: ['human', 'service'] },
+  'imaging.imageRefs.resolve': { scope: 'imaging.read', principals: ['human', 'service'] },
+  // I4 mounts, annotations and derived images: separate records, never edits of an original.
+  'imaging.mounts.create': { scope: 'imaging.write', principals: ['human', 'service'] },
+  'imaging.mounts.revise': { scope: 'imaging.write', principals: ['human', 'service'] },
+  'imaging.mounts.read': { scope: 'imaging.read', principals: ['human', 'service'] },
+  'imaging.annotations.create': { scope: 'imaging.write', principals: ['human', 'service'] },
+  'imaging.annotations.supersede': { scope: 'imaging.write', principals: ['human', 'service'] },
+  'imaging.annotations.list': { scope: 'imaging.read', principals: ['human', 'service'] },
+  'imaging.derived.create': { scope: 'imaging.write', principals: ['human', 'service'] },
+  // I8 retention, deletion and legal hold (I-D5/I-D6 pending approval): policy values are practice
+  // configuration by a person; holds and deletions are human decisions; evaluations are reads.
+  'imaging.retention.setPolicy': { scope: 'admin.configure', principals: ['human'] },
+  'imaging.retention.policies': { scope: 'imaging.read', principals: ['human', 'service'] },
+  'imaging.legalHolds.place': { scope: 'imaging.legalHold', principals: ['human'] },
+  'imaging.legalHolds.release': { scope: 'imaging.legalHold', principals: ['human'] },
+  'imaging.legalHolds.list': { scope: 'imaging.read', principals: ['human', 'service'] },
+  'imaging.deletions.request': { scope: 'imaging.delete', principals: ['human'] },
+  'imaging.deletions.evaluate': { scope: 'imaging.read', principals: ['human', 'service'] },
+  'imaging.deletions.execute': { scope: 'imaging.delete', principals: ['human'] },
+  // I5 DICOM boundary: recognition and the pinned parsing refusal (I-S2 blocked); a metadata read.
+  'imaging.containers.inspect': { scope: 'imaging.read', principals: ['human', 'service'] },
+  // I6 device bridge (server side; I-S1/I-S3 blocked). Registering, pairing, allowlist edits and
+  // revocation are human practice administration (admin.configure); jobs are imaging work.
+  'imaging.devices.register': { scope: 'admin.configure', principals: ['human'] },
+  'imaging.devices.issuePairingCode': { scope: 'admin.configure', principals: ['human'] },
+  'imaging.devices.setCapabilities': { scope: 'admin.configure', principals: ['human'] },
+  'imaging.devices.revoke': { scope: 'admin.configure', principals: ['human'] },
+  'imaging.devices.list': { scope: 'imaging.read', principals: ['human', 'service'] },
+  'imaging.devices.read': { scope: 'imaging.read', principals: ['human', 'service'] },
+  'imaging.bridgeJobs.enqueue': { scope: 'imaging.write', principals: ['human', 'service'] },
+  'imaging.bridgeJobs.read': { scope: 'imaging.read', principals: ['human', 'service'] },
+  // Bridge-facing operations: device principals only, authorized by the live device row and its
+  // allowlist inside the transaction (never by a staff membership; `authorize` never admits them).
+  'imaging.bridge.pair': { scope: null, principals: ['device'] },
+  'imaging.bridge.claim': { scope: null, principals: ['device'] },
+  'imaging.bridge.content': { scope: null, principals: ['device'] },
+  'imaging.bridge.result': { scope: null, principals: ['device'] },
+  'imaging.bridge.heartbeat': { scope: null, principals: ['device'] },
+  'imaging.bridge.rotateKey': { scope: null, principals: ['device'] },
+  // I7 offline devices and recovery: requesting work is imaging work; releasing, cancelling and
+  // reconciling are human decisions; the worklist is a read.
+  'imaging.acquisitions.request': { scope: 'imaging.write', principals: ['human', 'service'] },
+  'imaging.acquisitions.resolve': { scope: 'imaging.write', principals: ['human'] },
+  'imaging.bridgeJobs.reconcile': { scope: 'imaging.write', principals: ['human'] },
+  'imaging.bridge.worklist': { scope: 'imaging.read', principals: ['human', 'service'] },
+  // I9 imaging export: a tenant-wide human administrator only (sensitive-read logged), like S17.
+  'imaging.export': { scope: 'admin.configure', principals: ['human'] },
+  'imaging.export.blobs': { scope: 'admin.configure', principals: ['human'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

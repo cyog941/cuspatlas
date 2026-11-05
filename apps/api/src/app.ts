@@ -1,6 +1,9 @@
-import { randomUUID } from 'node:crypto';
+import { type KeyObject, randomUUID } from 'node:crypto';
 import type {
+  DeviceCredentialSource,
+  MalwareScannerPort,
   MembershipSource,
+  ObjectStorePort,
   PortalPrincipalSource,
   SecurityAttemptSink,
   WithTenantTransaction,
@@ -17,14 +20,18 @@ import {
   createClinicalVisitContextProducers,
   createDurableExecutor,
   createEngagementService,
+  createImagingService,
   createPatientService,
   createProposalService,
   createSchedulingResourceService,
   createSyntheticTaskService,
   type ImageRefResolver,
+  type ImagingLimits,
   readLatestCompletedProcedures,
   resolveIdempotencyDigestKey,
+  resolveImagingTokenSecret,
   resolveMatchKeyPepper,
+  type StagingMaintenance,
 } from '@cuspatlas/domain';
 import Fastify, {
   type FastifyInstance,
@@ -39,6 +46,7 @@ import {
   isConfiguredIdentity,
   isTestIssuer,
 } from './auth';
+import { createDeviceAuthenticator } from './device-auth';
 import { mapErrorToRefusal, safeErrorKind } from './errors';
 import {
   registerAppointmentRoutes,
@@ -47,6 +55,7 @@ import {
 } from './routes/appointments';
 import { registerClinicalRoutes } from './routes/clinical';
 import { registerClinicalRecordRoutes } from './routes/clinical-record';
+import { registerImagingRoutes } from './routes/imaging-routes';
 import { registerPatientRoutes } from './routes/patients';
 import { registerEngagementOpRoutes, registerPortalRoutes } from './routes/portal-routes';
 import { registerProposalRoutes } from './routes/proposals';
@@ -99,6 +108,22 @@ export interface AppDeps {
   readonly mcpAudience?: string;
   /** Live portal-enrolment lookups on the runtime-role pool. */
   readonly portalPrincipals?: PortalPrincipalSource;
+  /** I1: private object store (synthetic local adapter in tests); absent = every byte path is 503. */
+  readonly objectStore?: ObjectStorePort;
+  /** Maintenance-only staging listing for the orphan sweep (absent = only database-named staging is swept). */
+  readonly stagingMaintenance?: StagingMaintenance;
+  /** I2: malware scanner; absent = every verdict is unknown, so nothing becomes available. */
+  readonly scanner?: MalwareScannerPort;
+  /** I1 read-grant secret (CUSPATLAS_IMAGING_TOKEN_SECRET); optional only under synthetic-test. */
+  readonly imagingTokenSecret?: Uint8Array;
+  readonly imagingLimits?: ImagingLimits;
+  /**
+   * I6 bridge audience: live device credentials on the runtime-role pool. Bridge routes are registered
+   * only when this is configured.
+   */
+  readonly deviceCredentials?: DeviceCredentialSource;
+  /** I6 server job-signing key (Ed25519 private key); see resolveBridgeSigningKey. */
+  readonly bridgeSigningKey?: KeyObject | null;
 }
 
 function sendRefusal(request: FastifyRequest, reply: FastifyReply, err: unknown): FastifyReply {
@@ -287,6 +312,28 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         );
         registerPortalRoutes(app, { authenticator: portalAuthenticator, engagement });
       }
+      const imaging = createImagingService({
+        authorize,
+        withTenantTransaction: deps.tenantTransactions,
+        recording,
+        execute,
+        tokenSecret: resolveImagingTokenSecret(deps.env, deps.imagingTokenSecret),
+        matchKeyPepper: resolveMatchKeyPepper(deps.env, deps.matchKeyPepper),
+        ...(deps.objectStore ? { objectStore: deps.objectStore } : {}),
+        ...(deps.stagingMaintenance ? { stagingMaintenance: deps.stagingMaintenance } : {}),
+        ...(deps.scanner ? { scanner: deps.scanner } : {}),
+        ...(deps.imagingLimits ? { limits: deps.imagingLimits } : {}),
+        bridgeSigningKey: deps.bridgeSigningKey ?? null,
+        alert: (code) => app.log.error({ alert: code }, 'imaging alert'),
+      });
+      registerImagingRoutes(app, {
+        authenticator,
+        imaging,
+        maxObjectBytes: deps.imagingLimits?.maxObjectBytes ?? 32 * 1024 * 1024,
+        ...(deps.deviceCredentials
+          ? { deviceAuthenticator: createDeviceAuthenticator(deps.deviceCredentials, recording) }
+          : {}),
+      });
     }
   }
 

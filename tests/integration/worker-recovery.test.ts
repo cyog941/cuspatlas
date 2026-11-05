@@ -76,6 +76,14 @@ async function receipts(id: string) {
   return rows;
 }
 
+/** Test-only fixture path: moves an event's next attempt relative to the database clock. */
+async function setQuiet(id: string, offset: string): Promise<void> {
+  await db.admin.query(
+    `UPDATE cuspatlas.outbox_events SET next_attempt_at = now() + $2::interval WHERE id = $1`,
+    [id, offset],
+  );
+}
+
 async function until(cond: () => Promise<boolean> | boolean, ms = 5_000): Promise<void> {
   const end = Date.now() + ms;
   while (!(await cond())) {
@@ -242,14 +250,21 @@ describe('crash and lease recovery', () => {
         { afterAccept: async (req) => (req.attempt === 1 ? response.wait.then(() => undefined) : undefined) },
       );
       const id = await enqueue(T_ALPHA, USER_A1);
-      // Lease 0.6 s leaves 0.4 s for the lease check and fenced finalization around the 0.2 s deliver
-      // timeout; 0.3 s flaked under full-suite load (lease-lost, still no second send).
-      const slow = workerWith({ leaseSeconds: 0.6, deliverTimeoutSeconds: 0.2 }).runOnce(T_ALPHA, provider);
+      // Lease 5 s leaves ample room for the lease check and fenced finalization around the 0.2 s deliver
+      // timeout even under full-suite load (0.3 s and 0.6 s both flaked as lease-lost).
+      const slow = workerWith({ leaseSeconds: 5, deliverTimeoutSeconds: 0.2 }).runOnce(T_ALPHA, provider);
       expect(await slow).toStrictEqual([{ eventId: id, result: 'reconciliation' }]);
       expect(provider.effectsFor(id)).toBe(1);
-      // Still inside the quiet period: nobody may look the key up or resend yet.
+      const quiet = await db.admin.query(
+        `SELECT state, next_attempt_at IS NOT NULL AS scheduled FROM cuspatlas.outbox_events WHERE id = $1`,
+        [id],
+      );
+      expect(quiet.rows[0]).toStrictEqual({ state: 'reconciliation', scheduled: true });
+      // Database clock, not wall time: pin the event inside its quiet period, then end it. Nobody may
+      // look the key up or resend while it lasts.
+      await setQuiet(id, '1 hour');
       expect(await workerWith().runOnce(T_ALPHA, provider)).toStrictEqual([]);
-      await pause(250);
+      await setQuiet(id, '-1 second');
       expect(await workerWith().runOnce(T_ALPHA, provider)).toStrictEqual([
         { eventId: id, result: 'delivered' },
       ]);
@@ -287,12 +302,14 @@ describe('crash and lease recovery', () => {
       // Residual window, documented: attempt 1 stays in flight beyond its deliver timeout AND the
       // quiet period. The worker then has no way to know it is still coming; only the provider's
       // deduplication by delivery key (required of every adapter) keeps this to one action.
-      const first = await workerWith({ leaseSeconds: 0.3, deliverTimeoutSeconds: 0.2 }).runOnce(
+      // A 5 s lease (not 0.3 s) so the lease check never races the 0.2 s deliver timeout under load;
+      // the quiet period is then ended on the database clock instead of by waiting.
+      const first = await workerWith({ leaseSeconds: 5, deliverTimeoutSeconds: 0.2 }).runOnce(
         T_ALPHA,
         provider,
       );
       expect(first).toStrictEqual([{ eventId: id, result: 'reconciliation' }]);
-      await pause(250);
+      await setQuiet(id, '-1 second');
       // Attempt 2 reconciles (not_found: attempt 1 has not been accepted), then sends.
       expect(await workerWith().runOnce(T_ALPHA, provider)).toStrictEqual([
         { eventId: id, result: 'delivered' },

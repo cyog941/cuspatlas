@@ -2,6 +2,7 @@ import { APPOINTMENT_ROUTES } from './appointment-manifest';
 import { CLINICAL_ROUTES } from './clinical-manifest';
 import { CLINICAL_RECORD_ROUTES } from './clinical-record-manifest';
 import { ENGAGEMENT_OP_ROUTES } from './engagement-ops';
+import { IMAGING_OP_ROUTES } from './imaging-ops';
 import { PORTAL_ROUTES } from './portal-ops';
 import { SCHEDULING_OP_ROUTES } from './scheduling-ops';
 
@@ -22,7 +23,14 @@ export interface RouteContract {
    * local `#/components/schemas/<name>`.
    */
   readonly requestBody?: string;
-  readonly success: { readonly status: '200' | '201'; readonly schema: string };
+  /** I addition: a non-JSON request body media type (binary upload); default application/json. */
+  readonly requestMedia?: 'application/octet-stream';
+  readonly success: {
+    readonly status: '200' | '201';
+    readonly schema: string;
+    /** I addition: a non-JSON success media type (object bytes); default application/json. */
+    readonly media?: 'application/octet-stream';
+  };
   /** Documented refusal statuses (all use the shared Refusal schema). */
   readonly refusals: readonly string[];
 }
@@ -33,6 +41,7 @@ export const PATIENT_SCHEMA_FILE = 'patient.schema.json';
 export const SCHEDULING_SCHEMA_FILE = 'scheduling.schema.json';
 export const CLINICAL_SCHEMA_FILE = 'clinical.schema.json';
 export const ENGAGEMENT_SCHEMA_FILE = 'engagement.schema.json';
+export const IMAGING_SCHEMA_FILE = 'imaging.schema.json';
 
 export const ROUTES: readonly RouteContract[] = [
   {
@@ -340,6 +349,7 @@ export const ROUTES: readonly RouteContract[] = [
   // Workstream E: staff operations (REST + MCP) and the portal transport (portal audience only).
   ...ENGAGEMENT_OP_ROUTES,
   ...PORTAL_ROUTES,
+  ...IMAGING_OP_ROUTES,
 ];
 
 export function routeFor(operationId: string): RouteContract & { fastifyPath: string } {

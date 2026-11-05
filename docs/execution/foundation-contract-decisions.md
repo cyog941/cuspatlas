@@ -485,3 +485,39 @@ Additions only; no frozen row relaxed. Details in `docs/execution/integration-pr
 - E4 to C8: a medical-history hand-off is applied only on a clinician's own C8 version recorded from the submission (`sourceRef` `intake-submission:<id>`, provenance `patient_reported`); never copied (`20261125000000`).
 - S6: the S record classes of the merge registry have the C relink guard (`merge_reference_relink_guard`, `20261125010000`); `recall_tasks.subject_patient_id` never moves.
 - Idempotency: `command_idempotency.payload_digest` is HMAC-SHA-256 under `CUSPATLAS_IDEMPOTENCY_DIGEST_KEY` (test-only key only under synthetic-test), tenant-bound; `payload_digest_scheme` 2, legacy scheme 1 rows expire (`20261125020000`).
+## Task record: I1 private object storage boundary (workstream I batch 1, 2026-11-11)
+
+Additions only; no frozen row changed. Decisions are recommended-pending-approval in docs/execution/imaging-progress.md.
+
+- Object bytes live behind `ObjectStorePort` (contracts `imaging.ts`): tenant-scoped, content-addressed by SHA-256 inside the tenant prefix, no listing and no URL; verified against the registered digest on every read. The synthetic local adapter (`packages/db/src/object-store-local.ts`) is refused under `production`.
+- Route contract extension (same commit): `RouteContract.requestMedia` and `success.media` (only `application/octet-stream`) for the REST-only byte transports; the drift check resolves request and response refs under that media type. Schema prefix `imaging:` (`imaging.schema.json`, which copies `Version` and `IdempotencyKey` byte-identically). MCP never carries bytes.
+- Read grants: HMAC tokens (`CUSPATLAS_IMAGING_TOKEN_SECRET`; the test-only secret only under synthetic-test) bound to tenant, principal, object, grant and expiry (at most 300 s), sent in `x-object-read-token` with the caller's own bearer token and checked against a revocable grant row. Issuance is not keyed (a fresh grant per call; no token reaches `command_idempotency`). A missing secret outside synthetic-test disables grants (typed 503) instead of refusing startup.
+- Security reason codes added: `imaging_refused` (any imaging refusal without a specific reason), `object_token_invalid`, `object_integrity_failed`, `upload_gated`. Imaging commands and byte reads record every typed refusal (not only denials); metadata reads record denials.
+- Fixed alert lines: `imaging_object_integrity_failed`, `imaging_object_store_unavailable`, `imaging_token_secret_missing`.
+
+## Task record: I2-I8 imaging batch 1 (workstream I, 2026-11-11)
+
+Additions only; no frozen row changed. Details and pending decisions in docs/execution/imaging-progress.md.
+
+- Shared refusal detail extension (same commit as the code): `RefusalDetail.earliestAllowedAt` (date-time) in `context.ts` and the `Refusal` schema, used by `minimum_retention_not_met`.
+- Merge registry: class `imagingAssociation` (`imaging_match_decisions.subject_patient_id`, factKind `clinical`) added to `MERGE_RECORD_CLASSES`; `imaging_ingress_sessions.intended_patient_id` and `imaging_objects.dedupe_patient_id` added to `MERGE_EXCLUDED_REFERENCES`.
+- Gate failures that preserve evidence (quarantined upload, failed derivation, integrity quarantine) commit their record and then refuse (`CommitThenRefuse`); they are never a 2xx.
+- Imaging replay projection `imagingCodec` accepts server references, SHA-256 digests, enumerations (including camelCase enums such as `operatorSelected`), instants, counts and flags; caller text never enters an imaging command result.
+
+## Task record: review hardening of I1-I8 (workstream I batch 2, 2026-11-11)
+
+- `imageReference(tx, imageRef, expectedPatientRef)` and `ImageRefQuery.expectedPatientRef` are now **required**: every consumer read (C15, CL-04) is checked against the patient the consumer expects and `matchesExpected` is always a boolean (a read without it is 400 `invalid_request`). No unchecked consumer read exists.
+- Database lock entry points for domain work (the statement guard forbids `pg_*` calls): `cuspatlas.imaging_lock_subjects(tenant, uuid[])` (sorted transaction advisory locks on hold subjects) and `cuspatlas.imaging_lock_content(tenant, digest)`. Hold inserts take the subject lock by trigger; the `deleted` transition of an imaging object takes every governing subject lock and re-checks `cuspatlas.imaging_object_holds(object)` (object, its source, its derived children, patients ever associated and identities merged into them). The domain evaluation uses the same function.
+- Dedupe rule refined: database uniqueness applies only to a named patient scope; an unscoped upload deduplicates only into an unscoped object never associated with anyone, else it is a separate object sharing the content-addressed bytes. **Intra-tenant same-bytes signal:** a deduplicated completion (`deduplicated: true`) tells an imaging writer that identical bytes already exist in the tenant (under the same scope). This is accepted inside one tenant (imaging writers already see tenant-wide metadata, I-T4) and never crosses tenants (content addressing is per tenant prefix).
+- `imaging_match_decisions.subject_patient_id` changes only along a recorded merge (old patient `merged_into` new, merge and move rows written in the same transaction) or unmerge (reverse move with a reversal written in the same transaction), checked by a deferred constraint trigger at commit.
+- Local object store: an altered content-addressed file is repaired by newly verified bytes of the same digest (the altered file is kept under `quarantine/<tenant>/repaired-<uuid>`); objects already quarantined for it stay quarantined.
+
+## Task record: I5-I9 imaging batch 2 (workstream I, 2026-11-12)
+
+Additions only; synthetic data; recommended-pending-approval throughout.
+
+- `PrincipalKind` gains `device` (I6): a paired imaging bridge on its own audience (`urn:cuspatlas:bridge:v1`), authenticated by its own Ed25519 key with single-use request-bound assertions; never a staff membership (database-refused), no scopes, never admitted by a staff policy; the tenant runner rechecks the live `imaging_devices` row. The audit and sensitive-read principal enums and `principals_kind_check` list `human`, `service`, `portal` (E1, merge-safe) and `device`. Security reason codes added: `device_pairing_invalid`, `device_pairing_expired`, `device_pairing_used`, `device_assertion_invalid`, `device_assertion_replayed`, `device_revoked`, `device_unpaired`, `device_signature_invalid`.
+- Bridge routes live under `/v1/bridge/*` (REST only, OpenAPI `security: deviceAssertion`; pairing `security: []`). Staff administration of devices, jobs, deferred acquisitions and the bridge worklist is REST and MCP. ADR 0004 records the boundary.
+- `ImagingWorkItem.kind` adds `acquisition_deferred`, `bridge_job_failed`, `bridge_outcome_unknown`, `bridge_late_result`, `bridge_lease_expired`, `device_unavailable`.
+- Imaging export `cuspatlas-imaging-export/1` (`IMAGING_EXPORT_TABLES` in foreign-key order, no tenant column, no storage key) and blob bundles `cuspatlas-imaging-blobs/1` (REST only); privileged synthetic re-import `importImagingExport` / `importImagingBlobs`; storage-layer backup of the synthetic store `backupObjectStore` / `restoreObjectStore` (tombstones carried forward).
+- Grant tokens: the MAC must be canonically base64url-encoded (a non-canonical last character is refused).

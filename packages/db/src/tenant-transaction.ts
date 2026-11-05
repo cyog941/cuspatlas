@@ -67,12 +67,17 @@ export function createTenantTransactionRunner(
              set_config('lock_timeout', $3, true)`,
           [ctx.tenantId, ctx.actorId, lockTimeout],
         );
-        // E1: a portal principal has no membership; its live enrolment is rechecked instead.
+        // E1: a portal principal has no membership; its live enrolment is rechecked instead. I6: a
+        // device principal has no membership either; its live device row is rechecked (pending only
+        // for pairing, which the domain checks; revoked never).
         const member = await client.query(
           ctx.principal === 'portal'
             ? `SELECT 1 FROM cuspatlas.portal_principals pp JOIN cuspatlas.principals p ON p.id = pp.principal_id
                WHERE pp.tenant_id = $1 AND pp.principal_id = $2 AND pp.state = 'active' AND p.kind = $3`
-            : `SELECT 1 FROM cuspatlas.memberships m JOIN cuspatlas.principals p ON p.id = m.principal_id
+            : ctx.principal === 'device'
+              ? `SELECT 1 FROM cuspatlas.imaging_devices d JOIN cuspatlas.principals p ON p.id = d.id
+               WHERE d.tenant_id = $1 AND d.id = $2 AND d.state IN ('pending', 'active') AND p.kind = $3`
+              : `SELECT 1 FROM cuspatlas.memberships m JOIN cuspatlas.principals p ON p.id = m.principal_id
                WHERE m.tenant_id = $1 AND m.principal_id = $2 AND m.revoked_at IS NULL AND p.kind = $3`,
           [ctx.tenantId, ctx.actorId, ctx.principal],
         );

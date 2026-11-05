@@ -15,6 +15,12 @@ export const BILLING_EXPORT_TABLES = [
   'billing_charges',
   'billing_payment_attempts',
   'billing_payments',
+  // H2 M-9: the migration opening chain the opening journal lines reference (opening items, their
+  // staged records, packages without the source tables, profiles); never the migration workspace.
+  'migration_source_profiles',
+  'migration_packages',
+  'migration_staged_records',
+  'migration_opening_items',
   'billing_journal_entries',
   'billing_journal_lines',
   'billing_payment_plans',

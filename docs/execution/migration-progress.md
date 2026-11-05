@@ -202,3 +202,14 @@ recommended-pending-approval). Tests in `tests/integration/migration-hardening.t
   before anything is read or staged, and the already-staged digest path returns the prior package
   only to the same profile and authorisation reference (`409 staged_under_other_authorisation`);
   authorization and the profile checks already run before that path. Red 4/4 failing; green.
+- M-9 opening balances round-trip. Decision: carry the opening chain inside the B export rather
+  than a separate M document, because the chain exists only for B's opening journal lines (their
+  `opening_item_id` foreign key), B's import already validates every foreign key and currency of its
+  tables and re-runs the journal check (which reads the opening items), and a new M export would
+  need a new operation, route, MCP tool and authorization for four tables. `BILLING_EXPORT_TABLES`
+  gains `migration_source_profiles`, `migration_packages`, `migration_staged_records` and
+  `migration_opening_items`, exported only as the chain (every opening item, the staged record it
+  repeats, its package with `raw - 'tables'`, its profile); review items, applied records, other
+  staged rows, reports and sign-offs (the workspace) stay out. The five-way round trip now seeds a
+  migrated opening balance and credit, imports S, I, C, E, B and re-exports identically. Red 1/1
+  failing; green. A separate M export (with its own operation) remains an option if M grows.

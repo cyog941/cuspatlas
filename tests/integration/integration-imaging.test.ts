@@ -22,6 +22,13 @@ import { actorFor } from './support/domain-harness';
 import { seedEngagementScopes } from './support/engagement-fixtures';
 import { ctxFor, T_ALPHA, T_BETA, USER_A1, USER_B1 } from './support/fixtures';
 import { type ImagingStack, ingestVia, pngBytes, startImagingStack } from './support/imaging-fixtures';
+import {
+  intakeBody,
+  legacyPackage,
+  PRACTICE,
+  SOURCE_SYSTEM,
+  seedMigrationScopes,
+} from './support/migration-fixtures';
 import { patientBody } from './support/patient-fixtures';
 import { today } from './support/rcm-fixtures';
 import { seedSchedulingScopes } from './support/scheduling-fixtures';
@@ -256,6 +263,44 @@ describe('S17 + I9 + C18 + E9 + B10 combined round trip', () => {
     timeout: 300_000,
   }, async () => {
     await seedBillingChain(src, p1);
+    // H2 M-9: a migrated opening balance and unapplied credit travel with B (the opening chain).
+    await seedMigrationScopes(src.db.admin);
+    const profileRef = data<{ profileRef: string }>(
+      await src.command('owner', '/v1/migration/source-profiles', {
+        sourceSystem: SOURCE_SYSTEM,
+        format: 'cuspatlas-synthetic-legacy/1',
+        practiceRef: PRACTICE,
+      }),
+    ).profileRef;
+    const packageRef = data<{ packageRef: string }>(
+      await src.command(
+        'owner',
+        '/v1/migration/packages',
+        intakeBody(
+          profileRef,
+          legacyPackage({
+            patients:
+              'patient_id,last_name,first_name,birth_date,phone,guarantor_id\nQ001,Opening,Rowe,1972-02-02,5551000001,G1\n',
+            ledger_balances:
+              'balance_id,account_id,patient_id,balance_minor,currency,as_of\nQB1,G1,Q001,4200,USD,2026-10-31\n',
+            unapplied_credits:
+              'payment_id,account_id,patient_id,amount_minor,currency,received_on\nQC1,G1,Q001,900,USD,2026-09-01\n',
+          }),
+        ),
+      ),
+    ).packageRef;
+    const planDigest = data<{ planDigest: string }>(
+      await src.inject('owner', 'GET', `/v1/migration/imports/plan?packageRef=${packageRef}`),
+    ).planDigest;
+    expect(
+      data<{ state: string }>(
+        await src.command('owner', '/v1/migration/imports/apply', {
+          packageRef,
+          expectedPlanDigest: planDigest,
+          batchSize: 50,
+        }),
+      ).state,
+    ).toBe('complete');
     const exportOf = async (s: ImagingStack, path: string) => {
       const r = await s.inject('owner', 'GET', path);
       expect([path, r.status]).toStrictEqual([path, 200]);
@@ -279,6 +324,8 @@ describe('S17 + I9 + C18 + E9 + B10 combined round trip', () => {
     }
     expect(docs[2]?.tables.clinical_encounter_image_links?.length).toBeGreaterThan(0);
     expect(docs[3]?.tables.thread_messages?.length).toBeGreaterThan(0);
+    expect(docs[4]?.tables.migration_opening_items?.length).toBe(2);
+    expect(docs[4]?.tables.migration_staged_records?.length).toBe(2);
     for (const t of ['billing_journal_entries', 'rcm_claims', 'rcm_remittances', 'billing_payments']) {
       expect([t, (docs[4]?.tables[t]?.length ?? 0) > 0]).toStrictEqual([t, true]);
     }

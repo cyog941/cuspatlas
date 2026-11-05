@@ -506,9 +506,10 @@ export function createAgentWorkspace(base: AgentBase) {
               'SELECT phi_allowed FROM cuspatlas.agent_memory_policies',
             )
           ).rows[0];
-          // Closeout D5 default-deny: phi needs the explicit tenant policy; anything else needs a
-          // positive allowlist classification (a structured kind whose grammar the value matches), and the
-          // PHI heuristic stays as an extra refusal layer over the key and the value.
+          // Closeout D5 and its review fixes: phi needs the explicit tenant policy; anything else needs a
+          // positive allowlist classification (a structured kind whose value is registered or matches a
+          // bounded grammar), and the PHI heuristic stays as an extra refusal layer over the key and the
+          // value. Not a proof: a short counter, a UUID or an instant can still encode an identifier.
           const kind = p.kind ?? (p.classification === 'phi' ? 'text' : null);
           // Review fix S1: every key (phi included, since keys are listed without values) is a registered
           // prefix plus a registered suffix, and the suffix is screened like a value of its kind.

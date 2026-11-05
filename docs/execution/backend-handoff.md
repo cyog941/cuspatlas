@@ -205,10 +205,15 @@ Sub-decisions held in the ledgers (all pending): billing M-1..M-12, P-1..P-7, ST
   - The MCP `resumeCursor` input is advertised to agent callers only; a non-agent caller that sends one is refused as an unknown argument.
   - The downtime and reviewer cursors are keyset positions. A row inserted before the current position during a walk is not returned in that walk.
 - No retention period ships for messages or images, so nothing in those classes is deletable.
-- Agent memory is default-deny since Closeout D: a non-phi note must be one of seven structured kinds and match its grammar, enforced in the domain and the database. Free text only goes in as `phi`, under the tenant policy. Residual limits:
-  - A structured value can still encode something identifying that no rule names, for example a code built from a first name. The PHI heuristic is a best-effort extra layer and not de-identification.
-  - Notes written before Closeout D are not rechecked (`NOT VALID` constraints) and report `kind: null`.
-  - The kind list and grammars are recommended-pending-approval.
+- Agent memory is a positive allowlist since Closeout D and its review fixes, enforced in the domain and the database. A key is a registered prefix plus a registered code, catalog operation id or UUID. A non-phi value is one of seven structured kinds: a registered code, a catalog operation id, a counter from -9999 to 9999, a flag, a duration, a UUID reference, or a UTC instant not earlier than the tenant's creation. Free text only goes in as `phi`, under the tenant policy. This is not a proof that no note holds PHI. Residual limits:
+  - A short counter can coincide with a short identifier (a small chart number, for example), and a UUID reference, counter or instant can carry bits a writer deliberately encodes. The PHI heuristic (names, birth-date match keys, patient refs, contact and DOB patterns) is a best-effort extra layer, not de-identification.
+  - The instant floor refuses birth dates before the tenant was created, not a newborn's birth date after it.
+  - A registered code can coincide with a surname (for example `low`); the heuristic refuses it only when a patient of the tenant has that family name.
+  - The registry is seeded by the migrator from the deployed contracts. A database migrated by another tool without `syncAgentMemoryRegistry` refuses every memory write (fails closed).
+  - Notes written before these changes are not rechecked (`NOT VALID` constraints, new-row trigger) and may report `kind: null` or use an old key.
+  - The key prefixes, declared codes, counter range and instant floor are recommended-pending-approval.
+- Orphan-bytes sweeps: two concurrent real sweeps no longer fail on the one-open-intent index; the later sweep leaves the key to the earlier intent and counts it as `kept.alreadyIntended`.
+- `practice.export.read` is tenant-wide for `admin.configure` humans (any of them may read any practice export request, like grant and download), and every read is a sensitive read that names the request and whether the reader is its requester.
 
 ## What the UI phase must respect
 

@@ -1,531 +1,712 @@
 /**
- * Audited application-clock reads (clock audit, scripts/clock-guard.test.ts). Each entry is one
- * `Date.now` / bare `new Date()` occurrence: its file, its trimmed source line and why the host clock
- * is safe there. Class (a) only: every mixed-clock (b) and precision (c) use was moved to the database
- * clock (packages/domain/src/clock.ts). Adding an entry is a review decision, not a way to pass the guard.
+ * Audited application-clock reads (clock audit, scripts/clock-guard.test.ts). Each entry is one read
+ * that scripts/clock-scan.ts finds in the TypeScript AST (`now` of the global `Date` in any spelling,
+ * or a bare `new Date()`), keyed by its file, its enclosing named function chain (`<module>` at the
+ * top level), its kind and its 0-based occurrence index of that kind within the function, with why
+ * the host clock is safe there. Class (a) only: every mixed-clock (b) and precision (c) use was moved
+ * to the database clock (packages/domain/src/clock.ts). Adding an entry is a review decision, not a way
+ * to pass the guard.
  */
 export interface ClockAllowlistEntry {
   readonly file: string;
-  readonly code: string;
+  readonly fn: string;
+  readonly kind: 'Date.now' | 'new Date()';
+  readonly index: number;
   readonly reason: string;
 }
 
 export const CLOCK_ALLOWLIST: readonly ClockAllowlistEntry[] = [
   {
     file: 'apps/api/src/device-auth.ts',
-    code: 'const now = Math.floor(Date.now() / 1000);',
+    fn: 'createDeviceAuthenticator.authenticate',
+    kind: 'Date.now',
+    index: 0,
     reason:
       '(a) protocol time of a host-clock token or signature (issued and checked by the application, or the peer clock); no stored fact',
   },
   {
     file: 'apps/api/src/list-envelope-hook.ts',
-    code: 'CALLS.set(request, { operation, spec, asOf: new Date(), scope });',
+    fn: 'registerListEnvelope.readHandler',
+    kind: 'new Date()',
+    index: 0,
     reason:
       '(a) response metadata stamp (asOf/computedAt/generatedAt/checkedAt); never compared server-side with a stored fact',
   },
   {
     file: 'apps/api/src/pair-throttle.ts',
-    code: 'check(source: string, pairingId: string | null, now = Date.now()): void {',
+    fn: 'PairThrottle.check',
+    kind: 'Date.now',
+    index: 0,
     reason:
       '(a) elapsed time or an in-process wait on the host clock, compared only with other host-clock readings',
   },
   {
     file: 'apps/api/src/pair-throttle.ts',
-    code: 'recordFailure(source: string, pairingId: string | null, now = Date.now()): void {',
+    fn: 'PairThrottle.recordFailure',
+    kind: 'Date.now',
+    index: 0,
     reason:
       '(a) elapsed time or an in-process wait on the host clock, compared only with other host-clock readings',
   },
   {
     file: 'apps/mcp/src/server.ts',
-    code: 'const asOf = new Date();',
+    fn: 'buildMcpServer.callTool',
+    kind: 'new Date()',
+    index: 0,
     reason:
       '(a) response metadata stamp (asOf/computedAt/generatedAt/checkedAt); never compared server-side with a stored fact',
   },
   {
     file: 'apps/worker/src/compose.ts',
-    code: 'sampleTarget: `cuspatlas_synthetic_backup_verify_${Date.now().toString(36)}${randomUUID().slice(0, 8)}`,',
+    fn: 'composeWorker.tick.verify',
+    kind: 'Date.now',
+    index: 0,
     reason: '(a) synthetic fake adapter event time or a unique name suffix; not compared with stored facts',
   },
   {
     file: 'packages/db/src/backup-verify.ts',
-    code: 'const started = Date.now();',
+    fn: 'verifyBackup',
+    kind: 'Date.now',
+    index: 0,
     reason:
       '(a) elapsed time or an in-process wait on the host clock, compared only with other host-clock readings',
   },
   {
     file: 'packages/db/src/backup-verify.ts',
-    code: 'restoreSeconds: Math.round((Date.now() - started) / 10) / 100,',
+    fn: 'verifyBackup',
+    kind: 'Date.now',
+    index: 1,
     reason:
       '(a) elapsed time or an in-process wait on the host clock, compared only with other host-clock readings',
   },
   {
     file: 'packages/db/src/backup.ts',
-    code: 'createdAt: new Date().toISOString(),',
+    fn: 'createBackup',
+    kind: 'new Date()',
+    index: 0,
     reason:
       '(a) response metadata stamp (asOf/computedAt/generatedAt/checkedAt); never compared server-side with a stored fact',
   },
   {
     file: 'packages/db/src/object-store-backup.ts',
-    code: 'createdAt: new Date().toISOString(),',
+    fn: 'backupObjectStore',
+    kind: 'new Date()',
+    index: 0,
     reason:
       '(a) response metadata stamp (asOf/computedAt/generatedAt/checkedAt); never compared server-side with a stored fact',
   },
   {
     file: 'packages/db/src/object-store-local.ts',
-    code: 'const now = new Date();',
+    fn: 'createLocalObjectStore.readRange',
+    kind: 'Date.now',
+    index: 0,
     reason: '(a) filesystem mtime or an in-process cache entry: the host clock on both sides',
   },
   {
     file: 'packages/db/src/object-store-local.ts',
-    code: 'if (!hit || hit.fingerprint !== fingerprint || Date.now() - hit.at >= verificationTtlMs) {',
+    fn: 'createLocalObjectStore.readRange',
+    kind: 'Date.now',
+    index: 1,
     reason: '(a) filesystem mtime or an in-process cache entry: the host clock on both sides',
   },
   {
     file: 'packages/db/src/object-store-local.ts',
-    code: 'verified.set(cacheKey, { fingerprint, at: Date.now() });',
-    reason: '(a) filesystem mtime or an in-process cache entry: the host clock on both sides',
-  },
-  {
-    file: 'packages/db/src/object-store-local.ts',
-    code: 'const body = JSON.stringify({ objectRef, digestSha256, deletedAt: new Date().toISOString() });',
+    fn: 'createLocalObjectStore.writeTombstone',
+    kind: 'new Date()',
+    index: 0,
     reason:
       '(a) response metadata stamp (asOf/computedAt/generatedAt/checkedAt); never compared server-side with a stored fact',
   },
   {
     file: 'packages/db/src/object-store-local.ts',
-    code: 'if (!st?.isFile() || Date.now() - st.mtimeMs <= olderThanMs) return false;',
+    fn: 'createLocalStagingMaintenance.listStagedOlderThan',
+    kind: 'Date.now',
+    index: 0,
     reason: '(a) filesystem mtime or an in-process cache entry: the host clock on both sides',
   },
   {
     file: 'packages/db/src/object-store-local.ts',
-    code: 'if (st?.isFile() && Date.now() - st.mtimeMs > olderThanMs) out.push(`staging/${tenantId}/${n}`);',
+    fn: 'createLocalStagingMaintenance.removeContentIfOlderThan',
+    kind: 'Date.now',
+    index: 0,
+    reason: '(a) filesystem mtime or an in-process cache entry: the host clock on both sides',
+  },
+  {
+    file: 'packages/db/src/object-store-local.ts',
+    fn: 'touch',
+    kind: 'new Date()',
+    index: 0,
     reason: '(a) filesystem mtime or an in-process cache entry: the host clock on both sides',
   },
   {
     file: 'packages/db/src/restore-drill.ts',
-    code: 'const started = Date.now();',
+    fn: 'runRestoreDrill',
+    kind: 'Date.now',
+    index: 0,
     reason:
       '(a) elapsed time or an in-process wait on the host clock, compared only with other host-clock readings',
   },
   {
     file: 'packages/db/src/restore-drill.ts',
-    code: 'const backupDone = Date.now();',
+    fn: 'runRestoreDrill',
+    kind: 'Date.now',
+    index: 1,
     reason:
       '(a) elapsed time or an in-process wait on the host clock, compared only with other host-clock readings',
   },
   {
     file: 'packages/db/src/restore-drill.ts',
-    code: 'const restoreStart = Date.now();',
+    fn: 'runRestoreDrill',
+    kind: 'Date.now',
+    index: 2,
     reason:
       '(a) elapsed time or an in-process wait on the host clock, compared only with other host-clock readings',
   },
   {
     file: 'packages/db/src/restore-drill.ts',
-    code: 'const done = Date.now();',
+    fn: 'runRestoreDrill',
+    kind: 'Date.now',
+    index: 3,
     reason:
       '(a) elapsed time or an in-process wait on the host clock, compared only with other host-clock readings',
   },
   {
     file: 'packages/db/src/security-attempts.ts',
-    code: 'occurredAt: new Date().toISOString(),',
+    fn: 'createSecurityAttemptSink.record',
+    kind: 'new Date()',
+    index: 0,
     reason:
       '(a) schema-validation placeholder only; the stored instant is the database now() (clock audit fix)',
   },
   {
     file: 'packages/domain/src/administration/administration.ts',
-    code: 'asOf: new Date().toISOString(),',
+    fn: 'createAdministrationOperations.reviewAccess',
+    kind: 'new Date()',
+    index: 0,
     reason:
       '(a) response metadata stamp (asOf/computedAt/generatedAt/checkedAt); never compared server-side with a stored fact',
   },
   {
     file: 'packages/domain/src/administration/administration.ts',
-    code: 'asOf: new Date().toISOString(),',
+    fn: 'createAdministrationOperations.searchAudit',
+    kind: 'new Date()',
+    index: 0,
     reason:
       '(a) response metadata stamp (asOf/computedAt/generatedAt/checkedAt); never compared server-side with a stored fact',
   },
   {
     file: 'packages/domain/src/agents/ai.ts',
-    code: 'return present((await markStale(ctx, row.id)) ?? row, false, new Date());',
+    fn: 'createAiPipeline.readAiDraft',
+    kind: 'new Date()',
+    index: 0,
     reason:
       '(a) response metadata stamp (asOf/computedAt/generatedAt/checkedAt); never compared server-side with a stored fact',
   },
   {
     file: 'packages/domain/src/agents/ai.ts',
-    code: "return present(row, open ? true : row.state !== 'stale', new Date());",
+    fn: 'createAiPipeline.readAiDraft',
+    kind: 'new Date()',
+    index: 1,
     reason:
       '(a) response metadata stamp (asOf/computedAt/generatedAt/checkedAt); never compared server-side with a stored fact',
   },
   {
     file: 'packages/domain/src/agents/governance.ts',
-    code: 'if (!Number.isFinite(expires) || expires <= Date.now())',
+    fn: 'createAgentGovernance.recordConsent',
+    kind: 'Date.now',
+    index: 0,
     reason:
       '(a) bound on a client-supplied instant before it is stored; enforcement against stored rows is SQL now(), so skew only moves the accept edge for an instant seconds away',
   },
   {
     file: 'packages/domain/src/agents/principals.ts',
-    code: 'if (!Number.isFinite(expires) || expires <= Date.now())',
+    fn: 'createAgentPrincipals.createAgentPrincipal',
+    kind: 'Date.now',
+    index: 0,
     reason:
       '(a) bound on a client-supplied instant before it is stored; enforcement against stored rows is SQL now(), so skew only moves the accept edge for an instant seconds away',
   },
   {
     file: 'packages/domain/src/agents/principals.ts',
-    code: 'if (expires > Date.now() + AGENT_MAX_LIFETIME_DAYS * 86_400_000) {',
+    fn: 'createAgentPrincipals.createAgentPrincipal',
+    kind: 'Date.now',
+    index: 1,
     reason:
       '(a) bound on a client-supplied instant before it is stored; enforcement against stored rows is SQL now(), so skew only moves the accept edge for an instant seconds away',
   },
   {
     file: 'packages/domain/src/agents/workspace.ts',
-    code: 'if (!Number.isFinite(expires) || expires <= Date.now())',
+    fn: 'createAgentWorkspace.recordAgentTaskPolicy',
+    kind: 'Date.now',
+    index: 0,
     reason:
       '(a) bound on a client-supplied instant before it is stored; enforcement against stored rows is SQL now(), so skew only moves the accept edge for an instant seconds away',
   },
   {
     file: 'packages/domain/src/agents/workspace.ts',
-    code: "if (expires > Date.now() + 90 * 86_400_000) throw failed('expiry_beyond_maximum', '/expiresAt');",
+    fn: 'createAgentWorkspace.recordAgentTaskPolicy',
+    kind: 'Date.now',
+    index: 1,
     reason:
       '(a) bound on a client-supplied instant before it is stored; enforcement against stored rows is SQL now(), so skew only moves the accept edge for an instant seconds away',
   },
   {
     file: 'packages/domain/src/agents/workspace.ts',
-    code: 'if (raw.firstRunAt !== undefined && !(Date.parse(raw.firstRunAt as string) > Date.now())) {',
+    fn: 'createAgentWorkspace.scheduleAgentTask',
+    kind: 'Date.now',
+    index: 0,
     reason:
       '(a) bound on a client-supplied instant before it is stored; enforcement against stored rows is SQL now(), so skew only moves the accept edge for an instant seconds away',
   },
   {
     file: 'packages/domain/src/automation/exports.ts',
-    code: 'const manifest = buildScopedManifest(row.id, new Date().toISOString(), scope, docs);',
+    fn: 'createExportOperations.build',
+    kind: 'new Date()',
+    index: 0,
     reason:
       '(a) response metadata stamp (asOf/computedAt/generatedAt/checkedAt); never compared server-side with a stored fact',
   },
   {
     file: 'packages/domain/src/automation/exports.ts',
-    code: ').rows[0]?.revoked_at ?? new Date();',
+    fn: 'createExportOperations.revokeExportGrant',
+    kind: 'new Date()',
+    index: 0,
     reason:
       '(a) unreachable fallback: the left side is a database now()/RETURNING value that is always present',
   },
   {
     file: 'packages/domain/src/automation/webhooks.ts',
-    code: 'asOf: new Date(),',
-    reason:
-      '(a) response metadata stamp (asOf/computedAt/generatedAt/checkedAt); never compared server-side with a stored fact',
-  },
-  {
-    file: 'packages/domain/src/automation/webhooks.ts',
-    code: 'const timestamp = Math.floor(Date.now() / 1000);',
+    fn: 'createWebhookOperations.dispatchWebhookDeliveries',
+    kind: 'Date.now',
+    index: 0,
     reason:
       '(a) protocol time of a host-clock token or signature (issued and checked by the application, or the peer clock); no stored fact',
   },
   {
+    file: 'packages/domain/src/automation/webhooks.ts',
+    fn: 'createWebhookOperations.listWebhookEventTypes',
+    kind: 'new Date()',
+    index: 0,
+    reason:
+      '(a) response metadata stamp (asOf/computedAt/generatedAt/checkedAt); never compared server-side with a stored fact',
+  },
+  {
     file: 'packages/domain/src/billing/adjustments.ts',
-    code: 'checkedAt: (at[0]?.at ?? new Date()).toISOString(),',
+    fn: 'createAdjustmentOperations.receivablesReport',
+    kind: 'new Date()',
+    index: 0,
     reason:
       '(a) unreachable fallback: the left side is a database now()/RETURNING value that is always present',
   },
   {
     file: 'packages/domain/src/billing/entries.ts',
-    code: 'asOf: (s?.as_of ?? new Date()).toISOString(),',
+    fn: 'patientBalanceIn',
+    kind: 'new Date()',
+    index: 0,
     reason:
       '(a) unreachable fallback: the left side is a database now()/RETURNING value that is always present',
   },
   {
     file: 'packages/domain/src/billing/plans.ts',
-    code: 'checkedAt: (at[0]?.at ?? new Date()).toISOString(),',
+    fn: 'createPlanOperations.listPlanWorklist',
+    kind: 'new Date()',
+    index: 0,
     reason:
       '(a) unreachable fallback: the left side is a database now()/RETURNING value that is always present',
   },
   {
     file: 'packages/domain/src/billing/worklist.ts',
-    code: 'checkedAt: (totals[0]?.at ?? new Date()).toISOString(),',
+    fn: 'createWorklistOperations.listWorklist',
+    kind: 'new Date()',
+    index: 0,
     reason:
       '(a) unreachable fallback: the left side is a database now()/RETURNING value that is always present',
   },
   {
     file: 'packages/domain/src/clinical/estimates.ts',
-    code: 'Date.now(),',
+    fn: 'createEstimateOperations.acceptEstimate',
+    kind: 'Date.now',
+    index: 0,
     reason:
       '(a) ages a caller-entered coverage sourceAsOf against a 30-day window; no database-stamped fact (the B5 fresh_until check moved to transactionNow)',
   },
   {
     file: 'packages/domain/src/clinical/estimates.ts',
-    code: 'const serviceDate = at[0]?.service_date ?? new Date().toISOString().slice(0, 10);',
+    fn: 'createEstimateOperations.generateEstimate',
+    kind: 'Date.now',
+    index: 0,
+    reason:
+      '(a) ages a caller-entered coverage sourceAsOf against a 30-day window; no database-stamped fact (the B5 fresh_until check moved to transactionNow)',
+  },
+  {
+    file: 'packages/domain/src/clinical/estimates.ts',
+    fn: 'createEstimateOperations.generateEstimate',
+    kind: 'new Date()',
+    index: 0,
     reason:
       '(a) unreachable fallback: the left side is a database now()/RETURNING value that is always present',
   },
   {
     file: 'packages/domain/src/clinical/estimates.ts',
-    code: 'const fromSources = coverageStatusAt(assumptions, Date.now());',
+    fn: 'createEstimateOperations.presentEstimate',
+    kind: 'Date.now',
+    index: 0,
     reason:
       '(a) ages a caller-entered coverage sourceAsOf against a 30-day window; no database-stamped fact (the B5 fresh_until check moved to transactionNow)',
   },
   {
     file: 'packages/domain/src/clinical/estimates.ts',
-    code: 'Date.now(),',
-    reason:
-      '(a) ages a caller-entered coverage sourceAsOf against a 30-day window; no database-stamped fact (the B5 fresh_until check moved to transactionNow)',
-  },
-  {
-    file: 'packages/domain/src/clinical/estimates.ts',
-    code: 'Date.now(),',
+    fn: 'project',
+    kind: 'Date.now',
+    index: 0,
     reason:
       '(a) ages a caller-entered coverage sourceAsOf against a 30-day window; no database-stamped fact (the B5 fresh_until check moved to transactionNow)',
   },
   {
     file: 'packages/domain/src/clinical/history.ts',
-    code: 'computedAt: new Date().toISOString(),',
+    fn: 'createHistoryOperations.getActiveAlerts',
+    kind: 'new Date()',
+    index: 0,
     reason:
       '(a) response metadata stamp (asOf/computedAt/generatedAt/checkedAt); never compared server-side with a stored fact',
   },
   {
     file: 'packages/domain/src/clinical/history.ts',
-    code: 'computedAt: new Date().toISOString(),',
+    fn: 'resolveHistoryReference',
+    kind: 'new Date()',
+    index: 0,
     reason:
       '(a) response metadata stamp (asOf/computedAt/generatedAt/checkedAt); never compared server-side with a stored fact',
   },
   {
     file: 'packages/domain/src/clinical/insurer-estimate.ts',
-    code: 'const readAt = q.readAt ?? new Date().toISOString();',
+    fn: 'computeInsurerEstimate',
+    kind: 'new Date()',
+    index: 0,
     reason:
       '(a) response metadata stamp (asOf/computedAt/generatedAt/checkedAt); never compared server-side with a stored fact',
   },
   {
     file: 'packages/domain/src/clinical/lab-cases.ts',
-    code: 'async function view(tx: TenantTransaction, r: CaseRow, asOf = Date.now()): Promise<LabCase> {',
-    reason:
-      '(a) compared with a user-scheduled instant or a calendar date (starts_at, due dates), not a database-stamped fact',
-  },
-  {
-    file: 'packages/domain/src/clinical/lab-cases.ts',
-    code: 'return { format: LAB_EXPORT_FORMAT, generatedAt: new Date().toISOString(), labCase };',
+    fn: 'createLabCaseOperations.exportLabCase',
+    kind: 'new Date()',
+    index: 0,
     reason:
       '(a) response metadata stamp (asOf/computedAt/generatedAt/checkedAt); never compared server-side with a stored fact',
   },
   {
     file: 'packages/domain/src/clinical/lab-cases.ts',
-    code: 'const asOf = q.asOf === undefined ? Date.now() : Date.parse(q.asOf);',
+    fn: 'createLabCaseOperations.labWorklist',
+    kind: 'Date.now',
+    index: 0,
+    reason:
+      '(a) compared with a user-scheduled instant or a calendar date (starts_at, due dates), not a database-stamped fact',
+  },
+  {
+    file: 'packages/domain/src/clinical/lab-cases.ts',
+    fn: 'view',
+    kind: 'Date.now',
+    index: 0,
     reason:
       '(a) compared with a user-scheduled instant or a calendar date (starts_at, due dates), not a database-stamped fact',
   },
   {
     file: 'packages/domain/src/clinical/referrals.ts',
-    code: 'async function view(tx: TenantTransaction, r: ReferralRow, asOf = Date.now()): Promise<Referral> {',
+    fn: 'createReferralOperations.exportReferral',
+    kind: 'new Date()',
+    index: 0,
     reason:
-      '(a) compared with a user-scheduled instant or a calendar date (starts_at, due dates), not a database-stamped fact',
+      '(a) response metadata stamp (asOf/computedAt/generatedAt/checkedAt); never compared server-side with a stored fact',
   },
   {
     file: 'packages/domain/src/clinical/referrals.ts',
-    code: "if (expires <= Date.now()) throw failedAt('/expiresAt', 'expiresInPast');",
+    fn: 'createReferralOperations.recordReferralShare',
+    kind: 'Date.now',
+    index: 0,
     reason:
       '(a) bound on a client-supplied instant before it is stored; enforcement against stored rows is SQL now(), so skew only moves the accept edge for an instant seconds away',
   },
   {
     file: 'packages/domain/src/clinical/referrals.ts',
-    code: 'if (expires > Date.now() + MAX_SHARE_DAYS * 86_400_000)',
+    fn: 'createReferralOperations.recordReferralShare',
+    kind: 'Date.now',
+    index: 1,
     reason:
       '(a) bound on a client-supplied instant before it is stored; enforcement against stored rows is SQL now(), so skew only moves the accept edge for an instant seconds away',
   },
   {
     file: 'packages/domain/src/clinical/referrals.ts',
-    code: 'generatedAt: new Date().toISOString(),',
+    fn: 'createReferralOperations.referralWorklist',
+    kind: 'Date.now',
+    index: 0,
     reason:
-      '(a) response metadata stamp (asOf/computedAt/generatedAt/checkedAt); never compared server-side with a stored fact',
+      '(a) compared with a user-scheduled instant or a calendar date (starts_at, due dates), not a database-stamped fact',
   },
   {
     file: 'packages/domain/src/clinical/referrals.ts',
-    code: 'const asOf = q.asOf === undefined ? Date.now() : Date.parse(q.asOf);',
+    fn: 'view',
+    kind: 'Date.now',
+    index: 0,
     reason:
       '(a) compared with a user-scheduled instant or a calendar date (starts_at, due dates), not a database-stamped fact',
   },
   {
     file: 'packages/domain/src/engagement/communications/consent.ts',
-    code: 'const at = q.at === undefined ? new Date() : new Date(q.at);',
+    fn: 'createConsentOperations.previewSuppression',
+    kind: 'new Date()',
+    index: 0,
     reason: '(a) quiet-hours preview instant against a wall-clock policy window; no stored fact compared',
   },
   {
     file: 'packages/domain/src/engagement/communications/recall-enrollment.ts',
-    code: 'await recallDueFor(tx, decision.locationRefs, q.category, Date.now(), false, clinical);',
+    fn: 'createRecallEnrollmentOperations.listRecallEnrollments',
+    kind: 'Date.now',
+    index: 0,
     reason:
       '(a) compared with a user-scheduled instant or a calendar date (starts_at, due dates), not a database-stamped fact',
   },
   {
     file: 'packages/domain/src/engagement/portal/session.ts',
-    code: 'projectedAt: (grants[0]?.projectedAt ?? new Date().toISOString()) as string,',
+    fn: 'createPortalSessionOperations.readPortalSession',
+    kind: 'new Date()',
+    index: 0,
     reason:
       '(a) unreachable fallback: the left side is a database now()/RETURNING value that is always present',
   },
   {
     file: 'packages/domain/src/events/record-command.ts',
-    code: 'const occurredAt = new Date().toISOString();',
+    fn: 'recordCommand',
+    kind: 'new Date()',
+    index: 0,
     reason:
       '(a) schema-validation placeholder only; the stored instant is the database now() (clock audit fix)',
   },
   {
     file: 'packages/domain/src/imaging/bridge-update.ts',
-    code: 'now: Date = new Date(),',
+    fn: 'verifyUpdateManifest',
+    kind: 'new Date()',
+    index: 0,
     reason:
       '(a) protocol time of a host-clock token or signature (issued and checked by the application, or the peer clock); no stored fact',
   },
   {
     file: 'packages/domain/src/imaging/bridge.ts',
-    code: 'if (Math.abs(Date.parse(r.reportedAt) - Date.now()) > opts.resultSkewSeconds * 1000)',
+    fn: 'createBridgeOperations.reportJobResult',
+    kind: 'Date.now',
+    index: 0,
     reason:
       '(a) protocol time of a host-clock token or signature (issued and checked by the application, or the peer clock); no stored fact',
   },
   {
     file: 'packages/domain/src/imaging/orphan-bytes.ts',
-    code: 'else if (Date.now() - at.getTime() <= graceMs) {',
+    fn: 'createOrphanBytesOperations.finishOne',
+    kind: 'Date.now',
+    index: 0,
     reason: '(a) filesystem mtime or an in-process cache entry: the host clock on both sides',
   },
   {
     file: 'packages/domain/src/imaging/orphan-bytes.ts',
-    code: 'const now = Date.now();',
+    fn: 'createOrphanBytesOperations.run',
+    kind: 'Date.now',
+    index: 0,
     reason: '(a) filesystem mtime or an in-process cache entry: the host clock on both sides',
   },
   {
     file: 'packages/domain/src/migration/operations.ts',
-    code: 'return { lastCheckedAt: rows[0]?.last ?? null, at: rows[0]?.at ?? new Date() };',
+    fn: 'createOperationsReadiness.lastBackupVerification',
+    kind: 'new Date()',
+    index: 0,
     reason:
       '(a) unreachable fallback: the left side is a database now()/RETURNING value that is always present',
   },
   {
     file: 'packages/domain/src/patients/identity.ts',
-    code: "if (effectiveAt.getTime() > Date.now() + FUTURE_SKEW_MS) throw invalid('effective_at_in_future');",
+    fn: 'createIdentityCommands.setPatientStatus',
+    kind: 'Date.now',
+    index: 0,
     reason:
       '(a) bound on a client-supplied instant before it is stored; enforcement against stored rows is SQL now(), so skew only moves the accept edge for an instant seconds away',
   },
   {
     file: 'packages/domain/src/patients/merge-confirmation.ts',
-    code: 'const now = options.now ?? Date.now;',
+    fn: 'createMergeConfirmationCodec',
+    kind: 'Date.now',
+    index: 0,
     reason:
       '(a) protocol time of a host-clock token or signature (issued and checked by the application, or the peer clock); no stored fact',
   },
   {
     file: 'packages/domain/src/patients/model.ts',
-    code: 'export function checkBirthDate(b: BirthDate, today: Date = new Date()): void {',
+    fn: 'checkBirthDate',
+    kind: 'new Date()',
+    index: 0,
     reason:
       '(a) compared with a user-scheduled instant or a calendar date (starts_at, due dates), not a database-stamped fact',
   },
   {
     file: 'packages/domain/src/policy/patient-access.ts',
-    code: 'evaluatedAt: (clock ?? new Date()).toISOString(),',
+    fn: 'evaluatePatientAccess',
+    kind: 'new Date()',
+    index: 0,
     reason:
       '(a) unreachable fallback: the left side is a database now()/RETURNING value that is always present',
   },
   {
     file: 'packages/domain/src/preferences/preferences.ts',
-    code: 'asOf: new Date().toISOString(),',
+    fn: 'ENVELOPE',
+    kind: 'new Date()',
+    index: 0,
     reason:
       '(a) response metadata stamp (asOf/computedAt/generatedAt/checkedAt); never compared server-side with a stored fact',
   },
   {
     file: 'packages/domain/src/rcm/clearinghouse.ts',
-    code: 'const at = new Date().toISOString();',
+    fn: 'createFakeClearinghouse.poll',
+    kind: 'new Date()',
+    index: 0,
     reason: '(a) synthetic fake adapter event time or a unique name suffix; not compared with stored facts',
   },
   {
     file: 'packages/domain/src/rcm/coverage.ts',
-    code: 'checkedAt: (at[0]?.at ?? new Date()).toISOString(),',
+    fn: 'createCoverageOperations.resolveCoverage',
+    kind: 'new Date()',
+    index: 0,
     reason:
       '(a) unreachable fallback: the left side is a database now()/RETURNING value that is always present',
   },
   {
     file: 'packages/domain/src/rcm/workflow.ts',
-    code: 'const deadline = Date.now() + ADVANCE_WAIT_MS;',
+    fn: 'createWorkflowOperations.advance',
+    kind: 'Date.now',
+    index: 0,
     reason:
       '(a) elapsed time or an in-process wait on the host clock, compared only with other host-clock readings',
   },
   {
     file: 'packages/domain/src/rcm/workflow.ts',
-    code: 'if (Date.now() >= deadline)',
+    fn: 'createWorkflowOperations.advance',
+    kind: 'Date.now',
+    index: 1,
     reason:
       '(a) elapsed time or an in-process wait on the host clock, compared only with other host-clock readings',
   },
   {
     file: 'packages/domain/src/reporting/measures.ts',
-    code: 'asOf: new Date().toISOString(),',
+    fn: 'createMeasureReads.listMeasures',
+    kind: 'new Date()',
+    index: 0,
     reason:
       '(a) response metadata stamp (asOf/computedAt/generatedAt/checkedAt); never compared server-side with a stored fact',
   },
   {
     file: 'packages/domain/src/scheduling/availability.ts',
-    code: 'const asOf = new Date().toISOString();',
-    reason:
-      '(a) response metadata stamp (asOf/computedAt/generatedAt/checkedAt); never compared server-side with a stored fact',
-  },
-  {
-    file: 'packages/domain/src/scheduling/availability.ts',
-    code: 'const now = Date.now();',
+    fn: 'searchAvailabilityIn',
+    kind: 'Date.now',
+    index: 0,
     reason:
       '(a) compared with a user-scheduled instant or a calendar date (starts_at, due dates), not a database-stamped fact',
   },
   {
+    file: 'packages/domain/src/scheduling/availability.ts',
+    fn: 'searchAvailabilityIn',
+    kind: 'new Date()',
+    index: 0,
+    reason:
+      '(a) response metadata stamp (asOf/computedAt/generatedAt/checkedAt); never compared server-side with a stored fact',
+  },
+  {
     file: 'packages/domain/src/scheduling/booking.ts',
-    code: "if (s < Date.now()) throw failedAt('/startsAt', 'inThePast');",
+    fn: 'checkWindow',
+    kind: 'Date.now',
+    index: 0,
     reason:
       '(a) compared with a user-scheduled instant or a calendar date (starts_at, due dates), not a database-stamped fact',
   },
   {
     file: 'packages/domain/src/scheduling/floor.ts',
-    code: 'asOf: new Date().toISOString(),',
+    fn: 'envelopeOf',
+    kind: 'new Date()',
+    index: 0,
     reason:
       '(a) response metadata stamp (asOf/computedAt/generatedAt/checkedAt); never compared server-side with a stored fact',
   },
   {
     file: 'packages/domain/src/scheduling/recall.ts',
-    code: 'const asOf = q.asOf === undefined ? Date.now() : Date.parse(q.asOf);',
+    fn: 'createRecallOperations.createRecallTask',
+    kind: 'Date.now',
+    index: 0,
     reason:
       '(a) compared with a user-scheduled instant or a calendar date (starts_at, due dates), not a database-stamped fact',
   },
   {
     file: 'packages/domain/src/scheduling/recall.ts',
-    code: 'const asOf = p.asOf === undefined ? Date.now() : Date.parse(p.asOf);',
+    fn: 'createRecallOperations.recallDue',
+    kind: 'Date.now',
+    index: 0,
     reason:
       '(a) compared with a user-scheduled instant or a calendar date (starts_at, due dates), not a database-stamped fact',
   },
   {
     file: 'packages/domain/src/scheduling/recurrence.ts',
-    code: "(c) => c.status === 'booked' && c.startsAt > Date.now(),",
+    fn: 'createRecurrenceOperations.endSeries',
+    kind: 'Date.now',
+    index: 0,
     reason:
       '(a) compared with a user-scheduled instant or a calendar date (starts_at, due dates), not a database-stamped fact',
   },
   {
     file: 'packages/domain/src/scheduling/requests.ts',
-    code: 'checkedAt: (first?.at ?? new Date()).toISOString(),',
+    fn: 'createRequestOperations.unbookedRequests',
+    kind: 'new Date()',
+    index: 0,
     reason:
       '(a) unreachable fallback: the left side is a database now()/RETURNING value that is always present',
   },
   {
     file: 'packages/domain/src/scheduling/resources.ts',
-    code: 'checkedAt: (first?.at ?? new Date()).toISOString(),',
+    fn: 'createSchedulingResourceService.stateLabelledResources',
+    kind: 'new Date()',
+    index: 0,
     reason:
       '(a) unreachable fallback: the left side is a database now()/RETURNING value that is always present',
   },
   {
     file: 'packages/domain/src/scheduling/staging.ts',
-    code: 'asOf: new Date().toISOString(),',
+    fn: 'createStagingOperations.listStaging',
+    kind: 'new Date()',
+    index: 0,
     reason:
       '(a) response metadata stamp (asOf/computedAt/generatedAt/checkedAt); never compared server-side with a stored fact',
   },
   {
     file: 'packages/domain/src/scheduling/visit-context.ts',
-    code: 'asOf: (now.rows[0]?.at ?? new Date()).toISOString(),',
+    fn: 'createVisitContextOperations.getVisitContext',
+    kind: 'new Date()',
+    index: 0,
     reason:
       '(a) unreachable fallback: the left side is a database now()/RETURNING value that is always present',
   },
   {
     file: 'packages/domain/src/scheduling/waitlist.ts',
-    code: "if (r.state !== 'open' || r.starts_at.getTime() <= Date.now()) throw refused('recovery_closed');",
+    fn: 'createWaitlistOperations.executeRecovery',
+    kind: 'Date.now',
+    index: 0,
     reason:
       '(a) compared with a user-scheduled instant or a calendar date (starts_at, due dates), not a database-stamped fact',
   },
   {
     file: 'packages/domain/src/scheduling/waitlist.ts',
-    code: "if (expires <= Date.now()) throw failedAt('/expiresAt', 'inThePast');",
+    fn: 'createWaitlistOperations.grantStandingPolicy',
+    kind: 'Date.now',
+    index: 0,
     reason:
       '(a) bound on a client-supplied instant before it is stored; enforcement against stored rows is SQL now(), so skew only moves the accept edge for an instant seconds away',
   },
   {
     file: 'packages/domain/src/scheduling/waitlist.ts',
-    code: 'if (expires > Date.now() + MAX_POLICY_DAYS * 86_400_000)',
+    fn: 'createWaitlistOperations.grantStandingPolicy',
+    kind: 'Date.now',
+    index: 1,
     reason:
       '(a) bound on a client-supplied instant before it is stored; enforcement against stored rows is SQL now(), so skew only moves the accept edge for an instant seconds away',
   },

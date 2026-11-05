@@ -1,79 +1,185 @@
+<div align="center">
+
 # CuspAtlas
 
-An open-source dental practice platform being planned for US general dentistry.
+### More time for care. More control for practices.
 
-**Status: planning only. No application, clinical database, API, or UI has been built. Do not use this repository for patient care or upload patient information.**
+An open-source dental practice platform built around complete workflows, dependable automation, and ownership of your data.
 
-CuspAtlas is a working name: a tooth's cusp + an atlas of practice operations. The name is provisional; an initial exact-name web/GitHub search found no competing project, but does not establish trademark or domain availability.
+[![License: AGPL v3+](https://img.shields.io/badge/License-AGPL--3.0--or--later-2563eb)](LICENSE) [![Stage: early development](https://img.shields.io/badge/Stage-Early_development-d97706)](#project-status) [![Focus: US general dentistry](https://img.shields.io/badge/Focus-US_general_dentistry-0f766e)](#the-practice-workflow)
 
-## Purpose
+[Vision](#why-cuspatlas) · [Capabilities](#the-practice-workflow) · [Architecture](#one-platform-one-set-of-rules) · [Deployment](#your-platform-your-choice) · [Contribute](#get-involved)
 
-All software features remain free and open source. Paid offerings cover setup, hosting/managed operation and support only. Practices can bring supported infrastructure and service accounts through the [open-platform onboarding contract](docs/OPEN-PLATFORM-AND-ONBOARDING.md); third-party costs and qualification remain separate.
+</div>
 
-Ease of use, staff time returned, closed-loop claims automation and practical migration are core product pillars. See [practice time and automation requirements](docs/PRACTICE-TIME-AND-AUTOMATION.md); these are requirements, not shipped features.
+---
 
-Give dental practices ownership of their data and software, complete practice workflows, and secure programmatic access without a software-license paywall. Self-hosting is a first-class objective. Hosting, hardware, support, communications, payer connections, prescribing, and model inference still have real costs.
+> **Early development · Synthetic data only**
+>
+> CuspAtlas is not ready for patient care. The default branch contains specifications and build plans; backend implementation is progressing on development branches. Capabilities below describe the intended product, not a released feature checklist. Product UI design remains deferred.
 
-## Read first
+## Why CuspAtlas
 
-Start here, in this order:
+Running a practice should not mean entering the same information repeatedly, chasing claims across disconnected systems, or losing access to your data when you switch software.
 
-1. [Readiness review](docs/READINESS-REVIEW.md) — what is and is not established, the decision log, and the risk and unknown registers.
-2. [Product and architecture design](docs/superpowers/specs/2026-11-03-dental-pms-design.md)
-3. [End-to-end capability and acceptance matrix](docs/CAPABILITIES.md)
-4. [API, MCP, and automation contract](docs/API-AND-MCP.md)
-5. [Security and clinical-readiness gates](docs/SECURITY-AND-READINESS.md)
+CuspAtlas is being developed to connect the entire practice workflow—from the first appointment request to completed care and reconciled payment—with automation that does useful work and makes exceptions easy to resolve.
 
-## The planning package
+| Product pillar | What it means for a practice |
+| --- | --- |
+| **Time returned** | Routine administrative work advances under practice-defined authorization. Staff focus on exceptions and patient care. |
+| **Ease of use** | Clear language, sensible defaults, minimal repeated entry, accessible workflows, and actionable recovery when something fails. |
+| **Practice ownership** | Open software, supported self-hosting, guided migration, and complete export paths. |
+| **Connected operations** | Clinical, financial, scheduling, and communication workflows share context while preserving their separate records and responsibilities. |
+| **Accountable automation** | API, MCP, AI, and background jobs follow the same permissions, business rules, and audit requirements. |
 
-- [90% practice-suitability target and compatibility research](docs/PRACTICE-COVERAGE-STRATEGY.md)
+**Every CuspAtlas software feature remains free and open source.** Paid offerings cover setup, hosting, managed operation, and support—not additional software capabilities.
 
-- **Contracts and matrices**: [shared contracts across plans](docs/SHARED-CONTRACTS.md) · [workflow, state and role matrix](docs/WORKFLOW-ROLE-MATRIX.md) · [integration and device qualification](docs/INTEGRATION-QUALIFICATION-MATRIX.md) · [synthetic acceptance scenarios](docs/ACCEPTANCE-SCENARIOS.md)
-- **Architecture contracts**: [AI PMS architecture and delivery gates](docs/AI-PMS-ARCHITECTURE.md) · [hardware and claims qualification](docs/HARDWARE-AND-CLAIMS-QUALIFICATION.md)
-- **Delivery**: [roadmap](docs/ROADMAP.md) · [foundation status and Supabase provisioning](docs/SETUP.md)
-- **Evidence**: [research ledger and its limits](docs/RESEARCH.md) · [Tab32 coverage and remaining gaps](docs/TAB32-ANALYSIS-COVERAGE.md)
+## The practice workflow
 
-### What was observed of the incumbent
+US general dentistry is the initial focus. Other countries and specialties are extensibility goals, not launch promises.
 
-Read-only observation of Tab32 through an authenticated session. Structure and vocabulary only; no patient data is published.
+| Area | Planned scope |
+| --- | --- |
+| Patients and scheduling | Identity and households, intake, appointment requests, resource-aware booking, waitlists, recall, and attendance |
+| Clinical records | Charting, periodontal records, histories, treatment planning, consent, notes, signing, and amendments |
+| Billing and insurance | Estimates, ledgers, payments, payment plans, eligibility, claims, attachments, denials, remittances, and reconciliation |
+| Imaging and devices | Qualified imaging integrations, patient-context handoff, image return, and a native companion where device access requires it |
+| Patient engagement | Portal access, forms, reminders, communication preferences, delivery tracking, and follow-up |
+| Practice operations | Roles and permissions, work queues, reporting, audit trails, backup and recovery, and operational monitoring |
+| Migration and portability | Guided imports, record matching, attachment integrity, financial reconciliation, historical access, and exports |
+| API, MCP, and AI | Documented business operations, controlled automation, proposal and approval flows, and integration parity |
 
-- [Authenticated surface map](docs/TAB32-AUTHENTICATED-MAP.md) — routes, overlay screens, menus, field inventories
-- [HTTP surface and conventions](docs/TAB32-API-SURFACE.md) — endpoint inventory and the conventions we will not copy
-- [Domain model observations](docs/TAB32-DOMAIN-MODEL.md) — auditable entity taxonomy, payment plans, scheduler
-- [State vocabularies and access control](docs/TAB32-STATUS-VOCABULARIES.md) — appointment statuses, form fields, permission matrix
+[Capability matrix](docs/CAPABILITIES.md) · [Product specification](docs/superpowers/specs/2026-11-03-dental-pms-design.md)
 
-### Reference implementations studied
+## Claims, from eligibility to reconciled payment
 
-- [MntOs demo: feature and function notes](docs/MNTOS-PATTERN-REVIEW.md) — public demo, read-only. What another dental product does that we might want, and the gaps it exposes in our design (floor view, needs-reply queue, counts as navigation, freshness on every list). Notes for decisions, not adopted tasks; no screen design, no code reuse.
+The goal is a complete revenue-cycle workflow—not simply generating a claim or drafting an appeal.
 
-### Implementation plans
+```mermaid
+flowchart LR
+    A[Check eligibility] --> B[Document completed care]
+    B --> C[Validate claim and attachments]
+    C --> D[Submit through clearinghouse]
+    D --> E[Track acknowledgements and status]
+    E --> F[Reconcile remittance and payment]
+    E --> G[Resolve rejection or denial]
+    G --> C
+    F --> H[Resolve remaining balances]
+```
 
-Start execution planning with the [synthetic foundation runbook](docs/superpowers/plans/2026-11-03-foundation-execution-runbook.md), which sequences F without adding a new workstream.
+The billing plan covers claim preparation, attachment requirements, duplicate prevention, submission receipts, status follow-up, rejections, denials and appeals, remittance matching, payment allocation, and remaining balances.
 
-One per roadmap workstream, all conforming to [shared contracts](docs/SHARED-CONTRACTS.md):
+Routine, deterministic steps should execute under standing practice authorization. Missing documentation, ambiguous matches, payer exceptions, and decisions requiring professional judgment become focused work items with context and a clear next action.
 
-| Workstream | Plan |
-|---|---|
-| F: platform core | [platform foundation](docs/superpowers/plans/2026-11-03-platform-foundation.md) |
-| S: patients and scheduling | [scheduling and patients](docs/superpowers/plans/2026-11-04-scheduling-and-patients.md) |
-| C: clinical record | [clinical record](docs/superpowers/plans/2026-11-04-clinical-record.md) |
-| B: billing and RCM | [billing and RCM](docs/superpowers/plans/2026-11-04-billing-and-rcm.md) |
-| I: imaging and devices | [imaging and devices](docs/superpowers/plans/2026-11-04-imaging-and-devices.md) |
-| E: engagement and portal | [portal and communications](docs/superpowers/plans/2026-11-04-portal-and-communications.md) |
-| A: API, MCP and AI | [API, MCP and AI](docs/superpowers/plans/2026-11-04-api-mcp-and-ai.md) |
-| M: migration and operations | [migration and operations](docs/superpowers/plans/2026-11-04-migration-and-operations.md) |
-| R: supported release | [supported release](docs/superpowers/plans/2026-11-04-supported-release.md) |
+Eligibility, estimated coverage, submission, payer acceptance, and payment remain separate facts. Automation must preserve that distinction and recover safely from retries, delays, and partial failures.
 
-A plan existing is not a plan approved. Every plan carries open decisions and blocked-on-discovery items, and the readiness review records that none of the release gates is evidenced.
+[Billing and revenue-cycle plan](docs/superpowers/plans/2026-11-04-billing-and-rcm.md) · [Practice-time and automation requirements](docs/PRACTICE-TIME-AND-AUTOMATION.md)
 
-- [Assurance targets: ISO 27001, ISO 42001 and open-source controls](docs/ASSURANCE-AND-CERTIFICATION.md)
+## One platform, one set of rules
 
-## Proposed technical direction
+```mermaid
+flowchart TB
+    WEB[Future web application] --> CORE[Shared application policy and business operations]
+    REST[Documented REST API] --> CORE
+    MCP[MCP tools and AI agents] --> CORE
+    JOBS[Background workers] --> CORE
+    CORE --> DATA[PostgreSQL: isolation and constraints]
+    CORE --> AUDIT[Audit history and durable events]
+    CORE --> SERVICES[Qualified service adapters]
+    CORE --> DEVICES[Device companion and imaging adapters]
+```
 
-Web-first TypeScript application and API, PostgreSQL transactional core, Supabase services with a self-hosting path, and an optional native device companion. Rust is a candidate for the companion; actual vendor SDK requirements determine adapters. This is an engineering recommendation, not a benchmark result or an implemented architecture.
+The technical direction is **web-first TypeScript with PostgreSQL**, supported Supabase services, and a self-hosting path. An optional native companion handles device integration where required. Rust is a candidate; SDK and operating-system requirements determine adapter technology.
 
-Broad incumbent research is closed. UI design remains deferred until separately requested and does not block synthetic backend foundation work. Application implementation requires a separate explicit start instruction; module qualification and clinical validation remain required.
+The architecture requires:
+
+- **Controlled programmatic access:** API and MCP expose business operations through shared authorization and validation. Agents do not receive unrestricted database access.
+- **Independent data protection:** tenant isolation, database constraints, scoped access, and negative permission tests reinforce application checks.
+- **Reliable execution:** durable jobs, idempotency, optimistic concurrency, explicit failure states, and reconciliation prevent silent duplicate or lost work.
+- **Preserved history:** signed clinical records and posted financial records change through amendments or reversals, with an attributable audit trail.
+- **Replaceable integrations:** adapter contracts describe supported operations, configuration, qualification, failures, and recovery.
+
+[Architecture](docs/AI-PMS-ARCHITECTURE.md) · [API and MCP contract](docs/API-AND-MCP.md) · [Shared engineering contracts](docs/SHARED-CONTRACTS.md)
+
+## Your platform, your choice
+
+The deployment plan provides three ways to operate the same open product:
+
+| Option | Who operates it | What you pay CuspAtlas for |
+| --- | --- | --- |
+| **Self-managed** | Your practice or chosen IT team | Nothing required; optional setup and support |
+| **Managed on your infrastructure** | A delegated operator using practice-owned infrastructure and accounts | Setup, managed operation, and support |
+| **Hosted for you** | We operate the hosting environment | Hosting, setup, and support |
+
+There are no planned proprietary feature keys, paid-only connectors, security tiers, or software feature paywalls.
+
+### Bring your own database and services
+
+Guided onboarding is intended to support qualified PostgreSQL/Supabase configurations and practice-owned service accounts. It should explain what each connection enables, verify prerequisites, keep credentials server-side, and show a useful next step when configuration fails.
+
+Connections include email, SMS and voice, AI providers, clearinghouses, payments, prescribing, imaging, object storage, and backups. An API key alone is not enough for every integration: some require enrollment, agreements, identity verification, or device qualification.
+
+**Free software does not mean unlimited free infrastructure or third-party usage.** Hosting, communications, AI inference, payment processing, clearinghouses, hardware, and other services may carry their own costs and terms. Those dependencies must be visible during setup.
+
+[Open-platform and onboarding requirements](docs/OPEN-PLATFORM-AND-ONBOARDING.md) · [Integration qualification](docs/HARDWARE-AND-CLAIMS-QUALIFICATION.md)
+
+## Security and responsible AI
+
+Security, recovery, and AI governance are engineering requirements from the beginning. The plans cover least-privilege access, tenant isolation, private storage, protected credentials, attributable actions, backup and restore verification, and operational ownership.
+
+AI actions must respect practice permissions, approved data-handling policies, use-case evaluations, and appropriate review boundaries. Clinical judgment and signing remain with authorized professionals.
+
+ISO 27001 and ISO 42001 are assurance targets—not certifications already held. Self-hosting does not automatically confer compliance, certifications, or operational readiness.
+
+[Security and release gates](docs/SECURITY-AND-READINESS.md) · [Assurance requirements](docs/ASSURANCE-AND-CERTIFICATION.md) · [Security reporting](SECURITY.md)
+
+## Project status
+
+| Layer | Current position |
+| --- | --- |
+| Product and architecture | Specifications, shared contracts, acceptance scenarios, and workstream plans are on the default branch. |
+| Backend implementation | Synthetic backend work is on development branches. Review the relevant commit and its checks for implementation evidence. |
+| Product UI | Deferred; no patient-ready application experience is offered here. |
+| Real-world integrations | Device and service qualification remain release requirements; broad compatibility is not established. |
+| Practice release | Production operations, clinical validation, migration validation, and release gates remain prerequisites. |
+
+[Development branches](https://github.com/cyog941/cuspatlas/branches) · [Pull requests](https://github.com/cyog941/cuspatlas/pulls) · [CI runs](https://github.com/cyog941/cuspatlas/actions)
+
+A passing synthetic test suite is evidence for a specific implementation and environment. It is not proof of clinical safety or production readiness. There is no patient-ready installer or product demo on this branch.
+
+## Documentation and build plans
+
+Start with the [design specification](docs/superpowers/specs/2026-11-03-dental-pms-design.md), [readiness review](docs/READINESS-REVIEW.md), and [roadmap](docs/ROADMAP.md). Developers should read the [shared contracts](docs/SHARED-CONTRACTS.md) and [synthetic foundation runbook](docs/superpowers/plans/2026-11-03-foundation-execution-runbook.md) before the relevant workstream plan.
+
+<details>
+<summary><strong>Explore all nine workstreams</strong></summary>
+
+| Workstream | Implementation plan |
+| --- | --- |
+| F · Platform core | [Foundation](docs/superpowers/plans/2026-11-03-platform-foundation.md) |
+| S · Patients and scheduling | [Scheduling and patients](docs/superpowers/plans/2026-11-04-scheduling-and-patients.md) |
+| C · Clinical record | [Clinical record](docs/superpowers/plans/2026-11-04-clinical-record.md) |
+| B · Billing and insurance | [Billing and revenue cycle](docs/superpowers/plans/2026-11-04-billing-and-rcm.md) |
+| I · Imaging and devices | [Imaging and devices](docs/superpowers/plans/2026-11-04-imaging-and-devices.md) |
+| E · Patient engagement | [Portal and communications](docs/superpowers/plans/2026-11-04-portal-and-communications.md) |
+| A · API, MCP, and AI | [Programmatic access and automation](docs/superpowers/plans/2026-11-04-api-mcp-and-ai.md) |
+| M · Migration and operations | [Migration and operations](docs/superpowers/plans/2026-11-04-migration-and-operations.md) |
+| R · Supported release | [Release qualification](docs/superpowers/plans/2026-11-04-supported-release.md) |
+
+</details>
+
+[Acceptance scenarios](docs/ACCEPTANCE-SCENARIOS.md) · [Workflow and role matrix](docs/WORKFLOW-ROLE-MATRIX.md) · [Architecture decisions](docs/ADR-REGISTRY.md)
+
+## Get involved
+
+**Dental teams:** help define workflow exceptions, migration expectations, and measurable time savings. Use synthetic examples; never include patient information in issues, screenshots, logs, or fixtures.
+
+**Developers:** review the relevant branch, contracts, and acceptance conditions. Follow that branch's setup instructions rather than treating this documentation branch as an installable application.
+
+**Integration partners:** help qualify supported devices, documented interfaces, sandbox workflows, enrollment requirements, and failure recovery.
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting work. Substantive proposals should describe the practice problem, expected behavior, and how it will be verified. Follow [SECURITY.md](SECURITY.md) for security reports.
 
 ## License
 
-Copyright (c) 2026 CuspAtlas contributors. Licensed under **AGPL-3.0-or-later**; see [LICENSE](LICENSE). The core license is an initial maintainer choice intended to preserve open access to network-service modifications. Third-party services and terminology datasets retain their own terms. CuspAtlas is independent of and not endorsed by Tab32.
+Copyright © 2026 CuspAtlas contributors. Licensed under **[AGPL-3.0-or-later](LICENSE)**. Third-party software, services, and terminology datasets retain their own licenses and terms.

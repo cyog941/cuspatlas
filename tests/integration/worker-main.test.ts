@@ -7,6 +7,7 @@ import {
 import {
   createAuthorize,
   createBillingService,
+  createFakeAttachmentSource,
   createFakeClearinghouse,
   SYNTHETIC_TEST_IDEMPOTENCY_DIGEST_KEY,
   SYNTHETIC_TEST_IMAGING_TOKEN_SECRET,
@@ -196,6 +197,7 @@ describe('worker composition against the test database', () => {
       withTenantTransaction: createTenantTransactionRunner(s.db.app),
       recording: { sink: createSecurityAttemptSink(s.db.sink), alert: () => {} },
       claims: clearinghouse,
+      attachments: createFakeAttachmentSource(),
     });
     const a1 = ctxFor(T_ALPHA, USER_A1, 'human', [...BILLING_ALL, 'patients.read', 'patients.write']);
     const engine = ctxFor(T_ALPHA, SVC_A1, 'service', BILLING_ALL);

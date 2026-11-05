@@ -12,6 +12,7 @@ import {
   createBillingService,
   createFakeClearinghouse,
   createImagingAttachmentRefResolver,
+  createImagingAttachmentSource,
   createImagingImageRefResolver,
   verifyImportedNoteDigests,
 } from '@cuspatlas/domain';
@@ -153,6 +154,7 @@ async function seedBillingChain(s: ImagingStack, patientRef: string): Promise<vo
     withTenantTransaction: createTenantTransactionRunner(s.db.app),
     recording: { sink: createSecurityAttemptSink(s.db.sink), alert: () => {} },
     claims: fake,
+    attachments: createImagingAttachmentSource(),
   });
   const a1 = ctxFor(T_ALPHA, USER_A1, 'human', [...BILLING_ALL, 'patients.read', 'patients.write']);
   const env = (operation: string, payload: unknown) => ({ operation, idempotencyKey: randomUUID(), payload });

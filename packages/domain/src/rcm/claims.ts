@@ -56,7 +56,7 @@ import { loadRenderedProcedureEvent } from '../clinical/procedures';
 import { canonicalJson, sha256Hex } from '../commands/digest';
 import { recordCommand } from '../events/record-command';
 import { recordSensitiveRead } from '../events/record-sensitive-read';
-import { type AttachmentSourcePort, createFakeAttachmentSource } from './attachments';
+import type { AttachmentSourcePort } from './attachments';
 import { type ClaimsPartnerPort, createFakeClearinghouse, type TransportAnswer } from './clearinghouse';
 
 export const CLAIM_RESOURCE = 'rcmClaim';
@@ -434,7 +434,7 @@ async function readiness(tx: TenantTransaction, claim: ClaimRow, head: VersionRo
 export function createClaimOperations(
   base: BillingBase,
   partner: ClaimsPartnerPort | null = createFakeClearinghouse(),
-  objects: AttachmentSourcePort = createFakeAttachmentSource(),
+  objects: AttachmentSourcePort,
 ) {
   const { deps, execute } = base;
   const timing = providerTiming(deps);

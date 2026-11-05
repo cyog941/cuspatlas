@@ -10,6 +10,7 @@ import {
   type CaptureRequest,
   createAuthorize,
   createBillingService,
+  createFakeAttachmentSource,
   createFakeClearinghouse,
   createSyntheticPaymentProvider,
   type EligibilityPort,
@@ -82,6 +83,8 @@ function service(over: Partial<BillingDeps> = {}) {
     recording: { sink: createSecurityAttemptSink(db.sink), alert: () => {} },
     payments: createSyntheticPaymentProvider(),
     claims: createFakeClearinghouse(),
+    // Synthetic-test fixture only: the in-process attachment fake (R8: never a domain default).
+    attachments: createFakeAttachmentSource(),
     ...over,
   });
 }

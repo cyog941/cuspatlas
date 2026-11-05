@@ -15,6 +15,7 @@ import {
   createAuthorize,
   createBillingService,
   createDurableExecutor,
+  createImagingAttachmentSource,
   createImagingService,
   createProposalService,
   type DeliveryAdapter,
@@ -230,6 +231,8 @@ export async function composeWorker(
     execute,
     ...(providers.clearinghouse ? { claims: providers.clearinghouse } : {}),
     ...(providers.payments ? { payments: providers.payments } : {}),
+    // R8: CL-04 attachment digests from I3's consumer reference read (never the fake).
+    attachments: createImagingAttachmentSource(),
   });
   const proposals = createProposalService({
     authorize,

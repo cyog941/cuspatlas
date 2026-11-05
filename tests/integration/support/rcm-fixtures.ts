@@ -8,6 +8,7 @@ import {
   type BillingDeps,
   createAuthorize,
   createBillingService,
+  createFakeAttachmentSource,
   createFakeClearinghouse,
   createSyntheticPaymentProvider,
 } from '@cuspatlas/domain';
@@ -71,6 +72,8 @@ export async function openRcmHarness(db: TestDatabase, opts: { mcp?: boolean } =
       // No implicit fakes in the domain: tests pass the synthetic adapters explicitly.
       payments: createSyntheticPaymentProvider(),
       claims: createFakeClearinghouse(),
+      // Synthetic-test fixture only: the in-process attachment fake (R8: never a domain default).
+      attachments: createFakeAttachmentSource(),
       ...over,
     });
   return {

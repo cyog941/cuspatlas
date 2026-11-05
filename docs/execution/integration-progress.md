@@ -202,3 +202,7 @@ Floor and provider-request reads use configurable caps (`SchedulingDeps.floorCap
 ### 10.6 Group R: R7 (E10 escalation)
 
 The episode is keyed on the first portal message after the last staff message; due is measured from it; a follow-up neither de-escalates nor restarts the due time. Only a human who may post staff replies (`messaging.messages.post`) records the escalation fact during a read; read-only readers and service principals get the same list with the overdue item routed to the escalation queue (derived) and `escalatedAt: null` until a staff read records it. The scan uses each queue's policy as its cutoff (no 23-hour constant) and walks batches with a keyset cursor, so no queue starves another. No worker stage was added (open: a worker escalation sweep would remove the dependence on a staff read). Red (2 failed) then green; the two exact-due assertions now allow under one second between the thread activity time and the episode message time.
+
+### 10.7 Group R: R8 (claims attachment source)
+
+`BillingDeps.attachments` is required and `createClaimOperations` has no fake default; the worker now passes `createImagingAttachmentSource()` (I3), as the API and MCP already did; synthetic-test fixtures pass `createFakeAttachmentSource()` explicitly. Red: typecheck failed on the unused `@ts-expect-error` in `review-hardening-h1.test.ts`, then green.

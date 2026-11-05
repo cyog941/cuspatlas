@@ -383,6 +383,45 @@ export const AGENT_OPS: AgentOp[] = [
       'A12: evaluation runs with model, prompt and case-set versions, newest first (OR-01 list envelope).',
     invoke: (svc, actor, i) => svc.listAiEvaluations(actor, i.body),
   },
+  {
+    method: 'post',
+    path: '/v1/prescriptions/drafts',
+    operationId: 'prescriptions.drafts.create',
+    protected: true,
+    requestBody: A('PrescriptionDraftCreate'),
+    success: { status: '201', schema: A('PrescriptionCommandResult') },
+    refusals: COMMAND,
+    tool: 'prescriptions_drafts_create',
+    description:
+      'A13: draft a prescription for a human prescriber. No e-prescribing partner is qualified: always refused with 503 service_unavailable, reason prescribing_not_available, naming each missing fact and capability. Never a fabricated success.',
+    invoke: (svc, actor, i) => svc.createPrescriptionDraft(actor, env('prescriptions.drafts.create', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/prescriptions/submit',
+    operationId: 'prescriptions.submit',
+    protected: true,
+    requestBody: A('PrescriptionSubmit'),
+    success: { status: '200', schema: A('PrescriptionCommandResult') },
+    refusals: COMMAND,
+    tool: 'prescriptions_submit',
+    description:
+      'A13: submit a prescription draft bound to an approved A10 proposal, by a verified human prescriber only. No partner is qualified and no prescriber verification source exists: always refused (prescribing_not_available). Agents never prescribe.',
+    invoke: (svc, actor, i) => svc.submitPrescription(actor, env('prescriptions.submit', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/prescriptions/cancel',
+    operationId: 'prescriptions.cancel',
+    protected: true,
+    requestBody: A('PrescriptionCancel'),
+    success: { status: '200', schema: A('PrescriptionCommandResult') },
+    refusals: COMMAND,
+    tool: 'prescriptions_cancel',
+    description:
+      'A13: cancel a prescription draft. Refused like every prescribing operation (prescribing_not_available).',
+    invoke: (svc, actor, i) => svc.cancelPrescription(actor, env('prescriptions.cancel', i)),
+  },
 ];
 
 export const AGENT_OP_ROUTES = (): RouteContract[] =>

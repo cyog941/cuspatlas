@@ -40,6 +40,9 @@ const CASES: Record<string, { tool: string; admits: Admits }> = {
   'ai.useCases.configure': { tool: 'ai_use_cases_configure', admits: 'human' },
   'ai.evaluations.run': { tool: 'ai_evaluations_run', admits: 'human' },
   'ai.evaluations.list': { tool: 'ai_evaluations_list', admits: 'humanAndService' },
+  'prescriptions.drafts.create': { tool: 'prescriptions_drafts_create', admits: 'human' },
+  'prescriptions.submit': { tool: 'prescriptions_submit', admits: 'human' },
+  'prescriptions.cancel': { tool: 'prescriptions_cancel', admits: 'human' },
 };
 
 let s: AgentStack;

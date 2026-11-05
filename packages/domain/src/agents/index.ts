@@ -2,6 +2,7 @@ import { type AiDeps, createAiPipeline } from './ai';
 import { type AgentBaseDeps, createAgentBase } from './base';
 import { createAiEvaluations, evaluationGate } from './eval';
 import { createAgentGovernance } from './governance';
+import { createPrescribingEnvelope, type PrescribingPort } from './prescribing';
 import { createAgentPrincipals } from './principals';
 import { createActionProposals, type ProposalOwners } from './proposals';
 
@@ -17,6 +18,12 @@ export * from './ai-port';
 export * from './codecs';
 export { AI_EVAL_CASE_SETS, AI_EVAL_THRESHOLDS, type EvalCase, evaluationGate, runEvaluation } from './eval';
 export { AGENT_CONSENT_RESOURCE, type BudgetTicket, measureResult } from './governance';
+export type {
+  PrescriberIdentity,
+  PrescriberVerification,
+  PrescribingOutcome,
+  PrescribingPort,
+} from './prescribing';
 export { AGENT_RESOURCE } from './principals';
 export {
   ACTION_PROPOSAL_POLICY_VERSION,
@@ -30,6 +37,8 @@ export type AgentServiceDeps = AgentBaseDeps & {
   readonly owners?: ProposalOwners;
   /** A11: model adapter (synthetic only), source readers and owning commands. */
   readonly ai?: AiDeps;
+  /** A13: the prescribing partner port (none is qualified; absent = refused with the partner named). */
+  readonly prescribing?: PrescribingPort | null;
 };
 
 /** Workstream A batch 2 services (A8-A13) over one base; REST, MCP and tests call these functions. */
@@ -45,6 +54,7 @@ export function createAgentService(deps: AgentServiceDeps) {
       ...(deps.ai ?? { model: null, readers: null, owners: {} }),
     }),
     ...createAiEvaluations(base, deps.ai?.model ?? null),
+    ...createPrescribingEnvelope(base, deps.prescribing ?? null),
   };
 }
 export type AgentService = ReturnType<typeof createAgentService>;

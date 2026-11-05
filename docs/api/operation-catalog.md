@@ -9,7 +9,7 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-427 operations.
+430 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
@@ -323,6 +323,9 @@ transport tables and are declarations, not independent proof.
 | `practice.export.download` | M | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/practice/exports/package` | `practice_export_download` | required | phiBulk | active |
 | `practice.export.grant` | M | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/practice/exports/grants` | `practice_export_grant` | required | phiBulk | active |
 | `practice.export.verify` | M | query | authorize | `admin.configure` | human | rest, mcp | GET `/v1/practice/exports/verification` | `practice_export_verify` | none | phiBulk | active |
+| `prescriptions.cancel` | A | command | authorize | `prescriptions.draft` | human | rest, mcp | POST `/v1/prescriptions/cancel` | `prescriptions_cancel` | required | phi | active |
+| `prescriptions.drafts.create` | A | command | authorize | `prescriptions.draft` | human | rest, mcp | POST `/v1/prescriptions/drafts` | `prescriptions_drafts_create` | required | phi | active |
+| `prescriptions.submit` | A | command | authorize | `prescriptions.submit` | human | rest, mcp | POST `/v1/prescriptions/submit` | `prescriptions_submit` | required | phi | active |
 | `rcm.appeals.draft` | B | command | authorize | `billing.write` | human | rest, mcp | POST `/v1/rcm/claims/{claimRef}/appeals` | `rcm_appeals_draft` | required | phi | active |
 | `rcm.appeals.review` | B | command | authorize | `billing.correct` | human | rest, mcp | POST `/v1/rcm/appeals/{appealRef}/review` | `rcm_appeals_review` | required | phi | active |
 | `rcm.claims.attach` | B | command | authorize | `billing.write` | human, service | rest, mcp | POST `/v1/rcm/claims/{claimRef}/attachments` | `rcm_claims_attach` | required | phi | active |

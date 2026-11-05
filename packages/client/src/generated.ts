@@ -521,7 +521,47 @@ export type AgentsListScope = {
   readonly "locationRefs"?: readonly (string)[];
 };
 
+export type AgentsMedication = {
+  readonly "name": string;
+  readonly "strength": string;
+  readonly "form": string;
+};
+
 export type AgentsOperationName = string;
+
+export type AgentsPrescriptionCancel = {
+  readonly "draftRef": AgentsUuid;
+  readonly "expectedVersion": AgentsVersion;
+  readonly "reason": AgentsReasonCode;
+};
+
+export type AgentsPrescriptionCommand = {
+  readonly "draftRef": AgentsUuid;
+  readonly "state": "draft" | "submitted" | "unknown" | "cancelled";
+};
+
+export type AgentsPrescriptionCommandResult = {
+  readonly "data": AgentsPrescriptionCommand;
+  readonly "version": AgentsVersion;
+  readonly "correlationId": AgentsUuid;
+  readonly "replayed": boolean;
+};
+
+export type AgentsPrescriptionDraftCreate = {
+  readonly "patientRef": AgentsUuid;
+  readonly "medication": AgentsMedication;
+  readonly "sig": string;
+  readonly "quantity": number;
+  readonly "refills": number;
+  readonly "controlledSubstance": boolean;
+  readonly "aiDraftRef"?: AgentsUuid;
+};
+
+export type AgentsPrescriptionSubmit = {
+  readonly "draftRef": AgentsUuid;
+  readonly "proposalRef": AgentsUuid;
+  readonly "expectedVersion": AgentsVersion;
+};
 
 export type AgentsPrincipalRef = AgentsUuid;
 
@@ -10126,6 +10166,33 @@ export interface Operations {
     successStatus: 200;
     idempotent: false;
   };
+  "prescriptions.cancel": {
+    method: "POST";
+    path: "/v1/prescriptions/cancel";
+    params: {  };
+    body: AgentsPrescriptionCancel;
+    result: AgentsPrescriptionCommandResult;
+    successStatus: 200;
+    idempotent: true;
+  };
+  "prescriptions.drafts.create": {
+    method: "POST";
+    path: "/v1/prescriptions/drafts";
+    params: {  };
+    body: AgentsPrescriptionDraftCreate;
+    result: AgentsPrescriptionCommandResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "prescriptions.submit": {
+    method: "POST";
+    path: "/v1/prescriptions/submit";
+    params: {  };
+    body: AgentsPrescriptionSubmit;
+    result: AgentsPrescriptionCommandResult;
+    successStatus: 200;
+    idempotent: true;
+  };
   "rcm.appeals.draft": {
     method: "POST";
     path: "/v1/rcm/claims/{claimRef}/appeals";
@@ -11561,6 +11628,9 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "practice.export.download": { method: "POST", path: "/v1/practice/exports/package", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "practice.export.grant": { method: "POST", path: "/v1/practice/exports/grants", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "practice.export.verify": { method: "GET", path: "/v1/practice/exports/verification", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "prescriptions.cancel": { method: "POST", path: "/v1/prescriptions/cancel", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "prescriptions.drafts.create": { method: "POST", path: "/v1/prescriptions/drafts", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "prescriptions.submit": { method: "POST", path: "/v1/prescriptions/submit", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "rcm.appeals.draft": { method: "POST", path: "/v1/rcm/claims/{claimRef}/appeals", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "rcm.appeals.review": { method: "POST", path: "/v1/rcm/appeals/{appealRef}/review", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "rcm.claims.attach": { method: "POST", path: "/v1/rcm/claims/{claimRef}/attachments", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },

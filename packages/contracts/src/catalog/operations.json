@@ -10064,6 +10064,111 @@
     "status": "active"
   },
   {
+    "operation": "prescriptions.cancel",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "prescriptions.cancel",
+    "scope": "prescriptions.draft",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/prescriptions/cancel",
+      "requestSchema": "agents:PrescriptionCancel",
+      "successStatus": "200",
+      "successSchema": "agents:PrescriptionCommandResult"
+    },
+    "mcpTool": "prescriptions_cancel",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "prescriptions.drafts.create",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "prescriptions.drafts.create",
+    "scope": "prescriptions.draft",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/prescriptions/drafts",
+      "requestSchema": "agents:PrescriptionDraftCreate",
+      "successStatus": "201",
+      "successSchema": "agents:PrescriptionCommandResult"
+    },
+    "mcpTool": "prescriptions_drafts_create",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "prescriptions.submit",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "prescriptions.submit",
+    "scope": "prescriptions.submit",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/prescriptions/submit",
+      "requestSchema": "agents:PrescriptionSubmit",
+      "successStatus": "200",
+      "successSchema": "agents:PrescriptionCommandResult"
+    },
+    "mcpTool": "prescriptions_submit",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
     "operation": "rcm.appeals.draft",
     "owner": "B",
     "kind": "command",

@@ -14110,6 +14110,206 @@
       "mcpTool": "practice_export_verify"
     },
     {
+      "operation": "prescriptions.cancel",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "prescriptions.draft",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/prescriptions/cancel"
+      },
+      "mcpTool": "prescriptions_cancel",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "draftRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "expectedVersion": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 2147483647,
+            "minimum": 1
+          },
+          "reason": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z_]{1,64}$"
+          }
+        },
+        "closed": true,
+        "required": [
+          "draftRef",
+          "expectedVersion",
+          "reason"
+        ]
+      }
+    },
+    {
+      "operation": "prescriptions.drafts.create",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "prescriptions.draft",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/prescriptions/drafts"
+      },
+      "mcpTool": "prescriptions_drafts_create",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "aiDraftRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "controlledSubstance": {
+            "type": [
+              "boolean"
+            ]
+          },
+          "medication": {
+            "type": [
+              "object"
+            ],
+            "properties": {
+              "form": {
+                "type": [
+                  "string"
+                ],
+                "maxLength": 40,
+                "minLength": 1
+              },
+              "name": {
+                "type": [
+                  "string"
+                ],
+                "maxLength": 120,
+                "minLength": 1
+              },
+              "strength": {
+                "type": [
+                  "string"
+                ],
+                "maxLength": 40,
+                "minLength": 1
+              }
+            },
+            "closed": true,
+            "required": [
+              "form",
+              "name",
+              "strength"
+            ]
+          },
+          "patientRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "quantity": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 10000,
+            "minimum": 1
+          },
+          "refills": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 12,
+            "minimum": 0
+          },
+          "sig": {
+            "type": [
+              "string"
+            ],
+            "maxLength": 500,
+            "minLength": 1
+          }
+        },
+        "closed": true,
+        "required": [
+          "controlledSubstance",
+          "medication",
+          "patientRef",
+          "quantity",
+          "refills",
+          "sig"
+        ]
+      }
+    },
+    {
+      "operation": "prescriptions.submit",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "prescriptions.submit",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/prescriptions/submit"
+      },
+      "mcpTool": "prescriptions_submit",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "draftRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "expectedVersion": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 2147483647,
+            "minimum": 1
+          },
+          "proposalRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "closed": true,
+        "required": [
+          "draftRef",
+          "expectedVersion",
+          "proposalRef"
+        ]
+      }
+    },
+    {
       "operation": "rcm.appeals.draft",
       "transports": [
         "rest",

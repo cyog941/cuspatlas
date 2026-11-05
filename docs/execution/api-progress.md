@@ -306,3 +306,16 @@ Workstream A batch 2 (A8-A13) on synthetic data only. Framing, recorded before a
 - Operations (2): `ai.evaluations.run` (human, `admin.configure`), `ai.evaluations.list`.
 - Not done: manual-verdict cases and reviewer sign-off (A-S3); subgroup performance; drift monitoring
   beyond the per-request gate.
+
+### A13: prescribing operation envelope and refusal semantics
+
+- Red: `tests/integration/prescribing-envelope.test.ts` 6 failed (exit 1: no operations); green 6/6.
+- Envelope only (no partner, no verification source): `prescriptions.drafts.create`,
+  `prescriptions.submit` (requires an A10 `proposalRef` in the contract) and `prescriptions.cancel`,
+  human only; `prescriptions.submit` is non-delegable. Every one refuses after authorization and
+  validation with 503 `service_unavailable`, reason `prescribing_not_available`, blocking references
+  naming each missing fact and capability; nothing is persisted and no success is fabricated.
+- `PrescribingPort` (explicit `unsupported` and `unknown` outcomes) and `PrescriberIdentity` are the
+  seams for a qualified partner; a partner reporting every capability still refuses without a verified
+  prescriber, and the port is never called. Agents are refused on REST (transport) and MCP alike.
+- Qualification note and explicit non-claim: `docs/integrations/prescribing-qualification.md`.

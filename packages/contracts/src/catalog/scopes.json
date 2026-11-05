@@ -959,6 +959,39 @@
       "sensitivity": "phi"
     },
     {
+      "name": "prescriptions.draft",
+      "noun": "prescriptions",
+      "verb": "draft",
+      "principalClasses": [
+        "human"
+      ],
+      "humanOnly": true,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "prescriptions.cancel",
+        "prescriptions.drafts.create"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "prescriptions.submit",
+      "noun": "prescriptions",
+      "verb": "submit",
+      "principalClasses": [
+        "human"
+      ],
+      "humanOnly": true,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "prescriptions.submit"
+      ],
+      "sensitivity": "phi"
+    },
+    {
       "name": "receivables.read",
       "noun": "receivables",
       "verb": "read",

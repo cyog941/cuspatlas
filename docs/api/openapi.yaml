@@ -13458,6 +13458,113 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/prescriptions/drafts:
+    post:
+      operationId: prescriptions.drafts.create
+      description: >-
+        A13: draft a prescription for a human prescriber. No e-prescribing partner is qualified: always
+        refused with 503 service_unavailable, reason prescribing_not_available, naming each missing fact and
+        capability. Never a fabricated success.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/agents.schema.json#/$defs/PrescriptionDraftCreate'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/agents.schema.json#/$defs/PrescriptionCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/prescriptions/submit:
+    post:
+      operationId: prescriptions.submit
+      description: >-
+        A13: submit a prescription draft bound to an approved A10 proposal, by a verified human prescriber
+        only. No partner is qualified and no prescriber verification source exists: always refused
+        (prescribing_not_available). Agents never prescribe.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/agents.schema.json#/$defs/PrescriptionSubmit'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/agents.schema.json#/$defs/PrescriptionCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/prescriptions/cancel:
+    post:
+      operationId: prescriptions.cancel
+      description: >-
+        A13: cancel a prescription draft. Refused like every prescribing operation
+        (prescribing_not_available).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/agents.schema.json#/$defs/PrescriptionCancel'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/agents.schema.json#/$defs/PrescriptionCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   # END generated: AGENT_OPS
 components:
   securitySchemes:

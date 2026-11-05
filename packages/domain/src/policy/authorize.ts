@@ -594,6 +594,11 @@ export const ACTION_POLICIES = {
   // readable with ai.read.
   'ai.evaluations.run': { scope: 'admin.configure', principals: ['human'] },
   'ai.evaluations.list': { scope: 'ai.read', principals: ['human', 'service'] },
+  // A13 prescribing envelope (no qualified partner): drafting and submission are a human
+  // prescriber's acts; prescriptions.submit (controlled substances included) is non-delegable.
+  'prescriptions.drafts.create': { scope: 'prescriptions.draft', principals: ['human'] },
+  'prescriptions.submit': { scope: 'prescriptions.submit', principals: ['human'] },
+  'prescriptions.cancel': { scope: 'prescriptions.draft', principals: ['human'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

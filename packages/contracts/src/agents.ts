@@ -54,6 +54,10 @@ export const validateAiUseCaseListQuery = def('AiUseCaseListQuery');
 export const validateAiEvaluationRun = def('AiEvaluationRun');
 export const validateAiEvaluationListQuery = def('AiEvaluationListQuery');
 
+export const validatePrescriptionDraftCreate = def('PrescriptionDraftCreate');
+export const validatePrescriptionSubmit = def('PrescriptionSubmit');
+export const validatePrescriptionCancel = def('PrescriptionCancel');
+
 export type AgentState = 'active' | 'suspended' | 'revoked';
 
 /** The generated operation catalog by operation id (A9 consent checks, budget sensitivity). */

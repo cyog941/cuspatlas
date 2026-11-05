@@ -5355,6 +5355,421 @@
           "type": "boolean"
         }
       }
+    },
+    "FloorQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locationRef"],
+      "properties": {
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "projection": {
+          "enum": ["standard", "anonymized"],
+          "description": "anonymized: the shared-display rule (OR-06, A18 seam): no patient or appointment identity."
+        }
+      }
+    },
+    "ProviderRequestCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasonCode"],
+      "properties": {
+        "reasonCode": {
+          "type": "string",
+          "pattern": "^[a-z_]{1,64}$"
+        }
+      }
+    },
+    "ProviderRequestAcknowledge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "ProviderRequestClear": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "reasonCode"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reasonCode": {
+          "type": "string",
+          "pattern": "^[a-z_]{1,64}$"
+        }
+      }
+    },
+    "ProviderRequestListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locationRef"],
+      "properties": {
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        }
+      }
+    },
+    "PresenceSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locationRef", "status"],
+      "properties": {
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "status": {
+          "enum": ["available", "busy", "away"]
+        },
+        "operatoryRef": {
+          "$ref": "#/$defs/ResourceRefId"
+        },
+        "expiresInMinutes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 720,
+          "description": "Default 240."
+        }
+      },
+      "description": "S21: the caller sets its own presence; there is no field naming another principal."
+    },
+    "PresenceListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locationRef"],
+      "properties": {
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        }
+      }
+    },
+    "ProviderRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requestRef",
+        "appointmentRef",
+        "locationRef",
+        "state",
+        "reasonCode",
+        "requestedAt",
+        "version"
+      ],
+      "properties": {
+        "requestRef": {
+          "$ref": "#/$defs/ResourceRefId"
+        },
+        "appointmentRef": {
+          "$ref": "#/$defs/ResourceRefId"
+        },
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "state": {
+          "enum": ["open", "acknowledged", "cleared"]
+        },
+        "reasonCode": {
+          "type": "string",
+          "pattern": "^[a-z_]{1,64}$"
+        },
+        "requestedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "ProviderRequestResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/ProviderRequest"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ProviderRequestList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["items", "envelope"],
+          "properties": {
+            "items": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "$ref": "#/$defs/ProviderRequest"
+              }
+            },
+            "envelope": {
+              "$ref": "#/$defs/ListEnvelope"
+            }
+          }
+        }
+      }
+    },
+    "FloorVisit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attendanceState",
+        "label",
+        "since",
+        "elapsedMinutes",
+        "nextActions",
+        "patient",
+        "providerRequest"
+      ],
+      "properties": {
+        "appointmentRef": {
+          "$ref": "#/$defs/ResourceRefId"
+        },
+        "attendanceState": {
+          "type": "string",
+          "pattern": "^[a-z_]{1,40}$"
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "since": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "elapsedMinutes": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "nextActions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z_]{1,40}$"
+          }
+        },
+        "patient": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["patientRef"],
+              "properties": {
+                "patientRef": {
+                  "$ref": "#/$defs/ResourceRefId"
+                }
+              }
+            },
+            {
+              "enum": ["restricted", "anonymized"]
+            }
+          ]
+        },
+        "providerRequest": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["requestRef", "state"],
+              "properties": {
+                "requestRef": {
+                  "$ref": "#/$defs/ResourceRefId"
+                },
+                "state": {
+                  "enum": ["open", "acknowledged"]
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "FloorView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["locationRef", "projection", "operatories", "envelope"],
+          "properties": {
+            "locationRef": {
+              "$ref": "#/$defs/LocationRef"
+            },
+            "projection": {
+              "enum": ["standard", "anonymized"]
+            },
+            "operatories": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["operatoryRef", "label", "currentVisit"],
+                "properties": {
+                  "operatoryRef": {
+                    "$ref": "#/$defs/ResourceRefId"
+                  },
+                  "label": {
+                    "type": ["string", "null"],
+                    "maxLength": 120
+                  },
+                  "currentVisit": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/FloorVisit"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "envelope": {
+              "$ref": "#/$defs/ListEnvelope"
+            }
+          }
+        }
+      }
+    },
+    "PresenceResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["principalRef", "status", "operatoryRef", "setAt", "expiresAt"],
+          "properties": {
+            "principalRef": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "status": {
+              "enum": ["available", "busy", "away"]
+            },
+            "operatoryRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ResourceRefId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "setAt": {
+              "$ref": "#/$defs/Instant"
+            },
+            "expiresAt": {
+              "$ref": "#/$defs/Instant"
+            }
+          }
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "PresenceList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["items", "envelope"],
+          "properties": {
+            "items": {
+              "type": "array",
+              "maxItems": 200,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["principalRef", "status", "operatoryRef", "setAt", "expiresAt"],
+                "properties": {
+                  "principalRef": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "status": {
+                    "enum": ["available", "busy", "away"]
+                  },
+                  "operatoryRef": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/ResourceRefId"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "setAt": {
+                    "$ref": "#/$defs/Instant"
+                  },
+                  "expiresAt": {
+                    "$ref": "#/$defs/Instant"
+                  }
+                }
+              }
+            },
+            "envelope": {
+              "$ref": "#/$defs/ListEnvelope"
+            }
+          }
+        }
+      }
     }
   }
 }

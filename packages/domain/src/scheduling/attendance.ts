@@ -203,6 +203,34 @@ export async function attendanceStateOf(
   return derive(await loadTransitions(tx, [appointmentId]));
 }
 
+/** S21 floor: derived state, instant of the effective latest transition and the allowed next kinds. */
+export async function attendanceSnapshotsOf(
+  tx: TenantTransaction,
+  appointmentIds: readonly string[],
+): Promise<Map<string, { state: AttendanceState; since: Date | null; next: readonly AttendanceKind[] }>> {
+  const rows = appointmentIds.length === 0 ? [] : await loadTransitions(tx, appointmentIds);
+  const out = new Map<
+    string,
+    { state: AttendanceState; since: Date | null; next: readonly AttendanceKind[] }
+  >();
+  for (const id of appointmentIds) {
+    const own = rows.filter((r) => r.appointment_id === id);
+    const state = derive(own);
+    out.set(id, { state, since: effective(own).at(-1)?.occurred_at ?? null, next: NEXT[state] });
+  }
+  return out;
+}
+
+/** S22: staff or automation attendance facts of an appointment (booking-command facts excluded). */
+export async function attendanceFactsOf(tx: TenantTransaction, appointmentId: string): Promise<string[]> {
+  const { rows } = await tx.query<{ id: string }>(
+    `SELECT id FROM cuspatlas.appointment_attendance_transitions
+     WHERE appointment_id = $1 AND source <> 'booking_command' ORDER BY sequence`,
+    [appointmentId],
+  );
+  return rows.map((r) => r.id);
+}
+
 /**
  * Booking-side guard (S10 cancel and reschedule): a visit that has begun cannot be cancelled or
  * moved; otherwise the booking command appends the matching attendance fact in its transaction.

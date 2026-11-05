@@ -3,6 +3,7 @@ import { createAppointmentBase } from './appointment-base';
 import { bookingAttendanceGuard, createAttendanceOperations } from './attendance';
 import { createBookingOperations, loadAppointment } from './booking';
 import { createExportOperations } from './export';
+import { createFloorOperations } from './floor';
 import { createNotificationOperations } from './notification-intent';
 import { createRecallOperations } from './recall';
 import { createRecurrenceOperations, recordSeriesException } from './recurrence';
@@ -78,6 +79,7 @@ export function createAppointmentService(deps: SchedulingDeps) {
     ...recall,
     ...exports,
     ...staging,
+    ...createFloorOperations(base),
     reopenRequest: (ctx: ActorContext, requestRef: string, envelope: CommandEnvelope<unknown>) =>
       requests.reopenRequest(ctx, requestRef, envelope, bookingStillActive),
     rescheduleAppointment: (ctx: ActorContext, appointmentRef: string, envelope: CommandEnvelope<unknown>) =>

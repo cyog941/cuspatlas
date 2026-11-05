@@ -1021,3 +1021,70 @@ export const validateStagingAdd = def('StagingAdd');
 export const validateStagingRemove = def('StagingRemove');
 export const validateStagingMove = def('StagingMove');
 
+/** S21 (OR-06): floor view, provider request facts and staff presence. */
+export type FloorProjection = 'standard' | 'anonymized';
+export type ProviderRequestState = 'open' | 'acknowledged' | 'cleared';
+export type PresenceStatus = 'available' | 'busy' | 'away';
+export interface FloorQuery {
+  readonly locationRef: string;
+  readonly projection?: FloorProjection;
+}
+export interface ProviderRequestCreate {
+  readonly reasonCode: string;
+}
+export interface ProviderRequestAcknowledge {
+  readonly expectedVersion: number;
+}
+export interface ProviderRequestClear {
+  readonly expectedVersion: number;
+  readonly reasonCode: string;
+}
+export interface PresenceSet {
+  readonly locationRef: string;
+  readonly status: PresenceStatus;
+  readonly operatoryRef?: string;
+  readonly expiresInMinutes?: number;
+}
+export interface ProviderRequestRecord {
+  readonly requestRef: string;
+  readonly appointmentRef: string;
+  readonly locationRef: string;
+  readonly state: ProviderRequestState;
+  readonly reasonCode: string;
+  readonly requestedAt: string;
+  readonly version: number;
+}
+export interface FloorVisit {
+  readonly appointmentRef?: string;
+  readonly attendanceState: string;
+  readonly label: string;
+  readonly since: string | null;
+  readonly elapsedMinutes: number | null;
+  readonly nextActions: readonly string[];
+  readonly patient: { readonly patientRef: string } | 'restricted' | 'anonymized';
+  readonly providerRequest: { readonly requestRef: string; readonly state: 'open' | 'acknowledged' } | null;
+}
+export interface FloorView {
+  readonly locationRef: string;
+  readonly projection: FloorProjection;
+  readonly operatories: readonly {
+    readonly operatoryRef: string;
+    readonly label: string | null;
+    readonly currentVisit: FloorVisit | null;
+  }[];
+  readonly envelope: ListEnvelope;
+}
+export interface PresenceRecord {
+  readonly principalRef: string;
+  readonly status: PresenceStatus;
+  readonly operatoryRef: string | null;
+  readonly setAt: string;
+  readonly expiresAt: string;
+}
+export const validateFloorQuery = def('FloorQuery');
+export const validateProviderRequestCreate = def('ProviderRequestCreate');
+export const validateProviderRequestAcknowledge = def('ProviderRequestAcknowledge');
+export const validateProviderRequestClear = def('ProviderRequestClear');
+export const validateProviderRequestListQuery = def('ProviderRequestListQuery');
+export const validatePresenceSet = def('PresenceSet');
+export const validatePresenceListQuery = def('PresenceListQuery');

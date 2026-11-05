@@ -87,6 +87,11 @@ export const EXTENDED_SCHEDULING_OPERATIONS: readonly string[] = [
   'scheduling.staging.configure',
   'scheduling.staging.add',
   'scheduling.staging.remove',
+  // S21 floor: provider requests and presence.
+  'scheduling.floor.requestProvider',
+  'scheduling.floor.acknowledgeProviderRequest',
+  'scheduling.floor.clearProviderRequest',
+  'scheduling.presence.set',
 ];
 
 export const EXTENDED_SCHEDULING_CODECS: Readonly<Record<string, ReplayCodec<unknown>>> = Object.fromEntries(

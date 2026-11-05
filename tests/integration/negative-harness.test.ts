@@ -2541,6 +2541,8 @@ export const COMMANDS: HarnessCommand[] = [
   ...recallRows(),
   // S20 (OR-05) staging list.
   ...stagingRows(),
+  // S21 (OR-06) floor view, provider requests and presence.
+  ...floorRows(),
   // S17 minimal export: another tenant exports only its own records (which legitimately include the
   // marker its own harness create wrote; that alpha records never appear in a beta export is asserted
   // in scheduling-export.test.ts).
@@ -3005,6 +3007,106 @@ function waitlistRows(): HarnessCommand[] {
       (f) => ({ policyRef: f.alphaPolicy }),
       200,
     ),
+  ];
+}
+
+/** S21 rows. The alpha location, appointment and request are hidden from another tenant (404). */
+function floorRows(): HarnessCommand[] {
+  const get = (url: string): RestCall => ({ method: 'GET', url, keyed: false, status: 200 });
+  const post = (url: string, body: unknown, status = 200): RestCall => ({
+    method: 'POST',
+    url,
+    body,
+    keyed: true,
+    status,
+  });
+  const presence = (f: HarnessFixture) => ({
+    locationRef: f.alphaLocation,
+    status: 'busy',
+    expiresInMinutes: 30,
+  });
+  return [
+    {
+      operation: 'scheduling.floor.read',
+      tool: 'scheduling_floor_read',
+      crossTenant: 'not_found',
+      downgradedTo: 'noPatientScopes',
+      rest: (f) => get(`/v1/scheduling/floor?locationRef=${f.alphaLocation}`),
+      mcpArgs: (f) => ({ locationRef: f.alphaLocation }),
+    },
+    {
+      operation: 'scheduling.floor.providerRequests',
+      tool: 'scheduling_floor_provider_requests',
+      crossTenant: 'not_found',
+      downgradedTo: 'noPatientScopes',
+      rest: (f) => get(`/v1/scheduling/floor/provider-requests?locationRef=${f.alphaLocation}`),
+      mcpArgs: (f) => ({ locationRef: f.alphaLocation }),
+    },
+    {
+      operation: 'scheduling.floor.requestProvider',
+      tool: 'scheduling_floor_request_provider',
+      crossTenant: 'not_found',
+      downgradedTo: 'readOnly',
+      rest: (f) =>
+        post(
+          `/v1/scheduling/appointments/${f.alphaAppointment}/provider-requests`,
+          { reasonCode: 'exam_ready' },
+          201,
+        ),
+      mcpArgs: (f) => ({
+        appointmentRef: f.alphaAppointment,
+        reasonCode: 'exam_ready',
+        idempotencyKey: randomUUID(),
+      }),
+    },
+    {
+      operation: 'scheduling.floor.acknowledgeProviderRequest',
+      tool: 'scheduling_floor_acknowledge_provider_request',
+      crossTenant: 'not_found',
+      downgradedTo: 'readOnly',
+      rest: (f) =>
+        post(`/v1/scheduling/provider-requests/${f.alphaProviderRequest}/acknowledge`, {
+          expectedVersion: 1,
+        }),
+      mcpArgs: (f) => ({
+        requestRef: f.alphaProviderRequest,
+        expectedVersion: 1,
+        idempotencyKey: randomUUID(),
+      }),
+    },
+    {
+      operation: 'scheduling.floor.clearProviderRequest',
+      tool: 'scheduling_floor_clear_provider_request',
+      crossTenant: 'not_found',
+      downgradedTo: 'readOnly',
+      rest: (f) =>
+        post(`/v1/scheduling/provider-requests/${f.alphaProviderRequest}/clear`, {
+          expectedVersion: 1,
+          reasonCode: 'provider_arrived',
+        }),
+      mcpArgs: (f) => ({
+        requestRef: f.alphaProviderRequest,
+        expectedVersion: 1,
+        reasonCode: 'provider_arrived',
+        idempotencyKey: randomUUID(),
+      }),
+    },
+    {
+      operation: 'scheduling.presence.set',
+      tool: 'scheduling_presence_set',
+      crossTenant: 'not_found',
+      downgradedTo: 'readOnly',
+      rest: (f) => post('/v1/scheduling/presence', presence(f)),
+      mcpArgs: (f) => ({ ...presence(f), idempotencyKey: randomUUID() }),
+    },
+    {
+      operation: 'scheduling.presence.list',
+      tool: 'scheduling_presence_list',
+      crossTenant: 'not_found',
+      downgradedTo: 'noPatientScopes',
+      rest: (f) => get(`/v1/scheduling/presence?locationRef=${f.alphaLocation}`),
+      mcpArgs: (f) => ({ locationRef: f.alphaLocation }),
+    },
   ];
 }
 
@@ -3703,7 +3805,14 @@ beforeAll(async () => {
     reasonCode: 'harness_fixture',
   });
   expect(stagingEntry.statusCode).toBe(201);
+  // S21: one open provider request on the arrived recall visit.
+  const providerRequest = await owner(
+    `/v1/scheduling/appointments/${recallVisit.json().data.appointmentRef}/provider-requests`,
+    { reasonCode: 'harness_fixture' },
+  );
+  expect(providerRequest.statusCode).toBe(201);
   fixture = {
+    alphaProviderRequest: providerRequest.json().data.requestRef,
     alphaStagingEntry: stagingEntry.json().data.entryRef,
     alphaPaymentPlan: paymentPlan.json().data.planRef,
     alphaCoverage: coverage.json().data.coverageRef,
@@ -3942,6 +4051,8 @@ async function state(): Promise<string> {
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.recall_tasks'),
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.scheduling_staging_lists'),
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.scheduling_staging_entries'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.scheduling_provider_requests'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.scheduling_staff_presence'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.audit_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.outbox_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.command_idempotency'),

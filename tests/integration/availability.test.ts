@@ -414,7 +414,9 @@ describe('S9 acceptance', () => {
     expect(beyond.statusCode).toBe(422);
     expect(beyond.json().detail.violations[0]).toStrictEqual({ pointer: '/to', rule: 'beyondHorizon' });
     expect(beyond.json().detail.limit).toStrictEqual({ name: 'availabilityMaxWindowDays', value: 60 });
-    expect((await search('a1', base({ from: '2030-01-01', to: '2030-03-01', limit: 1 }))).statusCode).toBe(200);
+    expect((await search('a1', base({ from: '2030-01-01', to: '2030-03-01', limit: 1 }))).statusCode).toBe(
+      200,
+    );
     const backwards = await search('a1', base({ from: '2030-01-15', to: '2030-01-14' }));
     expect(backwards.statusCode).toBe(422);
     expect((await search('a1', base({ from: '2030-01-01', to: '2030-01-31' }))).statusCode).toBe(200);

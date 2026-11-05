@@ -580,6 +580,16 @@ export const ACTION_POLICIES = {
   'actions.proposals.abandon': { scope: 'actions.prepare', principals: ['human', 'service'] },
   'actions.proposals.read': { scope: 'actions.read', principals: ['human', 'service'] },
   'actions.proposals.list': { scope: 'actions.read', principals: ['human', 'service'] },
+  // A11 draft-only AI (A-D5/A-D6 pending; synthetic model only): a person or an agent may request a
+  // draft from records it can already read; only a person (ai.review, non-delegable) accepts or
+  // rejects one; switching use cases is practice configuration.
+  'ai.drafts.create': { scope: 'ai.draft', principals: ['human', 'service'] },
+  'ai.drafts.read': { scope: 'ai.read', principals: ['human', 'service'] },
+  'ai.drafts.list': { scope: 'ai.read', principals: ['human', 'service'] },
+  'ai.drafts.accept': { scope: 'ai.review', principals: ['human'] },
+  'ai.drafts.reject': { scope: 'ai.review', principals: ['human'] },
+  'ai.useCases.list': { scope: 'ai.read', principals: ['human', 'service'] },
+  'ai.useCases.configure': { scope: 'admin.configure', principals: ['human'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

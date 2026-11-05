@@ -31,6 +31,13 @@ const CASES: Record<string, { tool: string; admits: Admits }> = {
   'actions.proposals.abandon': { tool: 'actions_proposals_abandon', admits: 'humanAndService' },
   'actions.proposals.read': { tool: 'actions_proposals_get', admits: 'humanAndService' },
   'actions.proposals.list': { tool: 'actions_proposals_list', admits: 'humanAndService' },
+  'ai.drafts.create': { tool: 'ai_drafts_create', admits: 'humanAndService' },
+  'ai.drafts.read': { tool: 'ai_drafts_get', admits: 'humanAndService' },
+  'ai.drafts.list': { tool: 'ai_drafts_list', admits: 'humanAndService' },
+  'ai.drafts.accept': { tool: 'ai_drafts_accept', admits: 'human' },
+  'ai.drafts.reject': { tool: 'ai_drafts_reject', admits: 'human' },
+  'ai.useCases.list': { tool: 'ai_use_cases_list', admits: 'humanAndService' },
+  'ai.useCases.configure': { tool: 'ai_use_cases_configure', admits: 'human' },
 };
 
 let s: AgentStack;

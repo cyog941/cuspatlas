@@ -1049,7 +1049,7 @@
       }
     },
     "AiUseCase": {
-      "enum": ["clinicalNoteDraft", "patientMessageDraft", "claimReadinessExplanation"]
+      "enum": ["clinicalNoteDraft", "patientMessageDraft", "claimReadinessExplanation", "diagnosisSuggestion"]
     },
     "AiSourceRef": {
       "type": "object",
@@ -1389,7 +1389,8 @@
     "AiUseCaseConfigure": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["useCase", "enabled"],
+      "description": "A11: switch one AI use case (or, without useCase, every AI use case of the tenant) on or off. Disabling never affects deterministic workflows.",
+      "required": ["enabled"],
       "properties": {
         "useCase": {
           "$ref": "#/$defs/AiUseCase"
@@ -1463,7 +1464,14 @@
       "required": ["useCase", "enabled"],
       "properties": {
         "useCase": {
-          "$ref": "#/$defs/AiUseCase"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AiUseCase"
+            },
+            {
+              "const": "*"
+            }
+          ]
         },
         "enabled": {
           "type": "boolean"

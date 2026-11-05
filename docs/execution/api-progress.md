@@ -244,3 +244,40 @@ Workstream A batch 2 (A8-A13) on synthetic data only. Framing, recorded before a
 - Not done: deprecation of a proposed operation between prepare and commit is refused by the policy
   version only (no operation is deprecated at this head); the F7a synthetic proposal service is left
   as it is (it is its own frozen synthetic contract).
+
+### A11: draft-only AI pipeline with explicit human sign-off
+
+- Red: `tests/integration/ai-boundary.test.ts` run against the pre-implementation tree (implementation
+  stashed): 2 failed, 9 skipped (exit 1); green 11/11 after.
+- Port (`packages/domain/src/agents/ai-port.ts`): `ModelAdapter` with an explicit unavailable outcome.
+  The only adapter is the deterministic synthetic model (no network, no randomness), built by the API
+  and MCP builders under synthetic-test only (`resolveModelAdapter`; an injected adapter outside
+  synthetic-test refuses startup). No adapter: every AI operation is 503 `adapter_not_configured`
+  before anything is read or written. Egress policy (A-D5): only `synthetic-local` passes; any
+  provider adapter is refused before a request is built (A-S2 blocks every provider).
+- AS-07 use-case registry: `clinicalNoteDraft`, `patientMessageDraft`, `claimReadinessExplanation`
+  (recommended-pending-approval) and `diagnosisSuggestion` registered as not approved (A-D6: no
+  diagnosis); an unapproved use case can neither run nor be enabled. Every use case is off per tenant
+  until an administrator enables it; a tenant-wide switch turns all off; deterministic workflows are
+  unaffected (a human note is written with AI switched off).
+- Pipeline: each source is read through its owning service AS the caller (hidden and missing are one
+  404), minimized (references, identifiers and timestamps dropped), wrapped as quoted data with the
+  delimiters neutralized, and the instructions state that source text is never an instruction. Flags:
+  `injection_suspected` (instruction-like source text) and `unsupported_reference` (a tooth, date or
+  procedure code in the draft that no source contains). A flagged draft can be accepted only with a
+  human edit. A model outage is 503 `model_unavailable` and persists nothing.
+- Drafts (`ai_drafts`, migration `20261201030000`): use case, text, model, prompt version, source
+  references with the versions they were built from, flags, creator; provenance is immutable (trigger)
+  and a decided draft never changes. Freshness is rechecked on read and accept; a changed source makes
+  the draft `stale` (not silently re-offered) and acceptance is refused.
+- Acceptance (human only, `ai.review`): through the owning command as that person, idempotent on
+  `ai-draft:<id>`: a clinical note DRAFT with `source: ai_draft` and the model and prompt references
+  (signing stays `clinical.notes.sign` by a person with `clinical.sign`), or a staff message (E5);
+  a claim-readiness explanation is acknowledged only. Reject records a reason.
+- Prompt injection proven with a hostile synthetic note: the draft is flagged, no note is signed,
+  nothing is sent, and the hostile note itself is unchanged.
+- Operations (7): `ai.drafts.create|read|list|accept|reject`, `ai.useCases.list|configure`. Scopes
+  `ai.draft`, `ai.read`, `ai.review` (human only).
+- Not done: the message-draft and claim-explanation acceptance paths are wired but exercised only by
+  their refusal cases here (no thread or claim fixture in this suite); the full ordinary-day scenario
+  is not re-run with the port removed (the switch-off case proves a human note still works).

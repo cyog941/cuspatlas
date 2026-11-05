@@ -750,6 +750,262 @@
       }
     },
     {
+      "operation": "ai.drafts.accept",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "ai.review",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/ai/drafts/accept"
+      },
+      "mcpTool": "ai_drafts_accept",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "draftRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "editedText": {
+            "type": [
+              "string"
+            ],
+            "maxLength": 20000,
+            "minLength": 1
+          },
+          "expectedVersion": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 2147483647,
+            "minimum": 1
+          }
+        },
+        "closed": true,
+        "required": [
+          "draftRef",
+          "expectedVersion"
+        ]
+      }
+    },
+    {
+      "operation": "ai.drafts.create",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "ai.draft",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/ai/drafts"
+      },
+      "mcpTool": "ai_drafts_create",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "sourceRefs": {
+            "type": [
+              "array"
+            ],
+            "maxItems": 8,
+            "items": {
+              "type": [
+                "object"
+              ],
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "\"claim\"",
+                    "\"encounter\"",
+                    "\"note\"",
+                    "\"thread\""
+                  ]
+                },
+                "ref": {
+                  "type": [
+                    "string"
+                  ],
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                }
+              },
+              "closed": true,
+              "required": [
+                "kind",
+                "ref"
+              ]
+            }
+          },
+          "useCase": {
+            "enum": [
+              "\"claimReadinessExplanation\"",
+              "\"clinicalNoteDraft\"",
+              "\"diagnosisSuggestion\"",
+              "\"patientMessageDraft\""
+            ]
+          }
+        },
+        "closed": true,
+        "required": [
+          "sourceRefs",
+          "useCase"
+        ]
+      }
+    },
+    {
+      "operation": "ai.drafts.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "ai.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/ai/drafts"
+      },
+      "mcpTool": "ai_drafts_list"
+    },
+    {
+      "operation": "ai.drafts.read",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "ai.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/ai/drafts/state"
+      },
+      "mcpTool": "ai_drafts_get"
+    },
+    {
+      "operation": "ai.drafts.reject",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "ai.review",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/ai/drafts/reject"
+      },
+      "mcpTool": "ai_drafts_reject",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "draftRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "expectedVersion": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 2147483647,
+            "minimum": 1
+          },
+          "reason": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z_]{1,64}$"
+          }
+        },
+        "closed": true,
+        "required": [
+          "draftRef",
+          "expectedVersion",
+          "reason"
+        ]
+      }
+    },
+    {
+      "operation": "ai.useCases.configure",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "admin.configure",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/ai/use-cases/configure"
+      },
+      "mcpTool": "ai_use_cases_configure",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "enabled": {
+            "type": [
+              "boolean"
+            ]
+          },
+          "useCase": {
+            "enum": [
+              "\"claimReadinessExplanation\"",
+              "\"clinicalNoteDraft\"",
+              "\"diagnosisSuggestion\"",
+              "\"patientMessageDraft\""
+            ]
+          }
+        },
+        "closed": true,
+        "required": [
+          "enabled"
+        ]
+      }
+    },
+    {
+      "operation": "ai.useCases.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "ai.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/ai/use-cases"
+      },
+      "mcpTool": "ai_use_cases_list"
+    },
+    {
       "operation": "billing.adjustments.decide",
       "transports": [
         "rest",

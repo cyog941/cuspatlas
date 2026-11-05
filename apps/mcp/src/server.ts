@@ -38,6 +38,7 @@ import {
   type CommandExecutor,
   type CursorCodec,
   createAgentService,
+  createAiSourceReaders,
   createAppointmentService,
   createAuthorize,
   createBillingEstimatePricing,
@@ -59,11 +60,13 @@ import {
   createSyntheticTaskService,
   type ImageRefResolver,
   type ImagingLimits,
+  type ModelAdapter,
   type PaymentProviderPort,
   readLatestCompletedProcedures,
   resolveIdempotencyDigestKey,
   resolveImagingTokenSecret,
   resolveMatchKeyPepper,
+  resolveModelAdapter,
   type StagingMaintenance,
 } from '@cuspatlas/domain';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -137,6 +140,8 @@ export interface McpServerDeps {
   readonly attempts: SecurityAttemptSink;
   readonly tenantTransactions: WithTenantTransaction;
   readonly execute?: CommandExecutor;
+  /** A11: model adapter; synthetic-test only (default: the synthetic adapter; null: AI disabled). */
+  readonly aiModel?: ModelAdapter | null;
   readonly cursors?: CursorCodec;
   /** Proposal policy version (defaults to PROPOSAL_POLICY_VERSION); tests bump it. */
   readonly proposalPolicyVersion?: string;
@@ -474,6 +479,14 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     execute,
     memberships: deps.membership,
     owners: { patients, engagement, billing },
+    ai: {
+      model: resolveModelAdapter(deps.env, deps.aiModel),
+      readers: createAiSourceReaders({ clinical, engagement, billing }),
+      owners: {
+        createNoteDraft: (c, r, e) => clinical.createNoteDraft(c, r, e),
+        postStaffMessage: (c, r, e) => engagement.postStaffMessage(c, r, e),
+      },
+    },
   });
   const toolDeps: ToolDeps = {
     agents,

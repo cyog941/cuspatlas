@@ -43,6 +43,14 @@ export const validateActionAbandon = def('ActionAbandon');
 export const validateActionQuery = def('ActionQuery');
 export const validateActionListQuery = def('ActionListQuery');
 
+export const validateAiDraftCreate = def('AiDraftCreate');
+export const validateAiDraftAccept = def('AiDraftAccept');
+export const validateAiDraftReject = def('AiDraftReject');
+export const validateAiDraftQuery = def('AiDraftQuery');
+export const validateAiDraftListQuery = def('AiDraftListQuery');
+export const validateAiUseCaseConfigure = def('AiUseCaseConfigure');
+export const validateAiUseCaseListQuery = def('AiUseCaseListQuery');
+
 export type AgentState = 'active' | 'suspended' | 'revoked';
 
 /** The generated operation catalog by operation id (A9 consent checks, budget sensitivity). */

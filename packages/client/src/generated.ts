@@ -258,6 +258,129 @@ export type AgentsAgentTransition = {
   readonly "reason"?: AgentsReasonCode;
 };
 
+export type AgentsAiDraft = {
+  readonly "draftRef": AgentsUuid;
+  readonly "useCase": AgentsAiUseCase;
+  readonly "state": "offered" | "flagged" | "accepted" | "rejected" | "stale";
+  readonly "text": string | null;
+  readonly "modelRef": string;
+  readonly "promptVersionRef": string;
+  readonly "sourceRefs": readonly ({
+    readonly "kind": string;
+    readonly "ref": AgentsUuid;
+    readonly "version": number;
+  })[];
+  readonly "freshness": {
+    readonly "fresh": boolean;
+    readonly "checkedAt": AgentsInstant;
+  };
+  readonly "flags": readonly (AgentsReasonCode)[];
+  readonly "createdBy": AgentsPrincipalRef;
+  readonly "createdAt": AgentsInstant;
+  readonly "decidedBy": (AgentsPrincipalRef) | (null);
+  readonly "acceptedAs": ({
+    readonly "kind": string;
+    readonly "ref": AgentsUuid;
+  }) | (null);
+  readonly "version": AgentsVersion;
+};
+
+export type AgentsAiDraftAccept = {
+  readonly "draftRef": AgentsUuid;
+  readonly "expectedVersion": AgentsVersion;
+  readonly "editedText"?: string;
+};
+
+export type AgentsAiDraftCommand = {
+  readonly "draftRef": AgentsUuid;
+  readonly "state": "offered" | "flagged" | "accepted" | "rejected" | "stale";
+  readonly "acceptedAs"?: ({
+    readonly "kind": string;
+    readonly "ref": AgentsUuid;
+  }) | (null);
+};
+
+export type AgentsAiDraftCommandResult = {
+  readonly "data": AgentsAiDraftCommand;
+  readonly "version": AgentsVersion;
+  readonly "correlationId": AgentsUuid;
+  readonly "replayed": boolean;
+};
+
+export type AgentsAiDraftCreate = {
+  readonly "useCase": AgentsAiUseCase;
+  readonly "sourceRefs": readonly (AgentsAiSourceRef)[];
+};
+
+export type AgentsAiDraftList = {
+  readonly "asOf": string;
+  readonly "appliedFilters": { readonly [k: string]: unknown };
+  readonly "scope": AgentsListScope;
+  readonly "limit": number;
+  readonly "truncated": boolean;
+  readonly "nextCursor": string | null;
+  readonly "ordering": AgentsListOrdering;
+  readonly "count": AgentsListCount;
+  readonly "items": readonly (AgentsAiDraft)[];
+};
+
+export type AgentsAiDraftRead = {
+  readonly "data": AgentsAiDraft;
+};
+
+export type AgentsAiDraftReject = {
+  readonly "draftRef": AgentsUuid;
+  readonly "expectedVersion": AgentsVersion;
+  readonly "reason": AgentsReasonCode;
+};
+
+export type AgentsAiSourceRef = {
+  readonly "kind": "encounter" | "note" | "thread" | "claim";
+  readonly "ref": AgentsUuid;
+};
+
+export type AgentsAiUseCase = "clinicalNoteDraft" | "patientMessageDraft" | "claimReadinessExplanation" | "diagnosisSuggestion";
+
+export type AgentsAiUseCaseCommand = {
+  readonly "useCase": (AgentsAiUseCase) | ("*");
+  readonly "enabled": boolean;
+};
+
+export type AgentsAiUseCaseCommandResult = {
+  readonly "data": AgentsAiUseCaseCommand;
+  readonly "version": AgentsVersion;
+  readonly "correlationId": AgentsUuid;
+  readonly "replayed": boolean;
+};
+
+export type AgentsAiUseCaseConfigure = {
+  readonly "useCase"?: AgentsAiUseCase;
+  readonly "enabled": boolean;
+};
+
+export type AgentsAiUseCaseList = {
+  readonly "asOf": string;
+  readonly "appliedFilters": { readonly [k: string]: unknown };
+  readonly "scope": AgentsListScope;
+  readonly "limit": number;
+  readonly "truncated": boolean;
+  readonly "nextCursor": string | null;
+  readonly "ordering": AgentsListOrdering;
+  readonly "count": AgentsListCount;
+  readonly "items": readonly (AgentsAiUseCaseState)[];
+};
+
+export type AgentsAiUseCaseState = {
+  readonly "useCase": AgentsAiUseCase;
+  readonly "registered": boolean;
+  readonly "approval": "recommendedPendingApproval" | "approved" | "notApproved";
+  readonly "enabled": boolean;
+  readonly "gate": "pass" | "fail" | "inconclusive" | "stale" | "none";
+  readonly "modelRef": string;
+  readonly "promptVersionRef": string;
+  readonly "caseSetVersion": string;
+};
+
 export type AgentsBudget = {
   readonly "periodSeconds": number;
   readonly "callsPerPeriod": number;
@@ -7480,6 +7603,69 @@ export interface Operations {
     successStatus: 200;
     idempotent: true;
   };
+  "ai.drafts.accept": {
+    method: "POST";
+    path: "/v1/ai/drafts/accept";
+    params: {  };
+    body: AgentsAiDraftAccept;
+    result: AgentsAiDraftCommandResult;
+    successStatus: 200;
+    idempotent: true;
+  };
+  "ai.drafts.create": {
+    method: "POST";
+    path: "/v1/ai/drafts";
+    params: {  };
+    body: AgentsAiDraftCreate;
+    result: AgentsAiDraftCommandResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "ai.drafts.list": {
+    method: "GET";
+    path: "/v1/ai/drafts";
+    params: {  };
+    body: undefined;
+    result: AgentsAiDraftList;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "ai.drafts.read": {
+    method: "GET";
+    path: "/v1/ai/drafts/state";
+    params: {  };
+    body: undefined;
+    result: AgentsAiDraftRead;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "ai.drafts.reject": {
+    method: "POST";
+    path: "/v1/ai/drafts/reject";
+    params: {  };
+    body: AgentsAiDraftReject;
+    result: AgentsAiDraftCommandResult;
+    successStatus: 200;
+    idempotent: true;
+  };
+  "ai.useCases.configure": {
+    method: "POST";
+    path: "/v1/ai/use-cases/configure";
+    params: {  };
+    body: AgentsAiUseCaseConfigure;
+    result: AgentsAiUseCaseCommandResult;
+    successStatus: 200;
+    idempotent: true;
+  };
+  "ai.useCases.list": {
+    method: "GET";
+    path: "/v1/ai/use-cases";
+    params: {  };
+    body: undefined;
+    result: AgentsAiUseCaseList;
+    successStatus: 200;
+    idempotent: false;
+  };
   "billing.adjustments.decide": {
     method: "POST";
     path: "/v1/billing/adjustment-requests/{requestRef}/decision";
@@ -11042,6 +11228,13 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "agents.principals.revoke": { method: "POST", path: "/v1/agents/principals/revoke", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "agents.principals.suspend": { method: "POST", path: "/v1/agents/principals/suspend", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "agents.sponsors.change": { method: "POST", path: "/v1/agents/sponsors/change", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "ai.drafts.accept": { method: "POST", path: "/v1/ai/drafts/accept", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "ai.drafts.create": { method: "POST", path: "/v1/ai/drafts", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "ai.drafts.list": { method: "GET", path: "/v1/ai/drafts", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "ai.drafts.read": { method: "GET", path: "/v1/ai/drafts/state", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "ai.drafts.reject": { method: "POST", path: "/v1/ai/drafts/reject", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "ai.useCases.configure": { method: "POST", path: "/v1/ai/use-cases/configure", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "ai.useCases.list": { method: "GET", path: "/v1/ai/use-cases", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "billing.adjustments.decide": { method: "POST", path: "/v1/billing/adjustment-requests/{requestRef}/decision", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "billing.adjustments.post": { method: "POST", path: "/v1/billing/charges/{chargeRef}/adjustments", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "billing.balances.read": { method: "GET", path: "/v1/billing/patients/{patientRef}/balance", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },

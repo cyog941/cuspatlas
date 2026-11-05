@@ -19,6 +19,7 @@ import {
   type CommandExecutor,
   type CursorCodec,
   createAgentService,
+  createAiSourceReaders,
   createAppointmentService,
   createAuthorize,
   createBillingEstimatePricing,
@@ -40,11 +41,13 @@ import {
   createSyntheticTaskService,
   type ImageRefResolver,
   type ImagingLimits,
+  type ModelAdapter,
   type PaymentProviderPort,
   readLatestCompletedProcedures,
   resolveIdempotencyDigestKey,
   resolveImagingTokenSecret,
   resolveMatchKeyPepper,
+  resolveModelAdapter,
   type StagingMaintenance,
 } from '@cuspatlas/domain';
 import Fastify, {
@@ -103,6 +106,8 @@ export interface AppDeps {
   readonly tenantTransactions?: WithTenantTransaction;
   /** Command executor; defaults to the durable executeOnce. Tests may inject a faulting one. */
   readonly execute?: CommandExecutor;
+  /** A11: model adapter; synthetic-test only (default: the synthetic adapter; null: AI disabled). */
+  readonly aiModel?: ModelAdapter | null;
   /** Pagination cursor codec; defaults to a per-process random HMAC key. */
   readonly cursors?: CursorCodec;
   /** Proposal policy version (defaults to PROPOSAL_POLICY_VERSION); tests bump it. */
@@ -434,6 +439,14 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         execute,
         memberships: deps.membership,
         owners: { patients, engagement, billing },
+        ai: {
+          model: resolveModelAdapter(deps.env, deps.aiModel),
+          readers: createAiSourceReaders({ clinical, engagement, billing }),
+          owners: {
+            createNoteDraft: (c, r, e) => clinical.createNoteDraft(c, r, e),
+            postStaffMessage: (c, r, e) => engagement.postStaffMessage(c, r, e),
+          },
+        },
       });
       registerAgentOpRoutes(app, { authenticator, agents });
     }

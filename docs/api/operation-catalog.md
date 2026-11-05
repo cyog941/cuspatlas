@@ -9,7 +9,7 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-418 operations.
+425 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
@@ -42,6 +42,13 @@ transport tables and are declarations, not independent proof.
 | `agents.principals.revoke` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/principals/revoke` | `agents_principals_revoke` | required | phi | active |
 | `agents.principals.suspend` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/principals/suspend` | `agents_principals_suspend` | required | phi | active |
 | `agents.sponsors.change` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/sponsors/change` | `agents_sponsors_change` | required | phi | active |
+| `ai.drafts.accept` | A | command | authorize | `ai.review` | human | rest, mcp | POST `/v1/ai/drafts/accept` | `ai_drafts_accept` | required | phi | active |
+| `ai.drafts.create` | A | command | authorize | `ai.draft` | human, service | rest, mcp | POST `/v1/ai/drafts` | `ai_drafts_create` | required | phi | active |
+| `ai.drafts.list` | A | query | authorize | `ai.read` | human, service | rest, mcp | GET `/v1/ai/drafts` | `ai_drafts_list` | none | phi | active |
+| `ai.drafts.read` | A | query | authorize | `ai.read` | human, service | rest, mcp | GET `/v1/ai/drafts/state` | `ai_drafts_get` | none | phi | active |
+| `ai.drafts.reject` | A | command | authorize | `ai.review` | human | rest, mcp | POST `/v1/ai/drafts/reject` | `ai_drafts_reject` | required | phi | active |
+| `ai.useCases.configure` | A | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/ai/use-cases/configure` | `ai_use_cases_configure` | required | phi | active |
+| `ai.useCases.list` | A | query | authorize | `ai.read` | human, service | rest, mcp | GET `/v1/ai/use-cases` | `ai_use_cases_list` | none | phi | active |
 | `billing.adjustments.decide` | B | command | authorize | `billing.correct` | human | rest, mcp | POST `/v1/billing/adjustment-requests/{requestRef}/decision` | `billing_adjustments_decide` | required | phi | active |
 | `billing.adjustments.post` | B | command | authorize | `billing.write` | human | rest, mcp | POST `/v1/billing/charges/{chargeRef}/adjustments` | `billing_adjustments_post` | required | phi | active |
 | `billing.balances.read` | B | query | authorize | `ledger.read` | human, service | rest, mcp | GET `/v1/billing/patients/{patientRef}/balance` | `billing_balances_get` | none | phi | active |

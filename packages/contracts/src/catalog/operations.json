@@ -650,6 +650,246 @@
     "status": "active"
   },
   {
+    "operation": "ai.drafts.accept",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "ai.drafts.accept",
+    "scope": "ai.review",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/ai/drafts/accept",
+      "requestSchema": "agents:AiDraftAccept",
+      "successStatus": "200",
+      "successSchema": "agents:AiDraftCommandResult"
+    },
+    "mcpTool": "ai_drafts_accept",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "ai.drafts.create",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "ai.drafts.create",
+    "scope": "ai.draft",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/ai/drafts",
+      "requestSchema": "agents:AiDraftCreate",
+      "successStatus": "201",
+      "successSchema": "agents:AiDraftCommandResult"
+    },
+    "mcpTool": "ai_drafts_create",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "ai.drafts.list",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "ai.drafts.list",
+    "scope": "ai.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/ai/drafts",
+      "successStatus": "200",
+      "successSchema": "agents:AiDraftList"
+    },
+    "mcpTool": "ai_drafts_list",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "ai.drafts.read",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "ai.drafts.read",
+    "scope": "ai.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/ai/drafts/state",
+      "successStatus": "200",
+      "successSchema": "agents:AiDraftRead"
+    },
+    "mcpTool": "ai_drafts_get",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "ai.drafts.reject",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "ai.drafts.reject",
+    "scope": "ai.review",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/ai/drafts/reject",
+      "requestSchema": "agents:AiDraftReject",
+      "successStatus": "200",
+      "successSchema": "agents:AiDraftCommandResult"
+    },
+    "mcpTool": "ai_drafts_reject",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "ai.useCases.configure",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "ai.useCases.configure",
+    "scope": "admin.configure",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/ai/use-cases/configure",
+      "requestSchema": "agents:AiUseCaseConfigure",
+      "successStatus": "200",
+      "successSchema": "agents:AiUseCaseCommandResult"
+    },
+    "mcpTool": "ai_use_cases_configure",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "ai.useCases.list",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "ai.useCases.list",
+    "scope": "ai.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/ai/use-cases",
+      "successStatus": "200",
+      "successSchema": "agents:AiUseCaseList"
+    },
+    "mcpTool": "ai_use_cases_list",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
     "operation": "billing.adjustments.decide",
     "owner": "B",
     "kind": "command",

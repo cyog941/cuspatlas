@@ -64,6 +64,7 @@
       ],
       "humanOnly": false,
       "owners": [
+        "A",
         "B",
         "C",
         "E",
@@ -72,6 +73,7 @@
         "S"
       ],
       "operations": [
+        "ai.useCases.configure",
         "billing.export",
         "clinical.authors.define",
         "clinical.consentTemplates.register",
@@ -157,6 +159,59 @@
         "agents.consents.list",
         "agents.principals.list",
         "agents.principals.read"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "ai.draft",
+      "noun": "ai",
+      "verb": "draft",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "ai.drafts.create"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "ai.read",
+      "noun": "ai",
+      "verb": "read",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "ai.drafts.list",
+        "ai.drafts.read",
+        "ai.useCases.list"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "ai.review",
+      "noun": "ai",
+      "verb": "review",
+      "principalClasses": [
+        "human"
+      ],
+      "humanOnly": true,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "ai.drafts.accept",
+        "ai.drafts.reject"
       ],
       "sensitivity": "phi"
     },

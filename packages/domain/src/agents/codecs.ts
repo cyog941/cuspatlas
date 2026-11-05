@@ -43,4 +43,5 @@ export const AGENT_REPLAY_CODECS: Record<string, ReplayCodec<any>> = {
   'actions.proposals.prepare': flatCodec(['proposalRef']),
   'actions.proposals.approve': flatCodec(['proposalRef']),
   'actions.proposals.abandon': flatCodec(['proposalRef']),
+  'ai.drafts.create': flatCodec(['draftRef']),
 };

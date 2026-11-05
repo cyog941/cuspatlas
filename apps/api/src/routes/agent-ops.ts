@@ -1,4 +1,4 @@
-import type { ActorContext, CommandEnvelope } from '@cuspatlas/contracts';
+import { type ActorContext, type CommandEnvelope, toDataEnvelope } from '@cuspatlas/contracts';
 import type { ActionName, AgentService } from '@cuspatlas/domain';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { type Authenticator, authenticateOnRequest, requireActor } from '../auth';
@@ -32,6 +32,8 @@ const env = (operation: string, input: OpInput): CommandEnvelope<unknown> => ({
   payload: input.body,
 });
 const data = async (p: Promise<unknown>) => ({ data: await p });
+/** Closeout D: a list answers the shared response envelope (`data` rows, `envelope` beside). */
+const list = async (p: Promise<unknown>) => toDataEnvelope(await p);
 
 const lifecycle = (
   path: string,
@@ -95,7 +97,7 @@ const wsRead = (
   refusals: READ,
   tool,
   description,
-  invoke: (svc, actor, i) => (wrap ? data(call(svc)(actor, i.body)) : call(svc)(actor, i.body)),
+  invoke: (svc, actor, i) => (wrap ? data(call(svc)(actor, i.body)) : list(call(svc)(actor, i.body))),
 });
 
 export const AGENT_OPS: AgentOp[] = [
@@ -196,7 +198,7 @@ export const AGENT_OPS: AgentOp[] = [
     refusals: READ,
     tool: 'agents_principals_list',
     description: 'A8: agent principals of the tenant, oldest first (OR-01 list envelope). Human only.',
-    invoke: (svc, actor, i) => svc.listAgentPrincipals(actor, i.body),
+    invoke: (svc, actor, i) => list(svc.listAgentPrincipals(actor, i.body)),
   },
   {
     method: 'get',
@@ -209,7 +211,7 @@ export const AGENT_OPS: AgentOp[] = [
     tool: 'agents_audit_list',
     description:
       'A8: the separate agent-audit stream of one agent (actor = the agent, sponsor = the sponsor of record at the time), OR-01 list envelope. Human only.',
-    invoke: (svc, actor, i) => svc.listAgentAudit(actor, i.body),
+    invoke: (svc, actor, i) => list(svc.listAgentAudit(actor, i.body)),
   },
   {
     method: 'post',
@@ -247,7 +249,7 @@ export const AGENT_OPS: AgentOp[] = [
     refusals: READ,
     tool: 'agents_consents_list',
     description: 'A9: consent records, newest first (OR-01 list envelope). Human only.',
-    invoke: (svc, actor, i) => svc.listConsents(actor, i.body),
+    invoke: (svc, actor, i) => list(svc.listConsents(actor, i.body)),
   },
   {
     method: 'get',
@@ -475,7 +477,7 @@ export const AGENT_OPS: AgentOp[] = [
     refusals: READ,
     tool: 'actions_proposals_list',
     description: 'A10: proposals, newest first (OR-01 list envelope). An agent sees only its own.',
-    invoke: (svc, actor, i) => svc.listProposals(actor, i.body),
+    invoke: (svc, actor, i) => list(svc.listProposals(actor, i.body)),
   },
   {
     method: 'post',
@@ -513,7 +515,7 @@ export const AGENT_OPS: AgentOp[] = [
     refusals: READ,
     tool: 'ai_drafts_list',
     description: 'A11: AI drafts, newest first (OR-01 list envelope). An agent sees only its own.',
-    invoke: (svc, actor, i) => svc.listAiDrafts(actor, i.body),
+    invoke: (svc, actor, i) => list(svc.listAiDrafts(actor, i.body)),
   },
   {
     method: 'post',
@@ -551,7 +553,7 @@ export const AGENT_OPS: AgentOp[] = [
     tool: 'ai_use_cases_list',
     description:
       'A11/AS-07: the AI use-case registry with approval status, the tenant switch and the evaluation gate (OR-01 list envelope).',
-    invoke: (svc, actor, i) => svc.listAiUseCases(actor, i.body),
+    invoke: (svc, actor, i) => list(svc.listAiUseCases(actor, i.body)),
   },
   {
     method: 'post',
@@ -590,7 +592,7 @@ export const AGENT_OPS: AgentOp[] = [
     tool: 'ai_evaluations_list',
     description:
       'A12: evaluation runs with model, prompt and case-set versions, newest first (OR-01 list envelope).',
-    invoke: (svc, actor, i) => svc.listAiEvaluations(actor, i.body),
+    invoke: (svc, actor, i) => list(svc.listAiEvaluations(actor, i.body)),
   },
   {
     method: 'post',

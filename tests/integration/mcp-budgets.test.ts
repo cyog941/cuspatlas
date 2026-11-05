@@ -73,7 +73,7 @@ describe('A9 consent', () => {
     expect((await s.agentCall(client, 'synthetic_tasks_list', {})).body.code).toBe('forbidden');
     const listed = await s.call('humanAll', 'GET', `/v1/agents/consents?agentRef=${a.agentRef}`);
     expect(listed.status).toBe(200);
-    expect((listed.body.items as { state: string }[]).map((x) => x.state)).toStrictEqual(['revoked']);
+    expect((listed.body.data as { state: string }[]).map((x) => x.state)).toStrictEqual(['revoked']);
   });
 
   it('the protected-resource metadata states that agent consent is required', async () => {
@@ -111,7 +111,7 @@ describe('A9 budgets', () => {
     await s.agentTool(a, 'synthetic_tasks_create', create('budget row two'));
     const r = await s.agentTool(a, 'synthetic_tasks_list', {});
     expect(r.isError).toBe(false);
-    const items = (r.body.data ?? r.body.items) as { label: string }[];
+    const items = r.body.data as { label: string }[];
     expect(items).toHaveLength(1);
     const t = (r.meta as { truncated?: Record<string, unknown> } | undefined)?.truncated as {
       returned: number;
@@ -128,7 +128,7 @@ describe('A9 budgets', () => {
     while (cursor) {
       const next = await s.agentTool(a, 'synthetic_tasks_list', { resumeCursor: cursor });
       expect(next.isError).toBe(false);
-      const page = (next.body.data ?? next.body.items) as { label: string }[];
+      const page = next.body.data as { label: string }[];
       expect(page).toHaveLength(1);
       seen.push(page[0]?.label);
       cursor = (next.meta as { truncated?: { resumeCursor: string } } | undefined)?.truncated?.resumeCursor;

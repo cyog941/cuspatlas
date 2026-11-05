@@ -21,7 +21,8 @@ import { type ListEnvelope, type ListOrdering, listEnvelope } from './list-envel
  *   that counts matches before the page cut but is itself capped by the read (work-item lists), so it only
  *   raises `count.atLeast` when the page is truncated.
  * - `placement: 'existing'` marks a response whose domain read already builds the OR-01 envelope.
- *   `rows: 'items'` (A2 agent/AI lists) means that envelope is flattened at the response root.
+ *   The A2 agent/AI and A14/A15 automation reads build it at the root beside `items`; both transports
+ *   answer it in the shared response envelope instead (`toDataEnvelope`: rows under `data`, `envelope`).
  */
 export interface ListOperationSpec {
   readonly rows: string;
@@ -38,10 +39,10 @@ export interface ListOperationSpec {
 }
 
 export const LIST_OPERATIONS: Readonly<Record<string, ListOperationSpec>> = {
-  // A2 (A8-A12) lists: the agent service builds the OR-01 envelope at the response root (`items` beside the
-  // envelope fields, no `data` wrapper), offset-cursor pages over tenant-wide rows (no location filter).
+  // A2 (A8-A12) lists: offset-cursor pages over tenant-wide rows (no location filter). The agent service
+  // builds the OR-01 envelope; REST and MCP answer `{ data, envelope }` (`toDataEnvelope`).
   'actions.proposals.list': {
-    rows: 'items',
+    rows: 'data',
     ordering: { key: 'createdAt', direction: 'desc', tieBreak: 'proposalRef' },
     limit: { default: 25, max: 100 },
     cursor: true,
@@ -49,7 +50,7 @@ export const LIST_OPERATIONS: Readonly<Record<string, ListOperationSpec>> = {
     placement: 'existing',
   },
   'agents.audit.list': {
-    rows: 'items',
+    rows: 'data',
     ordering: { key: 'occurredAt', direction: 'asc', tieBreak: 'eventRef' },
     limit: { default: 25, max: 100 },
     cursor: true,
@@ -57,7 +58,7 @@ export const LIST_OPERATIONS: Readonly<Record<string, ListOperationSpec>> = {
     placement: 'existing',
   },
   'agents.sponsors.offers.list': {
-    rows: 'items',
+    rows: 'data',
     ordering: { key: 'offeredAt', direction: 'asc', tieBreak: 'offerRef' },
     limit: { default: 25, max: 100 },
     cursor: true,
@@ -65,7 +66,7 @@ export const LIST_OPERATIONS: Readonly<Record<string, ListOperationSpec>> = {
     placement: 'existing',
   },
   'agents.memory.list': {
-    rows: 'items',
+    rows: 'data',
     ordering: { key: 'createdAt', direction: 'asc', tieBreak: 'memoryRef' },
     limit: { default: 25, max: 100 },
     cursor: true,
@@ -73,7 +74,7 @@ export const LIST_OPERATIONS: Readonly<Record<string, ListOperationSpec>> = {
     placement: 'existing',
   },
   'agents.sessions.list': {
-    rows: 'items',
+    rows: 'data',
     ordering: { key: 'startedAt', direction: 'asc', tieBreak: 'sessionRef' },
     limit: { default: 25, max: 100 },
     cursor: true,
@@ -81,7 +82,7 @@ export const LIST_OPERATIONS: Readonly<Record<string, ListOperationSpec>> = {
     placement: 'existing',
   },
   'agents.taskPolicies.list': {
-    rows: 'items',
+    rows: 'data',
     ordering: { key: 'createdAt', direction: 'asc', tieBreak: 'policyRef' },
     limit: { default: 25, max: 100 },
     cursor: true,
@@ -89,7 +90,7 @@ export const LIST_OPERATIONS: Readonly<Record<string, ListOperationSpec>> = {
     placement: 'existing',
   },
   'agents.tasks.list': {
-    rows: 'items',
+    rows: 'data',
     ordering: { key: 'createdAt', direction: 'asc', tieBreak: 'taskRef' },
     limit: { default: 25, max: 100 },
     cursor: true,
@@ -97,7 +98,7 @@ export const LIST_OPERATIONS: Readonly<Record<string, ListOperationSpec>> = {
     placement: 'existing',
   },
   'agents.tasks.runs.list': {
-    rows: 'items',
+    rows: 'data',
     ordering: { key: 'startedAt', direction: 'asc', tieBreak: 'runRef' },
     limit: { default: 25, max: 100 },
     cursor: true,
@@ -105,7 +106,7 @@ export const LIST_OPERATIONS: Readonly<Record<string, ListOperationSpec>> = {
     placement: 'existing',
   },
   'agents.consents.list': {
-    rows: 'items',
+    rows: 'data',
     ordering: { key: 'grantedAt', direction: 'desc', tieBreak: 'consentRef' },
     limit: { default: 25, max: 100 },
     cursor: true,
@@ -113,7 +114,7 @@ export const LIST_OPERATIONS: Readonly<Record<string, ListOperationSpec>> = {
     placement: 'existing',
   },
   'agents.principals.list': {
-    rows: 'items',
+    rows: 'data',
     ordering: { key: 'createdAt', direction: 'asc', tieBreak: 'agentRef' },
     limit: { default: 25, max: 100 },
     cursor: true,
@@ -121,7 +122,7 @@ export const LIST_OPERATIONS: Readonly<Record<string, ListOperationSpec>> = {
     placement: 'existing',
   },
   'ai.drafts.list': {
-    rows: 'items',
+    rows: 'data',
     ordering: { key: 'createdAt', direction: 'desc', tieBreak: 'draftRef' },
     limit: { default: 25, max: 100 },
     cursor: true,
@@ -129,7 +130,7 @@ export const LIST_OPERATIONS: Readonly<Record<string, ListOperationSpec>> = {
     placement: 'existing',
   },
   'ai.evaluations.list': {
-    rows: 'items',
+    rows: 'data',
     ordering: { key: 'ranAt', direction: 'desc', tieBreak: 'runRef' },
     limit: { default: 25, max: 100 },
     cursor: true,
@@ -138,7 +139,7 @@ export const LIST_OPERATIONS: Readonly<Record<string, ListOperationSpec>> = {
   },
   // The fixed use-case registry, returned whole (never truncated); `useCase` is unique.
   'ai.useCases.list': {
-    rows: 'items',
+    rows: 'data',
     ordering: { key: 'useCase', direction: 'asc', tieBreak: 'useCase' },
     limit: { default: 25, max: 100 },
     cursor: false,
@@ -661,7 +662,7 @@ export const LIST_OPERATIONS: Readonly<Record<string, ListOperationSpec>> = {
   },
   // Workstream A batch 4 (A15): export requests, tenant-wide, newest first.
   'exports.list': {
-    rows: 'items',
+    rows: 'data',
     ordering: { key: 'createdAt', direction: 'desc', tieBreak: 'exportRef' },
     limit: { default: 25, max: 100 },
     cursor: true,
@@ -670,7 +671,7 @@ export const LIST_OPERATIONS: Readonly<Record<string, ListOperationSpec>> = {
   },
   // Workstream A batch 4 (A14): tenant-wide reads (location-restricted members are refused).
   'webhooks.deliveries.failures.list': {
-    rows: 'items',
+    rows: 'data',
     ordering: { key: 'createdAt', direction: 'desc', tieBreak: 'deliveryRef' },
     limit: { default: 25, max: 100 },
     cursor: true,
@@ -678,7 +679,7 @@ export const LIST_OPERATIONS: Readonly<Record<string, ListOperationSpec>> = {
     placement: 'existing',
   },
   'webhooks.deliveries.list': {
-    rows: 'items',
+    rows: 'data',
     ordering: { key: 'createdAt', direction: 'desc', tieBreak: 'deliveryRef' },
     limit: { default: 25, max: 100 },
     cursor: true,
@@ -687,7 +688,7 @@ export const LIST_OPERATIONS: Readonly<Record<string, ListOperationSpec>> = {
   },
   // The closed event catalog, returned whole (never truncated); `eventType` is unique.
   'webhooks.eventTypes.list': {
-    rows: 'items',
+    rows: 'data',
     ordering: { key: 'eventType', direction: 'asc', tieBreak: 'eventType' },
     limit: { default: 25, max: 100 },
     cursor: false,
@@ -695,7 +696,7 @@ export const LIST_OPERATIONS: Readonly<Record<string, ListOperationSpec>> = {
     placement: 'existing',
   },
   'webhooks.subscriptions.list': {
-    rows: 'items',
+    rows: 'data',
     ordering: { key: 'createdAt', direction: 'desc', tieBreak: 'subscriptionRef' },
     limit: { default: 25, max: 100 },
     cursor: true,
@@ -771,4 +772,31 @@ export function attachListEnvelope(
     count: typeof total === 'number' ? { exact: total } : truncated ? { atLeast } : { exact: rows.length },
   };
   return { ...(body as Record<string, unknown>), envelope };
+}
+
+const ENVELOPE_KEYS = [
+  'asOf',
+  'appliedFilters',
+  'scope',
+  'limit',
+  'truncated',
+  'nextCursor',
+  'ordering',
+  'count',
+];
+
+/**
+ * Closeout D: the A2 agent/AI reads and the A14/A15 automation reads build the OR-01 envelope at the
+ * root beside `items`. Their REST and MCP answers use the shared response envelope instead: the rows
+ * under `data`, the envelope under `envelope`, and every other field (`phiPolicy`, `catalogVersion`)
+ * kept at the root. A body without root `items` is returned unchanged.
+ */
+export function toDataEnvelope(body: unknown): unknown {
+  if (!body || typeof body !== 'object' || !Array.isArray((body as Record<string, unknown>).items))
+    return body;
+  const { items, ...rest } = body as Record<string, unknown>;
+  const envelope: Record<string, unknown> = {};
+  const extra: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(rest)) (ENVELOPE_KEYS.includes(k) ? envelope : extra)[k] = v;
+  return { data: items, envelope, ...extra };
 }

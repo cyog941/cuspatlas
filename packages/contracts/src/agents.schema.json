@@ -321,49 +321,16 @@
       "type": "object",
       "additionalProperties": false,
       "description": "A8: agent principals of the tenant (OR-01 envelope), oldest first.",
-      "required": [
-        "asOf",
-        "appliedFilters",
-        "scope",
-        "limit",
-        "truncated",
-        "nextCursor",
-        "ordering",
-        "count",
-        "items"
-      ],
+      "required": ["data", "envelope"],
       "properties": {
-        "asOf": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "appliedFilters": {
-          "type": "object"
-        },
-        "scope": {
-          "$ref": "#/$defs/ListScope"
-        },
-        "limit": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "truncated": {
-          "type": "boolean"
-        },
-        "nextCursor": {
-          "type": ["string", "null"]
-        },
-        "ordering": {
-          "$ref": "#/$defs/ListOrdering"
-        },
-        "count": {
-          "$ref": "#/$defs/ListCount"
-        },
-        "items": {
+        "data": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/Agent"
           }
+        },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
         },
         "vocabularies": {
           "$ref": "#/$defs/VocabularyVersions"
@@ -419,49 +386,16 @@
       "type": "object",
       "additionalProperties": false,
       "description": "A8: the separate agent-audit stream of one agent: actor is the agent, sponsor is the sponsor of record at the time.",
-      "required": [
-        "asOf",
-        "appliedFilters",
-        "scope",
-        "limit",
-        "truncated",
-        "nextCursor",
-        "ordering",
-        "count",
-        "items"
-      ],
+      "required": ["data", "envelope"],
       "properties": {
-        "asOf": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "appliedFilters": {
-          "type": "object"
-        },
-        "scope": {
-          "$ref": "#/$defs/ListScope"
-        },
-        "limit": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "truncated": {
-          "type": "boolean"
-        },
-        "nextCursor": {
-          "type": ["string", "null"]
-        },
-        "ordering": {
-          "$ref": "#/$defs/ListOrdering"
-        },
-        "count": {
-          "$ref": "#/$defs/ListCount"
-        },
-        "items": {
+        "data": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/AgentAuditEvent"
           }
+        },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
         }
       }
     },
@@ -669,49 +603,16 @@
       "type": "object",
       "additionalProperties": false,
       "description": "A9: consent records (OR-01 envelope), newest first.",
-      "required": [
-        "asOf",
-        "appliedFilters",
-        "scope",
-        "limit",
-        "truncated",
-        "nextCursor",
-        "ordering",
-        "count",
-        "items"
-      ],
+      "required": ["data", "envelope"],
       "properties": {
-        "asOf": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "appliedFilters": {
-          "type": "object"
-        },
-        "scope": {
-          "$ref": "#/$defs/ListScope"
-        },
-        "limit": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "truncated": {
-          "type": "boolean"
-        },
-        "nextCursor": {
-          "type": ["string", "null"]
-        },
-        "ordering": {
-          "$ref": "#/$defs/ListOrdering"
-        },
-        "count": {
-          "$ref": "#/$defs/ListCount"
-        },
-        "items": {
+        "data": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/Consent"
           }
+        },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
         },
         "vocabularies": {
           "$ref": "#/$defs/VocabularyVersions"
@@ -1033,49 +934,16 @@
       "type": "object",
       "additionalProperties": false,
       "description": "A23: agent sessions, oldest first (OR-01 envelope).",
-      "required": [
-        "asOf",
-        "appliedFilters",
-        "scope",
-        "limit",
-        "truncated",
-        "nextCursor",
-        "ordering",
-        "count",
-        "items"
-      ],
+      "required": ["data", "envelope"],
       "properties": {
-        "asOf": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "appliedFilters": {
-          "type": "object"
-        },
-        "scope": {
-          "$ref": "#/$defs/ListScope"
-        },
-        "limit": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "truncated": {
-          "type": "boolean"
-        },
-        "nextCursor": {
-          "type": ["string", "null"]
-        },
-        "ordering": {
-          "$ref": "#/$defs/ListOrdering"
-        },
-        "count": {
-          "$ref": "#/$defs/ListCount"
-        },
-        "items": {
+        "data": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/Session"
           }
+        },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
         },
         "vocabularies": {
           "$ref": "#/$defs/VocabularyVersions"
@@ -1466,49 +1334,16 @@
       "type": "object",
       "additionalProperties": false,
       "description": "A23: standing task policies, oldest first (OR-01 envelope).",
-      "required": [
-        "asOf",
-        "appliedFilters",
-        "scope",
-        "limit",
-        "truncated",
-        "nextCursor",
-        "ordering",
-        "count",
-        "items"
-      ],
+      "required": ["data", "envelope"],
       "properties": {
-        "asOf": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "appliedFilters": {
-          "type": "object"
-        },
-        "scope": {
-          "$ref": "#/$defs/ListScope"
-        },
-        "limit": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "truncated": {
-          "type": "boolean"
-        },
-        "nextCursor": {
-          "type": ["string", "null"]
-        },
-        "ordering": {
-          "$ref": "#/$defs/ListOrdering"
-        },
-        "count": {
-          "$ref": "#/$defs/ListCount"
-        },
-        "items": {
+        "data": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/TaskPolicy"
           }
+        },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
         },
         "vocabularies": {
           "$ref": "#/$defs/VocabularyVersions"
@@ -1683,49 +1518,16 @@
       "type": "object",
       "additionalProperties": false,
       "description": "A23: scheduled agent tasks, oldest first (OR-01 envelope).",
-      "required": [
-        "asOf",
-        "appliedFilters",
-        "scope",
-        "limit",
-        "truncated",
-        "nextCursor",
-        "ordering",
-        "count",
-        "items"
-      ],
+      "required": ["data", "envelope"],
       "properties": {
-        "asOf": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "appliedFilters": {
-          "type": "object"
-        },
-        "scope": {
-          "$ref": "#/$defs/ListScope"
-        },
-        "limit": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "truncated": {
-          "type": "boolean"
-        },
-        "nextCursor": {
-          "type": ["string", "null"]
-        },
-        "ordering": {
-          "$ref": "#/$defs/ListOrdering"
-        },
-        "count": {
-          "$ref": "#/$defs/ListCount"
-        },
-        "items": {
+        "data": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/Task"
           }
+        },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
         },
         "vocabularies": {
           "$ref": "#/$defs/VocabularyVersions"
@@ -1825,49 +1627,16 @@
       "type": "object",
       "additionalProperties": false,
       "description": "A23: runs of one scheduled task, oldest first (OR-01 envelope).",
-      "required": [
-        "asOf",
-        "appliedFilters",
-        "scope",
-        "limit",
-        "truncated",
-        "nextCursor",
-        "ordering",
-        "count",
-        "items"
-      ],
+      "required": ["data", "envelope"],
       "properties": {
-        "asOf": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "appliedFilters": {
-          "type": "object"
-        },
-        "scope": {
-          "$ref": "#/$defs/ListScope"
-        },
-        "limit": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "truncated": {
-          "type": "boolean"
-        },
-        "nextCursor": {
-          "type": ["string", "null"]
-        },
-        "ordering": {
-          "$ref": "#/$defs/ListOrdering"
-        },
-        "count": {
-          "$ref": "#/$defs/ListCount"
-        },
-        "items": {
+        "data": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/TaskRun"
           }
+        },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
         },
         "vocabularies": {
           "$ref": "#/$defs/VocabularyVersions"
@@ -1878,50 +1647,16 @@
       "type": "object",
       "additionalProperties": false,
       "description": "A23: memory keys and metadata of one agent (no values), oldest first (OR-01 envelope), with the tenant PHI policy.",
-      "required": [
-        "asOf",
-        "appliedFilters",
-        "scope",
-        "limit",
-        "truncated",
-        "nextCursor",
-        "ordering",
-        "count",
-        "items",
-        "phiPolicy"
-      ],
+      "required": ["data", "envelope", "phiPolicy"],
       "properties": {
-        "asOf": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "appliedFilters": {
-          "type": "object"
-        },
-        "scope": {
-          "$ref": "#/$defs/ListScope"
-        },
-        "limit": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "truncated": {
-          "type": "boolean"
-        },
-        "nextCursor": {
-          "type": ["string", "null"]
-        },
-        "ordering": {
-          "$ref": "#/$defs/ListOrdering"
-        },
-        "count": {
-          "$ref": "#/$defs/ListCount"
-        },
-        "items": {
+        "data": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/MemoryEntry"
           }
+        },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
         },
         "vocabularies": {
           "$ref": "#/$defs/VocabularyVersions"
@@ -2191,49 +1926,16 @@
       "type": "object",
       "additionalProperties": false,
       "description": "A10: proposals of the tenant (OR-01 envelope), newest first.",
-      "required": [
-        "asOf",
-        "appliedFilters",
-        "scope",
-        "limit",
-        "truncated",
-        "nextCursor",
-        "ordering",
-        "count",
-        "items"
-      ],
+      "required": ["data", "envelope"],
       "properties": {
-        "asOf": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "appliedFilters": {
-          "type": "object"
-        },
-        "scope": {
-          "$ref": "#/$defs/ListScope"
-        },
-        "limit": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "truncated": {
-          "type": "boolean"
-        },
-        "nextCursor": {
-          "type": ["string", "null"]
-        },
-        "ordering": {
-          "$ref": "#/$defs/ListOrdering"
-        },
-        "count": {
-          "$ref": "#/$defs/ListCount"
-        },
-        "items": {
+        "data": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/ActionProposal"
           }
+        },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
         },
         "vocabularies": {
           "$ref": "#/$defs/VocabularyVersions"
@@ -2535,49 +2237,16 @@
       "type": "object",
       "additionalProperties": false,
       "description": "A11: AI drafts of the tenant (OR-01 envelope), newest first.",
-      "required": [
-        "asOf",
-        "appliedFilters",
-        "scope",
-        "limit",
-        "truncated",
-        "nextCursor",
-        "ordering",
-        "count",
-        "items"
-      ],
+      "required": ["data", "envelope"],
       "properties": {
-        "asOf": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "appliedFilters": {
-          "type": "object"
-        },
-        "scope": {
-          "$ref": "#/$defs/ListScope"
-        },
-        "limit": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "truncated": {
-          "type": "boolean"
-        },
-        "nextCursor": {
-          "type": ["string", "null"]
-        },
-        "ordering": {
-          "$ref": "#/$defs/ListOrdering"
-        },
-        "count": {
-          "$ref": "#/$defs/ListCount"
-        },
-        "items": {
+        "data": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/AiDraft"
           }
+        },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
         },
         "vocabularies": {
           "$ref": "#/$defs/VocabularyVersions"
@@ -2700,49 +2369,16 @@
       "type": "object",
       "additionalProperties": false,
       "description": "A11/AS-07: the AI use-case registry with the tenant switch and the A12 gate.",
-      "required": [
-        "asOf",
-        "appliedFilters",
-        "scope",
-        "limit",
-        "truncated",
-        "nextCursor",
-        "ordering",
-        "count",
-        "items"
-      ],
+      "required": ["data", "envelope"],
       "properties": {
-        "asOf": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "appliedFilters": {
-          "type": "object"
-        },
-        "scope": {
-          "$ref": "#/$defs/ListScope"
-        },
-        "limit": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "truncated": {
-          "type": "boolean"
-        },
-        "nextCursor": {
-          "type": ["string", "null"]
-        },
-        "ordering": {
-          "$ref": "#/$defs/ListOrdering"
-        },
-        "count": {
-          "$ref": "#/$defs/ListCount"
-        },
-        "items": {
+        "data": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/AiUseCaseState"
           }
+        },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
         },
         "vocabularies": {
           "$ref": "#/$defs/VocabularyVersions"
@@ -2873,49 +2509,16 @@
       "type": "object",
       "additionalProperties": false,
       "description": "A12: evaluation runs (OR-01 envelope), newest first.",
-      "required": [
-        "asOf",
-        "appliedFilters",
-        "scope",
-        "limit",
-        "truncated",
-        "nextCursor",
-        "ordering",
-        "count",
-        "items"
-      ],
+      "required": ["data", "envelope"],
       "properties": {
-        "asOf": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "appliedFilters": {
-          "type": "object"
-        },
-        "scope": {
-          "$ref": "#/$defs/ListScope"
-        },
-        "limit": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "truncated": {
-          "type": "boolean"
-        },
-        "nextCursor": {
-          "type": ["string", "null"]
-        },
-        "ordering": {
-          "$ref": "#/$defs/ListOrdering"
-        },
-        "count": {
-          "$ref": "#/$defs/ListCount"
-        },
-        "items": {
+        "data": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/AiEvaluation"
           }
+        },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
         },
         "vocabularies": {
           "$ref": "#/$defs/VocabularyVersions"
@@ -3226,49 +2829,16 @@
       "type": "object",
       "additionalProperties": false,
       "description": "A23 hardening: sponsor offers the caller may see (offeree: own pending offers; sponsor or agent manager: offers for their agents), oldest first (OR-01 envelope).",
-      "required": [
-        "asOf",
-        "appliedFilters",
-        "scope",
-        "limit",
-        "truncated",
-        "nextCursor",
-        "ordering",
-        "count",
-        "items"
-      ],
+      "required": ["data", "envelope"],
       "properties": {
-        "asOf": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "appliedFilters": {
-          "type": "object"
-        },
-        "scope": {
-          "$ref": "#/$defs/ListScope"
-        },
-        "limit": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "truncated": {
-          "type": "boolean"
-        },
-        "nextCursor": {
-          "type": ["string", "null"]
-        },
-        "ordering": {
-          "$ref": "#/$defs/ListOrdering"
-        },
-        "count": {
-          "$ref": "#/$defs/ListCount"
-        },
-        "items": {
+        "data": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/SponsorOffer"
           }
+        },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
         },
         "vocabularies": {
           "$ref": "#/$defs/VocabularyVersions"

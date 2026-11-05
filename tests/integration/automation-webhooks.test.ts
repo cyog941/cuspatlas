@@ -122,7 +122,7 @@ type Delivery = {
 async function deliveries(subscriptionRef: string): Promise<Delivery[]> {
   const r = await s.inject('owner', 'GET', `/v1/webhooks/deliveries?subscriptionRef=${subscriptionRef}`);
   expect([r.status, r.body.slice(0, 200)]).toStrictEqual([200, r.body.slice(0, 200)]);
-  return (r.json.items as Delivery[]) ?? [];
+  return (r.json.data as Delivery[]) ?? [];
 }
 
 beforeAll(async () => {
@@ -146,7 +146,7 @@ describe('A14 event catalog and subscription administration', () => {
   it('publishes a closed, versioned event catalog derived from outbox aggregate types', async () => {
     const r = await s.inject('owner', 'GET', '/v1/webhooks/event-types');
     expect(r.status).toBe(200);
-    const items = r.json.items as { eventType: string; aggregateType: string; versions: number[] }[];
+    const items = r.json.data as { eventType: string; aggregateType: string; versions: number[] }[];
     expect(items.map((i) => i.eventType)).toStrictEqual(WEBHOOK_EVENT_CATALOG.map((e) => e.eventType));
     expect(items.find((i) => i.eventType === 'patient.changed')).toMatchObject({
       aggregateType: 'patient',
@@ -339,7 +339,7 @@ describe('A14 signed at-least-once delivery', () => {
     expect(receiver.to('/failing').length).toBe(5);
     const w = await s.inject('owner', 'GET', '/v1/webhooks/deliveries/failures');
     expect(w.status).toBe(200);
-    expect((w.json.items as Delivery[]).find((x) => x.deliveryRef === d?.deliveryRef)).toMatchObject({
+    expect((w.json.data as Delivery[]).find((x) => x.deliveryRef === d?.deliveryRef)).toMatchObject({
       state: 'dead_lettered',
       attempts: 5,
       lastResponseClass: '5xx',
@@ -457,7 +457,7 @@ describe('A14 signed at-least-once delivery', () => {
     const [d] = await deliveries(subscriptionRef);
     expect(d).toMatchObject({ state: 'adapter_not_configured', attempts: 0 });
     const w = await s.inject('owner', 'GET', '/v1/webhooks/deliveries/failures');
-    expect((w.json.items as Delivery[]).some((x) => x.deliveryRef === d?.deliveryRef)).toBe(true);
+    expect((w.json.data as Delivery[]).some((x) => x.deliveryRef === d?.deliveryRef)).toBe(true);
     // A port is honoured only in synthetic-test.
     expect(resolveWebhookPort('production', receiver.port)).toBeNull();
     expect(resolveWebhookPort('development', receiver.port)).toBeNull();

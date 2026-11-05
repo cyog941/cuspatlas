@@ -1,4 +1,4 @@
-import type { ActorContext, CommandEnvelope } from '@cuspatlas/contracts';
+import { type ActorContext, type CommandEnvelope, toDataEnvelope } from '@cuspatlas/contracts';
 import type { ActionName, AutomationService, PackageBytes, PackageBytesRequest } from '@cuspatlas/domain';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { type Authenticator, authenticateOnRequest, requireActor } from '../auth';
@@ -53,7 +53,7 @@ export const AUTOMATION_OPS: AutomationOp[] = [
     tool: 'webhooks_event_types_list',
     description:
       'A14: the published webhook event catalog (closed, versioned, derived from outbox aggregate types), returned whole (OR-01 envelope).',
-    invoke: (svc, actor, i) => svc.listWebhookEventTypes(actor, i.body),
+    invoke: async (svc, actor, i) => toDataEnvelope(await svc.listWebhookEventTypes(actor, i.body)),
   },
   {
     method: 'post',
@@ -78,7 +78,7 @@ export const AUTOMATION_OPS: AutomationOp[] = [
     refusals: READ,
     tool: 'webhooks_subscriptions_list',
     description: 'A14: subscriptions of the caller tenant, newest first (OR-01 envelope). Never a secret.',
-    invoke: (svc, actor, i) => svc.listWebhookSubscriptions(actor, i.body),
+    invoke: async (svc, actor, i) => toDataEnvelope(await svc.listWebhookSubscriptions(actor, i.body)),
   },
   {
     method: 'post',
@@ -117,7 +117,7 @@ export const AUTOMATION_OPS: AutomationOp[] = [
     tool: 'webhooks_deliveries_list',
     description:
       'A14: the delivery log (state, attempts, last response class, guard outcome, replay link), newest first (OR-01 envelope). Bodies are never listed.',
-    invoke: (svc, actor, i) => svc.listWebhookDeliveries(actor, i.body),
+    invoke: async (svc, actor, i) => toDataEnvelope(await svc.listWebhookDeliveries(actor, i.body)),
   },
   {
     method: 'get',
@@ -130,7 +130,7 @@ export const AUTOMATION_OPS: AutomationOp[] = [
     tool: 'webhooks_deliveries_failures_list',
     description:
       'A14: failures worklist: dead-lettered deliveries with their attempts and last response class, deliveries waiting for a delivery adapter (adapter_not_configured) and deliveries paused by the send-time endpoint guard.',
-    invoke: (svc, actor, i) => svc.listWebhookFailures(actor, i.body),
+    invoke: async (svc, actor, i) => toDataEnvelope(await svc.listWebhookFailures(actor, i.body)),
   },
   {
     method: 'post',
@@ -169,7 +169,7 @@ export const AUTOMATION_OPS: AutomationOp[] = [
     tool: 'exports_list',
     description:
       'A15: export requests of the caller tenant with state, digests and diagnostics, newest first (OR-01 envelope). Never contents.',
-    invoke: (svc, actor, i) => svc.listExports(actor, i.body),
+    invoke: async (svc, actor, i) => toDataEnvelope(await svc.listExports(actor, i.body)),
   },
   {
     method: 'get',

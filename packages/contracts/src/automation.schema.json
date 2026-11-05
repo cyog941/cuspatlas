@@ -257,49 +257,16 @@
       "type": "object",
       "additionalProperties": false,
       "description": "A14 subscriptions (OR-01 envelope), newest first. Never a secret.",
-      "required": [
-        "asOf",
-        "appliedFilters",
-        "scope",
-        "limit",
-        "truncated",
-        "nextCursor",
-        "ordering",
-        "count",
-        "items"
-      ],
+      "required": ["data", "envelope"],
       "properties": {
-        "asOf": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "appliedFilters": {
-          "type": "object"
-        },
-        "scope": {
-          "$ref": "#/$defs/ListScope"
-        },
-        "limit": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "truncated": {
-          "type": "boolean"
-        },
-        "nextCursor": {
-          "type": ["string", "null"]
-        },
-        "ordering": {
-          "$ref": "#/$defs/ListOrdering"
-        },
-        "count": {
-          "$ref": "#/$defs/ListCount"
-        },
-        "items": {
+        "data": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/WebhookSubscription"
           }
+        },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
         }
       }
     },
@@ -336,53 +303,19 @@
       "type": "object",
       "additionalProperties": false,
       "description": "A14 published event catalog (closed, versioned), returned whole.",
-      "required": [
-        "asOf",
-        "appliedFilters",
-        "scope",
-        "limit",
-        "truncated",
-        "nextCursor",
-        "ordering",
-        "count",
-        "items",
-        "catalogVersion"
-      ],
+      "required": ["data", "envelope", "catalogVersion"],
       "properties": {
-        "asOf": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "appliedFilters": {
-          "type": "object"
-        },
-        "scope": {
-          "$ref": "#/$defs/ListScope"
-        },
-        "limit": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "truncated": {
-          "type": "boolean"
-        },
-        "nextCursor": {
-          "type": ["string", "null"]
-        },
-        "ordering": {
-          "$ref": "#/$defs/ListOrdering"
-        },
-        "count": {
-          "$ref": "#/$defs/ListCount"
-        },
-        "catalogVersion": {
-          "type": "string"
-        },
-        "items": {
+        "data": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/WebhookEventTypeEntry"
           }
+        },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
+        },
+        "catalogVersion": {
+          "type": "string"
         }
       }
     },
@@ -512,49 +445,16 @@
       "type": "object",
       "additionalProperties": false,
       "description": "A14 delivery log (OR-01 envelope), newest first. Bodies are never listed.",
-      "required": [
-        "asOf",
-        "appliedFilters",
-        "scope",
-        "limit",
-        "truncated",
-        "nextCursor",
-        "ordering",
-        "count",
-        "items"
-      ],
+      "required": ["data", "envelope"],
       "properties": {
-        "asOf": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "appliedFilters": {
-          "type": "object"
-        },
-        "scope": {
-          "$ref": "#/$defs/ListScope"
-        },
-        "limit": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "truncated": {
-          "type": "boolean"
-        },
-        "nextCursor": {
-          "type": ["string", "null"]
-        },
-        "ordering": {
-          "$ref": "#/$defs/ListOrdering"
-        },
-        "count": {
-          "$ref": "#/$defs/ListCount"
-        },
-        "items": {
+        "data": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/WebhookDelivery"
           }
+        },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
         }
       }
     },
@@ -766,49 +666,16 @@
       "type": "object",
       "additionalProperties": false,
       "description": "A15 export requests (OR-01 envelope), newest first. Never contents.",
-      "required": [
-        "asOf",
-        "appliedFilters",
-        "scope",
-        "limit",
-        "truncated",
-        "nextCursor",
-        "ordering",
-        "count",
-        "items"
-      ],
+      "required": ["data", "envelope"],
       "properties": {
-        "asOf": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "appliedFilters": {
-          "type": "object"
-        },
-        "scope": {
-          "$ref": "#/$defs/ListScope"
-        },
-        "limit": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "truncated": {
-          "type": "boolean"
-        },
-        "nextCursor": {
-          "type": ["string", "null"]
-        },
-        "ordering": {
-          "$ref": "#/$defs/ListOrdering"
-        },
-        "count": {
-          "$ref": "#/$defs/ListCount"
-        },
-        "items": {
+        "data": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/ExportRequest"
           }
+        },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
         }
       }
     },

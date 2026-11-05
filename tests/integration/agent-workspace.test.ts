@@ -56,10 +56,10 @@ describe('A23 sessions', () => {
     await s.agentCall(client, 'synthetic_tasks_list', {});
     const mine = await s.agentCall(client, 'agents_sessions_list', {});
     expect(mine.isError, JSON.stringify(mine.body)).toBe(false);
-    const items = mine.body.items as { sessionRef: string; state: string; callCount: number }[];
+    const items = mine.body.data as { sessionRef: string; state: string; callCount: number }[];
     expect(items).toHaveLength(1);
     expect(items[0]?.state).toBe('open');
-    expect(mine.body).toMatchObject({ ordering: { key: 'startedAt' }, count: { exact: 1 } });
+    expect(mine.body).toMatchObject({ envelope: { ordering: { key: 'startedAt' }, count: { exact: 1 } } });
     const read = await s.call(
       'humanAll',
       'GET',
@@ -90,7 +90,7 @@ describe('A23 sessions', () => {
   it('an agent ends its session; the next call opens a new one; a revoked consent ends the session', async () => {
     const a = await s.createAgent(WS, 'session end');
     await s.agentTool(a, 'synthetic_tasks_list', {});
-    const first = (await s.agentTool(a, 'agents_sessions_list', {})).body.items as { sessionRef: string }[];
+    const first = (await s.agentTool(a, 'agents_sessions_list', {})).body.data as { sessionRef: string }[];
     const end = await s.agentTool(a, 'agents_sessions_end', {
       sessionRef: first[0]?.sessionRef,
       idempotencyKey: key(),
@@ -99,7 +99,7 @@ describe('A23 sessions', () => {
     expect(end.body.data).toMatchObject({ state: 'ended', endReason: 'ended_by_agent' });
     await s.agentTool(a, 'synthetic_tasks_list', {});
     const listed = await s.call('humanAll', 'GET', `/v1/agents/sessions?agentRef=${a.agentRef}`);
-    expect((listed.body.items as { state: string }[]).map((x) => x.state).sort()).toStrictEqual([
+    expect((listed.body.data as { state: string }[]).map((x) => x.state).sort()).toStrictEqual([
       'ended',
       'open',
     ]);
@@ -112,7 +112,7 @@ describe('A23 sessions', () => {
       expectedVersion: 1,
     });
     const after = await s.call('humanAll', 'GET', `/v1/agents/sessions?agentRef=${a.agentRef}`);
-    expect((after.body.items as { endReason: string }[]).map((x) => x.endReason).sort()).toStrictEqual([
+    expect((after.body.data as { endReason: string }[]).map((x) => x.endReason).sort()).toStrictEqual([
       'consent_ended',
       'ended_by_agent',
     ]);
@@ -163,8 +163,11 @@ describe('A23 scoped memory', () => {
     );
     expect(calls.rows[0]?.records).toBeGreaterThanOrEqual(1);
     const listed = await s.agentTool(a, 'agents_memory_list', {});
-    expect(listed.body).toMatchObject({ count: { exact: 1 }, phiPolicy: { phiAllowed: false } });
-    expect(JSON.stringify(listed.body.items)).not.toContain('morning recall');
+    expect(listed.body).toMatchObject({
+      envelope: { count: { exact: 1 } },
+      phiPolicy: { phiAllowed: false },
+    });
+    expect(JSON.stringify(listed.body.data)).not.toContain('morning recall');
   });
 
   it('PHI is refused (one uniform refusal): a phi classification, contacts, DOB phrases, patient refs and names', async () => {
@@ -227,7 +230,7 @@ describe('A23 scoped memory', () => {
     expect((await s.agentTool(b, 'agents_memory_list', { agentRef: a.agentRef })).body.code).toBe(
       'not_found',
     );
-    expect(((await s.agentTool(b, 'agents_memory_list', {})).body.items as unknown[]).length).toBe(0);
+    expect(((await s.agentTool(b, 'agents_memory_list', {})).body.data as unknown[]).length).toBe(0);
     const q = `/v1/agents/memory/entry?agentRef=${a.agentRef}&key=private.note`;
     const sponsor = await s.call('humanAll', 'GET', q);
     expect(sponsor.status).toBe(200);
@@ -376,7 +379,7 @@ describe('A23 scheduled tasks', () => {
     expect((await schedule(b, p, 'syntheticTasks.list')).body.code).toBe('not_found');
     const listed = await s.call('humanAll', 'GET', `/v1/agents/tasks?agentRef=${a.agentRef}`);
     expect(listed.status).toBe(200);
-    expect(listed.body.count).toStrictEqual({ exact: 1 });
+    expect(listed.body.envelope.count).toStrictEqual({ exact: 1 });
   });
 
   it('the worker runs a due task through MCP admission and records the outcome', async () => {
@@ -395,7 +398,7 @@ describe('A23 scheduled tasks', () => {
     );
     expect(call.rows.map((r) => r.outcome)).toStrictEqual(['ok']);
     const listed = await s.agentTool(a, 'agents_task_runs_list', { taskRef: t });
-    expect((listed.body.items as { outcome: string }[]).map((r) => r.outcome)).toStrictEqual(['ok']);
+    expect((listed.body.data as { outcome: string }[]).map((r) => r.outcome)).toStrictEqual(['ok']);
     // Not due again until its interval passes.
     expect(await runner().runDue(T_ALPHA)).toStrictEqual([]);
   });

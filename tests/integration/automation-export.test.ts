@@ -385,7 +385,7 @@ describe('A15 hardening: requester-bound delivery, re-authorization, linkage map
       expect((await grantFor('imagingReadOnly', req.exportRef)).status).toBe(404);
       const list = await s.inject('imagingReadOnly', 'GET', '/v1/exports');
       expect(list.status).toBe(200);
-      expect((list.json.items as Req[]).some((x) => x.exportRef === req.exportRef)).toBe(false);
+      expect((list.json.data as Req[]).some((x) => x.exportRef === req.exportRef)).toBe(false);
       await setScopes(USER_A4, ['exports.admin']);
       const g = await grantFor('imagingReadOnly', req.exportRef);
       expect([g.status, g.body.slice(0, 200)]).toStrictEqual([200, g.body.slice(0, 200)]);

@@ -103,7 +103,7 @@ describe('workstream A batch 2 negative harness', () => {
       if (CASES[op.operationId]?.relationList) {
         // No scope to lack and nothing related to this caller: an empty page, never another's rows.
         expect(r.status, op.operationId).toBe(200);
-        expect(r.body.items, op.operationId).toStrictEqual([]);
+        expect(r.body.data, op.operationId).toStrictEqual([]);
         continue;
       }
       if (CASES[op.operationId]?.scopeless) {

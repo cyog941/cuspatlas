@@ -364,17 +364,17 @@ describe('A23 hardening: sponsor offers', () => {
     expect(change.status, JSON.stringify(change.body)).toBe(200);
     const mine = await s.call(offeree, 'GET', '/v1/agents/sponsors/offers');
     expect(mine.status, JSON.stringify(mine.body)).toBe(200);
-    const items = mine.body.items as { agentRef: string; sponsorRef: string; state: string }[];
+    const items = mine.body.data as { agentRef: string; sponsorRef: string; state: string }[];
     expect(items).toContainEqual(
       expect.objectContaining({ agentRef: a.agentRef, sponsorRef: offeree, state: 'pending' }),
     );
     expect(mine.body).toMatchObject({
-      ordering: { key: 'offeredAt', direction: 'asc', tieBreak: 'offerRef' },
+      envelope: { ordering: { key: 'offeredAt', direction: 'asc', tieBreak: 'offerRef' } },
     });
     const sponsor = await s.call('humanAll', 'GET', `/v1/agents/sponsors/offers?agentRef=${a.agentRef}`);
-    expect((sponsor.body.items as unknown[]).length).toBe(1);
+    expect((sponsor.body.data as unknown[]).length).toBe(1);
     const other = await s.call(stranger, 'GET', '/v1/agents/sponsors/offers');
-    expect(JSON.stringify(other.body.items)).not.toContain(a.agentRef);
+    expect(JSON.stringify(other.body.data)).not.toContain(a.agentRef);
     expect((await s.agentTool(a, 'agents_sponsors_offers_list', {})).body.code).toBe('forbidden');
     // RLS: an ordinary member cannot read another human's offer directly.
     const c = await s.db.app.connect();

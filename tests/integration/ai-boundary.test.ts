@@ -115,11 +115,11 @@ describe('A11 use-case registry and switches', () => {
     const r = await draft([{ kind: 'encounter', ref: e }]);
     expect(r.statusCode).toBe(403);
     expect(JSON.parse(r.body).detail.reason).toBe('use_case_disabled');
-    const list = h.ok<{ items: { useCase: string; enabled: boolean; approval: string }[] }>(
+    const list = h.ok<{ data: { useCase: string; enabled: boolean; approval: string }[] }>(
       await h.call('a1', 'GET', '/v1/ai/use-cases'),
     );
-    expect(list.items.find((x) => x.useCase === 'clinicalNoteDraft')?.enabled).toBe(false);
-    expect(list.items.find((x) => x.useCase === 'diagnosisSuggestion')?.approval).toBe('notApproved');
+    expect(list.data.find((x) => x.useCase === 'clinicalNoteDraft')?.enabled).toBe(false);
+    expect(list.data.find((x) => x.useCase === 'diagnosisSuggestion')?.approval).toBe('notApproved');
   });
 });
 
@@ -256,8 +256,8 @@ describe('A11 drafts', () => {
     const hidden = await h.call('a4', 'GET', `/v1/ai/drafts/state?draftRef=${r.data.draftRef}`);
     expect(hidden.statusCode).toBe(404);
     expect(hidden.body).not.toContain('clinician-only');
-    const list = h.ok<{ items: { draftRef: string }[] }>(await h.call('a4', 'GET', '/v1/ai/drafts'));
-    expect(list.items.map((d) => d.draftRef)).not.toContain(r.data.draftRef);
+    const list = h.ok<{ data: { draftRef: string }[] }>(await h.call('a4', 'GET', '/v1/ai/drafts'));
+    expect(list.data.map((d) => d.draftRef)).not.toContain(r.data.draftRef);
     const acc = await h.call('a4', 'POST', '/v1/ai/drafts/accept', {
       draftRef: r.data.draftRef,
       expectedVersion: 1,

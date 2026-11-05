@@ -144,15 +144,8 @@ export type AgentsActionProposal = {
 };
 
 export type AgentsActionProposalList = {
-  readonly "asOf": string;
-  readonly "appliedFilters": { readonly [k: string]: unknown };
-  readonly "scope": AgentsListScope;
-  readonly "limit": number;
-  readonly "truncated": boolean;
-  readonly "nextCursor": string | null;
-  readonly "ordering": AgentsListOrdering;
-  readonly "count": AgentsListCount;
-  readonly "items": readonly (AgentsActionProposal)[];
+  readonly "data": readonly (AgentsActionProposal)[];
+  readonly "envelope": AgentsListEnvelope;
   readonly "vocabularies"?: AgentsVocabularyVersions;
 };
 
@@ -198,15 +191,8 @@ export type AgentsAgentAuditEvent = {
 };
 
 export type AgentsAgentAuditList = {
-  readonly "asOf": string;
-  readonly "appliedFilters": { readonly [k: string]: unknown };
-  readonly "scope": AgentsListScope;
-  readonly "limit": number;
-  readonly "truncated": boolean;
-  readonly "nextCursor": string | null;
-  readonly "ordering": AgentsListOrdering;
-  readonly "count": AgentsListCount;
-  readonly "items": readonly (AgentsAgentAuditEvent)[];
+  readonly "data": readonly (AgentsAgentAuditEvent)[];
+  readonly "envelope": AgentsListEnvelope;
 };
 
 export type AgentsAgentCommand = {
@@ -234,15 +220,8 @@ export type AgentsAgentCreate = {
 };
 
 export type AgentsAgentList = {
-  readonly "asOf": string;
-  readonly "appliedFilters": { readonly [k: string]: unknown };
-  readonly "scope": AgentsListScope;
-  readonly "limit": number;
-  readonly "truncated": boolean;
-  readonly "nextCursor": string | null;
-  readonly "ordering": AgentsListOrdering;
-  readonly "count": AgentsListCount;
-  readonly "items": readonly (AgentsAgent)[];
+  readonly "data": readonly (AgentsAgent)[];
+  readonly "envelope": AgentsListEnvelope;
   readonly "vocabularies"?: AgentsVocabularyVersions;
 };
 
@@ -324,15 +303,8 @@ export type AgentsAiDraftCreate = {
 };
 
 export type AgentsAiDraftList = {
-  readonly "asOf": string;
-  readonly "appliedFilters": { readonly [k: string]: unknown };
-  readonly "scope": AgentsListScope;
-  readonly "limit": number;
-  readonly "truncated": boolean;
-  readonly "nextCursor": string | null;
-  readonly "ordering": AgentsListOrdering;
-  readonly "count": AgentsListCount;
-  readonly "items": readonly (AgentsAiDraft)[];
+  readonly "data": readonly (AgentsAiDraft)[];
+  readonly "envelope": AgentsListEnvelope;
   readonly "vocabularies"?: AgentsVocabularyVersions;
 };
 
@@ -369,15 +341,8 @@ export type AgentsAiEvaluationCommandResult = {
 };
 
 export type AgentsAiEvaluationList = {
-  readonly "asOf": string;
-  readonly "appliedFilters": { readonly [k: string]: unknown };
-  readonly "scope": AgentsListScope;
-  readonly "limit": number;
-  readonly "truncated": boolean;
-  readonly "nextCursor": string | null;
-  readonly "ordering": AgentsListOrdering;
-  readonly "count": AgentsListCount;
-  readonly "items": readonly (AgentsAiEvaluation)[];
+  readonly "data": readonly (AgentsAiEvaluation)[];
+  readonly "envelope": AgentsListEnvelope;
   readonly "vocabularies"?: AgentsVocabularyVersions;
 };
 
@@ -412,15 +377,8 @@ export type AgentsAiUseCaseConfigure = {
 };
 
 export type AgentsAiUseCaseList = {
-  readonly "asOf": string;
-  readonly "appliedFilters": { readonly [k: string]: unknown };
-  readonly "scope": AgentsListScope;
-  readonly "limit": number;
-  readonly "truncated": boolean;
-  readonly "nextCursor": string | null;
-  readonly "ordering": AgentsListOrdering;
-  readonly "count": AgentsListCount;
-  readonly "items": readonly (AgentsAiUseCaseState)[];
+  readonly "data": readonly (AgentsAiUseCaseState)[];
+  readonly "envelope": AgentsListEnvelope;
   readonly "vocabularies"?: AgentsVocabularyVersions;
 };
 
@@ -485,15 +443,8 @@ export type AgentsConsentCommandResult = {
 };
 
 export type AgentsConsentList = {
-  readonly "asOf": string;
-  readonly "appliedFilters": { readonly [k: string]: unknown };
-  readonly "scope": AgentsListScope;
-  readonly "limit": number;
-  readonly "truncated": boolean;
-  readonly "nextCursor": string | null;
-  readonly "ordering": AgentsListOrdering;
-  readonly "count": AgentsListCount;
-  readonly "items": readonly (AgentsConsent)[];
+  readonly "data": readonly (AgentsConsent)[];
+  readonly "envelope": AgentsListEnvelope;
   readonly "vocabularies"?: AgentsVocabularyVersions;
 };
 
@@ -525,6 +476,17 @@ export type AgentsListCount = ({
 }) | ({
   readonly "atLeast": number;
 });
+
+export type AgentsListEnvelope = {
+  readonly "asOf": string;
+  readonly "appliedFilters": { readonly [k: string]: unknown };
+  readonly "scope": AgentsListScope;
+  readonly "limit": number;
+  readonly "truncated": boolean;
+  readonly "nextCursor": string | null;
+  readonly "ordering": AgentsListOrdering;
+  readonly "count": AgentsListCount;
+};
 
 export type AgentsListOrdering = {
   readonly "key": string;
@@ -581,15 +543,8 @@ export type AgentsMemoryEntry = {
 export type AgentsMemoryKey = string;
 
 export type AgentsMemoryList = {
-  readonly "asOf": string;
-  readonly "appliedFilters": { readonly [k: string]: unknown };
-  readonly "scope": AgentsListScope;
-  readonly "limit": number;
-  readonly "truncated": boolean;
-  readonly "nextCursor": string | null;
-  readonly "ordering": AgentsListOrdering;
-  readonly "count": AgentsListCount;
-  readonly "items": readonly (AgentsMemoryEntry)[];
+  readonly "data": readonly (AgentsMemoryEntry)[];
+  readonly "envelope": AgentsListEnvelope;
   readonly "vocabularies"?: AgentsVocabularyVersions;
   readonly "phiPolicy": AgentsMemoryPolicy;
 };
@@ -718,15 +673,8 @@ export type AgentsSessionEnd = {
 };
 
 export type AgentsSessionList = {
-  readonly "asOf": string;
-  readonly "appliedFilters": { readonly [k: string]: unknown };
-  readonly "scope": AgentsListScope;
-  readonly "limit": number;
-  readonly "truncated": boolean;
-  readonly "nextCursor": string | null;
-  readonly "ordering": AgentsListOrdering;
-  readonly "count": AgentsListCount;
-  readonly "items": readonly (AgentsSession)[];
+  readonly "data": readonly (AgentsSession)[];
+  readonly "envelope": AgentsListEnvelope;
   readonly "vocabularies"?: AgentsVocabularyVersions;
 };
 
@@ -756,15 +704,8 @@ export type AgentsSponsorOffer = {
 };
 
 export type AgentsSponsorOfferList = {
-  readonly "asOf": string;
-  readonly "appliedFilters": { readonly [k: string]: unknown };
-  readonly "scope": AgentsListScope;
-  readonly "limit": number;
-  readonly "truncated": boolean;
-  readonly "nextCursor": string | null;
-  readonly "ordering": AgentsListOrdering;
-  readonly "count": AgentsListCount;
-  readonly "items": readonly (AgentsSponsorOffer)[];
+  readonly "data": readonly (AgentsSponsorOffer)[];
+  readonly "envelope": AgentsListEnvelope;
   readonly "vocabularies"?: AgentsVocabularyVersions;
 };
 
@@ -803,15 +744,8 @@ export type AgentsTaskCommandResult = {
 };
 
 export type AgentsTaskList = {
-  readonly "asOf": string;
-  readonly "appliedFilters": { readonly [k: string]: unknown };
-  readonly "scope": AgentsListScope;
-  readonly "limit": number;
-  readonly "truncated": boolean;
-  readonly "nextCursor": string | null;
-  readonly "ordering": AgentsListOrdering;
-  readonly "count": AgentsListCount;
-  readonly "items": readonly (AgentsTask)[];
+  readonly "data": readonly (AgentsTask)[];
+  readonly "envelope": AgentsListEnvelope;
   readonly "vocabularies"?: AgentsVocabularyVersions;
 };
 
@@ -845,15 +779,8 @@ export type AgentsTaskPolicyCommandResult = {
 };
 
 export type AgentsTaskPolicyList = {
-  readonly "asOf": string;
-  readonly "appliedFilters": { readonly [k: string]: unknown };
-  readonly "scope": AgentsListScope;
-  readonly "limit": number;
-  readonly "truncated": boolean;
-  readonly "nextCursor": string | null;
-  readonly "ordering": AgentsListOrdering;
-  readonly "count": AgentsListCount;
-  readonly "items": readonly (AgentsTaskPolicy)[];
+  readonly "data": readonly (AgentsTaskPolicy)[];
+  readonly "envelope": AgentsListEnvelope;
   readonly "vocabularies"?: AgentsVocabularyVersions;
 };
 
@@ -881,15 +808,8 @@ export type AgentsTaskRun = {
 };
 
 export type AgentsTaskRunList = {
-  readonly "asOf": string;
-  readonly "appliedFilters": { readonly [k: string]: unknown };
-  readonly "scope": AgentsListScope;
-  readonly "limit": number;
-  readonly "truncated": boolean;
-  readonly "nextCursor": string | null;
-  readonly "ordering": AgentsListOrdering;
-  readonly "count": AgentsListCount;
-  readonly "items": readonly (AgentsTaskRun)[];
+  readonly "data": readonly (AgentsTaskRun)[];
+  readonly "envelope": AgentsListEnvelope;
   readonly "vocabularies"?: AgentsVocabularyVersions;
 };
 
@@ -955,15 +875,8 @@ export type AutomationExportGrantRevokeResult = {
 };
 
 export type AutomationExportList = {
-  readonly "asOf": string;
-  readonly "appliedFilters": { readonly [k: string]: unknown };
-  readonly "scope": AutomationListScope;
-  readonly "limit": number;
-  readonly "truncated": boolean;
-  readonly "nextCursor": string | null;
-  readonly "ordering": AutomationListOrdering;
-  readonly "count": AutomationListCount;
-  readonly "items": readonly (AutomationExportRequest)[];
+  readonly "data": readonly (AutomationExportRequest)[];
+  readonly "envelope": AutomationListEnvelope;
 };
 
 export type AutomationExportPackage = {
@@ -1025,6 +938,17 @@ export type AutomationListCount = ({
   readonly "atLeast": number;
 });
 
+export type AutomationListEnvelope = {
+  readonly "asOf": string;
+  readonly "appliedFilters": { readonly [k: string]: unknown };
+  readonly "scope": AutomationListScope;
+  readonly "limit": number;
+  readonly "truncated": boolean;
+  readonly "nextCursor": string | null;
+  readonly "ordering": AutomationListOrdering;
+  readonly "count": AutomationListCount;
+};
+
 export type AutomationListOrdering = {
   readonly "key": string;
   readonly "direction": "asc" | "desc";
@@ -1067,15 +991,8 @@ export type AutomationWebhookDeliveryCommandResult = {
 };
 
 export type AutomationWebhookDeliveryList = {
-  readonly "asOf": string;
-  readonly "appliedFilters": { readonly [k: string]: unknown };
-  readonly "scope": AutomationListScope;
-  readonly "limit": number;
-  readonly "truncated": boolean;
-  readonly "nextCursor": string | null;
-  readonly "ordering": AutomationListOrdering;
-  readonly "count": AutomationListCount;
-  readonly "items": readonly (AutomationWebhookDelivery)[];
+  readonly "data": readonly (AutomationWebhookDelivery)[];
+  readonly "envelope": AutomationListEnvelope;
 };
 
 export type AutomationWebhookDeliveryState = "pending" | "delivering" | "retrying" | "delivered" | "dead_lettered" | "adapter_not_configured" | "paused" | "cancelled";
@@ -1090,16 +1007,9 @@ export type AutomationWebhookEventTypeEntry = {
 };
 
 export type AutomationWebhookEventTypeList = {
-  readonly "asOf": string;
-  readonly "appliedFilters": { readonly [k: string]: unknown };
-  readonly "scope": AutomationListScope;
-  readonly "limit": number;
-  readonly "truncated": boolean;
-  readonly "nextCursor": string | null;
-  readonly "ordering": AutomationListOrdering;
-  readonly "count": AutomationListCount;
+  readonly "data": readonly (AutomationWebhookEventTypeEntry)[];
+  readonly "envelope": AutomationListEnvelope;
   readonly "catalogVersion": string;
-  readonly "items": readonly (AutomationWebhookEventTypeEntry)[];
 };
 
 export type AutomationWebhookEventTypeName = string;
@@ -1149,15 +1059,8 @@ export type AutomationWebhookSubscriptionCreate = {
 };
 
 export type AutomationWebhookSubscriptionList = {
-  readonly "asOf": string;
-  readonly "appliedFilters": { readonly [k: string]: unknown };
-  readonly "scope": AutomationListScope;
-  readonly "limit": number;
-  readonly "truncated": boolean;
-  readonly "nextCursor": string | null;
-  readonly "ordering": AutomationListOrdering;
-  readonly "count": AutomationListCount;
-  readonly "items": readonly (AutomationWebhookSubscription)[];
+  readonly "data": readonly (AutomationWebhookSubscription)[];
+  readonly "envelope": AutomationListEnvelope;
 };
 
 export type AutomationWebhookSubscriptionRevoke = {

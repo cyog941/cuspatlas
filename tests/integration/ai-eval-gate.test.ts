@@ -125,7 +125,7 @@ describe('A12 evaluation harness', () => {
       [T_ALPHA],
     );
     const list = await s.call('humanAll', 'GET', '/v1/ai/use-cases');
-    const m = (list.body.items as { useCase: string; gate: string }[]).find(
+    const m = (list.body.data as { useCase: string; gate: string }[]).find(
       (x) => x.useCase === 'patientMessageDraft',
     );
     expect(m?.gate).toBe('stale');
@@ -151,7 +151,7 @@ describe('A12 evaluation harness', () => {
     expect(d.verdict).toBe('fail');
     expect(d.failedCases).toContain('nd-faith-1');
     const list = await s.call('humanAll', 'GET', '/v1/ai/use-cases');
-    const note = (list.body.items as { useCase: string; gate: string }[]).find(
+    const note = (list.body.data as { useCase: string; gate: string }[]).find(
       (x) => x.useCase === 'clinicalNoteDraft',
     );
     expect(note?.gate).toBe('pass');
@@ -185,8 +185,8 @@ describe('A12 evaluation harness', () => {
   it('runs are listed newest first in the list envelope and the run record cannot be changed', async () => {
     const l = await s.call('humanAll', 'GET', '/v1/ai/evaluations?useCase=clinicalNoteDraft');
     expect(l.status).toBe(200);
-    expect((l.body.items as Run[]).length).toBeGreaterThanOrEqual(2);
-    expect(l.body.count).toBeDefined();
+    expect((l.body.data as Run[]).length).toBeGreaterThanOrEqual(2);
+    expect(l.body.envelope.count).toBeDefined();
     await expect(
       s.db.admin.query(`UPDATE cuspatlas.ai_evaluation_runs SET verdict = 'pass'`),
     ).rejects.toThrow();

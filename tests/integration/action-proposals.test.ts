@@ -234,9 +234,9 @@ describe('A10 agent may prepare, human approves', () => {
     expect(ab.isError).toBe(false);
     expect((await approve(approver, p, 2)).status).toBe(409);
     const listed = await s.call('humanAll', 'GET', '/v1/actions/proposals?state=abandoned');
-    expect(
-      (listed.body.items as { proposalRef: string }[]).some((x) => x.proposalRef === p.proposalRef),
-    ).toBe(true);
+    expect((listed.body.data as { proposalRef: string }[]).some((x) => x.proposalRef === p.proposalRef)).toBe(
+      true,
+    );
   });
 
   it('every proposal step is audited, the agent steps in the agent-audit stream', async () => {

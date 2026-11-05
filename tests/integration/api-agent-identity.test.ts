@@ -129,11 +129,11 @@ describe('A8 separated agent audit', () => {
     }
     const listed = await s.call('humanAll', 'GET', `/v1/agents/audit?agentRef=${a.agentRef}`);
     expect(listed.status).toBe(200);
-    const items = listed.body.items as Record<string, unknown>[];
+    const items = listed.body.data as Record<string, unknown>[];
     expect(items.length).toBe(1);
     expect(items[0]?.sponsorRef).toBe(SPONSOR);
-    expect(listed.body.count).toStrictEqual({ exact: 1 });
-    expect(listed.body.nextCursor).toBeNull();
+    expect(listed.body.envelope.count).toStrictEqual({ exact: 1 });
+    expect(listed.body.envelope.nextCursor).toBeNull();
   });
 
   it('a sponsor change is a new sponsorship; earlier actions keep the sponsor of record', async () => {

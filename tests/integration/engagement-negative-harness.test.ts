@@ -13,6 +13,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { seedLocation } from './support/appointment-fixtures';
 import { openTestDatabase, type TestDatabase } from './support/db';
+import { dbNow } from './support/db-clock';
 import {
   E_ALL,
   type EngagementHarness,
@@ -1105,7 +1106,7 @@ beforeAll(async () => {
     await h.call(await h.issuer.issue({ sub: SVC_T1, tid: T_ALPHA }), 'POST', '/v1/telephony/calls', {
       ...CALL_EVENT,
       providerCallRef: 'fake-call-harness-fixture',
-      occurredAt: new Date().toISOString(),
+      occurredAt: await dbNow(db.admin),
     }),
     201,
   ).data.callRef;

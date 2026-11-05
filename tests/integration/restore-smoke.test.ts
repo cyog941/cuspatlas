@@ -27,6 +27,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { openTestDatabase, type TestDatabase } from './support/db';
 import { FakeProvider } from './support/fake-provider';
 import { ctxFor, seedTenancy, T_ALPHA, T_BETA, TASK_A, TASK_B, USER_A1, USER_B1 } from './support/fixtures';
+import { pgCtlBinary, startWithPgCtl, stopWithPgCtl } from './support/pg-ctl';
 
 /**
  * F Task 8 restore proof. A source database is driven through the real domain, proposal and worker
@@ -740,8 +741,12 @@ describe('deliberately incomplete or unsafe restores are detected', () => {
       onLog: () => undefined,
       onError: () => undefined,
     });
+    // Windows: start through pg_ctl, as the global setup does (postgres.exe refuses an administrator
+    // account, and embedded-postgres then rejects start() with no error at all).
+    const pgCtl = process.platform === 'win32' ? await pgCtlBinary() : '';
     await cluster.initialise();
-    await cluster.start();
+    if (pgCtl) startWithPgCtl(pgCtl, join(dataDir, 'data'), srv, join(dataDir, 'cluster2.log'));
+    else await cluster.start();
     try {
       const conn: RestoreConnection = {
         host: '127.0.0.1',
@@ -785,7 +790,8 @@ describe('deliberately incomplete or unsafe restores are detected', () => {
         await t.end();
       }
     } finally {
-      await cluster.stop();
+      if (pgCtl) stopWithPgCtl(pgCtl, join(dataDir, 'data'));
+      else await cluster.stop();
       // stop() resolves when the process tree exited (taskkill /t on Windows); file handles can linger
       // briefly (EBUSY), so removal retries with backoff and a leftover is retried again in afterAll.
       await rm(dataDir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }).catch(

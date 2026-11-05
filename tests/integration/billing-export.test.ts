@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createPatient, T_ALPHA } from './support/appointment-fixtures';
 import { BILLING_ALL, type BillingHarness, openBillingHarness, usd } from './support/billing-fixtures';
 import { openTestDatabase, type TestDatabase } from './support/db';
+import { dbNow } from './support/db-clock';
 import { ctxFor, seedTenancy, T_BETA, USER_A1, USER_A3 } from './support/fixtures';
 import { openRcmHarness, type RcmHarness, SVC_BILLING_WORKER, today } from './support/rcm-fixtures';
 
@@ -100,7 +101,7 @@ beforeAll(async () => {
   r.h.ok(
     await r.h.call('a1', 'POST', '/v1/billing/statements', {
       guarantorRef: patient,
-      cutoffAt: new Date().toISOString(),
+      cutoffAt: await dbNow(source.admin),
       basis: 'posted_through_cutoff',
     }),
     201,

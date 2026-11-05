@@ -6,7 +6,7 @@ import {
   validateConsentTemplateCommandResult,
 } from '@cuspatlas/contracts';
 import { createTenantTransactionRunner } from '@cuspatlas/db';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   type AppointmentHarness,
   leakTables,
@@ -118,6 +118,13 @@ async function attempts(res: Awaited<ReturnType<AppointmentHarness['call']>>): P
     [res.headers['x-correlation-id']],
   );
   return rows.map((r) => r.reason_code);
+}
+/** An instant from the database clock that stamps consents and withdrawals (not the host clock). */
+async function dbNow(): Promise<string> {
+  const { rows } = await db.admin.query<{ at: Date }>(
+    `SELECT date_trunc('milliseconds', clock_timestamp()) AS at`,
+  );
+  return (rows[0] as { at: Date }).at.toISOString();
 }
 async function list(patientRef: string, query = '') {
   const json = h.ok<{ data: Consent[]; asOf: string }>(
@@ -262,7 +269,7 @@ describe('C13 acceptance cases', () => {
   it('3. withdrawal records an instant and reason; an as-of read reconstructs the state before and after', async () => {
     const p = await person('Synthetic Consent Withdraw');
     const c = okC(await capture(body(p))).data;
-    const before = new Date().toISOString();
+    const before = await dbNow();
     await new Promise((r) => setTimeout(r, 15));
     const w = okC(
       await withdraw(c.consentRef, {
@@ -291,6 +298,30 @@ describe('C13 acceptance cases', () => {
     expect(reason(again)).toStrictEqual([409, 'consent_withdrawn']);
     const read = h.ok<{ data: Consent }>(await h.call('a1', 'GET', `${CONSENTS}/${c.consentRef}`));
     expect(validateConsentRead(read)).toBe(true);
+  });
+
+  it('a current read is evaluated on the database clock, so an application clock behind it still sees a withdrawal', async () => {
+    const p = await person('Synthetic Consent Clock');
+    const c = okC(await capture(body(p))).data;
+    okC(
+      await withdraw(c.consentRef, {
+        expectedVersion: 1,
+        reasonCode: 'patient_request',
+        signer: { kind: 'patient' },
+      }),
+    );
+    // Deterministic on any OS: the application clock is set behind the database clock that stamped
+    // the capture and the withdrawal (a coarse or skewed host clock does this in the small).
+    vi.useFakeTimers({ toFake: ['Date'], now: Date.now() - 5_000 });
+    try {
+      const current = await list(p);
+      expect(current.data.map((d) => [d.consentRef, d.state])).toStrictEqual([[c.consentRef, 'withdrawn']]);
+      expect(Date.parse(current.asOf)).toBeGreaterThan(Date.now());
+      const read = h.ok<{ data: Consent }>(await h.call('a1', 'GET', `${CONSENTS}/${c.consentRef}`)).data;
+      expect(read.state).toBe('withdrawn');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('4. another tenant’s patient or a proxy without an active relationship is refused', async () => {

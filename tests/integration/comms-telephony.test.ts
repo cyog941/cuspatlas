@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { validateCallRead } from '@cuspatlas/contracts';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { openTestDatabase, type TestDatabase } from './support/db';
+import { dbNow } from './support/db-clock';
 import {
   type EngagementHarness,
   openEngagementHarness,
@@ -192,7 +193,7 @@ describe('E8 call references', () => {
       await h.call('a1', 'GET', `/v1/telephony/handling?at=${encodeURIComponent(at)}`),
     ).data;
     const now = h.ok<{ data: { sourceVersion: number } }>(
-      await h.call('a1', 'GET', `/v1/telephony/handling?at=${encodeURIComponent(new Date().toISOString())}`),
+      await h.call('a1', 'GET', `/v1/telephony/handling?at=${encodeURIComponent(await dbNow(db.admin))}`),
     ).data;
     expect([then.sourceVersion, now.sourceVersion]).toStrictEqual([1, 2]);
     // Metadata only: the full caller number is stored nowhere and nothing is a recording.
@@ -302,6 +303,37 @@ describe('E8 call references', () => {
     await expect(fake.pull()).rejects.toThrow(/unavailable/);
     fake.unavailable = false;
     expect(h.logLines.join('\n')).not.toContain(MARKER);
+  });
+
+  it('a configuration is in force from its own millisecond: an instant in that millisecond resolves to it', async () => {
+    const v = h.ok<{ data: { version: number; configRef: string } }>(
+      await h.call('a1', 'POST', '/v1/telephony/config', CONFIG),
+      201,
+    ).data;
+    // Instants on the API carry milliseconds; created_at carries microseconds. Pin a sub-millisecond
+    // remainder (deterministic on any OS; triggers are bypassed only in this superuser transaction).
+    const c = await db.admin.connect();
+    let created: Date;
+    try {
+      await c.query('BEGIN');
+      await c.query('SET LOCAL session_replication_role = replica');
+      const { rows } = await c.query<{ at: Date }>(
+        `UPDATE cuspatlas.telephony_configs
+         SET created_at = date_trunc('milliseconds', created_at) + interval '456 microseconds'
+         WHERE id = $1 RETURNING date_trunc('milliseconds', created_at) AS at`,
+        [v.configRef],
+      );
+      await c.query('COMMIT');
+      created = rows[0]?.at as Date;
+    } finally {
+      c.release();
+    }
+    const handlingAt = async (at: Date) =>
+      h.ok<{ data: { sourceVersion: number } }>(
+        await h.call('a1', 'GET', `/v1/telephony/handling?at=${encodeURIComponent(at.toISOString())}`),
+      ).data.sourceVersion;
+    expect(await handlingAt(created)).toBe(v.version);
+    expect(await handlingAt(new Date(created.getTime() - 1))).toBe(v.version - 1);
   });
 });
 

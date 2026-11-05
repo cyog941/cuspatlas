@@ -232,13 +232,17 @@ beforeAll(async () => {
     }),
     201,
   );
+  // The call instant comes from the database clock that stamped the configuration: a host clock
+  // behind it (the hosted Windows runner's) would date the call before any configuration existed.
+  const { rows: clock } = await source.admin.query<{ at: Date }>('SELECT clock_timestamp() AS at');
+  const callAt = (clock[0] as { at: Date }).at.toISOString();
   const call = h.ok<{ data: { callRef: string } }>(
     await h.call(await h.issuer.issue({ sub: SVC_T1, tid: T_ALPHA }), 'POST', '/v1/telephony/calls', {
       providerCallRef: 'fake-call-export',
       direction: 'inbound',
       callerNumber: '+1-202-555-0161',
       dialedNumber: '+1-202-555-0120',
-      occurredAt: new Date().toISOString(),
+      occurredAt: callAt,
       outcome: 'answered',
     }),
     201,

@@ -36,7 +36,7 @@ Integration tests start one real PostgreSQL 17 server per run through the `embed
 - the migrations are applied once to a template database; each test file clones it into a database whose name contains `cuspatlas_synthetic`;
 - the server log keeps statement text out (`log_min_error_statement=panic`).
 
-On Linux the binaries come from `@embedded-postgres/linux-x64` (in the lockfile). `initdb` refuses to run as root, so run tests as a normal user (the GitHub runner user is non-root). On Windows the `windows-x64` binary is used.
+On Linux the binaries come from `@embedded-postgres/linux-x64` (in the lockfile). `initdb` refuses to run as root, so run tests as a normal user (the GitHub runner user is non-root). On Windows the `windows-x64` binary is used, and the integration global setup starts the server with its bundled `pg_ctl` (it drops administrator privileges, which `postgres.exe` refuses to run with when started directly, as on hosted runners).
 
 ## Running one suite
 
@@ -141,7 +141,7 @@ It is a tripwire, not a guarantee. It does not replace review, and it does not d
 `.github/workflows/ci.yml`, on pull requests and pushes to `main` and `codex/**`:
 
 - `verify` (ubuntu-24.04): frozen install, typecheck, lint, contract drift check, the full test suite (integration against embedded PostgreSQL), a count-only test summary, privacy scan, SBOM, a marker scan of the generated artifacts, then upload of the SBOM, evidence manifest skeleton and test summary (14 days retention).
-- `windows-smoke` (windows-2022): frozen install and the `service-boundary` integration suite only.
+- `windows-smoke` (windows-2022): frozen install, typecheck, unit tests and the integration project against embedded PostgreSQL started through `pg_ctl` (about 16 minutes). The whole integration project is blocking.
 
 Controls: workflow `permissions: contents: read`; no secrets are referenced; no `pull_request_target`; checkout does not persist credentials; every action is pinned by full commit SHA with a version comment; the runner images are pinned; each job has a timeout; a new push cancels older runs of the same ref. Branch protection and required checks are not configured here: a repository admin must do that after the checks have run at least once.
 
@@ -151,6 +151,7 @@ Dependabot or manual SHA bumps must be reviewed like any other supply-chain chan
 
 - Evidence so far is Windows-only and local. The Linux run is unverified until the first push triggers CI.
 - No Supabase cloud connection, Supabase advisors, deployment, or real provider exists.
+- Hosted Windows: the whole integration project runs and is blocking in `windows-smoke` (run 42097994733: 173 of 173 files, 3212 tests passed). The runner's host clock can read behind the PostgreSQL clock (inferred from the run 42087689761 failures, not measured), so a test must take an instant that is compared with a database-stamped row (a cutoff, an `asOf`, a call time) from the database (`dbNow` in `tests/integration/support/db-clock.ts`), not from `Date.now()`; any second embedded cluster a test starts on win32 goes through `pg_ctl` (`tests/integration/support/pg-ctl.ts`).
 - Cursor HMAC key is per process (see above).
 - The privacy scan and SBOM are partial controls (see above); the artifact scan guards only the three uploaded files.
 - Passing tests, a green CI run, or an SBOM is not authorization to deploy, to hold PHI, or a compliance or clinical-validation claim.

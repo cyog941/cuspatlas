@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { addGuarantor, postCharge, seedBillingScopes, usd } from './support/billing-fixtures';
 import { openTestDatabase, type TestDatabase } from './support/db';
+import { dbNow } from './support/db-clock';
 import { type EngagementHarness, email, openEngagementHarness } from './support/engagement-fixtures';
 import { T_ALPHA } from './support/fixtures';
 import { seedImagingScopes } from './support/imaging-fixtures';
@@ -62,7 +63,7 @@ const generate = async (g: string) =>
   h.ok<{ data: { statementRef: string } }>(
     await h.call('a1', 'POST', '/v1/billing/statements', {
       guarantorRef: g,
-      cutoffAt: new Date().toISOString(),
+      cutoffAt: await dbNow(db.admin),
       basis: 'posted_through_cutoff',
     }),
     201,

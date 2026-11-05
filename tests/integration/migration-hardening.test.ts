@@ -7,6 +7,7 @@ import {
 } from './support/appointment-fixtures';
 import { postCharge, seedBillingScopes } from './support/billing-fixtures';
 import { openTestDatabase, type TestDatabase } from './support/db';
+import { dbNow } from './support/db-clock';
 import { SVC_A1, T_ALPHA, USER_A1, USER_A3 } from './support/fixtures';
 import {
   intakeBody,
@@ -594,7 +595,7 @@ describe('H2 M-10 opening facts on the B seam', () => {
     const statement = h.ok<{ data: { statementRef: string } }>(
       await h.call('a1', 'POST', '/v1/billing/statements', {
         guarantorRef: patient,
-        cutoffAt: new Date().toISOString(),
+        cutoffAt: await dbNow(db.admin),
         basis: 'posted_through_cutoff',
       }),
       201,

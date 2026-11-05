@@ -1,11 +1,12 @@
 import { randomBytes } from 'node:crypto';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { assertSyntheticDatabaseName, migrate } from '@cuspatlas/db';
 import EmbeddedPostgres from 'embedded-postgres';
 import pg from 'pg';
+import { pgCtlBinary, startWithPgCtl, stopWithPgCtl } from './pg-ctl';
 
 export const TEMPLATE_DB = 'cuspatlas_synthetic_template';
 
@@ -53,8 +54,15 @@ export default async function setup(): Promise<() => Promise<void>> {
   });
 
   // Surface the server's own log on failure and never leave a data directory behind.
+  const usePgCtl = process.platform === 'win32';
+  const pgCtl = usePgCtl ? await pgCtlBinary() : '';
+  const pgLog = `${dataDir}.log`;
   for (const phase of ['initialise', 'start'] as const) {
     try {
+      if (phase === 'start' && usePgCtl) {
+        startWithPgCtl(pgCtl, join(dataDir), port, pgLog);
+        continue;
+      }
       await server[phase]();
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
@@ -67,8 +75,16 @@ export default async function setup(): Promise<() => Promise<void>> {
         } catch {}
       }
       try {
-        await server.stop();
+        if (usePgCtl) stopWithPgCtl(pgCtl, dataDir);
+        else await server.stop();
       } catch {}
+      if (usePgCtl) {
+        try {
+          serverLog.push(readFileSync(pgLog, 'utf8'));
+          if (diag) writeFileSync(diag, [`phase=${phase}`, `reason=${reason}`, ...serverLog].join(' | '));
+        } catch {}
+        rmSync(pgLog, { force: true });
+      }
       rmSync(dataDir, { recursive: true, force: true });
       throw new Error(`embedded PostgreSQL failed to ${phase}: ${reason}; server log tail: ${tail}`);
     }
@@ -98,9 +114,11 @@ export default async function setup(): Promise<() => Promise<void>> {
 
   return async () => {
     try {
-      await server.stop();
+      if (usePgCtl) stopWithPgCtl(pgCtl, dataDir);
+      else await server.stop();
     } finally {
       rmSync(dataDir, { recursive: true, force: true });
+      if (usePgCtl) rmSync(pgLog, { force: true });
     }
   };
 }

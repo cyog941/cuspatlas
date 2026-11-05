@@ -12186,6 +12186,126 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/operations/operator-profiles:
+    post:
+      operationId: operations.operatorProfiles.record
+      description: >-
+        M9: record a new operator profile version (placeholder names and contacts only): hosting model,
+        named responsibilities and escalation paths. Refused when a required responsibility is missing (422
+        responsibility_missing) or the security-incident path is not always covered (422 weak_escalation).
+        Prior versions are retained.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/migration.schema.json#/$defs/OperatorProfileRecord'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/OperatorProfileResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/operations/backup-verifications:
+    post:
+      operationId: operations.backupVerifications.record
+      description: >-
+        M9: record one backup verification (the worker job or a person): manifest digests and an isolated
+        sample restore. The server derives the result: verified only with both; checksum_only without a
+        restore; failed otherwise.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/migration.schema.json#/$defs/BackupVerificationRecord'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/BackupVerificationResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/operations/readiness:
+    get:
+      operationId: operations.readiness.assert
+      description: >-
+        M9: release readiness of the operator obligations: every unmet obligation listed (missing operator,
+        weak escalation, absent, stale, failed or checksum-only backup verification, an SLA the drill has
+        not demonstrated); ready only when the list is empty.
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/ReadinessResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/operations/alerts:
+    get:
+      operationId: operations.alerts.list
+      description: >-
+        M9: operator alerts as work items (practice manager queue, owed by the platform operator): one per
+        unmet readiness obligation, with the evidence reference and the suggested next action.
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/OperationsAlertList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   /v1/practice/exports:
     post:
       operationId: practice.export.create

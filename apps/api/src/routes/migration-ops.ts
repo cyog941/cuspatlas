@@ -294,6 +294,60 @@ export const MIGRATION_OPS: MigrationOp[] = [
       'M7: whether one archive package may be disposed of under the recommended-pending-approval retention policy: never while held or inside the retention period (reasons listed).',
     invoke: (svc, actor, i) => svc.evaluateArchiveRetention(actor, i.body),
   },
+  // M9 operator ownership, backup verification and readiness (no deployment; M-S3 open).
+  {
+    method: 'post',
+    path: '/v1/operations/operator-profiles',
+    operationId: 'operations.operatorProfiles.record',
+    protected: true,
+    requestBody: M('OperatorProfileRecord'),
+    success: { status: '201', schema: M('OperatorProfileResult') },
+    refusals: COMMAND,
+    tool: 'operations_operator_profiles_record',
+    description:
+      'M9: record a new operator profile version (placeholder names and contacts only): hosting model, named responsibilities and escalation paths. Refused when a required responsibility is missing (422 responsibility_missing) or the security-incident path is not always covered (422 weak_escalation). Prior versions are retained.',
+    invoke: (svc, actor, i) => svc.recordOperatorProfile(actor, env('operations.operatorProfiles.record', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/operations/backup-verifications',
+    operationId: 'operations.backupVerifications.record',
+    protected: true,
+    requestBody: M('BackupVerificationRecord'),
+    success: { status: '201', schema: M('BackupVerificationResult') },
+    refusals: COMMAND,
+    tool: 'operations_backup_verifications_record',
+    description:
+      'M9: record one backup verification (the worker job or a person): manifest digests and an isolated sample restore. The server derives the result: verified only with both; checksum_only without a restore; failed otherwise.',
+    invoke: (svc, actor, i) =>
+      svc.recordBackupVerification(actor, env('operations.backupVerifications.record', i)),
+  },
+  {
+    method: 'get',
+    path: '/v1/operations/readiness',
+    operationId: 'operations.readiness.assert',
+    protected: true,
+    query: 'OperationsEmptyQuery',
+    success: { status: '200', schema: M('ReadinessResult') },
+    refusals: READ,
+    tool: 'operations_readiness_assert',
+    description:
+      'M9: release readiness of the operator obligations: every unmet obligation listed (missing operator, weak escalation, absent, stale, failed or checksum-only backup verification, an SLA the drill has not demonstrated); ready only when the list is empty.',
+    invoke: (svc, actor, i) => svc.assertReadiness(actor, i.body),
+  },
+  {
+    method: 'get',
+    path: '/v1/operations/alerts',
+    operationId: 'operations.alerts.list',
+    protected: true,
+    query: 'OperationsEmptyQuery',
+    success: { status: '200', schema: M('OperationsAlertList') },
+    refusals: READ,
+    tool: 'operations_alerts_list',
+    description:
+      'M9: operator alerts as work items (practice manager queue, owed by the platform operator): one per unmet readiness obligation, with the evidence reference and the suggested next action.',
+    invoke: (svc, actor, i) => svc.listOperationsAlerts(actor, i.body),
+  },
   // M1 practice export (easy exit): one versioned package of the whole tenant, private delivery.
   {
     method: 'post',

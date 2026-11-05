@@ -536,6 +536,13 @@ export const ACTION_POLICIES = {
   'migration.archive.read': { scope: 'migration.read', principals: ['human'] },
   'migration.archive.holds.record': { scope: 'migration.write', principals: ['human'] },
   'migration.archive.retention.evaluate': { scope: 'migration.read', principals: ['human', 'service'] },
+  // M9 operator ownership and readiness (M-S3 names the operator): the profile is an administrator's
+  // record; the backup verification job (a service principal) records results; readiness and alerts
+  // are reads of migration/operations state.
+  'operations.operatorProfiles.record': { scope: 'admin.configure', principals: ['human'] },
+  'operations.backupVerifications.record': { scope: 'migration.write', principals: ['human', 'service'] },
+  'operations.readiness.assert': { scope: 'migration.read', principals: ['human', 'service'] },
+  'operations.alerts.list': { scope: 'migration.read', principals: ['human', 'service'] },
   // M1 practice export (easy exit, MG-03): the whole tenant leaves in one versioned package. A tenant-wide
   // human administrator only (elevated, audited, sensitive-read logged); delivery through a short-lived
   // grant bound to the caller; each composed S/I/C/E/B export re-authorizes the same caller.

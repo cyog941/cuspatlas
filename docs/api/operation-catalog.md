@@ -9,7 +9,7 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-394 operations.
+398 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
@@ -19,7 +19,7 @@ transport tables and are declarations, not independent proof.
 | B | 64 | 64 | 64 | 0 | 0 | 0 |
 | E | 60 | 48 | 48 | 11 | 0 | 1 |
 | I | 54 | 47 | 44 | 0 | 6 | 0 |
-| M | 24 | 24 | 24 | 0 | 0 | 0 |
+| M | 28 | 28 | 28 | 0 | 0 | 0 |
 
 | Operation | Owner | Kind | Authorization | Scope | Principals | Transports | REST | MCP tool | Idempotency | Sensitivity | Status |
 |---|---|---|---|---|---|---|---|---|---|---|---|
@@ -255,6 +255,10 @@ transport tables and are declarations, not independent proof.
 | `migration.reviewItems.resolve` | M | command | authorize | `migration.write` | human | rest, mcp | POST `/v1/migration/review-items/resolve` | `migration_review_items_resolve` | required | phi | active |
 | `migration.signoffs.record` | M | command | authorize | `migration.signoff` | human | rest, mcp | POST `/v1/migration/signoffs` | `migration_signoffs_record` | required | phi | active |
 | `migration.sourceProfiles.register` | M | command | authorize | `migration.write` | human | rest, mcp | POST `/v1/migration/source-profiles` | `migration_source_profiles_register` | required | phi | active |
+| `operations.alerts.list` | M | query | authorize | `migration.read` | human, service | rest, mcp | GET `/v1/operations/alerts` | `operations_alerts_list` | none | phi | active |
+| `operations.backupVerifications.record` | M | command | authorize | `migration.write` | human, service | rest, mcp | POST `/v1/operations/backup-verifications` | `operations_backup_verifications_record` | required | phi | active |
+| `operations.operatorProfiles.record` | M | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/operations/operator-profiles` | `operations_operator_profiles_record` | required | phi | active |
+| `operations.readiness.assert` | M | query | authorize | `migration.read` | human, service | rest, mcp | GET `/v1/operations/readiness` | `operations_readiness_assert` | none | phi | active |
 | `outbox.deliver` | F | command | authorize | `outbox.deliver` | service | worker | - | - | none | operational | active |
 | `patients.access.resolve` | S | query | authorize | `patients.read` | human, service | rest, mcp | GET `/v1/patients/{patientRef}/access` | `patients_resolve_access` | none | phi | active |
 | `patients.create` | S | command | authorize | `patients.write` | human, service | rest, mcp | POST `/v1/patients` | `patients_create` | required | phi | active |

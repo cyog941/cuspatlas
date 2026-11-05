@@ -174,3 +174,8 @@ export const validateArchiveReferencesQuery = def('ArchiveReferencesQuery');
 export const validateArchiveEntryQuery = def('ArchiveEntryQuery');
 export const validateArchiveHold = def('ArchiveHold');
 export const validateArchiveRetentionQuery = def('ArchiveRetentionQuery');
+
+/** M9 operator ownership, backup verification and readiness (named operator and objectives: M-S3). */
+export const validateOperatorProfileRecord = def('OperatorProfileRecord');
+export const validateBackupVerificationRecord = def('BackupVerificationRecord');
+export const validateOperationsEmptyQuery = def('OperationsEmptyQuery');

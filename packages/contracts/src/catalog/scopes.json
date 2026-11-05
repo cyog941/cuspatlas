@@ -42,6 +42,7 @@
         "intake.forms.retire",
         "messaging.replyPolicy.set",
         "messaging.threads.hold",
+        "operations.operatorProfiles.record",
         "practice.export.create",
         "practice.export.download",
         "practice.export.grant",
@@ -594,7 +595,9 @@
         "migration.packages.read",
         "migration.provenance.read",
         "migration.reports.read",
-        "migration.reviewItems.list"
+        "migration.reviewItems.list",
+        "operations.alerts.list",
+        "operations.readiness.assert"
       ],
       "sensitivity": "phi"
     },
@@ -636,7 +639,8 @@
         "migration.packages.intake",
         "migration.reports.build",
         "migration.reviewItems.resolve",
-        "migration.sourceProfiles.register"
+        "migration.sourceProfiles.register",
+        "operations.backupVerifications.record"
       ],
       "sensitivity": "phi"
     },

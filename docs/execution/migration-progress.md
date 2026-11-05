@@ -274,3 +274,19 @@ recommended-pending-approval). Tests in `tests/integration/migration-hardening.t
   opening items failed (H2 M-2 bind trigger requires an apply run in the restoring transaction);
   `20261129020000_restore_opening_items.sql` honours a transaction-local restore flag only for a
   role that bypasses RLS (runtime role still refused, tested). Red 2/2 failing (exit 1); green 3/3.
+- M9 operator ownership, backup verification, support and escalation
+  (`20261129030000_operations_readiness.sql`): `operations.operatorProfiles.record` (tenant-wide
+  human administrator) records a new versioned operator profile with placeholder names/contacts only
+  (`placeholder:<slug>`; real contact data refused 400), hosting model, required responsibilities
+  (`422 responsibility_missing`) and escalation paths (security incident must be always covered,
+  `422 weak_escalation`); prior versions retained. `verifyBackup` (db) checks the manifest and every
+  data-file digest, restores into an isolated sample database and drops it; `runBackupVerificationJob`
+  (worker) records the result through `operations.backupVerifications.record` as the service
+  principal; the server derives `verified` only with an isolated restore (`checksum_only`, `failed`
+  otherwise; a job that cannot run records `failed`). `operations.readiness.assert` lists every unmet
+  obligation (`missing_operator`, `weak_escalation`, `absent_verification`, `stale_verification`
+  (older than 24 h, recommended-pending-approval), `failed_verification`, `checksum_only_verification`,
+  `sla_not_demonstrated`); `operations.alerts.list` shows them as work items (practice manager queue,
+  owed by the platform). Runbook `docs/runbooks/escalation.md`; AS-06 extended. Pending: wiring the
+  job into the worker tick (needs the operator's backup location, M-S3). Red 8/8 failing (exit 1);
+  green 8/8.

@@ -4590,6 +4590,24 @@ export type MigrationAuthorisation = {
   readonly "practiceRef": MigrationPracticeRef;
 };
 
+export type MigrationBackupVerificationRecord = {
+  readonly "backupDigest": MigrationDigest;
+  readonly "manifestVerified": boolean;
+  readonly "isolatedRestore": "passed" | "failed" | "not_run";
+  readonly "restoreSeconds"?: number;
+  readonly "failureCode"?: MigrationReasonCode;
+};
+
+export type MigrationBackupVerificationResult = {
+  readonly "data": {
+    readonly "verificationRef": MigrationUuid;
+    readonly "result": "verified" | "checksum_only" | "failed";
+  };
+  readonly "version": MigrationVersion;
+  readonly "correlationId": string;
+  readonly "replayed": boolean;
+};
+
 export type MigrationCount = number;
 
 export type MigrationCurrencyCode = string;
@@ -4722,6 +4740,44 @@ export type MigrationOpeningReconciliation = {
   };
 };
 
+export type MigrationOperationsAlertList = {
+  readonly "data": {
+    readonly "asOf": string;
+    readonly "coverage": { readonly [k: string]: unknown };
+    readonly "count": MigrationCount;
+    readonly "items": readonly ({ readonly [k: string]: unknown })[];
+  };
+};
+
+export type MigrationOperatorProfileRecord = {
+  readonly "operatorRef": MigrationPlaceholder;
+  readonly "hostingModel": "managed" | "selfHosted" | "contracted" | "undecided";
+  readonly "responsibilities": readonly ({
+    readonly "responsibility": "backup" | "restore_drill" | "security_incident" | "support" | "escalation" | "credential_rotation";
+    readonly "roleName": MigrationPlaceholder;
+    readonly "contactRef": MigrationPlaceholder;
+  })[];
+  readonly "escalation": readonly ({
+    readonly "incidentClass": "security_incident" | "outage" | "data_integrity" | "support";
+    readonly "responderClass": "operator" | "maintainer" | "practice";
+    readonly "coverage": "business_hours" | "always";
+    readonly "expectedFirstResponseMinutes": number;
+  })[];
+  readonly "supportClaim"?: {
+    readonly "rtoSeconds": number;
+  };
+};
+
+export type MigrationOperatorProfileResult = {
+  readonly "data": {
+    readonly "profileRef": MigrationUuid;
+    readonly "profileVersion": MigrationVersion;
+  };
+  readonly "version": MigrationVersion;
+  readonly "correlationId": string;
+  readonly "replayed": boolean;
+};
+
 export type MigrationPackageIntake = {
   readonly "profileRef": MigrationProfileRef;
   readonly "authorisation": MigrationAuthorisation;
@@ -4765,6 +4821,8 @@ export type MigrationPackageState = {
 };
 
 export type MigrationPatientRef = MigrationUuid;
+
+export type MigrationPlaceholder = string;
 
 export type MigrationPracticeExportCreate = {
   readonly "purpose": "practiceExit" | "verification" | "archiveCopy";
@@ -4853,6 +4911,15 @@ export type MigrationProvenanceList = {
     readonly "appliedAt": string;
     readonly [k: string]: unknown;
   })[];
+};
+
+export type MigrationReadinessResult = {
+  readonly "data": {
+    readonly "ready": boolean;
+    readonly "unmetObligations": readonly ("missing_operator" | "weak_escalation" | "absent_verification" | "stale_verification" | "failed_verification" | "checksum_only_verification" | "sla_not_demonstrated")[];
+    readonly "evaluatedAt": string;
+    readonly "objectivesStatus": string;
+  };
 };
 
 export type MigrationReasonCode = string;
@@ -9019,6 +9086,42 @@ export interface Operations {
     successStatus: 201;
     idempotent: true;
   };
+  "operations.alerts.list": {
+    method: "GET";
+    path: "/v1/operations/alerts";
+    params: {  };
+    body: undefined;
+    result: MigrationOperationsAlertList;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "operations.backupVerifications.record": {
+    method: "POST";
+    path: "/v1/operations/backup-verifications";
+    params: {  };
+    body: MigrationBackupVerificationRecord;
+    result: MigrationBackupVerificationResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "operations.operatorProfiles.record": {
+    method: "POST";
+    path: "/v1/operations/operator-profiles";
+    params: {  };
+    body: MigrationOperatorProfileRecord;
+    result: MigrationOperatorProfileResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "operations.readiness.assert": {
+    method: "GET";
+    path: "/v1/operations/readiness";
+    params: {  };
+    body: undefined;
+    result: MigrationReadinessResult;
+    successStatus: 200;
+    idempotent: false;
+  };
   "patients.access.resolve": {
     method: "GET";
     path: "/v1/patients/{patientRef}/access";
@@ -10685,6 +10788,10 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "migration.reviewItems.resolve": { method: "POST", path: "/v1/migration/review-items/resolve", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "migration.signoffs.record": { method: "POST", path: "/v1/migration/signoffs", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "migration.sourceProfiles.register": { method: "POST", path: "/v1/migration/source-profiles", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "operations.alerts.list": { method: "GET", path: "/v1/operations/alerts", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "operations.backupVerifications.record": { method: "POST", path: "/v1/operations/backup-verifications", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "operations.operatorProfiles.record": { method: "POST", path: "/v1/operations/operator-profiles", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "operations.readiness.assert": { method: "GET", path: "/v1/operations/readiness", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "patients.access.resolve": { method: "GET", path: "/v1/patients/{patientRef}/access", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "patients.create": { method: "POST", path: "/v1/patients", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "patients.duplicates.find": { method: "GET", path: "/v1/patients/{patientRef}/duplicate-candidates", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },

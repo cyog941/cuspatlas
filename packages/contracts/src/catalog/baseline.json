@@ -10315,6 +10315,252 @@
       }
     },
     {
+      "operation": "operations.alerts.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/operations/alerts"
+      },
+      "mcpTool": "operations_alerts_list"
+    },
+    {
+      "operation": "operations.backupVerifications.record",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.write",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/operations/backup-verifications"
+      },
+      "mcpTool": "operations_backup_verifications_record",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "backupDigest": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "failureCode": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z_]{1,64}$"
+          },
+          "isolatedRestore": {
+            "enum": [
+              "\"failed\"",
+              "\"not_run\"",
+              "\"passed\""
+            ]
+          },
+          "manifestVerified": {
+            "type": [
+              "boolean"
+            ]
+          },
+          "restoreSeconds": {
+            "type": [
+              "number"
+            ],
+            "maximum": 2592000,
+            "minimum": 0
+          }
+        },
+        "closed": true,
+        "required": [
+          "backupDigest",
+          "isolatedRestore",
+          "manifestVerified"
+        ]
+      }
+    },
+    {
+      "operation": "operations.operatorProfiles.record",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "admin.configure",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/operations/operator-profiles"
+      },
+      "mcpTool": "operations_operator_profiles_record",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "escalation": {
+            "type": [
+              "array"
+            ],
+            "maxItems": 16,
+            "items": {
+              "type": [
+                "object"
+              ],
+              "properties": {
+                "coverage": {
+                  "enum": [
+                    "\"always\"",
+                    "\"business_hours\""
+                  ]
+                },
+                "expectedFirstResponseMinutes": {
+                  "type": [
+                    "integer"
+                  ],
+                  "maximum": 10080,
+                  "minimum": 1
+                },
+                "incidentClass": {
+                  "enum": [
+                    "\"data_integrity\"",
+                    "\"outage\"",
+                    "\"security_incident\"",
+                    "\"support\""
+                  ]
+                },
+                "responderClass": {
+                  "enum": [
+                    "\"maintainer\"",
+                    "\"operator\"",
+                    "\"practice\""
+                  ]
+                }
+              },
+              "closed": true,
+              "required": [
+                "coverage",
+                "expectedFirstResponseMinutes",
+                "incidentClass",
+                "responderClass"
+              ]
+            }
+          },
+          "hostingModel": {
+            "enum": [
+              "\"contracted\"",
+              "\"managed\"",
+              "\"selfHosted\"",
+              "\"undecided\""
+            ]
+          },
+          "operatorRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^placeholder:[a-z0-9-]{1,48}$"
+          },
+          "responsibilities": {
+            "type": [
+              "array"
+            ],
+            "maxItems": 16,
+            "items": {
+              "type": [
+                "object"
+              ],
+              "properties": {
+                "contactRef": {
+                  "type": [
+                    "string"
+                  ],
+                  "pattern": "^placeholder:[a-z0-9-]{1,48}$"
+                },
+                "responsibility": {
+                  "enum": [
+                    "\"backup\"",
+                    "\"credential_rotation\"",
+                    "\"escalation\"",
+                    "\"restore_drill\"",
+                    "\"security_incident\"",
+                    "\"support\""
+                  ]
+                },
+                "roleName": {
+                  "type": [
+                    "string"
+                  ],
+                  "pattern": "^placeholder:[a-z0-9-]{1,48}$"
+                }
+              },
+              "closed": true,
+              "required": [
+                "contactRef",
+                "responsibility",
+                "roleName"
+              ]
+            }
+          },
+          "supportClaim": {
+            "type": [
+              "object"
+            ],
+            "properties": {
+              "rtoSeconds": {
+                "type": [
+                  "integer"
+                ],
+                "maximum": 2592000,
+                "minimum": 1
+              }
+            },
+            "closed": true,
+            "required": [
+              "rtoSeconds"
+            ]
+          }
+        },
+        "closed": true,
+        "required": [
+          "escalation",
+          "hostingModel",
+          "operatorRef",
+          "responsibilities"
+        ]
+      }
+    },
+    {
+      "operation": "operations.readiness.assert",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/operations/readiness"
+      },
+      "mcpTool": "operations_readiness_assert"
+    },
+    {
       "operation": "outbox.deliver",
       "transports": [
         "worker"

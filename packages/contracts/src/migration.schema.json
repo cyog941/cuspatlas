@@ -1608,6 +1608,249 @@
           }
         }
       }
+    },
+    "Placeholder": {
+      "type": "string",
+      "pattern": "^placeholder:[a-z0-9-]{1,48}$",
+      "description": "A placeholder name or contact (no real contact data is stored until M-S3 names the operator)."
+    },
+    "OperatorProfileRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operatorRef", "hostingModel", "responsibilities", "escalation"],
+      "properties": {
+        "operatorRef": {
+          "$ref": "#/$defs/Placeholder"
+        },
+        "hostingModel": {
+          "enum": ["managed", "selfHosted", "contracted", "undecided"]
+        },
+        "responsibilities": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["responsibility", "roleName", "contactRef"],
+            "properties": {
+              "responsibility": {
+                "enum": [
+                  "backup",
+                  "restore_drill",
+                  "security_incident",
+                  "support",
+                  "escalation",
+                  "credential_rotation"
+                ]
+              },
+              "roleName": {
+                "$ref": "#/$defs/Placeholder"
+              },
+              "contactRef": {
+                "$ref": "#/$defs/Placeholder"
+              }
+            }
+          }
+        },
+        "escalation": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["incidentClass", "responderClass", "coverage", "expectedFirstResponseMinutes"],
+            "properties": {
+              "incidentClass": {
+                "enum": ["security_incident", "outage", "data_integrity", "support"]
+              },
+              "responderClass": {
+                "enum": ["operator", "maintainer", "practice"]
+              },
+              "coverage": {
+                "enum": ["business_hours", "always"]
+              },
+              "expectedFirstResponseMinutes": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10080
+              }
+            }
+          }
+        },
+        "supportClaim": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["rtoSeconds"],
+          "properties": {
+            "rtoSeconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2592000
+            }
+          }
+        }
+      }
+    },
+    "OperatorProfileResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["profileRef", "profileVersion"],
+          "properties": {
+            "profileRef": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "profileVersion": {
+              "$ref": "#/$defs/Version"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "BackupVerificationRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["backupDigest", "manifestVerified", "isolatedRestore"],
+      "properties": {
+        "backupDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "manifestVerified": {
+          "type": "boolean"
+        },
+        "isolatedRestore": {
+          "enum": ["passed", "failed", "not_run"]
+        },
+        "restoreSeconds": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2592000
+        },
+        "failureCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "BackupVerificationResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["verificationRef", "result"],
+          "properties": {
+            "verificationRef": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "result": {
+              "enum": ["verified", "checksum_only", "failed"]
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "OperationsEmptyQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {}
+    },
+    "ReadinessResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ready", "unmetObligations", "evaluatedAt", "objectivesStatus"],
+          "properties": {
+            "ready": {
+              "type": "boolean"
+            },
+            "unmetObligations": {
+              "type": "array",
+              "maxItems": 16,
+              "items": {
+                "enum": [
+                  "missing_operator",
+                  "weak_escalation",
+                  "absent_verification",
+                  "stale_verification",
+                  "failed_verification",
+                  "checksum_only_verification",
+                  "sla_not_demonstrated"
+                ]
+              }
+            },
+            "evaluatedAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "objectivesStatus": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        }
+      }
+    },
+    "OperationsAlertList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["asOf", "coverage", "count", "items"],
+          "properties": {
+            "asOf": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "coverage": {
+              "type": "object"
+            },
+            "count": {
+              "$ref": "#/$defs/Count"
+            },
+            "items": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

@@ -4,6 +4,7 @@ import { createMigrationBase, type MigrationDeps } from './base';
 import { createIdentityOperations } from './identity';
 import { createIntakeOperations } from './intake';
 import { createOpeningOperations, financialPlanner, postOpening } from './opening';
+import { createOperationsReadiness } from './operations';
 import { type ApplyHooks, createImportOperations } from './plan';
 import { createPracticeExportOperations } from './practice-export';
 import { createReconciliationOperations } from './reconciliation';
@@ -31,6 +32,7 @@ export function createMigrationService(deps: MigrationDeps) {
     ...createReconciliationOperations(base, applyHooks),
     ...createPracticeExportOperations(base),
     ...createArchiveOperations(base),
+    ...createOperationsReadiness(base),
   };
 }
 

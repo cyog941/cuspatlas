@@ -40,6 +40,8 @@ export const MIGRATION_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<any>>>
     'archiveDigest',
   ]),
   'migration.archive.holds.record': flat(['holdRef', 'action']),
+  'operations.operatorProfiles.record': flat(['profileRef', 'profileVersion']),
+  'operations.backupVerifications.record': flat(['verificationRef', 'result']),
   'practice.export.create': flat([
     'exportRef',
     'format',

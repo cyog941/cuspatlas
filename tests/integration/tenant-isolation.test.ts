@@ -233,6 +233,8 @@ describe('runtime database role', () => {
       'migration_source_profiles',
       'migration_staged_records',
       'notification_intents',
+      'ops_backup_verifications',
+      'ops_operator_profiles',
       'outbound_messages',
       'outbox_events',
       'patient_merge_moves',

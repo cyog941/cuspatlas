@@ -7795,6 +7795,143 @@
     "status": "active"
   },
   {
+    "operation": "operations.alerts.list",
+    "owner": "M",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "operations.alerts.list",
+    "scope": "migration.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/operations/alerts",
+      "successStatus": "200",
+      "successSchema": "migration:OperationsAlertList"
+    },
+    "mcpTool": "operations_alerts_list",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "operations.backupVerifications.record",
+    "owner": "M",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "operations.backupVerifications.record",
+    "scope": "migration.write",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/operations/backup-verifications",
+      "requestSchema": "migration:BackupVerificationRecord",
+      "successStatus": "201",
+      "successSchema": "migration:BackupVerificationResult"
+    },
+    "mcpTool": "operations_backup_verifications_record",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "operations.operatorProfiles.record",
+    "owner": "M",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "operations.operatorProfiles.record",
+    "scope": "admin.configure",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/operations/operator-profiles",
+      "requestSchema": "migration:OperatorProfileRecord",
+      "successStatus": "201",
+      "successSchema": "migration:OperatorProfileResult"
+    },
+    "mcpTool": "operations_operator_profiles_record",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "operations.readiness.assert",
+    "owner": "M",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "operations.readiness.assert",
+    "scope": "migration.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/operations/readiness",
+      "successStatus": "200",
+      "successSchema": "migration:ReadinessResult"
+    },
+    "mcpTool": "operations_readiness_assert",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
     "operation": "outbox.deliver",
     "owner": "F",
     "kind": "command",

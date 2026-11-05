@@ -1,4 +1,5 @@
 export * from './backoff';
+export * from './backup-verification';
 export * from './compose';
 export * from './dispatch';
 export * from './lease';

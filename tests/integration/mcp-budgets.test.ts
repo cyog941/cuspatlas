@@ -104,15 +104,66 @@ describe('A9 budgets', () => {
     expect((usage.body.data as { calls: number }).calls).toBe(2);
   });
 
-  it('a result over the per-call record budget is refused, not silently shortened', async () => {
+  it('a list over the per-call record budget is truncated with a resume cursor, charging only what was returned', async () => {
     const a = await s.createAgent(TASKS, 'one record per call', undefined, { consent: false });
     await s.consent(a, ['syntheticTasks.list', 'syntheticTasks.create'], { recordsPerCall: 1 });
     await s.agentTool(a, 'synthetic_tasks_create', create('budget row one'));
     await s.agentTool(a, 'synthetic_tasks_create', create('budget row two'));
     const r = await s.agentTool(a, 'synthetic_tasks_list', {});
-    expect(r.body.code).toBe('rate_limited');
-    expect((r.body.detail as { reason: string; limit: { name: string } }).limit.name).toBe('recordsPerCall');
-    expect(r.body).not.toHaveProperty('items');
+    expect(r.isError).toBe(false);
+    const items = (r.body.data ?? r.body.items) as { label: string }[];
+    expect(items).toHaveLength(1);
+    const t = (r.meta as { truncated?: Record<string, unknown> } | undefined)?.truncated as {
+      returned: number;
+      omitted: number;
+      limit: { name: string; value: number };
+      resumeCursor: string;
+    };
+    expect(t).toMatchObject({ returned: 1, limit: { name: 'recordsPerCall', value: 1 } });
+    expect(t.omitted).toBeGreaterThanOrEqual(1);
+    expect(typeof t.resumeCursor).toBe('string');
+    // Resuming walks the rest one record per call, without repeats, until no cursor is left.
+    const seen = [items[0]?.label];
+    let cursor: string | undefined = t.resumeCursor;
+    while (cursor) {
+      const next = await s.agentTool(a, 'synthetic_tasks_list', { resumeCursor: cursor });
+      expect(next.isError).toBe(false);
+      const page = (next.body.data ?? next.body.items) as { label: string }[];
+      expect(page).toHaveLength(1);
+      seen.push(page[0]?.label);
+      cursor = (next.meta as { truncated?: { resumeCursor: string } } | undefined)?.truncated?.resumeCursor;
+    }
+    expect(seen).toHaveLength(1 + t.omitted);
+    expect(new Set(seen).size).toBe(seen.length);
+    // Only what was returned is charged: every page logs one record; the last page is not truncated.
+    const log = await s.db.admin.query<{ outcome: string; records: number }>(
+      'SELECT outcome, records FROM cuspatlas.agent_tool_calls WHERE agent_ref = $1 ORDER BY occurred_at',
+      [a.agentRef],
+    );
+    const pages = log.rows.slice(2);
+    expect(pages.every((x) => x.records === 1)).toBe(true);
+    expect(pages.map((x) => x.outcome)).toStrictEqual([
+      ...Array.from({ length: seen.length - 1 }, () => 'truncated'),
+      'ok',
+    ]);
+    // A cursor for another operation or other arguments is refused, never applied.
+    const bad = await s.agentTool(a, 'synthetic_tasks_list', { resumeCursor: 'not-a-cursor' });
+    expect(bad.body.code).toBe('invalid_request');
+  });
+
+  it('the period record budget still refuses once exhausted, even with truncation', async () => {
+    const a = await s.createAgent(TASKS, 'period of two', undefined, { consent: false });
+    await s.consent(a, ['syntheticTasks.list', 'syntheticTasks.create'], {
+      recordsPerCall: 1,
+      recordsPerPeriod: 3,
+    });
+    await s.agentTool(a, 'synthetic_tasks_create', create('period row one'));
+    await s.agentTool(a, 'synthetic_tasks_create', create('period row two'));
+    const r = await s.agentTool(a, 'synthetic_tasks_list', {});
+    expect(r.isError).toBe(false);
+    const again = await s.agentTool(a, 'synthetic_tasks_list', {});
+    expect(again.body.code).toBe('rate_limited');
+    expect((again.body.detail as { limit: { name: string } }).limit.name).toBe('recordsPerPeriod');
   });
 
   it('PHI fields returned are counted against the per-call and per-period budgets', async () => {

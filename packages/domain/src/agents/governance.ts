@@ -540,6 +540,75 @@ export function createAgentGovernance(base: AgentBase) {
     },
 
     /**
+     * Closeout B: post-call accounting of a query result that may be truncated. A list result over a
+     * per-call record or PHI budget is shortened to the longest prefix within every budget and answered
+     * with `truncated` (only what is returned is charged; the call is logged `truncated`). A result
+     * that cannot fit even one record, or that would exceed a remaining period budget, is refused as
+     * before (429). A single-record result is never truncated.
+     */
+    async settleQuery(
+      ctx: ActorContext,
+      ticket: BudgetTicket,
+      result: unknown,
+    ): Promise<{
+      result: unknown;
+      truncated: { returned: number; omitted: number; limit: { name: string; value: number } } | null;
+    }> {
+      const b = ticket.budget;
+      const r = (result ?? {}) as Record<string, unknown>;
+      const key = Array.isArray(r.items) ? 'items' : Array.isArray(r.data) ? 'data' : null;
+      const out = await deps.withTenantTransaction(ctx, async (tx) => {
+        const u = (
+          await tx.query<{ records: number; phi_fields: number }>(
+            'SELECT records, phi_fields FROM cuspatlas.agent_budget_usage WHERE consent_ref = $1 FOR UPDATE',
+            [ticket.consentRef],
+          )
+        ).rows[0];
+        if (!u) throw new Error('budget usage row missing');
+        let value: unknown = result;
+        let m = measureResult(ticket.operation, result);
+        let over = overBudget(b, u, ticket.charged, m);
+        let truncated: { returned: number; omitted: number; limit: { name: string; value: number } } | null =
+          null;
+        const perCall = (e: RefusalError | null) => {
+          const name = (e?.detail as { limit?: { name: string } } | undefined)?.limit?.name;
+          return name === 'recordsPerCall' || name === 'phiFieldsPerCall';
+        };
+        if (over && perCall(over) && key !== null) {
+          const list = r[key] as unknown[];
+          const limit = (over.detail as { limit: { name: string; value: number } }).limit;
+          for (let k = list.length - 1; k >= 1; k -= 1) {
+            const candidate = { ...r, [key]: list.slice(0, k) };
+            const cm = measureResult(ticket.operation, candidate);
+            const cover = overBudget(b, u, ticket.charged, cm);
+            if (cover === null || !perCall(cover)) {
+              value = candidate;
+              m = cm;
+              over = cover;
+              truncated = { returned: k, omitted: list.length - k, limit };
+              break;
+            }
+          }
+        }
+        if (over) {
+          await logCall(tx, ctx, ticket, 'budget_exhausted', ticket.charged);
+          return { refusal: over, value: null, truncated: null };
+        }
+        await tx.query(
+          'UPDATE cuspatlas.agent_budget_usage SET records = records + $2, phi_fields = phi_fields + $3 WHERE consent_ref = $1',
+          [ticket.consentRef, m.records, m.phiFields],
+        );
+        await logCall(tx, ctx, ticket, truncated ? 'truncated' : 'ok', {
+          records: ticket.charged.records + m.records,
+          phiFields: ticket.charged.phiFields + m.phiFields,
+        });
+        return { refusal: null, value, truncated };
+      });
+      if (out.refusal) await deny(ctx, ticket.operation, out.refusal);
+      return { result: out.value, truncated: out.truncated };
+    },
+
+    /**
      * Post-call accounting of the result. A query over a per-call or remaining per-period budget is
      * refused (the result is never returned, never silently shortened). A command's effect has already
      * happened, so it is never refused here: it is counted (so the period budget refuses the next call)

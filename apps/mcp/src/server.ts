@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import {
   createServer,
   type Server as HttpServer,
@@ -594,6 +594,8 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
   );
   const withBudgetWarning = (meta: { _meta?: Record<string, unknown> }, w: BudgetWarning | null) =>
     w ? { _meta: { ...(meta._meta ?? {}), budgetWarning: w } } : meta;
+  const withTruncation = (meta: { _meta?: Record<string, unknown> }, t: Record<string, unknown> | null) =>
+    t ? { _meta: { ...(meta._meta ?? {}), truncated: t } } : meta;
   const metaFor = (name: string) => {
     const n = notices.get(name);
     return n ? { _meta: { deprecation: n } } : {};
@@ -607,15 +609,54 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     };
   }
 
+  /**
+   * Closeout B (A9 truncation): an agent query over a per-call budget answers a truncated page and a
+   * resume cursor bound to the operation and its arguments. The cursor is a transport position (how
+   * many leading records the agent already received), not a domain cursor; a resumed call reruns the
+   * same query and skips them, so a list that changed in between may shift (stated in the A9 notes).
+   */
+  const argsDigest = (op: string, args: Record<string, unknown>) =>
+    createHash('sha256')
+      .update(
+        JSON.stringify([
+          op,
+          Object.keys(args)
+            .filter((k) => k !== 'idempotencyKey')
+            .sort()
+            .map((k) => [k, args[k]]),
+        ]),
+      )
+      .digest('base64url');
+  const encodeResume = (op: string, args: Record<string, unknown>, skip: number) =>
+    Buffer.from(JSON.stringify({ v: 1, d: argsDigest(op, args), s: skip })).toString('base64url');
+  const decodeResume = (op: string, args: Record<string, unknown>, cursor: unknown): number => {
+    const bad = () =>
+      new RefusalError({ code: 'invalid_request', detail: { reason: 'resume_cursor_invalid' } });
+    if (typeof cursor !== 'string' || cursor.length > 200) throw bad();
+    let c: { v?: unknown; d?: unknown; s?: unknown };
+    try {
+      c = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
+    } catch {
+      throw bad();
+    }
+    if (c?.v !== 1 || c.d !== argsDigest(op, args) || !Number.isSafeInteger(c.s) || (c.s as number) < 1)
+      throw bad();
+    return c.s as number;
+  };
+
   /** One tool call: schema first (for routing), then the shared domain handler with a server-built actor. */
   async function callTool(actor: ActorContext, name: string, rawArgs: unknown) {
     const registered = REGISTRY.get(name);
     // Unknown tools are a protocol error and never echo the caller-supplied name.
     if (!registered) throw new McpError(ErrorCode.InvalidParams, 'Unknown tool');
-    const args =
+    const given =
       rawArgs !== null && typeof rawArgs === 'object' && !Array.isArray(rawArgs)
         ? (rawArgs as Record<string, unknown>)
         : {};
+    // A resume cursor is a transport argument of agent queries only (never seen by a handler).
+    const { resumeCursor, ...rest } = given;
+    const resumable = actor.agent !== undefined && registered.tool.readOnly && resumeCursor !== undefined;
+    const args = resumable ? rest : given;
     const valid = registered.validate(args);
     const violations = valid ? [] : violationsOf(registered.validate.errors);
     let code = 'ok';
@@ -626,6 +667,7 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     try {
       if (actor.agent)
         ticket = await agents.admitToolCall(actor, deps.identity.audience, registered.tool.operationId);
+      const skip = resumable ? decodeResume(registered.tool.operationId, args, resumeCursor) : 0;
       // Arguments are validated before any handler runs (the handler sees only valid input, except
       // for tools whose domain service performs the identical validation itself).
       if (!valid && registered.tool.onInvalid !== 'domain' && !onlyRefMalformed(registered, args)) {
@@ -642,7 +684,8 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
       const ran = live
         ? await runWithBudgetMeter((m) => agents.chargeToolCall(actor, live, m), run)
         : await run();
-      const result = attachVocabularyVersions(
+      let truncatedMeta: Record<string, unknown> | null = null;
+      let result = attachVocabularyVersions(
         registered.tool.operationId,
         listSpec
           ? attachListEnvelope(listSpec, ran, { asOf, filters: args, locationRefs: listScope.locationRefs })
@@ -652,7 +695,18 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
       if (ticket) {
         settled = true;
         if (registered.tool.readOnly) {
-          await agents.settleToolCall(actor, ticket, 'query', result, 'ok');
+          const op = registered.tool.operationId;
+          const r = (result ?? {}) as Record<string, unknown>;
+          const key = Array.isArray(r.items) ? 'items' : Array.isArray(r.data) ? 'data' : null;
+          const page = skip > 0 && key ? { ...r, [key]: (r[key] as unknown[]).slice(skip) } : result;
+          const settledQuery = await agents.settleQuery(actor, ticket, page);
+          result = settledQuery.result as typeof result;
+          if (settledQuery.truncated) {
+            truncatedMeta = {
+              ...settledQuery.truncated,
+              resumeCursor: encodeResume(op, args, skip + settledQuery.truncated.returned),
+            };
+          }
         } else {
           // H3: a command's effect has happened; a settlement failure (or a budget exceeded by its
           // result) is a warning on the success, never a refusal of an effect that took place.
@@ -674,7 +728,7 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
       return {
         content: [{ type: 'text' as const, text: JSON.stringify(result) }],
         structuredContent: result as Record<string, unknown>,
-        ...withBudgetWarning(metaFor(name), budgetWarning),
+        ...withTruncation(withBudgetWarning(metaFor(name), budgetWarning), truncatedMeta),
       };
     } catch (err) {
       const { body } = mapErrorToRefusal(err, actor.correlationId);

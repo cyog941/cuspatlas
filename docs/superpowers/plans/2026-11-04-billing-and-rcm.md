@@ -275,6 +275,24 @@ Proposed contract definitions to create during execution, not code already prese
 
 **Observable completion condition:** one test run reports a parity matrix with no operation missing, every sensitive report denied to a role outside its scope, a stale estimate/statement surfaced as stale rather than restated, and an export that re-imports without identifier loss.
 
+## Claim workspace requirements
+
+Behaviour requirements for the claims surface, derived from the interaction review in [MNTOS-PATTERN-REVIEW.md](../../MNTOS-PATTERN-REVIEW.md). They constrain what the API must answer; they are not screen designs.
+
+1. **Queues are addressable states with counts.** B6 must expose the claim work queues as a server-side enumeration with a per-queue count, each count scoped to what the caller may access, and each queue resolvable as a filter on the claim query. Queue definitions are configuration, not hard-coded switch statements, so a practice can add one without a release.
+2. **Work priority is a defined sort, not a vibe.** B6's claim query must support an explicit ordering that puts filing deadlines and claims needing attention first, and must document the tie-break. A queue's default order is part of its contract, and changing it is a reviewed change.
+3. **Every list states its freshness and its limits.** Claim list responses must carry the data timestamp, the filter and sort applied, the page size cap, and whether filtering ran before pagination. A consumer must be able to tell the difference between "nothing matches" and "not on this page".
+4. **Headline figures are defined, not implied.** The financial and claims summaries must state the definition, date basis and as-of instant behind each figure, consistent with the reporting oracle in [acceptance scenarios](../../ACCEPTANCE-SCENARIOS.md). Two surfaces showing different numbers for the same named figure is a defect.
+5. **Zero is explicit.** A queue with no matching claims returns an empty result with a reason, never an empty array that a surface must interpret.
+
+Acceptance cases for this section:
+
+1. A queue count equals the length of the matching result set for the same caller, filters and instant.
+2. A caller without access to a restricted queue receives a count of zero and a refusal on the queue filter, rather than a count that includes invisible work.
+3. A claim list response carries the as-of timestamp, applied filters, sort and page cap; a page beyond the cap is refused or paginated, never silently truncated.
+4. The work-priority ordering places an earlier filing deadline ahead of a later one, and the documented tie-break decides equal deadlines deterministically.
+5. An empty queue returns an explicit no-match result with the queue identity, not a bare empty list.
+
 ## Open decisions
 
 | Decision | Options | Recommended | What settles it |

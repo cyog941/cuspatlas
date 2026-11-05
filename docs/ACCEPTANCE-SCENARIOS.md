@@ -674,6 +674,11 @@ Every scenario names one observable completion condition and the evidence artifa
 | B-16 | Duplicate ingestion posts nothing, the correction supersedes with linkage, and totals are unchanged by the duplicate | Staged digests, posting totals per ingestion, duplicate rejection, supersede linkage, reversal entries, partial-parse artifact |
 | B-17 | The altered-payload and cross-tenant replays conflict or deny, and the crash replay writes no second effect | Command results, mutation and audit and outbox counts, payload digests, replay indicator, retention boundary |
 | B-18 | All four transports return the same typed denial for the same operation, and the MCP surface exposes no privileged capability | Parity matrix file, per-transport denials with audit, MCP tool inventory, portal and staff cross-direction denials |
+| B-19 | Moving an appointment to the bounded unscheduled list and back preserves booking history, writes two audit entries, and an over-capacity move returns a typed refusal that names the limit | `E-AUDIT`, `E-ROWS`, `E-DENIAL`, `E-STATE` (the refused move leaves no appointment row) |
+| B-20 | Two availability searches with identical inputs — duration only, 60-day window — return identical ordered openings, and neither writes a hold, appointment or outbox event | `E-STATE`, `E-AUDIT` (read only), ordered result comparison |
+| B-21 | Claim queue counts and claim rows are read at one as-of instant; a count that includes work outside the caller's page is explained, never presented as if the rows were missing | `E-REPORT`, `E-ROWS`, both as-of timestamps |
+| B-22 | A caller without a restricted queue's scope receives zero for that queue and a typed refusal on its filter, never a count that includes work they cannot see | `E-DENIAL`, `E-WORKLIST`, `E-AUDIT` |
+| B-23 | Changing the patient on an appointment that has completed procedures is refused, the refusal names the procedure review as the remediation path, and no procedure, claim or journal row changes patient | `E-DENIAL`, `E-STATE`, `E-ROWS`, `E-AUDIT` |
 
 ## D-4 Evidence artifact kinds
 

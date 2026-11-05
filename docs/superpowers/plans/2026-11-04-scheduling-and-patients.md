@@ -673,6 +673,30 @@ Consumes: every operation this plan introduces. Produces: a parity matrix coveri
 
 **Observable completion condition:** one test run reports a parity matrix with no operation missing, an export that re-imports without identifier loss, and an ordinary synthetic day that completes with no direct table access outside the domain layer.
 
+## Scheduling surface requirements
+
+These are behaviour requirements on the scheduling surface, derived from the interaction review in [MNTOS-PATTERN-REVIEW.md](../../MNTOS-PATTERN-REVIEW.md). They constrains what a screen must be able to show and do; they are not screen designs, and UI design remains deferred. Each names the task that owns it.
+
+1. **A booked appointment must be answerable from one record.** S10's appointment read model must return, in one response: patient reference and display name, coverage/payer summary, attendance state, procedure codes with tooth identity where applicable, scheduled start and duration in the location's display zone, appointment type, the permitted next attendance transitions, and whether the record is currently editable. A surface that needs six calls to render one block is a defect in this contract, not in the screen.
+2. **Blockouts are one object, not one per resource.** S7 must model a time block as a single object that may cover many operatories and providers, so a shared closure is one fact with one identity and one audit entry. Four coincident per-room blocks must not be the only way to express a shared closure.
+3. **Unavailable time is a distinct fact from no appointment.** S7's read model must distinguish "resource has no booking" from "resource is unavailable" (hours, holiday, blockout, unstaffed) and return the reason. A surface must be able to render them differently without inferring.
+4. **A bounded unscheduled-work list.** S10 must expose a named, bounded staging list for appointments that have no committed slot — a reschedule in progress, or a booking awaiting a slot — with an explicit capacity limit, the ability to move an appointment back to it and forward from it, and an audit entry for each move. Capacity exhaustion and move failures are explicit outcomes, not silent drops.
+5. **Availability search accepts a duration without a type, and a window.** S9's query must support appointment type optional with an explicit duration, provider optional, a time-of-day band, a weekday set, and a bounded search window (for example 30 or 60 days), returning openings rather than a filtered schedule.
+6. **Counts travel with the control that opens the list.** S10 and S8 must return the counts for open requests and active blockouts as part of the schedule read model, so a counter is never a separate guess. A count must state its scope: all clinics, current location, or current day.
+7. **Density is a supported read mode.** The schedule read model must be usable at a coarse and a detailed time grain, and must not require a second endpoint to serve a compressed view.
+8. **Attendance state has a plain-language projection.** S11's state model must expose an operator-facing label for each attendance state in addition to the short code, so a glanceable surface never depends on staff knowing abbreviations. The vocabulary in [workflow and role matrix](../../WORKFLOW-ROLE-MATRIX.md) is the source.
+
+Acceptance cases for this section:
+
+1. One appointment read returns every field in requirement 1 with no additional request.
+2. A blockout covering three operatories reports one identity, one reason and one audit entry; deleting it releases all three.
+3. A schedule read distinguishes booked, free and unavailable-but-unbookable slots for the same resource and time.
+4. Moving an appointment to the unscheduled list and back produces two audit entries and preserves the original booking history; exceeding the list capacity returns a typed refusal.
+5. Availability search with duration-only and a 60-day window returns openings in a deterministic order, and the same query twice returns the same result absent intervening writes.
+6. A count returned with the schedule read equals the count returned by the corresponding list endpoint at the same instant.
+
+These requirements do not authorise building a surface. They fix what the API must be able to answer before any surface is designed.
+
 ## Plan self-review and scope boundary
 
 This plan covers patient identity, relationships, duplicate resolution and scheduling up to attendance, recurrence, notification intent, waitlist and recall policy. It does not specify clinical charting, perio, treatment, notes, consent content, imaging bytes, lab exchange channels, billing, claims, statements, portal intake or the device bridge; those belong to C, B, I, E and M. It deliberately leaves notification delivery, recall clinical intervals, payer-dependent eligibility and any lab or referral exchange unverified and marked blocked rather than assumed.

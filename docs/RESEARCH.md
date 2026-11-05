@@ -1,4 +1,4 @@
-﻿# Research ledger and evidence limits
+# Research ledger and evidence limits
 
 Current disposition (2026-11-03): broad incumbent research is closed by user direction. Remaining unobserved behavior is retained as a limitation, not an instruction to resume REA/Craft. Targeted clinical, vendor, device and migration qualification remains gated to the affected module or release. Closure does not mean exhaustive reverse engineering or production validation.
 
@@ -44,6 +44,16 @@ The pass was read-only. All 96 observed HTTP responses were `200`, so error beha
 The same session produced four companion documents: the surface map, the HTTP conventions, the domain model and the state vocabularies. Their derived requirements are ours, inferred from observed structure, and are labeled as such there.
 
 Entries elsewhere in this ledger that record direct authenticated attachment as blocked or unresolved were accurate when written and are superseded by this pass. The public-page evidence in the earlier tool-run table remains public-page evidence and must not be relabeled as authenticated product evidence.
+
+## Design-reference observation, 2026-11-03 evening ET
+
+A second source was studied, not as an incumbent but as an interaction reference: `https://mntos-demo.vercel.app`, a public demo workspace with synthetic sample data and no sign-in. Read-only: structure, labels, computed styles and interaction states were read from the running page; no account was created and nothing was submitted.
+
+REA evidence: `ev_0e4dd00b5accc7e2e95bbb62993264d963d35c189bf002b7b6fe6f544f815ffa` (CDP target list, origin `mntos-demo.vercel.app`).
+
+What it establishes: how a scheduling, floor, claims and patient-context surface can be organised, and which interaction properties make a dense clinical screen self-explanatory. What it does not establish: any backend, enforcement or clinical behaviour — it is a demo with synthetic data and no guaranteed server.
+
+Boundary: this is design-reference evidence, not incumbent behaviour. It informs our interaction requirements only. Per [AGENTS.md](../AGENTS.md) we copy workflow requirements, never code, branding, imagery or screen design, and UI design remains the deferred stage. Findings and the requirements they produce are in [MNTOS-PATTERN-REVIEW.md](MNTOS-PATTERN-REVIEW.md); the resulting acceptance criteria are folded into the scheduling and billing plans and [acceptance scenarios](ACCEPTANCE-SCENARIOS.md).
 
 ## Architecture sources
 

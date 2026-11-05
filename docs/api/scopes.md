@@ -22,11 +22,11 @@ human decision (A-D2). No default role grant is asserted here.
 | `actions.approve` | human | yes | A | phi | 2 |
 | `actions.prepare` | human, service | no | A | phi | 2 |
 | `actions.read` | human, service | no | A | phi | 2 |
-| `admin.configure` | human, service | no | A, B, C, E, I, M, S | phiBulk | 42 |
+| `admin.configure` | human, service | no | A, B, C, E, I, M, S | phiBulk | 43 |
 | `agents.manage` | human | yes | A | phi | 8 |
 | `agents.read` | human, service | no | A | phi | 5 |
 | `ai.draft` | human, service | no | A | phi | 1 |
-| `ai.read` | human, service | no | A | phi | 3 |
+| `ai.read` | human, service | no | A | phi | 4 |
 | `ai.review` | human | yes | A | phi | 2 |
 | `billing.correct` | human | yes | B | phi | 12 |
 | `billing.write` | human, service | no | B | phi | 30 |

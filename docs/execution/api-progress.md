@@ -281,3 +281,28 @@ Workstream A batch 2 (A8-A13) on synthetic data only. Framing, recorded before a
 - Not done: the message-draft and claim-explanation acceptance paths are wired but exercised only by
   their refusal cases here (no thread or claim fixture in this suite); the full ordinary-day scenario
   is not re-run with the port removed (the switch-off case proves a human note still works).
+
+### A12: evaluation harness, red-team corpus and the regression gate
+
+- Red: `tests/integration/ai-eval-gate.test.ts` 8 failed (exit 1: no case sets, no run operation);
+  green 8/8 after; `ai-boundary.test.ts` updated so enabling first needs a passing run (11/11).
+- Versioned synthetic case sets per runnable use case (`AI_EVAL_CASE_SETS`, versions equal to the
+  registry's `caseSetVersion`) with faithfulness cases and a red-team part: prompt injection, PHI
+  exfiltration attempts (contact values and links are now redacted before the model, and the output
+  is checked for them), out-of-scope tool requests, and an outage case.
+- Runner: every case through the same minimization, quoting and flagging as the pipeline,
+  `repetitions` times. Per-case verdict, never aggregate: one failing case fails the run and is named;
+  fewer than 3 repetitions or availability below 0.5 is inconclusive; outages are availability only.
+  Thresholds (all 1.0 for faithfulness, injection, minimization, refusal) are recorded with reasons in
+  `docs/ai/evaluation.md`, pending approval under A-S3.
+- Gate of record: the latest run of the CURRENT model, prompt version and case set (`stale` when only
+  other identities were evaluated, `none` without a run). Enabling a use case requires `pass`, and
+  every draft request rechecks it, so a later failing run suspends the use case. A candidate prompt
+  (`note-draft.1.weak`, which fabricates a tooth and a date) fails with `nd-faith-1` named and leaves
+  the current gate alone. Runs are append-only (`ai_evaluation_runs`, migration `20261201040000`).
+- Evidence: AS-07 (use-case registry), AS-09 (evaluation) and AS-10 (human oversight) added to
+  `docs/assurance/controls.json`, bound to their suites in the evidence manifest (unreviewed, not
+  certified).
+- Operations (2): `ai.evaluations.run` (human, `admin.configure`), `ai.evaluations.list`.
+- Not done: manual-verdict cases and reviewer sign-off (A-S3); subgroup performance; drift monitoring
+  beyond the per-request gate.

@@ -357,6 +357,32 @@ export const AGENT_OPS: AgentOp[] = [
       'A11: switch one AI use case, or every AI use case of the tenant, on or off. A use case that is not approved cannot be enabled. Disabling never affects deterministic workflows. Human only (admin.configure).',
     invoke: (svc, actor, i) => svc.configureAiUseCase(actor, env('ai.useCases.configure', i)),
   },
+  {
+    method: 'post',
+    path: '/v1/ai/evaluations',
+    operationId: 'ai.evaluations.run',
+    protected: true,
+    requestBody: A('AiEvaluationRun'),
+    success: { status: '201', schema: A('AiEvaluationCommandResult') },
+    refusals: COMMAND,
+    tool: 'ai_evaluations_run',
+    description:
+      'A12: run the versioned synthetic case set (with its red-team part) of one use case against the configured model, optionally for a candidate prompt version. The verdict is per case (one failing case fails, and is named); fewer than three repetitions or too many outages is inconclusive. Never clinical validation. Human only (admin.configure).',
+    invoke: (svc, actor, i) => svc.runAiEvaluation(actor, env('ai.evaluations.run', i)),
+  },
+  {
+    method: 'get',
+    path: '/v1/ai/evaluations',
+    operationId: 'ai.evaluations.list',
+    protected: true,
+    query: 'AiEvaluationListQuery',
+    success: { status: '200', schema: A('AiEvaluationList') },
+    refusals: READ,
+    tool: 'ai_evaluations_list',
+    description:
+      'A12: evaluation runs with model, prompt and case-set versions, newest first (OR-01 list envelope).',
+    invoke: (svc, actor, i) => svc.listAiEvaluations(actor, i.body),
+  },
 ];
 
 export const AGENT_OP_ROUTES = (): RouteContract[] =>

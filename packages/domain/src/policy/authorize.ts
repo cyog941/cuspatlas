@@ -590,6 +590,10 @@ export const ACTION_POLICIES = {
   'ai.drafts.reject': { scope: 'ai.review', principals: ['human'] },
   'ai.useCases.list': { scope: 'ai.read', principals: ['human', 'service'] },
   'ai.useCases.configure': { scope: 'admin.configure', principals: ['human'] },
+  // A12 evaluation (A-S3 open): running the harness is practice configuration by a person; runs are
+  // readable with ai.read.
+  'ai.evaluations.run': { scope: 'admin.configure', principals: ['human'] },
+  'ai.evaluations.list': { scope: 'ai.read', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

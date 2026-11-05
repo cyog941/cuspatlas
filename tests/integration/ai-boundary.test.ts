@@ -118,6 +118,9 @@ describe('A11 use-case registry and switches', () => {
 
 describe('A11 drafts', () => {
   beforeAll(async () => {
+    // A12: enabling needs a passing evaluation of the current model, prompt and case set.
+    expect((await configure({ useCase: 'clinicalNoteDraft', enabled: true })).statusCode).toBe(409);
+    expect((await h.call('a1', 'POST', '/v1/ai/evaluations', { useCase: 'clinicalNoteDraft' })).statusCode).toBe(201);
     expect((await configure({ useCase: 'clinicalNoteDraft', enabled: true })).statusCode).toBe(200);
   });
 

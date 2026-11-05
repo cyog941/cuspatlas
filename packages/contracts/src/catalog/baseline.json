@@ -949,6 +949,71 @@
       }
     },
     {
+      "operation": "ai.evaluations.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "ai.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/ai/evaluations"
+      },
+      "mcpTool": "ai_evaluations_list"
+    },
+    {
+      "operation": "ai.evaluations.run",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "admin.configure",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/ai/evaluations"
+      },
+      "mcpTool": "ai_evaluations_run",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "promptVersionRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z0-9.-]{1,64}$"
+          },
+          "repetitions": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 10,
+            "minimum": 1
+          },
+          "useCase": {
+            "enum": [
+              "\"claimReadinessExplanation\"",
+              "\"clinicalNoteDraft\"",
+              "\"diagnosisSuggestion\"",
+              "\"patientMessageDraft\""
+            ]
+          }
+        },
+        "closed": true,
+        "required": [
+          "useCase"
+        ]
+      }
+    },
+    {
       "operation": "ai.useCases.configure",
       "transports": [
         "rest",

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "note": "Control registry for the synthetic evidence manifest (docs/ASSURANCE-AND-CERTIFICATION.md AS-01..AS-04). Owners are roles to assign, not evidence of staffing. A passing test is evidence for review, not certification.",
+  "note": "Control registry for the synthetic evidence manifest (docs/ASSURANCE-AND-CERTIFICATION.md AS-01..AS-04, AS-06, AS-07, AS-09, AS-10). Owners are roles to assign, not evidence of staffing. A passing test is evidence for review, not certification.",
   "controls": [
     {
       "controlId": "AS-01",
@@ -100,6 +100,53 @@
         "tests/integration/ops-restore-drill.test.ts",
         "tests/integration/restore-smoke.test.ts",
         "tests/integration/ops-operator.test.ts"
+      ]
+    },
+    {
+      "controlId": "AS-07",
+      "owner": "AI governance owner and clinical reviewer (roles to assign)",
+      "scope": "synthetic: AI use-case registry, tenant switches and the A12 gate (workstream A batch 2; synthetic model only)",
+      "requirement": "Every AI use case is registered with its approval status; an unregistered or not-approved use case can neither run nor be enabled; use cases are off per tenant until enabled.",
+      "artifacts": [
+        "packages/domain/src/agents/ai-port.ts",
+        "packages/domain/src/agents/ai.ts",
+        "artifacts/test-summary.json",
+        "supabase/migrations/20261201030000_ai_drafts.sql"
+      ],
+      "tests": [
+        "tests/integration/ai-boundary.test.ts"
+      ]
+    },
+    {
+      "controlId": "AS-09",
+      "owner": "AI and domain reviewers (roles to assign)",
+      "scope": "synthetic: versioned evaluation sets, red-team corpus, thresholds and the regression gate (A-S3 open)",
+      "requirement": "Versioned synthetic evaluation set per use case with faithfulness, injection, minimization, refusal and availability classes; recorded thresholds; per-case verdicts; under-repeated runs inconclusive; a failing or stale evaluation blocks enabling and running. Not clinical validation.",
+      "artifacts": [
+        "packages/domain/src/agents/eval.ts",
+        "docs/ai/evaluation.md",
+        "supabase/migrations/20261201040000_ai_evaluations.sql",
+        "artifacts/test-summary.json"
+      ],
+      "tests": [
+        "tests/integration/ai-eval-gate.test.ts"
+      ]
+    },
+    {
+      "controlId": "AS-10",
+      "owner": "domain owners (roles to assign)",
+      "scope": "synthetic: human oversight of agent and AI output (A8-A11)",
+      "requirement": "An agent cannot approve its own or its sponsor proposals, accept AI drafts or sign; AI output is always a draft accepted only through the owning command by a person; disabling AI leaves ordinary workflows usable.",
+      "artifacts": [
+        "packages/domain/src/agents/ai-port.ts",
+        "packages/domain/src/agents/ai.ts",
+        "artifacts/test-summary.json",
+        "packages/domain/src/agents/proposals.ts"
+      ],
+      "tests": [
+        "tests/integration/action-proposals.test.ts",
+        "tests/integration/ai-boundary.test.ts",
+        "tests/integration/agents-negative-harness.test.ts"
       ]
     }
   ]

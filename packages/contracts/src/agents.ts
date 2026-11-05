@@ -51,6 +51,9 @@ export const validateAiDraftListQuery = def('AiDraftListQuery');
 export const validateAiUseCaseConfigure = def('AiUseCaseConfigure');
 export const validateAiUseCaseListQuery = def('AiUseCaseListQuery');
 
+export const validateAiEvaluationRun = def('AiEvaluationRun');
+export const validateAiEvaluationListQuery = def('AiEvaluationListQuery');
+
 export type AgentState = 'active' | 'suspended' | 'revoked';
 
 /** The generated operation catalog by operation id (A9 consent checks, budget sensitivity). */

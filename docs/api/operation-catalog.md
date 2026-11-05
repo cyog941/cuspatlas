@@ -9,7 +9,7 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-425 operations.
+427 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
@@ -47,6 +47,8 @@ transport tables and are declarations, not independent proof.
 | `ai.drafts.list` | A | query | authorize | `ai.read` | human, service | rest, mcp | GET `/v1/ai/drafts` | `ai_drafts_list` | none | phi | active |
 | `ai.drafts.read` | A | query | authorize | `ai.read` | human, service | rest, mcp | GET `/v1/ai/drafts/state` | `ai_drafts_get` | none | phi | active |
 | `ai.drafts.reject` | A | command | authorize | `ai.review` | human | rest, mcp | POST `/v1/ai/drafts/reject` | `ai_drafts_reject` | required | phi | active |
+| `ai.evaluations.list` | A | query | authorize | `ai.read` | human, service | rest, mcp | GET `/v1/ai/evaluations` | `ai_evaluations_list` | none | phi | active |
+| `ai.evaluations.run` | A | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/ai/evaluations` | `ai_evaluations_run` | required | phi | active |
 | `ai.useCases.configure` | A | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/ai/use-cases/configure` | `ai_use_cases_configure` | required | phi | active |
 | `ai.useCases.list` | A | query | authorize | `ai.read` | human, service | rest, mcp | GET `/v1/ai/use-cases` | `ai_use_cases_list` | none | phi | active |
 | `billing.adjustments.decide` | B | command | authorize | `billing.correct` | human | rest, mcp | POST `/v1/billing/adjustment-requests/{requestRef}/decision` | `billing_adjustments_decide` | required | phi | active |

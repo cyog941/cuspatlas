@@ -13384,6 +13384,80 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/ai/evaluations:
+    post:
+      operationId: ai.evaluations.run
+      description: >-
+        A12: run the versioned synthetic case set (with its red-team part) of one use case against the
+        configured model, optionally for a candidate prompt version. The verdict is per case (one failing
+        case fails, and is named); fewer than three repetitions or too many outages is inconclusive. Never
+        clinical validation. Human only (admin.configure).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/agents.schema.json#/$defs/AiEvaluationRun'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/agents.schema.json#/$defs/AiEvaluationCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: ai.evaluations.list
+      description: >-
+        A12: evaluation runs with model, prompt and case-set versions, newest first (OR-01 list envelope).
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/agents.schema.json#/$defs/AiEvaluationListQuery'
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/agents.schema.json#/$defs/Cursor'
+        - name: useCase
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/agents.schema.json#/$defs/AiUseCase'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/agents.schema.json#/$defs/AiEvaluationList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   # END generated: AGENT_OPS
 components:
   securitySchemes:

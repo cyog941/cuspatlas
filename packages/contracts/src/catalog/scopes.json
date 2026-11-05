@@ -73,6 +73,7 @@
         "S"
       ],
       "operations": [
+        "ai.evaluations.run",
         "ai.useCases.configure",
         "billing.export",
         "clinical.authors.define",
@@ -194,6 +195,7 @@
       "operations": [
         "ai.drafts.list",
         "ai.drafts.read",
+        "ai.evaluations.list",
         "ai.useCases.list"
       ],
       "sensitivity": "phi"

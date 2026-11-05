@@ -1,5 +1,6 @@
 import { type AiDeps, createAiPipeline } from './ai';
 import { type AgentBaseDeps, createAgentBase } from './base';
+import { createAiEvaluations, evaluationGate } from './eval';
 import { createAgentGovernance } from './governance';
 import { createAgentPrincipals } from './principals';
 import { createActionProposals, type ProposalOwners } from './proposals';
@@ -14,6 +15,7 @@ export {
 } from './ai';
 export * from './ai-port';
 export * from './codecs';
+export { AI_EVAL_CASE_SETS, AI_EVAL_THRESHOLDS, type EvalCase, evaluationGate, runEvaluation } from './eval';
 export { AGENT_CONSENT_RESOURCE, type BudgetTicket, measureResult } from './governance';
 export { AGENT_RESOURCE } from './principals';
 export {
@@ -37,7 +39,12 @@ export function createAgentService(deps: AgentServiceDeps) {
     ...createAgentPrincipals(base),
     ...createAgentGovernance(base),
     ...createActionProposals(base, deps.owners ?? {}),
-    ...createAiPipeline(base, deps.ai ?? { model: null, readers: null, owners: {} }),
+    // A12: the evaluation gate of record guards enabling and running every use case.
+    ...createAiPipeline(base, {
+      gate: evaluationGate,
+      ...(deps.ai ?? { model: null, readers: null, owners: {} }),
+    }),
+    ...createAiEvaluations(base, deps.ai?.model ?? null),
   };
 }
 export type AgentService = ReturnType<typeof createAgentService>;

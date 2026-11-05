@@ -101,11 +101,23 @@ const INJECTION = [
   /ignore\s+(all\s+|any\s+)?(the\s+)?(previous|prior|above|earlier)\s+(instructions|rules)/i,
   /\b(system|assistant|developer)\s*:/i,
   /\byou\s+are\s+now\b/i,
-  /\b(sign|submit|send|approve|post|book|delete|export|forward)\b[^.\n]{0,40}\b(note|claim|message|record|appointment|patients?|data)\b/i,
+  /\b(sign|submit|send|approve|post|book|delete|export|forward|email)\b[^.\n]{0,40}\b(note|claim|message|record|chart|appointment|patients?|data|results)\b/i,
   /\b(call|use|invoke)\s+(the\s+)?(tool|function|api)\b/i,
   /<<\/?source/i,
   /https?:\/\//i,
 ];
+const CONTACTS = [
+  /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g,
+  /https?:\/\/\S+/gi,
+  /\+?\d[\d ().-]{6,}\d/g,
+];
+/** Data minimization before the model: contact values and links never reach it (A-D5). */
+export const redactContacts = (text: string): string =>
+  CONTACTS.reduce((t, re) => t.replace(re, '[redacted]'), text);
+/** True when text still carries a contact value or link (the A12 minimization check). */
+export const carriesContact = (text: string): boolean =>
+  CONTACTS.some((re) => new RegExp(re.source, 'i').test(text));
+
 /** True when a source carries text that reads like an instruction to the model. */
 export const looksLikeInjection = (text: string): boolean => INJECTION.some((r) => r.test(text));
 

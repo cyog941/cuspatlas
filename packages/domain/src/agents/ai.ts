@@ -25,6 +25,7 @@ import {
   type ModelAdapter,
   type ModelSource,
   quoteSource,
+  redactContacts,
   unsupportedReferences,
 } from './ai-port';
 import { type AgentBase, checkEnvelope, conflict, failed, notFound, stale, validate } from './base';
@@ -197,6 +198,12 @@ export function createAiPipeline(base: AgentBase, ai: AiDeps) {
     );
     if (rows.some((r) => r.use_case === '*' && !r.enabled)) throw disabled('tenant_ai_disabled');
     if (!rows.some((r) => r.use_case === useCase && r.enabled)) throw disabled('use_case_disabled');
+    // A12 regression gate: a use case runs only while the evaluation of the current model, prompt
+    // version and case set passes (a later failing run suspends it).
+    if (ai.gate) {
+      const verdict = await ai.gate(tx, useCase, ai.model?.modelRef ?? 'none');
+      if (verdict !== 'pass') throw disabled(`evaluation_${verdict}`);
+    }
   }
 
   /** Current source versions as the caller; false when any source changed or is no longer visible. */
@@ -246,11 +253,14 @@ export function createAiPipeline(base: AgentBase, ai: AiDeps) {
           const read = await (ai.readers as AiSourceReaders).read(s.kind, ctx, s.ref);
           sources.push({ kind: s.kind, ref: s.ref, text: read.text, version: read.version });
         }
+        const injection = sources.some((s) => looksLikeInjection(s.text));
+        // Minimized further before the model: contact values and links are redacted (A-D5).
+        const modelSources = sources.map((s) => ({ ...s, text: redactContacts(s.text) }));
         const response = await model.generate({
           useCase: p.useCase,
           promptVersionRef: entry.promptVersionRef,
-          instructions: `${entry.instructions}\n${sources.map(quoteSource).join('\n')}`,
-          sources,
+          instructions: `${entry.instructions}\n${modelSources.map(quoteSource).join('\n')}`,
+          sources: modelSources,
         });
         if (response.kind === 'unavailable') {
           // An availability failure, not a clinical event: nothing is persisted.
@@ -261,8 +271,8 @@ export function createAiPipeline(base: AgentBase, ai: AiDeps) {
           });
         }
         const flags = [
-          ...(sources.some((s) => looksLikeInjection(s.text)) ? ['injection_suspected'] : []),
-          ...(unsupportedReferences(response.text, sources).length > 0 ? ['unsupported_reference'] : []),
+          ...(injection ? ['injection_suspected'] : []),
+          ...(unsupportedReferences(response.text, modelSources).length > 0 ? ['unsupported_reference'] : []),
         ];
         const r = await deps.withTenantTransaction(ctx, (tx) =>
           execute<{ draftRef: string }>(ctx, envelope, tx, async () => {

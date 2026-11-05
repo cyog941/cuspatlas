@@ -822,6 +822,74 @@
     "status": "active"
   },
   {
+    "operation": "ai.evaluations.list",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "ai.evaluations.list",
+    "scope": "ai.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/ai/evaluations",
+      "successStatus": "200",
+      "successSchema": "agents:AiEvaluationList"
+    },
+    "mcpTool": "ai_evaluations_list",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "ai.evaluations.run",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "ai.evaluations.run",
+    "scope": "admin.configure",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/ai/evaluations",
+      "requestSchema": "agents:AiEvaluationRun",
+      "successStatus": "201",
+      "successSchema": "agents:AiEvaluationCommandResult"
+    },
+    "mcpTool": "ai_evaluations_run",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
     "operation": "ai.useCases.configure",
     "owner": "A",
     "kind": "command",

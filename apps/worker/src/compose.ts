@@ -151,7 +151,7 @@ export interface ComposeOptions {
    * Absent: the scheduled-task consumer stays disabled (nothing runs outside MCP admission).
    */
   readonly agentTools?: AgentToolInvoker;
-  /** The instant E6 evaluates quiet hours for (default now). */
+  /** The instant E6 evaluates quiet hours for (default now). Test seam; refused outside synthetic-test. */
   readonly clock?: () => Date;
   readonly log?: (line: WorkerMainLogLine) => void;
   readonly tuning?: {
@@ -280,6 +280,11 @@ export async function composeWorker(
     throw new Error(
       'Refusing to start: synthetic providers are permitted only in synthetic-test (fake adapters, clearinghouse, processor and messaging never run elsewhere)',
     );
+  }
+  // The quiet-hours instant is a test seam like the fakes above: outside synthetic-test the worker
+  // takes current time from its default (clock audit review).
+  if (runtimeEnv !== 'synthetic-test' && opts.clock !== undefined) {
+    throw new Error('Refusing to start: an injected clock is permitted only in synthetic-test');
   }
   const principalId = env.CUSPATLAS_WORKER_PRINCIPAL_ID ?? '';
   if (!UUID.test(principalId)) {

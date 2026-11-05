@@ -153,6 +153,15 @@ describe('worker boot refuses unsafe configuration', () => {
     ).rejects.toThrow(/synthetic providers are permitted only in synthetic-test/);
   });
 
+  it('refuses an injected clock outside synthetic-test, before any connection (clock audit review)', async () => {
+    await expect(composeWorker(dev({}), { clock: () => new Date(0) })).rejects.toThrow(
+      /an injected clock is permitted only in synthetic-test/,
+    );
+    await expect(
+      composeWorker(dev({ CUSPATLAS_ENV: 'production' }), { clock: () => new Date(0) }),
+    ).rejects.toThrow(/an injected clock is permitted only in synthetic-test/);
+  });
+
   it('refuses a missing principal, a malformed tenant list and a database name that is not synthetic', async () => {
     const { CUSPATLAS_WORKER_PRINCIPAL_ID: _w, ...noPrincipal } = baseEnv();
     await expect(composeWorker(noPrincipal, { pools: pools() })).rejects.toThrow(

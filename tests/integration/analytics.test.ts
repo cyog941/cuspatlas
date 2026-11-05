@@ -63,7 +63,8 @@ afterAll(async () => {
   await db?.close();
 });
 
-const read = (who: string, key: string, q = `locationRef=loc-north&from=${DAY}`) =>
+const WEEK = 'from=2030-03-04&to=2030-03-10';
+const read = (who: string, key: string, q = `locationRef=loc-north&${WEEK}`) =>
   h.call(who, 'GET', `${M}/${key}?${q}`);
 
 describe('A16 analytics measures', () => {
@@ -91,11 +92,17 @@ describe('A16 analytics measures', () => {
     expect(r).toMatchObject({
       measureKey: 'scheduling.utilization',
       definitionVersion: 'scheduling.utilization.1',
-      appliedFilters: { locationRef: 'loc-north', from: DAY, to: DAY, timeZone: 'America/New_York' },
+      appliedFilters: {
+        locationRef: 'loc-north',
+        from: '2030-03-04',
+        to: '2030-03-10',
+        granularity: 'week',
+        timeZone: 'America/New_York',
+      },
       freshness: { state: 'current' },
       result: { state: 'suppressed' },
     });
-    expect(Object.keys(r.result)).toEqual(['state']);
+    expect(Object.keys(r.result)).toEqual(['state', 'suppressed']);
     expect(r.asOf).toEqual(expect.any(String));
   });
 
@@ -115,10 +122,16 @@ describe('A16 analytics measures', () => {
       scopes: (await membership.load(USER_A1, T_ALPHA))?.scopes ?? [],
       correlationId: '00000000-0000-4000-8000-0000000000c2',
     };
-    const q = { locationRef: 'loc-north', from: DAY };
+    const q = { locationRef: 'loc-north', from: '2030-03-04', to: '2030-03-10' };
     const u = ((await reads.readMeasure(ctx, 'scheduling.utilization', q)) as { data: Json }).data;
-    // One provider, 08:00-17:00 local (540 minutes), one booked half hour.
-    expect(u.result).toEqual({ state: 'value', value: 0.0556, numerator: 30, denominator: 540 });
+    // One provider, 08:00-17:00 local on five weekdays (2700 minutes), one booked half hour; counts rounded to 5.
+    expect(u.result).toEqual({
+      state: 'value',
+      value: 0.011,
+      numerator: 30,
+      denominator: 2700,
+      rounding: { counts: 5, rate: 0.001 },
+    });
     const ns = ((await reads.readMeasure(ctx, 'scheduling.no_show_rate', q)) as { data: Json }).data;
     expect(ns.result).toEqual({ state: 'undefined', reason: 'zero_denominator' });
     const sla = ((await reads.readMeasure(ctx, 'communications.reply_sla', q)) as { data: Json }).data;
@@ -127,7 +140,11 @@ describe('A16 analytics measures', () => {
 
   it('refuses without analytics.read identically for an empty and a non-empty population', async () => {
     const full = await read('a4', 'scheduling.utilization');
-    const empty = await read('a4', 'scheduling.utilization', 'locationRef=loc-north&from=2030-03-09');
+    const empty = await read(
+      'a4',
+      'scheduling.utilization',
+      'locationRef=loc-north&from=2030-03-11&to=2030-03-17',
+    );
     expect([full.statusCode, empty.statusCode]).toEqual([403, 403]);
     expect(full.json().code).toBe(empty.json().code);
   });
@@ -135,7 +152,7 @@ describe('A16 analytics measures', () => {
   it('aggregation is not authorization: analytics.read without the financial scopes is refused', async () => {
     expect((await read('a3', 'financial.claims_over_30_days', '')).statusCode).toBe(403);
     const ok = h.ok<{ data: Json }>(await read('a1', 'financial.claims_over_30_days', '')).data;
-    expect(ok.result).toEqual({ state: 'value', value: 0 });
+    expect(ok.result).toMatchObject({ state: 'value', value: 0 });
     expect(ok.definitionVersion).toEqual(expect.any(String));
     const money = h.ok<{ data: Json }>(await read('a1', 'financial.open_insurer_receivable', '')).data;
     expect(money.result.value).toMatchObject({ currency: 'USD' });
@@ -148,7 +165,7 @@ describe('A16 analytics measures', () => {
         await read(
           'a1',
           'scheduling.utilization',
-          `locationRef=loc-north&from=${DAY}&version=scheduling.utilization.0`,
+          `locationRef=loc-north&${WEEK}&version=scheduling.utilization.0`,
         )
       ).statusCode,
     ).toBe(404);
@@ -157,7 +174,7 @@ describe('A16 analytics measures', () => {
         await read(
           'a1',
           'scheduling.utilization',
-          `locationRef=loc-north&from=${DAY}&version=scheduling.utilization.1`,
+          `locationRef=loc-north&${WEEK}&version=scheduling.utilization.1`,
         )
       ).statusCode,
     ).toBe(200);
@@ -166,5 +183,22 @@ describe('A16 analytics measures', () => {
       (await read('a1', 'scheduling.utilization', `locationRef=loc-north&from=${DAY}&to=2030-09-01`))
         .statusCode,
     ).toBe(422);
+  });
+});
+
+describe('A batch 3 hardening: aligned windows', () => {
+  it('refuses a sliding or single-day window with 422 naming the allowed granularity', async () => {
+    for (const q of [`from=${DAY}`, `from=${DAY}&to=2030-03-11`, 'from=2030-03-02&to=2030-03-31']) {
+      const r = await read('a1', 'scheduling.no_show_rate', `locationRef=loc-north&${q}`);
+      expect(r.statusCode).toBe(422);
+      expect(JSON.stringify(r.json())).toContain('calendarWeekOrMonth');
+    }
+    const month = await read(
+      'a1',
+      'scheduling.no_show_rate',
+      'locationRef=loc-north&from=2030-03-01&to=2030-03-31',
+    );
+    expect(month.statusCode).toBe(200);
+    expect(month.json().data.appliedFilters.granularity).toBe('month');
   });
 });

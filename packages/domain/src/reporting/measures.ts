@@ -17,13 +17,21 @@ import {
   type ScheduleLocation,
   unavailableIntervals,
 } from '../scheduling/schedule-view';
-import { daysInclusive, isRealDate } from '../scheduling/zoned-time';
+import { daysInclusive, isoWeekday, isRealDate } from '../scheduling/zoned-time';
 
 /**
  * A16 analytics read contracts (PT-06). A measure is served only from a registered definition; every
- * value names its definition version, as-of instant, date basis, applied filters and freshness. Small
- * cells are suppressed: a population (or count) from 1 to threshold-1 reports `suppressed` with no value
- * and no population, so it cannot be derived; a zero denominator reports `undefined`, never zero.
+ * value names its definition version, as-of instant, date basis, applied filters and freshness.
+ *
+ * Disclosure control (A batch 3 hardening, the method published as `DISCLOSURE_METHOD`):
+ * - Suppression: any small cell (1 to threshold-1) suppresses the whole result with no value, counts or
+ *   population: for a count-based ratio the numerator, the complement (denominator - numerator) and the
+ *   population; for a count, the count; for a money measure, the number of contributing claims (unless
+ *   the amount is zero). Zero cells are shown. A zero denominator reports `undefined`, never zero.
+ * - Rounding: shown counts are rounded to the nearest 5, and a rate is derived from the rounded counts
+ *   and rounded to 0.1 percent, so two windows differing by one patient report the same values.
+ * - Windows: only whole calendar weeks (Monday to Sunday) or whole calendar months, aligned to their
+ *   boundaries, so a sliding window cannot be stepped one day at a time to difference out a patient.
  * Aggregation is not authorization: `analytics.read` admits the measure catalog, and each measure also
  * requires its owning domain's read action, checked before anything is computed (so a refusal is the
  * same whether the population is empty or not). Definitions are proposals pending business review; the
@@ -39,9 +47,64 @@ type Raw =
       readonly numerator: number;
       readonly denominator: number;
       readonly population: number;
+      /** True when numerator and denominator count records (complement suppression applies). */
+      readonly counts: boolean;
     }
   | { readonly kind: 'count'; readonly value: number }
-  | { readonly kind: 'money'; readonly value: unknown };
+  | { readonly kind: 'money'; readonly value: unknown; readonly contributors: number };
+
+export const COUNT_ROUNDING = 5;
+export const RATE_ROUNDING = 0.001;
+export const DISCLOSURE_METHOD =
+  'Small cells (1 to threshold-1) suppress the result: numerator, complement and population of a count ratio, a count, or the contributing claims of a money amount. Shown counts are rounded to the nearest 5; a rate is derived from the rounded counts and rounded to 0.1 percent. Windows are whole calendar weeks (Monday-Sunday) or whole calendar months.';
+
+const roundCount = (n: number) => Math.round(n / COUNT_ROUNDING) * COUNT_ROUNDING;
+
+/** Applies the disclosure method to a raw measure value (pure; exported for its unit test). */
+export function discloseMeasure(m: MeasureDefinition, raw: Raw, threshold: number) {
+  const small = (n: number) => n > 0 && n < threshold;
+  if (raw.kind === 'ratio') {
+    const hit: string[] = [];
+    if (raw.counts && small(raw.numerator)) hit.push('numerator');
+    if (raw.counts && small(raw.denominator - raw.numerator)) hit.push('complement');
+    if (small(raw.population)) hit.push('population');
+    if (m.suppression !== 'none' && hit.length > 0) return { state: 'suppressed' as const, suppressed: hit };
+    if (raw.denominator === 0) return { state: 'undefined' as const, reason: 'zero_denominator' };
+    const numerator = roundCount(raw.numerator);
+    const denominator = roundCount(raw.denominator);
+    if (denominator === 0) return { state: 'suppressed' as const, suppressed: ['denominator'] };
+    return {
+      state: 'value' as const,
+      value: Math.round((numerator / denominator) * 1000) / 1000,
+      numerator,
+      denominator,
+      rounding: { counts: COUNT_ROUNDING, rate: RATE_ROUNDING },
+    };
+  }
+  if (raw.kind === 'count') {
+    if (m.suppression !== 'none' && small(raw.value))
+      return { state: 'suppressed' as const, suppressed: ['count'] };
+    return { state: 'value' as const, value: roundCount(raw.value), rounding: { counts: COUNT_ROUNDING } };
+  }
+  const minor = (raw.value as { minor?: unknown } | null)?.minor;
+  if (m.suppression !== 'none' && minor !== 0 && raw.contributors < threshold)
+    return { state: 'suppressed' as const, suppressed: ['contributors'] };
+  return { state: 'value' as const, value: raw.value };
+}
+
+/** Whole calendar weeks (Monday-Sunday) or whole calendar months only; anything else is refused. */
+export function assertAlignedWindow(from: string, to: string): 'week' | 'month' {
+  const lastOfMonth = (d: string) => {
+    const [y, mo] = d.split('-').map(Number) as [number, number];
+    return new Date(Date.UTC(y, mo, 0)).toISOString().slice(0, 10) === d;
+  };
+  if (isoWeekday(from) === 1 && isoWeekday(to) === 7) return 'week';
+  if (from.endsWith('-01') && lastOfMonth(to)) return 'month';
+  throw new RefusalError({
+    code: 'validation_failed',
+    detail: { violations: [{ pointer: '/from', rule: 'calendarWeekOrMonth' }] },
+  });
+}
 
 export interface MeasureDefinition {
   readonly key: string;
@@ -54,7 +117,7 @@ export interface MeasureDefinition {
   readonly filters: readonly string[];
   /** The owning domain's read action the caller must also hold. */
   readonly requires: readonly ActionName[];
-  readonly suppression: 'population' | 'count' | 'none';
+  readonly suppression: 'population' | 'count' | 'contributors' | 'none';
   readonly source: 'live' | 'B11';
   compute?(tx: TenantTransaction, f: Filters): Promise<Raw>;
 }
@@ -85,7 +148,7 @@ const SCHEDULING: MeasureDefinition[] = [
         past.map((a) => a.appointmentRef),
       );
       const n = past.filter((a) => snaps.get(a.appointmentRef)?.state === 'no_show').length;
-      return { kind: 'ratio', numerator: n, denominator: past.length, population: past.length };
+      return { kind: 'ratio', numerator: n, denominator: past.length, population: past.length, counts: true };
     },
   },
   {
@@ -123,6 +186,7 @@ const SCHEDULING: MeasureDefinition[] = [
         numerator: booked,
         denominator: Math.max(0, total - unavailable),
         population: appointments.length,
+        counts: false,
       };
     },
   },
@@ -186,14 +250,14 @@ const COMMUNICATIONS: MeasureDefinition[] = [
         due += 1;
         if (r.reply !== null && r.reply.getTime() <= by.getTime()) met += 1;
       }
-      return { kind: 'ratio', numerator: met, denominator: due, population: due };
+      return { kind: 'ratio', numerator: met, denominator: due, population: due, counts: true };
     },
   },
 ];
 
 /** B11 claim measures, reused as published by billing (its own definitions, versions and scopes). */
 const FINANCIAL: MeasureDefinition[] = [
-  ['open_insurer_receivable', 'Open insurer receivable', 'money', 'none'],
+  ['open_insurer_receivable', 'Open insurer receivable', 'money', 'contributors'],
   ['claims_over_30_days', 'Claims open over 30 days', 'count', 'count'],
   ['needs_action', 'Claims needing action', 'count', 'count'],
   ['open_appeals', 'Open appeals', 'count', 'count'],
@@ -207,7 +271,7 @@ const FINANCIAL: MeasureDefinition[] = [
   dateBasis: 'as published by B11',
   filters: [],
   requires: [],
-  suppression: suppression as 'none' | 'count',
+  suppression: suppression as 'contributors' | 'count',
   source: 'B11' as const,
 }));
 
@@ -229,6 +293,20 @@ export type FinancialMeasuresPort = (ctx: ActorContext) => Promise<{
 }>;
 
 const validateQuery = foundationDef('MeasureQuery');
+
+/** Distinct claims whose charges carry a nonzero insurer receivable balance (money suppression basis). */
+async function receivableContributors(tx: TenantTransaction, currency: string): Promise<number> {
+  const { rows } = await tx.query<{ n: number }>(
+    `SELECT count(DISTINCT v.claim_id)::int AS n
+     FROM (SELECT charge_id FROM cuspatlas.billing_journal_lines
+           WHERE account = 'insurer_receivable' AND currency = $1
+           GROUP BY charge_id HAVING sum(amount_minor) <> 0) c
+     JOIN cuspatlas.rcm_claim_lines l ON l.charge_id = c.charge_id
+     JOIN cuspatlas.rcm_claim_versions v ON v.id = l.version_id AND v.tenant_id = l.tenant_id`,
+    [currency],
+  );
+  return rows[0]?.n ?? 0;
+}
 const failedAt = (pointer: string, rule: string) =>
   new RefusalError({ code: 'validation_failed', detail: { violations: [{ pointer, rule }] } });
 
@@ -237,13 +315,18 @@ export function createMeasureReads(
   opts: { suppressionThreshold?: number; financial?: FinancialMeasuresPort },
 ) {
   const threshold = opts.suppressionThreshold ?? DEFAULT_SUPPRESSION_THRESHOLD;
-  const suppression = { threshold, rule: 'values from 1 to threshold-1 are suppressed', approval: 'pending' };
+  const suppression = {
+    threshold,
+    rule: 'values from 1 to threshold-1 are suppressed',
+    method: DISCLOSURE_METHOD,
+    approval: 'pending',
+  };
   const describe = (m: MeasureDefinition) => ({
     measureKey: m.key,
     definitionVersion: m.version,
     owner: m.owner,
     title: m.title,
-    definition: m.definition,
+    definition: `${m.definition} Disclosure: ${DISCLOSURE_METHOD}`,
     unit: m.unit,
     dateBasis: m.dateBasis,
     filters: [...m.filters],
@@ -251,22 +334,7 @@ export function createMeasureReads(
     suppression: m.suppression,
     source: m.source,
   });
-  const small = (n: number) => n > 0 && n < threshold;
-  const shape = (m: MeasureDefinition, raw: Raw) => {
-    if (raw.kind === 'ratio') {
-      if (m.suppression === 'population' && small(raw.population)) return { state: 'suppressed' as const };
-      if (raw.denominator === 0) return { state: 'undefined' as const, reason: 'zero_denominator' };
-      return {
-        state: 'value' as const,
-        value: Math.round((raw.numerator / raw.denominator) * 10_000) / 10_000,
-        numerator: raw.numerator,
-        denominator: raw.denominator,
-      };
-    }
-    if (raw.kind === 'count' && m.suppression === 'count' && small(raw.value))
-      return { state: 'suppressed' as const };
-    return { state: 'value' as const, value: raw.value };
-  };
+  const shape = (m: MeasureDefinition, raw: Raw) => discloseMeasure(m, raw, threshold);
 
   return {
     async listMeasures(ctx: ActorContext) {
@@ -315,7 +383,7 @@ export function createMeasureReads(
             data: {
               ...describe(m),
               definitionVersion: hit.definitionVersion,
-              definition: hit.definition,
+              definition: `${hit.definition} Disclosure: ${DISCLOSURE_METHOD}`,
               appliedFilters: {},
               asOf: b.data.asOf,
               freshness: {
@@ -327,7 +395,16 @@ export function createMeasureReads(
               result: shape(
                 m,
                 m.unit === 'money'
-                  ? { kind: 'money', value: hit.value }
+                  ? {
+                      kind: 'money',
+                      value: hit.value,
+                      contributors: await base.deps.withTenantTransaction(ctx, (tx) =>
+                        receivableContributors(
+                          tx,
+                          (hit.value as { currency?: string } | null)?.currency ?? '',
+                        ),
+                      ),
+                    }
                   : { kind: 'count', value: Number(hit.value) },
               ),
             },
@@ -340,6 +417,7 @@ export function createMeasureReads(
         const days = daysInclusive(query.from, to);
         if (days < 1) throw failedAt('/to', 'rangeOrder');
         if (days > MEASURE_MAX_DAYS) throw failedAt('/to', 'beyondMaxRange');
+        const granularity = assertAlignedWindow(query.from, to);
         assertLocation(decision.locationRefs, query.locationRef);
         return base.deps.withTenantTransaction(ctx, async (tx) => {
           const { rows } = await tx.query<{ id: string; location_ref: string; time_zone: string; now: Date }>(
@@ -363,6 +441,7 @@ export function createMeasureReads(
                 locationRef: location.locationRef,
                 from: query.from,
                 to,
+                granularity,
                 timeZone: location.timeZone,
               },
               asOf,

@@ -503,6 +503,11 @@ export const ACTION_POLICIES = {
   'migration.identity.merge': { scope: 'migration.write', principals: ['human'] },
   'migration.provenance.read': { scope: 'migration.read', principals: ['human', 'service'] },
   'migration.openingItems.list': { scope: 'migration.read', principals: ['human', 'service'] },
+  // M6: building a report version is migration work; signing and the cutover gate are human-only.
+  'migration.reports.build': { scope: 'migration.write', principals: ['human', 'service'] },
+  'migration.reports.read': { scope: 'migration.read', principals: ['human', 'service'] },
+  'migration.signoffs.record': { scope: 'migration.signoff', principals: ['human'] },
+  'migration.cutover.advance': { scope: 'migration.signoff', principals: ['human'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

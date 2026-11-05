@@ -375,6 +375,10 @@ const TOOL_NAMES = [
   'migration_identity_merge',
   'migration_provenance_read',
   'migration_opening_items_list',
+  'migration_reports_build',
+  'migration_reports_read',
+  'migration_signoffs_record',
+  'migration_cutover_advance',
 ].sort();
 
 let db: TestDatabase;

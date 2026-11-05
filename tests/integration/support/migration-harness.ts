@@ -57,6 +57,14 @@ const mergeBody = (f: F) => ({
   reasonCode: 'duplicate_registration',
 });
 
+const signBody = (f: F) => ({
+  packageRef: f.alphaMigrationPackage,
+  reportRef: f.alphaMigrationReport,
+  reportDigest: f.alphaMigrationReportDigest,
+  role: 'financialReviewer',
+  decision: 'rejected',
+});
+
 export const MIGRATION_HARNESS_ROWS: Row[] = [
   {
     operation: 'migration.sourceProfiles.register',
@@ -138,6 +146,42 @@ export const MIGRATION_HARNESS_ROWS: Row[] = [
     rest: (f) => get(`/v1/migration/opening-items?${pq(f)}`),
     mcpArgs: (f) => ({ packageRef: f.alphaMigrationPackage }),
   },
+  {
+    operation: 'migration.reports.build',
+    tool: 'migration_reports_build',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => post('/v1/migration/reports', { packageRef: f.alphaMigrationPackage }),
+    mcpArgs: (f) => keyed({ packageRef: f.alphaMigrationPackage }),
+  },
+  {
+    operation: 'migration.reports.read',
+    tool: 'migration_reports_read',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => get(`/v1/migration/reports/latest?${pq(f)}`),
+    mcpArgs: (f) => ({ packageRef: f.alphaMigrationPackage }),
+  },
+  {
+    operation: 'migration.signoffs.record',
+    tool: 'migration_signoffs_record',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => post('/v1/migration/signoffs', signBody(f), 201),
+    mcpArgs: (f) => keyed(signBody(f)),
+  },
+  {
+    operation: 'migration.cutover.advance',
+    tool: 'migration_cutover_advance',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) =>
+      post('/v1/migration/cutover/advance', {
+        packageRef: f.alphaMigrationPackage,
+        reportRef: f.alphaMigrationReport,
+      }),
+    mcpArgs: (f) => keyed({ packageRef: f.alphaMigrationPackage, reportRef: f.alphaMigrationReport }),
+  },
 ];
 
 type Owner = (
@@ -166,7 +210,15 @@ export async function seedMigrationHarness(owner: Owner, ownerGet: Get): Promise
   const items = await ownerGet(`/v1/migration/review-items?packageRef=${alphaMigrationPackage}`);
   const field = items.json().data.find((i) => i.category === 'unknown_field');
   if (!field) throw new Error('harness migration review item');
-  return { alphaMigrationProfile, alphaMigrationPackage, alphaMigrationItem: field.itemRef };
+  const report = await owner('/v1/migration/reports', { packageRef: alphaMigrationPackage });
+  if (report.statusCode !== 200) throw new Error('harness migration report');
+  return {
+    alphaMigrationProfile,
+    alphaMigrationPackage,
+    alphaMigrationItem: field.itemRef,
+    alphaMigrationReport: report.json().data.reportRef as string,
+    alphaMigrationReportDigest: report.json().data.reportDigest as string,
+  };
 }
 
 /** Migration tables in the harness state digest (a refusal must leave every one unchanged). */
@@ -177,4 +229,6 @@ export const MIGRATION_STATE_SQL: readonly string[] = [
   'SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.migration_review_items',
   'SELECT count(*)::int AS n FROM cuspatlas.migration_applied_records',
   'SELECT count(*)::int AS n FROM cuspatlas.migration_opening_items',
+  'SELECT count(*)::int AS n FROM cuspatlas.migration_reports',
+  'SELECT count(*)::int AS n FROM cuspatlas.migration_signoffs',
 ];

@@ -3,7 +3,8 @@ import { createMigrationBase, type MigrationDeps } from './base';
 import { createIdentityOperations } from './identity';
 import { createIntakeOperations } from './intake';
 import { createOpeningOperations, financialPlanner, postOpening } from './opening';
-import { createImportOperations } from './plan';
+import { type ApplyHooks, createImportOperations } from './plan';
+import { createReconciliationOperations } from './reconciliation';
 
 /**
  * The migration service (workstream M: M2-M6). The only command/query layer for the migration
@@ -14,16 +15,18 @@ import { createImportOperations } from './plan';
 export function createMigrationService(deps: MigrationDeps) {
   const base = createMigrationBase(deps);
   const identity = createIdentityOperations(base);
+  const applyHooks: ApplyHooks = {
+    financial: financialPlanner(),
+    postFinancial: postOpening,
+    currency: async (tx) => (await loadSettings(tx)).currency,
+  };
   return {
     ...createIntakeOperations(base, identity.hooks),
     mergeIdentityGroup: identity.mergeIdentityGroup,
     readProvenance: identity.readProvenance,
     ...createOpeningOperations(base),
-    ...createImportOperations(base, {
-      financial: financialPlanner(),
-      postFinancial: postOpening,
-      currency: async (tx) => (await loadSettings(tx)).currency,
-    }),
+    ...createImportOperations(base, applyHooks),
+    ...createReconciliationOperations(base, applyHooks),
   };
 }
 

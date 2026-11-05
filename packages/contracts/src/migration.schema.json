@@ -826,6 +826,193 @@
           }
         }
       }
+    },
+    "ReportBuild": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["packageRef"],
+      "properties": {
+        "packageRef": {
+          "$ref": "#/$defs/PackageRef"
+        }
+      }
+    },
+    "ReportSummaryResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["reportRef", "reportVersion", "reportDigest", "blockingExceptions"],
+          "properties": {
+            "reportRef": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "reportVersion": {
+              "$ref": "#/$defs/Version"
+            },
+            "reportDigest": {
+              "$ref": "#/$defs/Digest"
+            },
+            "blockingExceptions": {
+              "$ref": "#/$defs/Count"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ReconciliationReportRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "required": [
+            "reportRef",
+            "reportVersion",
+            "reportDigest",
+            "stale",
+            "cutoverState",
+            "report",
+            "signOffs"
+          ],
+          "properties": {
+            "reportRef": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "reportVersion": {
+              "$ref": "#/$defs/Version"
+            },
+            "reportDigest": {
+              "$ref": "#/$defs/Digest"
+            },
+            "stale": {
+              "type": "boolean"
+            },
+            "cutoverState": {
+              "enum": ["reconciling", "readyForCutover"]
+            },
+            "report": {
+              "type": "object",
+              "description": "Per-entity declared/staged/applied/excluded/blocked counts, per-guarantor Money comparison, unapplied credit, exceptions by category, blocking exceptions with required action, not-imported count."
+            },
+            "signOffs": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "SignOffRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["packageRef", "reportRef", "reportDigest", "role", "decision"],
+      "properties": {
+        "packageRef": {
+          "$ref": "#/$defs/PackageRef"
+        },
+        "reportRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "reportDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "role": {
+          "enum": ["financialReviewer", "operationsReviewer"]
+        },
+        "decision": {
+          "enum": ["approved", "rejected"]
+        }
+      }
+    },
+    "SignOffResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["signOffRef", "role", "decision"],
+          "properties": {
+            "signOffRef": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "role": {
+              "type": "string"
+            },
+            "decision": {
+              "type": "string"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "CutoverAdvance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["packageRef", "reportRef"],
+      "properties": {
+        "packageRef": {
+          "$ref": "#/$defs/PackageRef"
+        },
+        "reportRef": {
+          "$ref": "#/$defs/Uuid"
+        }
+      }
+    },
+    "CutoverResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["packageRef", "cutoverState"],
+          "properties": {
+            "packageRef": {
+              "$ref": "#/$defs/PackageRef"
+            },
+            "cutoverState": {
+              "enum": ["readyForCutover"]
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
     }
   }
 }

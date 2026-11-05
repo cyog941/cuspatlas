@@ -27,6 +27,7 @@ format; a real adapter is a new format/version in `SOURCE_ADAPTERS` (MG-01).
 | M3 dry run and staged import | tested (synthetic) | `tests/integration/migration-import.test.ts`; harness rows |
 | M4 identity and provenance | tested (synthetic) | `tests/integration/migration-identity.test.ts`; harness rows |
 | M5 opening balances and open items | tested (synthetic); financial sign-off pending | `tests/integration/migration-opening-balances.test.ts`; harness rows |
+| M6 reconciliation report and sign-off gate | tested (synthetic); approval pending | `tests/integration/migration-reconciliation.test.ts`; harness rows |
 
 ### M2
 
@@ -113,3 +114,26 @@ format; a real adapter is a new format/version in `SOURCE_ADAPTERS` (MG-01).
 - Red: 4/4 failing (exit 1). First green attempt: 500 from `billing_journal_entries.external_ref`
   pattern (fixed to `syn-mig-<staged ref>`). Green: 23/23 migration tests; full suite with
   `--maxWorkers=4`: 2877/2877.
+
+### M6
+
+- `migration.reports.build` (write scope): the report is a projection (never a financial
+  authority): per-entity declared (manifest) / staged / applied / excluded / blocked counts,
+  per-guarantor Money comparison with the part explained by excluded or blocked source rows,
+  unapplied credit source vs imported, exceptions by category, blocking exceptions with a required
+  action (open review items, blocked rows, planned-but-unapplied rows, unexplained differences) and
+  the not-imported count. Its digest binds the package digest and change sequence. An unchanged run
+  returns the same version; a changed run appends a superseding version (never deleted).
+- `migration.signoffs.record` (`migration.signoff`, human only) binds one report version and digest
+  in one role (`financialReviewer`, `operationsReviewer`); refused `stale_report_version`,
+  `unresolved_exception` (approval with blocking exceptions), `separate_reviewer_required` (same
+  person, second role). `migration.cutover.advance` (human, sign-off scope) needs the current
+  version approved in both roles by two distinct humans and no blocking exception
+  (`sign_off_incomplete`, `sign_off_rejected`); it marks `readyForCutover` only, not a cutover.
+- Any later import change (apply batch, review decision, delegated S6 merge) bumps the change
+  sequence: cutover returns to `reconciling`, the report is stale and every sign-off is invalid
+  (tested with a real delegated merge after readiness). Reports and sign-offs are append-only.
+- The reviewer set is "holders of `migration.signoff`" (role is declared per sign-off); a configured
+  per-role reviewer list is a pending decision.
+- Red: 4/4 failing (exit 1). Green after two fixes (sign-off audit row used the report's resource
+  version, colliding with the build audit; test expected 200 for a 201 route): 4/4.

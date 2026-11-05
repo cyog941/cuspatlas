@@ -123,3 +123,5 @@ export const validateReviewItemResolve = def('ReviewItemResolve');
 export const validateImportApply = def('ImportApply');
 export const validateIdentityMerge = def('IdentityMerge');
 export const validateProvenanceQuery = def('ProvenanceQuery');
+export const validateSignOffRecord = def('SignOffRecord');
+export const validateCutoverAdvance = def('CutoverAdvance');

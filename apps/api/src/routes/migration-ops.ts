@@ -163,6 +163,58 @@ export const MIGRATION_OPS: MigrationOp[] = [
       'M5: opening balances, unapplied credits (per source payment, with age basis) and open-claim references of one package, with per-guarantor source vs imported totals and the explicit difference (integer minor units). Opening figures need financial sign-off.',
     invoke: (svc, actor, i) => data(svc.listOpeningReconciliation(actor, i.body)),
   },
+  {
+    method: 'post',
+    path: '/v1/migration/reports',
+    operationId: 'migration.reports.build',
+    protected: true,
+    requestBody: M('ReportBuild'),
+    success: { status: '200', schema: M('ReportSummaryResult') },
+    refusals: COMMAND,
+    tool: 'migration_reports_build',
+    description:
+      'M6: build the reconciliation report of one package (counts, per-guarantor balances, unapplied credit, exceptions, not-imported list) with its digest. An unchanged run returns the same version; a changed run adds a superseding version and never deletes the prior one.',
+    invoke: (svc, actor, i) => svc.buildReconciliationReport(actor, env('migration.reports.build', i)),
+  },
+  {
+    method: 'get',
+    path: '/v1/migration/reports/latest',
+    operationId: 'migration.reports.read',
+    protected: true,
+    query: 'PackageQuery',
+    success: { status: '200', schema: M('ReconciliationReportRead') },
+    refusals: READ,
+    tool: 'migration_reports_read',
+    description:
+      'M6: the latest report version, whether it is stale against the current run, the cutover state and every sign-off with its validity.',
+    invoke: (svc, actor, i) => data(svc.readReconciliationReport(actor, i.body)),
+  },
+  {
+    method: 'post',
+    path: '/v1/migration/signoffs',
+    operationId: 'migration.signoffs.record',
+    protected: true,
+    requestBody: M('SignOffRecord'),
+    success: { status: '201', schema: M('SignOffResult') },
+    refusals: COMMAND,
+    tool: 'migration_signoffs_record',
+    description:
+      'M6: a human reviewer with the sign-off scope approves or rejects one specific report version and digest in one role (financialReviewer or operationsReviewer). Refused for a stale version, with blocking exceptions (approval), or when the same person already signed it.',
+    invoke: (svc, actor, i) => svc.recordSignOff(actor, env('migration.signoffs.record', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/migration/cutover/advance',
+    operationId: 'migration.cutover.advance',
+    protected: true,
+    requestBody: M('CutoverAdvance'),
+    success: { status: '200', schema: M('CutoverResult') },
+    refusals: COMMAND,
+    tool: 'migration_cutover_advance',
+    description:
+      'M6: mark the package ready for cutover. Requires the current report version approved in both roles by two distinct humans and no blocking exception; any later import change resets the state to reconciling and makes the sign-offs stale. Not a cutover itself.',
+    invoke: (svc, actor, i) => svc.advanceCutover(actor, env('migration.cutover.advance', i)),
+  },
 ];
 
 export const MIGRATION_OP_ROUTES = (): RouteContract[] =>

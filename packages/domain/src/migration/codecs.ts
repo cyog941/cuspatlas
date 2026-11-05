@@ -29,4 +29,7 @@ export const MIGRATION_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<any>>>
   'migration.sourceProfiles.register': flat(['profileRef', 'profileVersion']),
   'migration.packages.intake': flat(['packageRef', 'state', 'alreadyStaged', 'stagedCount', 'reviewCount']),
   'migration.reviewItems.resolve': flat(['itemRef', 'decision']),
+  'migration.reports.build': flat(['reportRef', 'reportVersion', 'reportDigest', 'blockingExceptions']),
+  'migration.signoffs.record': flat(['signOffRef', 'role', 'decision']),
+  'migration.cutover.advance': flat(['packageRef', 'cutoverState']),
 };

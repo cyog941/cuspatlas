@@ -324,6 +324,8 @@ export async function restoreBackup(conn: RestoreConnection, opts: RestoreOption
     await client.query('BEGIN');
     try {
       await client.query('SET LOCAL row_security = off');
+      // Lets the migration bind guards accept historical rows during this load only (RLS-bypassing role).
+      await client.query("SET LOCAL cuspatlas.restore_load = 'on'");
       for (const s of DETERMINISTIC_SETTINGS) await client.query(s);
       for (const name of await loadOrder(client, schemaTables)) {
         const t = backed.get(name);

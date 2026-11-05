@@ -15,7 +15,9 @@
         "scripts/evidence-verify.mjs",
         "artifacts/test-summary.json"
       ],
-      "tests": ["scripts/evidence.test.ts"]
+      "tests": [
+        "scripts/evidence.test.ts"
+      ]
     },
     {
       "controlId": "AS-02",
@@ -71,7 +73,28 @@
         "artifacts/sbom.cdx.json",
         "artifacts/test-summary.json"
       ],
-      "tests": ["scripts/evidence.test.ts", "apps/api/src/contract-drift.test.ts"]
+      "tests": [
+        "scripts/evidence.test.ts",
+        "apps/api/src/contract-drift.test.ts"
+      ]
+    },
+    {
+      "controlId": "AS-06",
+      "owner": "operations owner",
+      "scope": "synthetic foundation: recovery drill, downtime procedure, backup verification and escalation (workstream M; embedded test cluster only, no deployment)",
+      "requirement": "Timed restore into an isolated target reconciles every tenant table and journal entry and reports measured RTO/RPO against recommended-pending-approval objectives with any gap named; an incomplete backup is detected.",
+      "artifacts": [
+        "docs/runbooks/downtime.md",
+        "docs/runbooks/restore.md",
+        "docs/deployment/recovery-objectives.json",
+        "packages/db/src/restore-drill.ts",
+        "artifacts/restore-drill-report.json",
+        "artifacts/test-summary.json"
+      ],
+      "tests": [
+        "tests/integration/ops-restore-drill.test.ts",
+        "tests/integration/restore-smoke.test.ts"
+      ]
     }
   ]
 }

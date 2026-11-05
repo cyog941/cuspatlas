@@ -258,3 +258,19 @@ recommended-pending-approval). Tests in `tests/integration/migration-hardening.t
   patient also holds the archive. A delete trigger refuses any deletion while held or retained, for
   every role that fires triggers; the runtime role has no DELETE grant. Disposal itself is not an
   operation (pending M-S2). Red 6/6 failing (exit 1); green 6/6.
+- M8 downtime procedures and timed restore exercise: `docs/runbooks/downtime.md` (what staff do per
+  module, what is recorded on reconnect, paper records reconciled back as reviewed entries through
+  the ordinary operations with amendments/reversals, never silent overwrite; downtime-log
+  operations planned, not built). `runRestoreDrill` (`packages/db/src/restore-drill.ts`): F8 logical
+  backup plus object-store backup of the whole synthetic database, restore into a fresh isolated
+  target, per-tenant reconciliation of every tenant table (count and content digest), the journal
+  check on every restored entry, timing against `docs/deployment/recovery-objectives.json` (RPO 900 s,
+  RTO 14400 s, recommended-pending-approval, M-D5/M-S3) with any gap named; a damaged backup is a
+  failed drill (`incomplete_backup`), never a throw past the source. The restored stack verifies an
+  M1 export taken before the backup and denies another tenant. Report written to
+  `artifacts/restore-drill-report.json` and bound into the evidence manifest as control AS-06
+  (`docs/assurance/controls.json`). Measured on the embedded cluster: backup about 1 s, RTO about
+  4 s, 208 tenant tables reconciled. Drill finding fixed: the F8 restore of a tenant with migrated
+  opening items failed (H2 M-2 bind trigger requires an apply run in the restoring transaction);
+  `20261129020000_restore_opening_items.sql` honours a transaction-local restore flag only for a
+  role that bypasses RLS (runtime role still refused, tested). Red 2/2 failing (exit 1); green 3/3.

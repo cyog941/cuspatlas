@@ -13,6 +13,7 @@ export * from './object-store-local';
 export * from './outbox';
 export * from './portal-identity';
 export * from './restore';
+export * from './restore-drill';
 export * from './scheduling-import';
 export * from './security-attempts';
 export * from './statement-guard';

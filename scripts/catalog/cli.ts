@@ -2,7 +2,8 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { validateCatalog } from '../../packages/contracts/src/catalog/catalog';
 import { buildCatalog, ROOT, stableJson } from './build-catalog';
-import { registeredScopes } from './scopes';
+import { renderCatalogMd, renderScopesMd } from './docs';
+import { buildScopeRegistry, registeredScopes } from './scopes';
 
 /**
  * Every generated artifact (path relative to the repository root -> exact content). Everything is
@@ -12,8 +13,12 @@ export function generatedArtifacts(): Record<string, string> {
   const catalog = buildCatalog();
   const defects = validateCatalog(catalog, registeredScopes());
   if (defects.length > 0) throw new Error(`catalog invalid; nothing written:\n${defects.join('\n')}`);
+  const registry = buildScopeRegistry(catalog);
   return {
     'packages/contracts/src/catalog/operations.json': stableJson(catalog),
+    'packages/contracts/src/catalog/scopes.json': stableJson(registry),
+    'docs/api/operation-catalog.md': renderCatalogMd(catalog),
+    'docs/api/scopes.md': renderScopesMd(registry),
   };
 }
 

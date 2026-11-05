@@ -21,7 +21,8 @@ export function registeredScopes(root = ROOT): Set<string> {
   const out = new Set<string>();
   for (const m of doc.slice(start, end).matchAll(/`([^`\s]+)`/g)) {
     const name = m[1] as string;
-    if (scopeNameDefect(name) === null) out.add(name);
+    // `noun.verb` itself is the naming rule, not a scope.
+    if (scopeNameDefect(name) === null && name !== 'noun.verb') out.add(name);
   }
   return out;
 }

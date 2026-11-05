@@ -10,6 +10,7 @@ Branch `codex/a-api-1`, based on the integrated F+S+C+E+I+B head `6871689`.
 | Task | Status | Evidence |
 |---|---|---|
 | A4 operation catalog and single authorization path | tested (synthetic) | `tests/integration/api-catalog.test.ts` |
+| A3 scope registry and new-operation procedure | tested (synthetic); grants pending A-D2 | `tests/integration/api-scopes.test.ts` |
 
 ### A4: operation catalog
 
@@ -34,3 +35,19 @@ Branch `codex/a-api-1`, based on the integrated F+S+C+E+I+B head `6871689`.
   grants). Per-workstream idempotency suites remain the evidence for the latter.
 - Registry reconciliation: `syntheticTasks.read|write|approve` and `outbox.deliver` were used by the
   policy table but missing from SHARED-CONTRACTS; recorded there as F foundation scopes.
+
+### A3: scope registry and the new-operation procedure
+
+- `packages/contracts/src/catalog/scopes.json` and `docs/api/scopes.md` are generated from the catalog
+  (38 staff scopes at this head) and checked against the human registry in SHARED-CONTRACTS. Every
+  scope the policy table uses is registered; `claims.read` is registered but unused and is reported as
+  a reviewed orphan (a new orphan fails). Relationship scopes are the five S5 names, never staff scopes.
+- Scope-name lint: `noun.verb` with exactly one dot; a dotless camel-case name (`receivablesRead`) is
+  rejected with the correct form, as are wildcards, prefix wildcards, empty and upper-case names.
+- `docs/api/new-operation.md` publishes the five steps (`catalog`, `scope`, `policy`, `harness`,
+  `openapi`); the checklist test runs them over every catalog operation and over a synthetic new
+  operation that skipped steps. "Harness" is evidence by name (operation id, tool name or REST path
+  in a workstream harness or fixture), on top of the derived A7 matrix; it is not proof that the
+  harness covers every negative class.
+- Not done: there is no grant API for staff scopes, so "a human-only scope cannot be granted to an
+  agent" is proven only as "can never be exercised by one" (A7). Default role grants remain A-D2.

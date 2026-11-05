@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   type AppointmentHarness,
   createPatient,
@@ -555,23 +555,31 @@ describe('MUST 5: acceptance needs a presented, still-complete estimate', () => 
   it('coverage that turned stale after presentation is shown stale on read and blocks acceptance', async () => {
     const p = await createPatient(h, 'Synthetic Stale Coverage');
     const pl = await acceptedPlan(p);
-    const asOf = new Date(Date.now() - 30 * 86_400_000 + 2_500).toISOString();
-    const est = h.ok<{ data: { estimateRef: string; coverageStatus: string } }>(
-      await generate(pl.versionRef, {
-        lines: [pl.mouthItem, pl.toothItem].map((planItemRef) => ({ planItemRef, fee: USD(10_000) })),
-        assumptions: [{ kind: 'coverage', sourceRef: 'synthetic-coverage-1', sourceAsOf: asOf }],
-      }),
-      201,
-    ).data;
-    expect(est.coverageStatus).toBe('entered');
-    h.ok(await present(est.estimateRef));
-    await new Promise((r) => setTimeout(r, 3_000));
-    const read = h.ok<{ data: { coverageStatus: string } }>(
-      await h.call('a1', 'GET', `${EST}/${est.estimateRef}`),
-    );
-    expect(read.data.coverageStatus).toBe('stale');
-    const res = await accept(est.estimateRef, await revision(pl.planRef, pl.versionRef));
-    expect(reason(res)).toStrictEqual([409, 'estimate_coverage_stale']);
+    // Freshness is judged against the application clock. Only `Date` is faked (timers and the database
+    // stay real): the source is a minute short of 30 days old when presented, then the clock is moved
+    // past the threshold, so the outcome does not depend on how long the calls take under load.
+    vi.useFakeTimers({ toFake: ['Date'], shouldAdvanceTime: true });
+    try {
+      const asOf = new Date(Date.now() - 30 * 86_400_000 + 60_000).toISOString();
+      const est = h.ok<{ data: { estimateRef: string; coverageStatus: string } }>(
+        await generate(pl.versionRef, {
+          lines: [pl.mouthItem, pl.toothItem].map((planItemRef) => ({ planItemRef, fee: USD(10_000) })),
+          assumptions: [{ kind: 'coverage', sourceRef: 'synthetic-coverage-1', sourceAsOf: asOf }],
+        }),
+        201,
+      ).data;
+      expect(est.coverageStatus).toBe('entered');
+      h.ok(await present(est.estimateRef));
+      vi.setSystemTime(Date.now() + 120_000);
+      const read = h.ok<{ data: { coverageStatus: string } }>(
+        await h.call('a1', 'GET', `${EST}/${est.estimateRef}`),
+      );
+      expect(read.data.coverageStatus).toBe('stale');
+      const res = await accept(est.estimateRef, await revision(pl.planRef, pl.versionRef));
+      expect(reason(res)).toStrictEqual([409, 'estimate_coverage_stale']);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('an estimate line for a declined item is refused', async () => {

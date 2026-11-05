@@ -367,12 +367,28 @@ describe('SHOULD', () => {
     const c = await submitted('Synthetic Hard Crash', undefined, crashing);
     expect(await refusal(c.sub)).toMatch(/^error:/);
     expect((await view(c.claimRef)).state).toBe('submission_pending');
+    // The deadline is judged by the database clock. Test-only: place the stored call deadline explicitly
+    // (trigger guard bypassed in this admin session) so the outcome does not depend on elapsed time.
+    const placeDeadline = async (at: string) => {
+      const conn = await db.admin.connect();
+      try {
+        await conn.query('SET session_replication_role = replica');
+        await conn.query(
+          `UPDATE cuspatlas.rcm_claim_submissions SET call_deadline = ${at}
+            WHERE claim_id = $1 AND outcome = 'pending'`,
+          [c.claimRef],
+        );
+      } finally {
+        await conn.query('SET session_replication_role = origin');
+        conn.release();
+      }
+    };
     const slow = r.service({ claims: fake, providerTimeoutMs: 30_000 });
     // Inside the deadline nothing is looked up (the request may still be in flight).
+    await placeDeadline("now() + interval '1 hour'");
     const early = r.service({ claims: fake });
-    const res = await refusal(early.pollClaim(a1(), c.claimRef));
-    expect(['conflict:submission_in_flight', 'ok']).toContain(res);
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(await refusal(early.pollClaim(a1(), c.claimRef))).toBe('conflict:submission_in_flight');
+    await placeDeadline("now() - interval '1 second'");
     const work = await slow.listClaimWorklist(a1(), {});
     expect(
       work.data.filter((w) => w.claimRef === c.claimRef).map((w) => [w.kind, w.reasonCode]),

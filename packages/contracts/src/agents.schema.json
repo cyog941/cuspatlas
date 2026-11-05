@@ -780,6 +780,1152 @@
         }
       }
     },
+    "MemoryKey": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9._-]{0,63}$",
+      "description": "A23: agent memory key (no free text)."
+    },
+    "MemoryClassification": {
+      "enum": ["operational", "reference", "phi"]
+    },
+    "SessionListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "agentRef": {
+          "$ref": "#/$defs/AgentRef"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "cursor": {
+          "$ref": "#/$defs/Cursor"
+        }
+      }
+    },
+    "SessionQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sessionRef"],
+      "properties": {
+        "sessionRef": {
+          "$ref": "#/$defs/Uuid"
+        }
+      }
+    },
+    "SessionEnd": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sessionRef"],
+      "properties": {
+        "sessionRef": {
+          "$ref": "#/$defs/Uuid"
+        }
+      }
+    },
+    "Session": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sessionRef",
+        "agentRef",
+        "consentRef",
+        "deployment",
+        "startedAt",
+        "lastCallAt",
+        "state",
+        "endedAt",
+        "endReason",
+        "callCount"
+      ],
+      "properties": {
+        "sessionRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "agentRef": {
+          "$ref": "#/$defs/AgentRef"
+        },
+        "consentRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "deployment": {
+          "$ref": "#/$defs/Deployment"
+        },
+        "startedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "lastCallAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "state": {
+          "enum": ["open", "ended"]
+        },
+        "endedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "endReason": {
+          "enum": [
+            "ended_by_agent",
+            "ended_by_human",
+            "idle_timeout",
+            "consent_ended",
+            "agent_inactive",
+            null
+          ]
+        },
+        "callCount": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "SessionToolCall": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A23: a reference to one agent_tool_calls row.",
+      "required": ["callRef", "operation", "outcome", "records", "phiFields", "correlationId", "occurredAt"],
+      "properties": {
+        "callRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "operation": {
+          "$ref": "#/$defs/OperationName"
+        },
+        "outcome": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "records": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "phiFields": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "correlationId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "occurredAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "SessionAuditRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A23: a reference to one agent_audit_events row.",
+      "required": ["eventRef", "operation", "resourceType", "occurredAt"],
+      "properties": {
+        "eventRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "operation": {
+          "$ref": "#/$defs/OperationName"
+        },
+        "resourceType": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "occurredAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "SessionDetail": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A23: one session with references to its tool calls and agent-audit events.",
+      "required": [
+        "sessionRef",
+        "agentRef",
+        "consentRef",
+        "deployment",
+        "startedAt",
+        "lastCallAt",
+        "state",
+        "endedAt",
+        "endReason",
+        "callCount",
+        "toolCalls",
+        "auditEvents"
+      ],
+      "properties": {
+        "sessionRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "agentRef": {
+          "$ref": "#/$defs/AgentRef"
+        },
+        "consentRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "deployment": {
+          "$ref": "#/$defs/Deployment"
+        },
+        "startedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "lastCallAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "state": {
+          "enum": ["open", "ended"]
+        },
+        "endedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "endReason": {
+          "enum": [
+            "ended_by_agent",
+            "ended_by_human",
+            "idle_timeout",
+            "consent_ended",
+            "agent_inactive",
+            null
+          ]
+        },
+        "callCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "toolCalls": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SessionToolCall"
+          }
+        },
+        "auditEvents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SessionAuditRef"
+          }
+        }
+      }
+    },
+    "SessionRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/SessionDetail"
+        }
+      }
+    },
+    "SessionList": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A23: agent sessions, oldest first (OR-01 envelope).",
+      "required": [
+        "asOf",
+        "appliedFilters",
+        "scope",
+        "limit",
+        "truncated",
+        "nextCursor",
+        "ordering",
+        "count",
+        "items"
+      ],
+      "properties": {
+        "asOf": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "appliedFilters": {
+          "type": "object"
+        },
+        "scope": {
+          "$ref": "#/$defs/ListScope"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "nextCursor": {
+          "type": ["string", "null"]
+        },
+        "ordering": {
+          "$ref": "#/$defs/ListOrdering"
+        },
+        "count": {
+          "$ref": "#/$defs/ListCount"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Session"
+          }
+        },
+        "vocabularies": {
+          "$ref": "#/$defs/VocabularyVersions"
+        }
+      }
+    },
+    "SessionCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sessionRef", "state", "endedAt", "endReason"],
+      "properties": {
+        "sessionRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "state": {
+          "enum": ["ended"]
+        },
+        "endedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "endReason": {
+          "enum": ["ended_by_agent", "ended_by_human"]
+        }
+      }
+    },
+    "SessionCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A23 session command result.",
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/SessionCommand"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "MemoryWrite": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A23: the calling agent stores one note under a key (replacing an earlier value).",
+      "required": ["key", "value", "classification"],
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/MemoryKey"
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "classification": {
+          "$ref": "#/$defs/MemoryClassification"
+        },
+        "retentionDays": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30
+        }
+      }
+    },
+    "MemoryQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key"],
+      "properties": {
+        "agentRef": {
+          "$ref": "#/$defs/AgentRef"
+        },
+        "key": {
+          "$ref": "#/$defs/MemoryKey"
+        }
+      }
+    },
+    "MemoryListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "agentRef": {
+          "$ref": "#/$defs/AgentRef"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "cursor": {
+          "$ref": "#/$defs/Cursor"
+        }
+      }
+    },
+    "MemoryDelete": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agentRef", "key"],
+      "properties": {
+        "agentRef": {
+          "$ref": "#/$defs/AgentRef"
+        },
+        "key": {
+          "$ref": "#/$defs/MemoryKey"
+        }
+      }
+    },
+    "MemoryPolicySet": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A23: per-tenant policy admitting PHI-classified agent memory (default deny).",
+      "required": ["phiAllowed"],
+      "properties": {
+        "phiAllowed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "MemoryEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "memoryRef",
+        "agentRef",
+        "key",
+        "classification",
+        "createdAt",
+        "updatedAt",
+        "expiresAt",
+        "version"
+      ],
+      "properties": {
+        "memoryRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "agentRef": {
+          "$ref": "#/$defs/AgentRef"
+        },
+        "key": {
+          "$ref": "#/$defs/MemoryKey"
+        },
+        "classification": {
+          "$ref": "#/$defs/MemoryClassification"
+        },
+        "value": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "updatedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "MemoryRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/MemoryEntry"
+        }
+      }
+    },
+    "MemoryPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["phiAllowed"],
+      "properties": {
+        "phiAllowed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "MemoryCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["memoryRef", "agentRef", "key", "state"],
+      "properties": {
+        "memoryRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "agentRef": {
+          "$ref": "#/$defs/AgentRef"
+        },
+        "key": {
+          "$ref": "#/$defs/MemoryKey"
+        },
+        "state": {
+          "enum": ["stored", "deleted"]
+        },
+        "classification": {
+          "$ref": "#/$defs/MemoryClassification"
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "MemoryCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A23 memory command result.",
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/MemoryCommand"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "MemoryPolicyCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A23 memory policy result.",
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/MemoryPolicy"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "TaskPolicyRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A23: a human-owned standing policy under which an agent may schedule reads or proposal preparation.",
+      "required": [
+        "agentRef",
+        "deployment",
+        "operations",
+        "minIntervalSeconds",
+        "maxRunsPerDay",
+        "expiresAt"
+      ],
+      "properties": {
+        "agentRef": {
+          "$ref": "#/$defs/AgentRef"
+        },
+        "deployment": {
+          "$ref": "#/$defs/Deployment"
+        },
+        "operations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/OperationName"
+          }
+        },
+        "minIntervalSeconds": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 86400
+        },
+        "maxRunsPerDay": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1440
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "TaskPolicyRevoke": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policyRef", "expectedVersion"],
+      "properties": {
+        "policyRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "TaskPolicyListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "agentRef": {
+          "$ref": "#/$defs/AgentRef"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "cursor": {
+          "$ref": "#/$defs/Cursor"
+        }
+      }
+    },
+    "TaskPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policyRef",
+        "agentRef",
+        "ownerRef",
+        "deployment",
+        "operations",
+        "minIntervalSeconds",
+        "maxRunsPerDay",
+        "createdAt",
+        "expiresAt",
+        "state",
+        "live",
+        "version"
+      ],
+      "properties": {
+        "policyRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "agentRef": {
+          "$ref": "#/$defs/AgentRef"
+        },
+        "ownerRef": {
+          "$ref": "#/$defs/PrincipalRef"
+        },
+        "deployment": {
+          "$ref": "#/$defs/Deployment"
+        },
+        "operations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/OperationName"
+          }
+        },
+        "minIntervalSeconds": {
+          "type": "integer"
+        },
+        "maxRunsPerDay": {
+          "type": "integer"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "state": {
+          "enum": ["active", "revoked"]
+        },
+        "live": {
+          "type": "boolean"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "TaskPolicyList": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A23: standing task policies, oldest first (OR-01 envelope).",
+      "required": [
+        "asOf",
+        "appliedFilters",
+        "scope",
+        "limit",
+        "truncated",
+        "nextCursor",
+        "ordering",
+        "count",
+        "items"
+      ],
+      "properties": {
+        "asOf": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "appliedFilters": {
+          "type": "object"
+        },
+        "scope": {
+          "$ref": "#/$defs/ListScope"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "nextCursor": {
+          "type": ["string", "null"]
+        },
+        "ordering": {
+          "$ref": "#/$defs/ListOrdering"
+        },
+        "count": {
+          "$ref": "#/$defs/ListCount"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TaskPolicy"
+          }
+        },
+        "vocabularies": {
+          "$ref": "#/$defs/VocabularyVersions"
+        }
+      }
+    },
+    "TaskPolicyCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policyRef", "agentRef", "state", "expiresAt"],
+      "properties": {
+        "policyRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "agentRef": {
+          "$ref": "#/$defs/AgentRef"
+        },
+        "state": {
+          "enum": ["active", "revoked"]
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "TaskPolicyCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A23 task policy command result.",
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/TaskPolicyCommand"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "TaskSchedule": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A23: the calling agent schedules one operation its live standing policy names.",
+      "required": ["policyRef", "operation", "arguments", "intervalSeconds"],
+      "properties": {
+        "policyRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "operation": {
+          "$ref": "#/$defs/OperationName"
+        },
+        "arguments": {
+          "type": "object",
+          "maxProperties": 32
+        },
+        "intervalSeconds": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 2592000
+        },
+        "firstRunAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "TaskCancel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["taskRef", "expectedVersion"],
+      "properties": {
+        "taskRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "TaskListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "agentRef": {
+          "$ref": "#/$defs/AgentRef"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "cursor": {
+          "$ref": "#/$defs/Cursor"
+        }
+      }
+    },
+    "Task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "taskRef",
+        "agentRef",
+        "policyRef",
+        "operation",
+        "arguments",
+        "intervalSeconds",
+        "nextRunAt",
+        "state",
+        "stopReason",
+        "lastRunAt",
+        "lastOutcome",
+        "version"
+      ],
+      "properties": {
+        "taskRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "agentRef": {
+          "$ref": "#/$defs/AgentRef"
+        },
+        "policyRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "operation": {
+          "$ref": "#/$defs/OperationName"
+        },
+        "arguments": {
+          "type": "object"
+        },
+        "intervalSeconds": {
+          "type": "integer"
+        },
+        "nextRunAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "state": {
+          "enum": ["active", "cancelled", "stopped"]
+        },
+        "stopReason": {
+          "type": ["string", "null"]
+        },
+        "lastRunAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lastOutcome": {
+          "type": ["string", "null"]
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "TaskList": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A23: scheduled agent tasks, oldest first (OR-01 envelope).",
+      "required": [
+        "asOf",
+        "appliedFilters",
+        "scope",
+        "limit",
+        "truncated",
+        "nextCursor",
+        "ordering",
+        "count",
+        "items"
+      ],
+      "properties": {
+        "asOf": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "appliedFilters": {
+          "type": "object"
+        },
+        "scope": {
+          "$ref": "#/$defs/ListScope"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "nextCursor": {
+          "type": ["string", "null"]
+        },
+        "ordering": {
+          "$ref": "#/$defs/ListOrdering"
+        },
+        "count": {
+          "$ref": "#/$defs/ListCount"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Task"
+          }
+        },
+        "vocabularies": {
+          "$ref": "#/$defs/VocabularyVersions"
+        }
+      }
+    },
+    "TaskCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["taskRef", "agentRef", "state", "nextRunAt"],
+      "properties": {
+        "taskRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "agentRef": {
+          "$ref": "#/$defs/AgentRef"
+        },
+        "state": {
+          "enum": ["active", "cancelled", "stopped"]
+        },
+        "nextRunAt": {
+          "$ref": "#/$defs/Instant"
+        }
+      }
+    },
+    "TaskCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A23 scheduled task command result.",
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/TaskCommand"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "TaskRunListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["taskRef"],
+      "properties": {
+        "taskRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "cursor": {
+          "$ref": "#/$defs/Cursor"
+        }
+      }
+    },
+    "TaskRun": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runRef", "taskRef", "startedAt", "finishedAt", "outcome", "correlationId"],
+      "properties": {
+        "runRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "taskRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "startedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "finishedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "outcome": {
+          "type": ["string", "null"]
+        },
+        "correlationId": {
+          "$ref": "#/$defs/Uuid"
+        }
+      }
+    },
+    "TaskRunList": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A23: runs of one scheduled task, oldest first (OR-01 envelope).",
+      "required": [
+        "asOf",
+        "appliedFilters",
+        "scope",
+        "limit",
+        "truncated",
+        "nextCursor",
+        "ordering",
+        "count",
+        "items"
+      ],
+      "properties": {
+        "asOf": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "appliedFilters": {
+          "type": "object"
+        },
+        "scope": {
+          "$ref": "#/$defs/ListScope"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "nextCursor": {
+          "type": ["string", "null"]
+        },
+        "ordering": {
+          "$ref": "#/$defs/ListOrdering"
+        },
+        "count": {
+          "$ref": "#/$defs/ListCount"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TaskRun"
+          }
+        },
+        "vocabularies": {
+          "$ref": "#/$defs/VocabularyVersions"
+        }
+      }
+    },
+    "MemoryList": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A23: memory keys and metadata of one agent (no values), oldest first (OR-01 envelope), with the tenant PHI policy.",
+      "required": [
+        "asOf",
+        "appliedFilters",
+        "scope",
+        "limit",
+        "truncated",
+        "nextCursor",
+        "ordering",
+        "count",
+        "items",
+        "phiPolicy"
+      ],
+      "properties": {
+        "asOf": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "appliedFilters": {
+          "type": "object"
+        },
+        "scope": {
+          "$ref": "#/$defs/ListScope"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "nextCursor": {
+          "type": ["string", "null"]
+        },
+        "ordering": {
+          "$ref": "#/$defs/ListOrdering"
+        },
+        "count": {
+          "$ref": "#/$defs/ListCount"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MemoryEntry"
+          }
+        },
+        "vocabularies": {
+          "$ref": "#/$defs/VocabularyVersions"
+        },
+        "phiPolicy": {
+          "$ref": "#/$defs/MemoryPolicy"
+        }
+      }
+    },
     "ElevatedOperation": {
       "enum": [
         "portal.principals.enroll",

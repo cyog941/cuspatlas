@@ -31,6 +31,7 @@ import {
   type SecurityAttemptSink,
   type WithTenantTransaction,
 } from '@cuspatlas/contracts';
+import type { AgentToolInvoker } from '@cuspatlas/domain';
 import {
   type AttachmentRefResolver,
   type AttemptRecordingDeps,
@@ -191,6 +192,11 @@ export interface McpServerDeps {
 export interface McpServerHandle {
   listen(opts: { host: string; port: number }): Promise<{ url: string }>;
   close(): Promise<void>;
+  /**
+   * A23: the tool path for scheduled agent task runs (the worker): the same consent, budget,
+   * argument and authorization checks as an interactive call on this deployment.
+   */
+  readonly agentTools: AgentToolInvoker;
 }
 
 interface Registered {
@@ -490,6 +496,7 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     recording,
     execute,
     memberships: deps.membership,
+    matchKeyPepper: resolveMatchKeyPepper(deps.env, deps.matchKeyPepper),
     owners: { patients, engagement, billing },
     ai: {
       model: resolveModelAdapter(deps.env, deps.aiModel),
@@ -744,7 +751,22 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     });
   });
 
+  const byOperation = new Map(TOOLS.map((t) => [t.operationId as string, t.name]));
+  const agentTools: AgentToolInvoker = {
+    deployment: deps.identity.audience,
+    async invoke(actor, operation, args) {
+      const name = byOperation.get(operation);
+      if (!name || !actor.agent) return { ok: false, code: 'not_found' };
+      const r = await callTool(actor, name, args);
+      const code = (r as { structuredContent?: { code?: unknown } }).structuredContent?.code;
+      return 'isError' in r && r.isError
+        ? { ok: false, code: typeof code === 'string' ? code : 'failed' }
+        : { ok: true, code: 'ok' };
+    },
+  };
+
   return {
+    agentTools,
     listen: (opts) =>
       new Promise((resolve, reject) => {
         http.once('error', reject);

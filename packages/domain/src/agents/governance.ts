@@ -17,6 +17,7 @@ import { recordDenial } from '../commands/boundary';
 import { recordCommand } from '../events/record-command';
 import { PROPOSAL_REQUIRED_FOR_AGENTS } from '../policy/authorize';
 import { type AgentBase, checkEnvelope, conflict, failed, notFound, stale, validate } from './base';
+import { openAgentSession } from './sessions';
 
 /**
  * A9 consent and budgets. A consent (granted by a human holding agents.manage) admits one agent to
@@ -90,6 +91,8 @@ export interface BudgetTicket {
   readonly budget: AgentBudget;
   /** Content already charged during this call (before its result was measured). */
   readonly charged: BudgetMeasure;
+  /** A23: the agent session (per consent) this call belongs to. */
+  readonly sessionRef: string | null;
 }
 
 interface ConsentRow extends Record<string, unknown> {
@@ -178,15 +181,24 @@ export function createAgentGovernance(base: AgentBase) {
   const logCall = (
     tx: TenantTransaction,
     ctx: ActorContext,
-    t: { consentRef: string | null; deployment: string; operation: string },
+    t: { consentRef: string | null; deployment: string; operation: string; sessionRef?: string | null },
     outcome: string,
     m: { records: number; phiFields: number },
   ) =>
     tx.query(
       `INSERT INTO cuspatlas.agent_tool_calls (tenant_id, agent_ref, consent_ref, deployment, operation, outcome,
-         records, phi_fields, correlation_id)
-       VALUES (cuspatlas.current_tenant_id(), cuspatlas.current_actor_id(), $1, $2, $3, $4, $5, $6, $7)`,
-      [t.consentRef, t.deployment, t.operation, outcome, m.records, m.phiFields, ctx.correlationId],
+         records, phi_fields, correlation_id, session_ref)
+       VALUES (cuspatlas.current_tenant_id(), cuspatlas.current_actor_id(), $1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        t.consentRef,
+        t.deployment,
+        t.operation,
+        outcome,
+        m.records,
+        m.phiFields,
+        ctx.correlationId,
+        t.sessionRef ?? null,
+      ],
     );
 
   return {
@@ -433,6 +445,7 @@ export function createAgentGovernance(base: AgentBase) {
         ).rows[0];
         if (!c) return { refusal: new RefusalError({ code: 'forbidden', reasonCode: 'consent_missing' }) };
         const budget = budgetOf(c);
+        const sessionRef = await openAgentSession(tx, c.id, deployment);
         await tx.query(
           `INSERT INTO cuspatlas.agent_budget_usage (consent_ref, tenant_id, period_started_at)
            VALUES ($1, cuspatlas.current_tenant_id(), now()) ON CONFLICT (consent_ref) DO NOTHING`,
@@ -459,6 +472,7 @@ export function createAgentGovernance(base: AgentBase) {
           operation,
           budget,
           charged: { records: 0, phiFields: 0 },
+          sessionRef,
         };
         if (u.expired) {
           await tx.query(

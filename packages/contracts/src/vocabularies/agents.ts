@@ -33,6 +33,52 @@ export const AGENTS_VOCABULARIES: ModuleVocabularies = {
       ],
     },
     {
+      // H3 3c: a sponsor change is an offer the named human accepts or declines.
+      name: 'agent_sponsor_offer',
+      sources: ['agent_sponsor_offers.state', 'schema:agents:AgentCommand.offerState'],
+      entries: [
+        e('pending', 'PEN', 'Awaiting the new sponsor', 'lifecycle', false),
+        e('accepted', 'ACC', 'Accepted by the new sponsor', 'lifecycle', true),
+        e('declined', 'DEC', 'Declined by the new sponsor', 'exception', true),
+        e('superseded', 'SUP', 'Replaced by a newer offer', 'lifecycle', true),
+      ],
+    },
+    {
+      // A23: a session's state is derived live (explicit end, consent or agent end, idle timeout).
+      name: 'agent_session',
+      sources: ['schema:agents:Session.state', 'schema:agents:SessionCommand.state'],
+      entries: [e('open', 'OPN', 'Open', 'lifecycle', false), e('ended', 'END', 'Ended', 'lifecycle', true)],
+    },
+    {
+      name: 'agent_memory_entry',
+      sources: ['schema:agents:MemoryCommand.state'],
+      entries: [
+        e('stored', 'STO', 'Stored', 'lifecycle', false),
+        e('deleted', 'DEL', 'Deleted', 'lifecycle', true),
+      ],
+    },
+    {
+      name: 'agent_task_policy',
+      sources: [
+        'agent_task_policies.state',
+        'schema:agents:TaskPolicy.state',
+        'schema:agents:TaskPolicyCommand.state',
+      ],
+      entries: [
+        e('active', 'ACT', 'In effect', 'lifecycle', false),
+        e('revoked', 'REV', 'Withdrawn', 'lifecycle', true),
+      ],
+    },
+    {
+      name: 'agent_scheduled_task',
+      sources: ['agent_scheduled_tasks.state', 'schema:agents:Task.state', 'schema:agents:TaskCommand.state'],
+      entries: [
+        e('active', 'ACT', 'Scheduled', 'lifecycle', false),
+        e('cancelled', 'CAN', 'Cancelled', 'lifecycle', true),
+        e('stopped', 'STP', 'Stopped by its policy', 'exception', true),
+      ],
+    },
+    {
       name: 'operation_proposal',
       sources: ['operation_proposals.state', 'schema:agents:ActionProposal.state'],
       entries: [

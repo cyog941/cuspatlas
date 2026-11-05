@@ -50,4 +50,16 @@ export const AGENT_REPLAY_CODECS: Record<string, ReplayCodec<any>> = {
   'actions.proposals.approve': flatCodec(['proposalRef']),
   'actions.proposals.abandon': flatCodec(['proposalRef']),
   'ai.drafts.create': flatCodec(['draftRef']),
+  // A23 agent workspace.
+  'agents.sessions.end': flatCodec(['sessionRef', 'state', 'endedAt', 'endReason']),
+  'agents.memory.write': flatCodec(
+    ['memoryRef', 'agentRef', 'key', 'state'],
+    ['classification', 'expiresAt'],
+  ),
+  'agents.memory.delete': flatCodec(['memoryRef', 'agentRef', 'key', 'state']),
+  'agents.memory.policy.set': flatCodec(['phiAllowed']),
+  'agents.taskPolicies.record': flatCodec(['policyRef', 'agentRef', 'state', 'expiresAt']),
+  'agents.taskPolicies.revoke': flatCodec(['policyRef', 'agentRef', 'state', 'expiresAt']),
+  'agents.tasks.schedule': flatCodec(['taskRef', 'agentRef', 'state', 'nextRunAt']),
+  'agents.tasks.cancel': flatCodec(['taskRef', 'agentRef', 'state', 'nextRunAt']),
 };

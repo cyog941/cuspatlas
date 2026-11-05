@@ -682,6 +682,214 @@
       ]
     },
     {
+      "operation": "agents.memory.delete",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": null,
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/agents/memory/delete"
+      },
+      "mcpTool": "agents_memory_delete",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "agentRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "key": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z][a-z0-9._-]{0,63}$"
+          }
+        },
+        "required": [
+          "agentRef",
+          "key"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "agents.memory.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agentWorkspace.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/agents/memory"
+      },
+      "mcpTool": "agents_memory_list",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
+      "operation": "agents.memory.policy.set",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agents.manage",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/agents/memory/policy"
+      },
+      "mcpTool": "agents_memory_policy_set",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "phiAllowed": {
+            "type": [
+              "boolean"
+            ]
+          }
+        },
+        "required": [
+          "phiAllowed"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "agents.memory.read",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agentWorkspace.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/agents/memory/entry"
+      },
+      "mcpTool": "agents_memory_get",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
+      "operation": "agents.memory.write",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agentWorkspace.write",
+      "principals": [
+        "service"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/agents/memory"
+      },
+      "mcpTool": "agents_memory_write",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "classification": {
+            "enum": [
+              "\"operational\"",
+              "\"phi\"",
+              "\"reference\""
+            ]
+          },
+          "key": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z][a-z0-9._-]{0,63}$"
+          },
+          "retentionDays": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 30,
+            "minimum": 1
+          },
+          "value": {
+            "type": [
+              "string"
+            ],
+            "maxLength": 2000,
+            "minLength": 1
+          }
+        },
+        "required": [
+          "classification",
+          "key",
+          "value"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
       "operation": "agents.principals.create",
       "transports": [
         "rest",
@@ -971,6 +1179,100 @@
       ]
     },
     {
+      "operation": "agents.sessions.end",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": null,
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/agents/sessions/end"
+      },
+      "mcpTool": "agents_sessions_end",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "sessionRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "sessionRef"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "agents.sessions.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agentWorkspace.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/agents/sessions"
+      },
+      "mcpTool": "agents_sessions_list",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
+      "operation": "agents.sessions.read",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agentWorkspace.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/agents/sessions/state"
+      },
+      "mcpTool": "agents_sessions_get",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
       "operation": "agents.sponsors.accept",
       "transports": [
         "rest",
@@ -1101,6 +1403,358 @@
         },
         "required": [
           "offerRef"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "agents.taskPolicies.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agentWorkspace.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/agents/task-policies"
+      },
+      "mcpTool": "agents_task_policies_list",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
+      "operation": "agents.taskPolicies.record",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agents.manage",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/agents/task-policies"
+      },
+      "mcpTool": "agents_task_policies_record",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "agentRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "deployment": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[A-Za-z0-9:._/-]{1,200}$"
+          },
+          "expiresAt": {
+            "type": [
+              "string"
+            ],
+            "maxLength": 40,
+            "format": "date-time"
+          },
+          "maxRunsPerDay": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 1440,
+            "minimum": 1
+          },
+          "minIntervalSeconds": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 86400,
+            "minimum": 60
+          },
+          "operations": {
+            "type": [
+              "array"
+            ],
+            "maxItems": 16,
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": [
+                "string"
+              ],
+              "maxLength": 128,
+              "pattern": "^[a-z][A-Za-z]{0,40}(\\.[a-z][A-Za-z]{0,40}){0,3}$"
+            }
+          }
+        },
+        "required": [
+          "agentRef",
+          "deployment",
+          "expiresAt",
+          "maxRunsPerDay",
+          "minIntervalSeconds",
+          "operations"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "agents.taskPolicies.revoke",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agents.manage",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/agents/task-policies/revoke"
+      },
+      "mcpTool": "agents_task_policies_revoke",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "expectedVersion": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 2147483647,
+            "minimum": 1
+          },
+          "policyRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "policyRef"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "agents.tasks.cancel",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": null,
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/agents/tasks/cancel"
+      },
+      "mcpTool": "agents_tasks_cancel",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "expectedVersion": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 2147483647,
+            "minimum": 1
+          },
+          "taskRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "taskRef"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "agents.tasks.dispatch",
+      "transports": [
+        "worker"
+      ],
+      "scope": "outbox.deliver",
+      "principals": [
+        "service"
+      ],
+      "idempotency": "none",
+      "refusals": []
+    },
+    {
+      "operation": "agents.tasks.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agentWorkspace.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/agents/tasks"
+      },
+      "mcpTool": "agents_tasks_list",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
+      "operation": "agents.tasks.runs.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agentWorkspace.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/agents/tasks/runs"
+      },
+      "mcpTool": "agents_task_runs_list",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
+      "operation": "agents.tasks.schedule",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agentWorkspace.write",
+      "principals": [
+        "service"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/agents/tasks"
+      },
+      "mcpTool": "agents_tasks_schedule",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "arguments": {
+            "type": [
+              "object"
+            ]
+          },
+          "firstRunAt": {
+            "type": [
+              "string"
+            ],
+            "maxLength": 40,
+            "format": "date-time"
+          },
+          "intervalSeconds": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 2592000,
+            "minimum": 60
+          },
+          "operation": {
+            "type": [
+              "string"
+            ],
+            "maxLength": 128,
+            "pattern": "^[a-z][A-Za-z]{0,40}(\\.[a-z][A-Za-z]{0,40}){0,3}$"
+          },
+          "policyRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "arguments",
+          "intervalSeconds",
+          "operation",
+          "policyRef"
         ]
       },
       "idempotency": "required",

@@ -13114,6 +13114,550 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/agents/sessions:
+    get:
+      operationId: agents.sessions.list
+      description: >-
+        A23: sessions of one agent (one per MCP consent; ended explicitly, by consent end, agent end or 30
+        minutes idle), oldest first (OR-01 list envelope). An agent reaches only its own workspace; a human
+        only as the agent sponsor or holding agents.manage (otherwise 404).
+      parameters:
+        - name: agentRef
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/agents.schema.json#/$defs/AgentRef'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/agents.schema.json#/$defs/SessionListQuery'
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/agents.schema.json#/$defs/Cursor'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/agents.schema.json#/$defs/SessionList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/agents/sessions/state:
+    get:
+      operationId: agents.sessions.read
+      description: >-
+        A23: one session with references to its tool calls (agent_tool_calls) and agent-audit events (never
+        copies). An agent reaches only its own workspace; a human only as the agent sponsor or holding
+        agents.manage (otherwise 404).
+      parameters:
+        - name: sessionRef
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/agents.schema.json#/$defs/Uuid'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/agents.schema.json#/$defs/SessionRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/agents/sessions/end:
+    post:
+      operationId: agents.sessions.end
+      description: >-
+        A23: end an open session; the next admitted call opens a new one. The agent itself, its sponsor or
+        an agent manager.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/agents.schema.json#/$defs/SessionEnd'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/agents.schema.json#/$defs/SessionCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/agents/memory:
+    post:
+      operationId: agents.memory.write
+      description: >-
+        A23: the calling agent stores a classified note under a key (replacing an earlier value), kept 30
+        days by default. PHI is refused unless the tenant policy allows it and the note is classified phi;
+        contacts, DOB-like phrases, patient references and patient names or birth dates (S4 match keys) are
+        detected and refused otherwise. Audited in the agent-audit stream. Agents only.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/agents.schema.json#/$defs/MemoryWrite'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/agents.schema.json#/$defs/MemoryCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: agents.memory.list
+      description: >-
+        A23: memory keys and metadata of one agent (never values), oldest first (OR-01 list envelope), with
+        the tenant PHI policy. Expired notes are excluded and purged. An agent reaches only its own
+        workspace; a human only as the agent sponsor or holding agents.manage (otherwise 404).
+      parameters:
+        - name: agentRef
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/agents.schema.json#/$defs/AgentRef'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/agents.schema.json#/$defs/MemoryListQuery'
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/agents.schema.json#/$defs/Cursor'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/agents.schema.json#/$defs/MemoryList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/agents/memory/entry:
+    get:
+      operationId: agents.memory.read
+      description: >-
+        A23: one memory note with its value. Every agent read is an agent-audit row and is metered against
+        its budget; a human read is a sensitive read. An agent reaches only its own workspace; a human only
+        as the agent sponsor or holding agents.manage (otherwise 404).
+      parameters:
+        - name: agentRef
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/agents.schema.json#/$defs/AgentRef'
+        - name: key
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/agents.schema.json#/$defs/MemoryKey'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/agents.schema.json#/$defs/MemoryRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/agents/memory/delete:
+    post:
+      operationId: agents.memory.delete
+      description: >-
+        A23: delete one memory note of an agent. Human only: the agent sponsor or an agent manager.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/agents.schema.json#/$defs/MemoryDelete'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/agents.schema.json#/$defs/MemoryCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/agents/memory/policy:
+    post:
+      operationId: agents.memory.policy.set
+      description: >-
+        A23: set the per-tenant policy that admits PHI-classified agent memory (default deny). Human only
+        (agents.manage).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/agents.schema.json#/$defs/MemoryPolicySet'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/agents.schema.json#/$defs/MemoryPolicyCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/agents/task-policies:
+    post:
+      operationId: agents.taskPolicies.record
+      description: >-
+        A23: record a standing policy (owner = the calling human) under which one agent may schedule the
+        listed operations on one MCP deployment: reads or proposal preparation only, never a direct or
+        human-only command, within the agent scope set, with a minimum interval, a daily run limit and an
+        expiry. Human only (agents.manage).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/agents.schema.json#/$defs/TaskPolicyRecord'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/agents.schema.json#/$defs/TaskPolicyCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: agents.taskPolicies.list
+      description: >-
+        A23: standing task policies of one agent, oldest first (OR-01 list envelope). An agent reaches only
+        its own workspace; a human only as the agent sponsor or holding agents.manage (otherwise 404).
+      parameters:
+        - name: agentRef
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/agents.schema.json#/$defs/AgentRef'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/agents.schema.json#/$defs/TaskPolicyListQuery'
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/agents.schema.json#/$defs/Cursor'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/agents.schema.json#/$defs/TaskPolicyList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/agents/task-policies/revoke:
+    post:
+      operationId: agents.taskPolicies.revoke
+      description: >-
+        A23: revoke a standing task policy; every task bound to it stops at its next execution. Human only
+        (agents.manage).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/agents.schema.json#/$defs/TaskPolicyRevoke'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/agents.schema.json#/$defs/TaskPolicyCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/agents/tasks:
+    post:
+      operationId: agents.tasks.schedule
+      description: >-
+        A23: the calling agent schedules one operation its live standing policy names, at an interval no
+        shorter than the policy minimum. The worker runs it as the agent through the MCP consent, budget and
+        authorization path, rechecking the policy at execution. Agents only.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/agents.schema.json#/$defs/TaskSchedule'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/agents.schema.json#/$defs/TaskCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: agents.tasks.list
+      description: >-
+        A23: scheduled tasks of one agent with state, stop reason and last outcome, oldest first (OR-01 list
+        envelope). An agent reaches only its own workspace; a human only as the agent sponsor or holding
+        agents.manage (otherwise 404).
+      parameters:
+        - name: agentRef
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/agents.schema.json#/$defs/AgentRef'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/agents.schema.json#/$defs/TaskListQuery'
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/agents.schema.json#/$defs/Cursor'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/agents.schema.json#/$defs/TaskList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/agents/tasks/cancel:
+    post:
+      operationId: agents.tasks.cancel
+      description: >-
+        A23: cancel a scheduled task. The agent itself, its sponsor or an agent manager.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/agents.schema.json#/$defs/TaskCancel'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/agents.schema.json#/$defs/TaskCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/agents/tasks/runs:
+    get:
+      operationId: agents.tasks.runs.list
+      description: >-
+        A23: recorded runs of one scheduled task with outcome and correlation id, oldest first (OR-01 list
+        envelope). An agent reaches only its own workspace; a human only as the agent sponsor or holding
+        agents.manage (otherwise 404).
+      parameters:
+        - name: taskRef
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/agents.schema.json#/$defs/Uuid'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/agents.schema.json#/$defs/TaskRunListQuery'
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/agents.schema.json#/$defs/Cursor'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/agents.schema.json#/$defs/TaskRunList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   /v1/actions/proposals:
     post:
       operationId: actions.proposals.prepare

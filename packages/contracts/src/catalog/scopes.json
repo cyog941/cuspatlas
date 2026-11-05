@@ -138,6 +138,46 @@
       "sensitivity": "phiBulk"
     },
     {
+      "name": "agentWorkspace.read",
+      "noun": "agentWorkspace",
+      "verb": "read",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "agents.memory.list",
+        "agents.memory.read",
+        "agents.sessions.list",
+        "agents.sessions.read",
+        "agents.taskPolicies.list",
+        "agents.tasks.list",
+        "agents.tasks.runs.list"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "agentWorkspace.write",
+      "noun": "agentWorkspace",
+      "verb": "write",
+      "principalClasses": [
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "agents.memory.write",
+        "agents.tasks.schedule"
+      ],
+      "sensitivity": "phi"
+    },
+    {
       "name": "agents.manage",
       "noun": "agents",
       "verb": "manage",
@@ -152,11 +192,14 @@
         "agents.consents.record",
         "agents.consents.revoke",
         "agents.credentials.rotate",
+        "agents.memory.policy.set",
         "agents.principals.create",
         "agents.principals.resume",
         "agents.principals.revoke",
         "agents.principals.suspend",
-        "agents.sponsors.change"
+        "agents.sponsors.change",
+        "agents.taskPolicies.record",
+        "agents.taskPolicies.revoke"
       ],
       "sensitivity": "phi"
     },
@@ -880,9 +923,11 @@
       ],
       "humanOnly": false,
       "owners": [
+        "A",
         "F"
       ],
       "operations": [
+        "agents.tasks.dispatch",
         "outbox.deliver"
       ],
       "sensitivity": "operational"

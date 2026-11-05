@@ -23,6 +23,8 @@ export interface AgentBaseDeps {
   readonly cursors?: CursorCodec;
   /** Live membership lookups of other principals (A10 proposer and approver rechecks). */
   readonly memberships?: MembershipSource;
+  /** A23: the S4 match-key pepper (memory PHI detection by patient name and birth-date keys). */
+  readonly matchKeyPepper?: Uint8Array;
 }
 
 /**

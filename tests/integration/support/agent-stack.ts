@@ -1,4 +1,10 @@
 import { randomUUID } from 'node:crypto';
+import {
+  type AgentService,
+  type AgentToolInvoker,
+  createAgentService,
+  createAuthorize,
+} from '@cuspatlas/domain';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { CatalogOperation } from '../../../packages/contracts/src/catalog/catalog';
@@ -59,6 +65,10 @@ export interface AgentStack extends CatalogStack {
   agentCall(client: Client, tool: string, args: Record<string, unknown>): Promise<AgentCall>;
   /** One-shot agent MCP call on a fresh connection. */
   agentTool(a: AgentHandle, tool: string, args: Record<string, unknown>): Promise<AgentCall>;
+  /** A23: an agent service over the stack database (the worker side of scheduled tasks). */
+  readonly agents: AgentService;
+  /** A23: the MCP tool path scheduled runs go through. */
+  readonly agentToolInvoker: AgentToolInvoker;
 }
 
 const inDays = (d: number) => new Date(Date.now() + d * 86_400_000).toISOString();
@@ -181,7 +191,23 @@ export async function startAgentStack(label: string): Promise<AgentStack> {
     for (const c of clients) await c.close().catch(() => undefined);
     await s.close();
   };
-  return { ...s, call, createAgent, consent, agentClient, agentCall, agentTool, close };
+  const agents = createAgentService({
+    authorize: createAuthorize(s.membership),
+    withTenantTransaction: s.tenantTransactions,
+    recording: { sink: s.attemptSink, alert: () => undefined },
+  });
+  return {
+    ...s,
+    call,
+    createAgent,
+    consent,
+    agentClient,
+    agentCall,
+    agentTool,
+    close,
+    agents,
+    agentToolInvoker: s.mcpServer.agentTools,
+  };
 }
 
 export const SPONSOR = M_HUMAN_ALL;

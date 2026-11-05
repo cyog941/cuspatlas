@@ -143,6 +143,9 @@ const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const DOB_LIKE = [
   /\b(?:dob|d\.o\.b\.?|date\s+of\s+birth|birth\s*date|born(?:\s+on)?)\b\s*[:=-]?\s*[^\n,;]{0,24}/gi,
 ];
+/** True when text carries a DOB-like phrase (the A23 memory PHI check reuses the A-D5 detector). */
+export const carriesDobPhrase = (text: string): boolean =>
+  DOB_LIKE.some((re) => new RegExp(re.source, 'i').test(text));
 /**
  * Data minimization of identifiers before the model (A-D5): the patient's names and birth date (the
  * S4 patient-summary fields of the patients the sources name, read through the patient owner as the

@@ -60,6 +60,8 @@ export interface CatalogStack {
   token(who: Subject | string, audience?: string, tenantId?: string): Promise<string>;
   rest(token: string, method: 'GET' | 'POST', url: string, body?: unknown): Promise<LightMyRequestResponse>;
   readonly mcpUrl: string;
+  /** The MCP server handle (A23: its agent tool path for scheduled runs). */
+  readonly mcpServer: McpServerHandle;
   /** The recording membership source, attempt sink and runtime-role transactions (for extra apps). */
   readonly membership: MembershipSource;
   readonly attemptSink: SecurityAttemptSink;
@@ -219,6 +221,7 @@ export async function startCatalogStack(label: string, allScopes: readonly strin
     db,
     app,
     issuer,
+    mcpServer: server,
     membershipLoads,
     attempts,
     token,

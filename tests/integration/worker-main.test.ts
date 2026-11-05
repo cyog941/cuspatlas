@@ -169,11 +169,12 @@ describe('worker composition against the test database', () => {
     const w = await composeWorker(baseEnv(), { pools: pools(), log: (l) => lines.push(l) });
     try {
       expect(w.disabled.map((d) => d.consumer).sort()).toStrictEqual([
+        'agentTasks',
         'claimWorkflowTimers',
         'outboundMessages',
         'outboxDelivery',
       ]);
-      expect(lines.filter((l) => l.msg === 'worker_consumer_disabled')).toHaveLength(3);
+      expect(lines.filter((l) => l.msg === 'worker_consumer_disabled')).toHaveLength(4);
       const task = ok<{ taskRef: string }>(
         await s.command('owner', '/v1/synthetic-tasks', { label: 'worker-main-undelivered' }),
       ).taskRef;
@@ -340,7 +341,8 @@ describe('worker composition against the test database', () => {
       log: (l) => lines.push(l),
     });
     try {
-      expect(w.disabled).toStrictEqual([]);
+      // Only the A23 scheduled-task consumer (no MCP tool path in this composition).
+      expect(w.disabled.map((d) => d.consumer)).toStrictEqual(['agentTasks']);
       const first = await w.tick();
       expect(first.errors).toStrictEqual([]);
       // B: the first tick consumed the procedure into a charge, so the claim can be prepared now.
@@ -415,7 +417,10 @@ describe('worker composition against the test database', () => {
           WHERE operation IN ('imaging.storage.sweep', 'imaging.storage.reconcile')`,
       );
       expect(sweeps.rows.map((r) => r.operation)).toStrictEqual(['imaging.storage.sweep']);
-      expect(first.maintenance).toMatchObject({ idempotencyPurged: expect.any(Number) });
+      expect(first.maintenance).toMatchObject({
+        idempotencyPurged: expect.any(Number),
+        agentMemoryPurged: expect.any(Number),
+      });
 
       // Exactly once: later ticks only settle events the earlier ones created (never one already
       // settled), until a tick leases nothing and changes nothing.

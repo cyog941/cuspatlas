@@ -448,6 +448,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         recording,
         execute,
         memberships: deps.membership,
+        matchKeyPepper: resolveMatchKeyPepper(deps.env, deps.matchKeyPepper),
         owners: { patients, engagement, billing },
         ai: {
           model: resolveModelAdapter(deps.env, deps.aiModel),

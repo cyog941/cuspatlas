@@ -10,8 +10,10 @@ import {
   purgeExpiredCommandIdempotency,
 } from '@cuspatlas/db';
 import {
+  type AgentToolInvoker,
   type AttemptRecordingDeps,
   type ClaimsPartnerPort,
+  createAgentService,
   createAuthorize,
   createBillingService,
   createDurableExecutor,
@@ -27,6 +29,7 @@ import {
   resolveMatchKeyPepper,
 } from '@cuspatlas/domain';
 import pg from 'pg';
+import { type AgentTaskOutcome, createAgentTaskRunner } from './agent-tasks';
 import { createWorker, type DispatchResult, IN_PROCESS_AGGREGATES } from './dispatch';
 import { createOutboundSender, type SendResult } from './outbound-sender';
 
@@ -47,7 +50,9 @@ import { createOutboundSender, type SendResult } from './outbound-sender';
  * - I imaging reconcile (`imaging.storage.reconcile`: integrity sweep, abandoned ingress and staging,
  *   bridge lease sweep and expired device nonces; only with an object store).
  * - Maintenance on a privileged connection (only with `CUSPATLAS_MAINTENANCE_DATABASE_URL`): expired
- *   idempotency records and finished patient-reference observations.
+ *   idempotency records, finished patient-reference observations and expired agent memory (A23).
+ * - A23 scheduled agent tasks (only with `agentTools`, the MCP deployment tool path): due tasks run as
+ *   their agent through MCP consent, budgets and authorization, the standing policy rechecked.
  *
  * No real provider exists yet (E-S1, B partner and processor selection are open), so a provider can
  * only be supplied as a test fake (`syntheticProviders`), which is refused outside synthetic-test. A
@@ -81,6 +86,7 @@ export type WorkerConsumer =
   | 'outboundMessages'
   | 'claimWorkflowTimers'
   | 'imagingReconcile'
+  | 'agentTasks'
   | 'maintenance';
 
 export type WorkerMainLogLine =
@@ -95,6 +101,11 @@ export interface ComposeOptions {
   readonly pools?: WorkerPools;
   /** Test fakes; refused outside synthetic-test. */
   readonly syntheticProviders?: SyntheticProviders;
+  /**
+   * A23: the MCP tool path scheduled agent tasks run through (a co-hosted MCP server `agentTools`).
+   * Absent: the scheduled-task consumer stays disabled (nothing runs outside MCP admission).
+   */
+  readonly agentTools?: AgentToolInvoker;
   /** The instant E6 evaluates quiet hours for (default now). */
   readonly clock?: () => Date;
   readonly log?: (line: WorkerMainLogLine) => void;
@@ -108,7 +119,12 @@ export interface TickReport {
   readonly outbox: readonly { readonly eventId: string; readonly result: DispatchResult }[];
   readonly outbound: readonly { readonly messageRef: string; readonly result: SendResult }[];
   readonly imagingReconciled: number;
-  readonly maintenance: { readonly idempotencyPurged: number; readonly observationsPruned: number } | null;
+  readonly agentTasks: readonly AgentTaskOutcome[];
+  readonly maintenance: {
+    readonly idempotencyPurged: number;
+    readonly observationsPruned: number;
+    readonly agentMemoryPurged: number;
+  } | null;
   readonly errors: readonly { readonly stage: string; readonly kind: string }[];
 }
 
@@ -300,6 +316,16 @@ export async function composeWorker(
       })
     : null;
   if (!imaging) disable('imagingReconcile', 'no object store is configured (CUSPATLAS_OBJECT_STORE_DIR)');
+  const agentTasks = opts.agentTools
+    ? createAgentTaskRunner({
+        workerPrincipalId: principalId,
+        authorize,
+        memberships,
+        agents: createAgentService({ authorize, withTenantTransaction, recording, execute }),
+        invoker: opts.agentTools,
+      })
+    : null;
+  if (!agentTasks) disable('agentTasks', 'no MCP tool path is configured for scheduled agent tasks');
   if (!pools.maintenance) {
     disable('maintenance', 'no maintenance connection is configured (CUSPATLAS_MAINTENANCE_DATABASE_URL)');
   }
@@ -320,6 +346,7 @@ export async function composeWorker(
       outbox: [] as { eventId: string; result: DispatchResult }[],
       outbound: [] as { messageRef: string; result: SendResult }[],
       imagingReconciled: 0,
+      agentTasks: [] as AgentTaskOutcome[],
       maintenance: null as TickReport['maintenance'],
       errors: [] as { stage: string; kind: string }[],
     };
@@ -359,6 +386,11 @@ export async function composeWorker(
           report.imagingReconciled += 1;
         });
       }
+      if (agentTasks) {
+        await stage('agent_tasks', async () => {
+          report.agentTasks.push(...(await agentTasks.runDue(tenantId)));
+        });
+      }
     }
     const maintenancePool = pools.maintenance;
     if (maintenancePool) {
@@ -369,7 +401,14 @@ export async function composeWorker(
           const { rows } = await client.query<{ n: string }>(
             'SELECT cuspatlas.prune_patient_reference_observations() AS n',
           );
-          report.maintenance = { idempotencyPurged, observationsPruned: Number(rows[0]?.n ?? 0) };
+          const memory = await client.query<{ n: number }>(
+            'SELECT cuspatlas.agent_memory_purge_expired() AS n',
+          );
+          report.maintenance = {
+            idempotencyPurged,
+            observationsPruned: Number(rows[0]?.n ?? 0),
+            agentMemoryPurged: Number(memory.rows[0]?.n ?? 0),
+          };
         } finally {
           client.release();
         }

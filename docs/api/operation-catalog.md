@@ -9,12 +9,12 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-455 operations.
+471 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
 | F | 14 | 12 | 10 | 0 | 0 | 1 |
-| A | 51 | 51 | 51 | 0 | 0 | 0 |
+| A | 67 | 66 | 66 | 0 | 0 | 1 |
 | S | 92 | 90 | 90 | 0 | 0 | 0 |
 | C | 88 | 87 | 87 | 0 | 0 | 0 |
 | B | 66 | 66 | 66 | 0 | 0 | 0 |
@@ -39,15 +39,31 @@ transport tables and are declarations, not independent proof.
 | `agents.consents.record` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/consents` | `agents_consents_record` | required | phi | active |
 | `agents.consents.revoke` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/consents/revoke` | `agents_consents_revoke` | required | phi | active |
 | `agents.credentials.rotate` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/credentials/rotate` | `agents_credentials_rotate` | required | phi | active |
+| `agents.memory.delete` | A | command | authorize | - | human | rest, mcp | POST `/v1/agents/memory/delete` | `agents_memory_delete` | required | phi | active |
+| `agents.memory.list` | A | query | authorize | `agentWorkspace.read` | human, service | rest, mcp | GET `/v1/agents/memory` | `agents_memory_list` | none | phi | active |
+| `agents.memory.policy.set` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/memory/policy` | `agents_memory_policy_set` | required | phi | active |
+| `agents.memory.read` | A | query | authorize | `agentWorkspace.read` | human, service | rest, mcp | GET `/v1/agents/memory/entry` | `agents_memory_get` | none | phi | active |
+| `agents.memory.write` | A | command | authorize | `agentWorkspace.write` | service | rest, mcp | POST `/v1/agents/memory` | `agents_memory_write` | required | phi | active |
 | `agents.principals.create` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/principals` | `agents_principals_create` | required | phi | active |
 | `agents.principals.list` | A | query | authorize | `agents.read` | human | rest, mcp | GET `/v1/agents/principals` | `agents_principals_list` | none | phi | active |
 | `agents.principals.read` | A | query | authorize | `agents.read` | human, service | rest, mcp | GET `/v1/agents/principals/state` | `agents_principals_get` | none | phi | active |
 | `agents.principals.resume` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/principals/resume` | `agents_principals_resume` | required | phi | active |
 | `agents.principals.revoke` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/principals/revoke` | `agents_principals_revoke` | required | phi | active |
 | `agents.principals.suspend` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/principals/suspend` | `agents_principals_suspend` | required | phi | active |
+| `agents.sessions.end` | A | command | authorize | - | human, service | rest, mcp | POST `/v1/agents/sessions/end` | `agents_sessions_end` | required | phi | active |
+| `agents.sessions.list` | A | query | authorize | `agentWorkspace.read` | human, service | rest, mcp | GET `/v1/agents/sessions` | `agents_sessions_list` | none | phi | active |
+| `agents.sessions.read` | A | query | authorize | `agentWorkspace.read` | human, service | rest, mcp | GET `/v1/agents/sessions/state` | `agents_sessions_get` | none | phi | active |
 | `agents.sponsors.accept` | A | command | authorize | - | human | rest, mcp | POST `/v1/agents/sponsors/accept` | `agents_sponsors_accept` | required | phi | active |
 | `agents.sponsors.change` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/sponsors/change` | `agents_sponsors_change` | required | phi | active |
 | `agents.sponsors.decline` | A | command | authorize | - | human | rest, mcp | POST `/v1/agents/sponsors/decline` | `agents_sponsors_decline` | required | phi | active |
+| `agents.taskPolicies.list` | A | query | authorize | `agentWorkspace.read` | human, service | rest, mcp | GET `/v1/agents/task-policies` | `agents_task_policies_list` | none | phi | active |
+| `agents.taskPolicies.record` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/task-policies` | `agents_task_policies_record` | required | phi | active |
+| `agents.taskPolicies.revoke` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/task-policies/revoke` | `agents_task_policies_revoke` | required | phi | active |
+| `agents.tasks.cancel` | A | command | authorize | - | human, service | rest, mcp | POST `/v1/agents/tasks/cancel` | `agents_tasks_cancel` | required | phi | active |
+| `agents.tasks.dispatch` | A | command | authorize | `outbox.deliver` | service | worker | - | - | none | operational | active |
+| `agents.tasks.list` | A | query | authorize | `agentWorkspace.read` | human, service | rest, mcp | GET `/v1/agents/tasks` | `agents_tasks_list` | none | phi | active |
+| `agents.tasks.runs.list` | A | query | authorize | `agentWorkspace.read` | human, service | rest, mcp | GET `/v1/agents/tasks/runs` | `agents_task_runs_list` | none | phi | active |
+| `agents.tasks.schedule` | A | command | authorize | `agentWorkspace.write` | service | rest, mcp | POST `/v1/agents/tasks` | `agents_tasks_schedule` | required | phi | active |
 | `ai.drafts.accept` | A | command | authorize | `ai.review` | human | rest, mcp | POST `/v1/ai/drafts/accept` | `ai_drafts_accept` | required | phi | active |
 | `ai.drafts.create` | A | command | authorize | `ai.draft` | human, service | rest, mcp | POST `/v1/ai/drafts` | `ai_drafts_create` | required | phi | active |
 | `ai.drafts.list` | A | query | authorize | `ai.read` | human, service | rest, mcp | GET `/v1/ai/drafts` | `ai_drafts_list` | none | phi | active |

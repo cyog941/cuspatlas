@@ -95,6 +95,8 @@ Camel-case scope names (`receivables.read` written as `receivablesRead`) are a d
 
 Registered by A batch 3 (2026-11-05, synthetic implementation; grants remain subject to A-D2): `analytics.read` (the A16 measure catalog and measures; each measure also needs its owning domain read action; human or service), `audit.read` (human only: the A17 audit search over the tenant committed-change audit, security attempts and sensitive reads) and `access.manage` (human only: the A17 access review and membership revocation). `display.shared` (A18) marks a shared-display principal: a membership holding it may call only the anonymized display projections.
 
+Registered by A23 (2026-11-05, synthetic implementation, pending approval): `agentWorkspace.read` (an agent reads its own sessions, memory, standing task policies, tasks and runs; a human reads them only as the agent sponsor or holding `agents.manage`; human or service) and `agentWorkspace.write` (an agent writes its own memory and schedules tasks under a live standing policy; agent principals only). Memory deletion, session end and task cancel take no scope (the authority is the sponsor, manager or own-agent relationship); standing policies and the tenant memory PHI policy use `agents.manage`.
+
 ### Scope registry table
 
 The machine-readable registry rows (A-M2/A-S8, 2026-11-05). Generation reads **only** these rows: a scope is registered when it has a row, and `Human only` = `yes` is the authoritative human-only flag published in `scopes.json` (never inferred from the policy table). CI fails when a catalog operation using a human-only scope admits a service, portal or device principal, or when the catalog uses a scope without a row. The prose above records who registered each scope and why.
@@ -106,6 +108,8 @@ The machine-readable registry rows (A-M2/A-S8, 2026-11-05). Generation reads **o
 | `actions.prepare` | no |
 | `actions.read` | no |
 | `admin.configure` | no |
+| `agentWorkspace.read` | no |
+| `agentWorkspace.write` | no |
 | `agents.manage` | yes |
 | `agents.read` | no |
 | `ai.draft` | no |

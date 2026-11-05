@@ -5,6 +5,7 @@ import { createAgentGovernance } from './governance';
 import { createPrescribingEnvelope, type PrescribingPort } from './prescribing';
 import { createAgentPrincipals } from './principals';
 import { createActionProposals, type ProposalOwners } from './proposals';
+import { createAgentWorkspace } from './workspace';
 
 export {
   AI_DRAFT_RESOURCE,
@@ -46,6 +47,8 @@ export {
   ELEVATED_OPERATION_NAMES,
   type ProposalOwners,
 } from './proposals';
+export { AGENT_SESSION_IDLE_SECONDS } from './sessions';
+export { type AgentTaskClaim, type AgentToolInvoker, MEMORY_RETENTION_DAYS } from './workspace';
 
 export type AgentServiceDeps = AgentBaseDeps & {
   /** A10: the owning services an approved proposal commits through (absent: 503 at commit). */
@@ -62,6 +65,7 @@ export function createAgentService(deps: AgentServiceDeps) {
   return {
     ...createAgentPrincipals(base),
     ...createAgentGovernance(base),
+    ...createAgentWorkspace(base),
     ...createActionProposals(base, deps.owners ?? {}),
     // A12: the evaluation gate of record guards enabling and running every use case.
     ...createAiPipeline(base, {

@@ -611,6 +611,25 @@ export const ACTION_POLICIES = {
   'agents.consents.revoke': { scope: 'agents.manage', principals: ['human'] },
   'agents.consents.list': { scope: 'agents.read', principals: ['human'] },
   'agents.budgets.read': { scope: 'agents.read', principals: ['human', 'service'] },
+  // A23 agent workspace (OR-13): an agent reaches only its own workspace; a human reaches an agent's
+  // workspace only as its sponsor or holding agents.manage (the service checks the relationship).
+  'agents.sessions.list': { scope: 'agentWorkspace.read', principals: ['human', 'service'] },
+  'agents.sessions.read': { scope: 'agentWorkspace.read', principals: ['human', 'service'] },
+  'agents.sessions.end': { scope: null, principals: ['human', 'service'] },
+  'agents.memory.write': { scope: 'agentWorkspace.write', principals: ['service'] },
+  'agents.memory.read': { scope: 'agentWorkspace.read', principals: ['human', 'service'] },
+  'agents.memory.list': { scope: 'agentWorkspace.read', principals: ['human', 'service'] },
+  'agents.memory.delete': { scope: null, principals: ['human'] },
+  'agents.memory.policy.set': { scope: 'agents.manage', principals: ['human'] },
+  'agents.taskPolicies.record': { scope: 'agents.manage', principals: ['human'] },
+  'agents.taskPolicies.revoke': { scope: 'agents.manage', principals: ['human'] },
+  'agents.taskPolicies.list': { scope: 'agentWorkspace.read', principals: ['human', 'service'] },
+  'agents.tasks.schedule': { scope: 'agentWorkspace.write', principals: ['service'] },
+  'agents.tasks.cancel': { scope: null, principals: ['human', 'service'] },
+  'agents.tasks.list': { scope: 'agentWorkspace.read', principals: ['human', 'service'] },
+  'agents.tasks.runs.list': { scope: 'agentWorkspace.read', principals: ['human', 'service'] },
+  // The worker claims due scheduled tasks and records their runs (its own principal).
+  'agents.tasks.dispatch': { scope: 'outbox.deliver', principals: ['service'] },
   // A10 generalized prepare/commit (A-D4 pending): anyone holding the proposed operation's own
   // authority (an agent included) may prepare; approval and commit are a human's act under the
   // non-delegable actions.approve; an agent reads only its own proposals.

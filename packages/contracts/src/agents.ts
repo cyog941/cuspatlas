@@ -37,6 +37,23 @@ export const validateAgentConsentRevoke = def('ConsentRevoke');
 export const validateAgentConsentListQuery = def('ConsentListQuery');
 export const validateAgentBudgetQuery = def('BudgetQuery');
 
+// A23 agent workspace (sessions, scoped memory, scheduled tasks under a standing policy).
+export const validateAgentSessionListQuery = def('SessionListQuery');
+export const validateAgentSessionQuery = def('SessionQuery');
+export const validateAgentSessionEnd = def('SessionEnd');
+export const validateAgentMemoryWrite = def('MemoryWrite');
+export const validateAgentMemoryQuery = def('MemoryQuery');
+export const validateAgentMemoryListQuery = def('MemoryListQuery');
+export const validateAgentMemoryDelete = def('MemoryDelete');
+export const validateAgentMemoryPolicySet = def('MemoryPolicySet');
+export const validateAgentTaskPolicyRecord = def('TaskPolicyRecord');
+export const validateAgentTaskPolicyRevoke = def('TaskPolicyRevoke');
+export const validateAgentTaskPolicyListQuery = def('TaskPolicyListQuery');
+export const validateAgentTaskSchedule = def('TaskSchedule');
+export const validateAgentTaskCancel = def('TaskCancel');
+export const validateAgentTaskListQuery = def('TaskListQuery');
+export const validateAgentTaskRunListQuery = def('TaskRunListQuery');
+
 export const validateActionPrepare = def('ActionPrepare');
 export const validateActionApprove = def('ActionApprove');
 export const validateActionCommit = def('ActionCommit');

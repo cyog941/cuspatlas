@@ -23,10 +23,35 @@
     "cursor",
     "limit"
   ],
+  "agents.memory.list": [
+    "agentRef",
+    "cursor",
+    "limit"
+  ],
   "agents.principals.list": [
     "cursor",
     "limit",
     "state"
+  ],
+  "agents.sessions.list": [
+    "agentRef",
+    "cursor",
+    "limit"
+  ],
+  "agents.taskPolicies.list": [
+    "agentRef",
+    "cursor",
+    "limit"
+  ],
+  "agents.tasks.list": [
+    "agentRef",
+    "cursor",
+    "limit"
+  ],
+  "agents.tasks.runs.list": [
+    "cursor",
+    "limit",
+    "taskRef"
   ],
   "ai.drafts.list": [
     "cursor",

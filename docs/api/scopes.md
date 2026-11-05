@@ -15,7 +15,7 @@ docs/api/forbidden-matrix.md, proves the refusal). There is no grant API for sta
 memberships are administered outside the API, and the default role-to-scope grants remain an open
 human decision (A-D2). No default role grant is asserted here.
 
-54 staff scopes.
+56 staff scopes.
 
 | Scope | Principal kinds | Human only | Owners | Highest sensitivity | Operations |
 |---|---|---|---|---|---|
@@ -24,7 +24,9 @@ human decision (A-D2). No default role grant is asserted here.
 | `actions.prepare` | human, service | no | A | phi | 2 |
 | `actions.read` | human, service | no | A | phi | 2 |
 | `admin.configure` | human, service | no | A, B, C, E, I, M, S | phiBulk | 44 |
-| `agents.manage` | human | yes | A | phi | 8 |
+| `agentWorkspace.read` | human, service | no | A | phi | 7 |
+| `agentWorkspace.write` | service | no | A | phi | 2 |
+| `agents.manage` | human | yes | A | phi | 11 |
 | `agents.read` | human, service | no | A | phi | 5 |
 | `ai.draft` | human, service | no | A | phi | 1 |
 | `ai.read` | human, service | no | A | phi | 4 |
@@ -55,7 +57,7 @@ human decision (A-D2). No default role grant is asserted here.
 | `migration.signoff` | human | yes | M | phi | 2 |
 | `migration.write` | human, service | no | M | phi | 10 |
 | `openClaims.read` | human, service | no | B | phi | 4 |
-| `outbox.deliver` | service | no | F | operational | 1 |
+| `outbox.deliver` | service | no | A, F | operational | 2 |
 | `patients.merge` | human | yes | S | phi | 3 |
 | `patients.mergeReconcile` | human | yes | S | phi | 1 |
 | `patients.read` | human, service | no | E, S | phi | 12 |

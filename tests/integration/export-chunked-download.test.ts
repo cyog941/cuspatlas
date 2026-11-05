@@ -346,3 +346,147 @@ describe('A8 chunked download: exports.download specifics', () => {
     expect(part.raw.equals(full.raw.subarray(0, 100))).toBe(true);
   });
 });
+
+/**
+ * Closeout C: the MCP twin of a ranged download. `practice_export_download` and `exports_download`
+ * accept `chunkOffset` (and an optional `chunkBytes`, at most 1 MiB) and answer one bounded base64
+ * chunk with the total length and the digest recorded at build time. Each chunk runs the same domain
+ * call as a REST range (grant, tenant, role, membership, re-verified stored bytes, a `range` audit).
+ */
+const TOOL: Record<string, string> = {
+  'practice.export.download': 'practice_export_download',
+  'exports.download': 'exports_download',
+};
+type Chunk = {
+  offset: number;
+  length: number;
+  totalLength: number;
+  digestSha256: string;
+  encoding: string;
+  chunk: string;
+  nextOffset: number | null;
+};
+const mcpChunk = async (
+  t: Target,
+  body: { exportRef: string; token: string },
+  chunkOffset: number,
+  who: Who = 'owner',
+  chunkBytes: number = CHUNK,
+) => {
+  try {
+    return await s.mcp(who, TOOL[t.name] as string, {
+      ...body,
+      idempotencyKey: randomUUID(),
+      chunkOffset,
+      chunkBytes,
+    });
+  } catch {
+    // A refused credential (revoked membership) is a protocol-level refusal.
+    return { isError: true, body: { code: 'unauthenticated' } as Record<string, unknown>, raw: '' };
+  }
+};
+
+describe.each([practice, automation])('Closeout C MCP chunked download: $name', (t) => {
+  let ref: { exportRef: string; digest: string };
+
+  beforeAll(async () => {
+    ref = await t.build();
+  }, 120_000);
+
+  it('walks bounded base64 chunks that equal the REST ranges and reassemble to the recorded digest', async () => {
+    const { token } = await t.grant(ref.exportRef);
+    const body = { exportRef: ref.exportRef, token };
+    const parts: Buffer[] = [];
+    let at: number | null = 0;
+    while (at !== null) {
+      const r = await mcpChunk(t, body, at);
+      expect([r.isError, r.raw.slice(0, 200)]).toStrictEqual([false, r.raw.slice(0, 200)]);
+      const c = (r.body as { data: Chunk }).data;
+      expect(c).toMatchObject({ offset: at, digestSha256: ref.digest, encoding: 'base64' });
+      const bytes = Buffer.from(c.chunk, 'base64');
+      expect(bytes.byteLength).toBe(c.length);
+      expect(c.length).toBeLessThanOrEqual(CHUNK);
+      // Parity: the same bytes as the REST range of the same span.
+      const rest = await fetchBytes(t, body, { range: `bytes=${at}-${at + c.length - 1}` });
+      expect(rest.status).toBe(206);
+      expect(rest.headers['content-range']).toBe(`bytes ${at}-${at + c.length - 1}/${c.totalLength}`);
+      expect(rest.raw.equals(bytes)).toBe(true);
+      parts.push(bytes);
+      at = c.nextOffset;
+      expect(parts.length).toBeLessThan(500);
+    }
+    const joined = Buffer.concat(parts);
+    expect(sha(joined)).toBe(ref.digest);
+    expect(parts.length).toBeGreaterThan(2);
+    // Each chunk was a sensitive read with the range marker.
+    const reads = await s.db.admin.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM cuspatlas.sensitive_read_events
+        WHERE operation = $1 AND $2 = ANY(resource_refs) AND 'range' = ANY(query_fields)`,
+      [t.name, ref.exportRef],
+    );
+    expect(reads.rows[0]?.n).toBeGreaterThanOrEqual(2 * parts.length);
+  });
+
+  it('caps a chunk at 1 MiB and refuses an offset at or past the end', async () => {
+    const { token } = await t.grant(ref.exportRef);
+    const body = { exportRef: ref.exportRef, token };
+    const big = await mcpChunk(t, body, 0, 'owner', 1024 * 1024 + 1);
+    expect([big.isError, big.body.code]).toStrictEqual([true, 'invalid_request']);
+    const first = (await mcpChunk(t, body, 0)).body as { data: Chunk };
+    const past = await mcpChunk(t, body, first.data.totalLength);
+    expect([past.isError, past.body.code, (past.body.detail as { reason?: string })?.reason]).toStrictEqual([
+      true,
+      'invalid_request',
+      'range_not_satisfiable',
+    ]);
+  });
+
+  it('refuses tampered stored bytes with the typed integrity refusal', async () => {
+    const { token } = await t.grant(ref.exportRef);
+    const body = { exportRef: ref.exportRef, token };
+    const path = storedPath(ref.digest);
+    const original = readFileSync(path);
+    const altered = Buffer.from(original);
+    altered[0] = (altered[0] ?? 0) ^ 0x01;
+    writeFileSync(path, altered);
+    try {
+      const r = await mcpChunk(t, body, 0);
+      expect([r.isError, r.body.code, (r.body.detail as { reason?: string })?.reason]).toStrictEqual([
+        true,
+        'conflict',
+        'package_integrity_failed',
+      ]);
+    } finally {
+      writeFileSync(path, original);
+    }
+    expect((await mcpChunk(t, body, 0)).isError).toBe(false);
+  });
+
+  it('each chunk is refused cross-tenant, for a wrong role, a revoked membership and an expired grant', async () => {
+    const g = await t.grant(ref.exportRef);
+    const body = { exportRef: ref.exportRef, token: g.token };
+    expect((await mcpChunk(t, body, 0, 'crossTenant')).body.code).toBe('not_found');
+    expect((await mcpChunk(t, body, 0, 'imagingReadOnly')).body.code).toBe('forbidden');
+    const restore = await t.removeRole();
+    try {
+      expect((await mcpChunk(t, body, 0)).body.code).toBe('forbidden');
+    } finally {
+      await restore();
+    }
+    await s.db.admin.query(
+      'UPDATE cuspatlas.memberships SET revoked_at = now() WHERE principal_id = $1 AND tenant_id = $2',
+      [USER_A1, T_ALPHA],
+    );
+    try {
+      expect((await mcpChunk(t, body, 0)).isError).toBe(true);
+    } finally {
+      await s.db.admin.query(
+        'UPDATE cuspatlas.memberships SET revoked_at = NULL WHERE principal_id = $1 AND tenant_id = $2',
+        [USER_A1, T_ALPHA],
+      );
+    }
+    expect((await mcpChunk(t, body, 0)).isError).toBe(false);
+    await t.expireGrant(g.grantRef);
+    expect((await mcpChunk(t, body, 0)).body.code).toBe('not_found');
+  });
+});

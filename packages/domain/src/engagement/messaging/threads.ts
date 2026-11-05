@@ -123,9 +123,10 @@ async function markRead(tx: TenantTransaction, threadId: string): Promise<void> 
  * Overdue escalation, derived at read. Every read of the queue (list, worklist) first records, for each
  * visible thread whose reply is overdue, one escalation fact keyed by (thread, unanswered portal
  * message) with ON CONFLICT DO NOTHING, so the escalation happens exactly once per unanswered episode
- * however many readers or retries there are, with no worker required. A reply and a later portal
- * message start a new episode (a new key). The escalation moves the work item to the practice manager
- * queue; it never changes the thread.
+ * however many readers, retries or concurrent workers there are. The worker also sweeps every served
+ * tenant (`sweepReplyEscalations`, Closeout A4), so an episode escalates without a human read. A reply
+ * and a later portal message start a new episode (a new key). The escalation moves the work item to the
+ * practice manager queue; it never changes the thread and never records a read receipt.
  */
 interface EscalationCandidate extends Record<string, unknown> {
   id: string;
@@ -141,7 +142,8 @@ async function escalateOverdue(
   decision: AuthorizationDecision,
   policies: PolicyMap,
   now: Date,
-): Promise<void> {
+): Promise<number> {
+  let escalated = 0;
   // R7: the cutoff is each queue's own policy (business days are never shorter than calendar days, so
   // an episode younger than the policy in days cannot be due); batches walk the whole set, so a queue
   // with a long policy never starves another.
@@ -178,6 +180,7 @@ async function escalateOverdue(
         [t.id, t.trigger_id, due, ESCALATION_QUEUE],
       );
       if (ins.rows[0]) {
+        escalated += 1;
         await recordCommand(
           tx,
           {
@@ -194,6 +197,7 @@ async function escalateOverdue(
     if (rows.length < 500 || !last) break;
     after = { at: last.episode_at, id: last.id };
   }
+  return escalated;
 }
 
 interface QueueRow extends ThreadRow {
@@ -709,6 +713,30 @@ export function createMessagingOperations(base: EngagementBase) {
               };
             }),
           };
+        });
+      });
+    },
+
+    /**
+     * E10 / OR-08 (Closeout A4): the worker's overdue-escalation sweep, as its own service principal
+     * (service only). The same escalation as a staff read: each queue's reply-due policy is the
+     * threshold, one append-only fact per unanswered episode (the unique key and ON CONFLICT make
+     * repeated and concurrent sweeps escalate once), audited as `messaging.threads.escalate` with the
+     * worker as actor. It records no read receipt and never changes the thread.
+     */
+    sweepReplyEscalations(
+      ctx: ActorContext,
+      envelope: CommandEnvelope<unknown>,
+    ): Promise<{ escalated: number }> {
+      const op = 'messaging.threads.escalate';
+      return base.guarded(ctx, op, async () => {
+        const decision = await base.authorize(ctx, op);
+        checkEnvelope(envelope, op);
+        assertValid(validateEmptyQuery, envelope.payload, ENGAGEMENT_PROPERTIES);
+        return deps.withTenantTransaction(ctx, async (tx) => {
+          const now = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
+          const policies = await loadPolicies(tx);
+          return { escalated: await escalateOverdue(tx, decision, policies, now) };
         });
       });
     },

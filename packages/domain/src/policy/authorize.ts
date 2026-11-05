@@ -453,6 +453,8 @@ export const ACTION_POLICIES = {
   // decision and is NOT implemented (review hardening, item 3).
   'messaging.threads.read': { scope: 'messaging.read', principals: ['human'] },
   'messaging.threads.worklist': { scope: 'messaging.read', principals: ['human', 'service'] },
+  // E10 (Closeout A4): the worker's overdue-escalation sweep; worker-only, service principals only.
+  'messaging.threads.escalate': { scope: 'communications.deliver', principals: ['service'] },
   // E10 needs-reply queue: the list reads thread metadata only (no body); the policy is administration.
   'messaging.threads.list': { scope: 'messaging.read', principals: ['human', 'service'] },
   'messaging.replyPolicy.set': { scope: 'admin.configure', principals: ['human'] },

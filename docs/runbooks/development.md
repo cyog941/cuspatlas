@@ -96,6 +96,7 @@ The MCP server also refuses to start with the REST audience or a test issuer out
 
 - F6 outbox: deferred proposal execution and C14 -> B procedure consumption (always on); CL-08 claim workflow timers (only with a clearinghouse); every other event to the delivery adapter (only with one). Without an adapter only the in-process aggregates are leased, so nothing waits on, or is handed to, an adapter that does not exist.
 - E7 outbound messages (only with a messaging provider).
+- E10 reply escalation (always on, needs `communications.deliver`): overdue needs-reply episodes escalate to the practice manager queue once per episode through `messaging.threads.escalate`, using each queue's reply-due policy, without a staff read; no read receipt is recorded and the thread is not changed.
 - `imaging.storage.reconcile` (only with `CUSPATLAS_OBJECT_STORE_DIR`): integrity sweep, abandoned ingress and staging, I7 bridge lease sweep, expired device nonces.
 - Maintenance (only with `CUSPATLAS_MAINTENANCE_DATABASE_URL`): expired idempotency records, finished patient-reference observations.
 - M9 backup verification (only with `CUSPATLAS_BACKUP_LOCATION` and `CUSPATLAS_RESTORE_ADMIN_DATABASE_URL`): when a served tenant's last recorded verification is older than `CUSPATLAS_BACKUP_VERIFY_INTERVAL_SECONDS`, the latest backup is verified once (manifest digests and an isolated sample restore) and recorded for each due tenant through `operations.backupVerifications.record`. A verification that cannot run is recorded as failed, never passed.

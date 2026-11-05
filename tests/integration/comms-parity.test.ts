@@ -29,6 +29,10 @@ type Row = {
 const root = resolve(import.meta.dirname, '../..');
 const openapi = readFileSync(resolve(root, 'docs/api/openapi.yaml'), 'utf8');
 const harness = readFileSync(resolve(root, 'tests/integration/engagement-negative-harness.test.ts'), 'utf8');
+const escalationHarness = readFileSync(
+  resolve(root, 'tests/integration/worker-reply-escalation.test.ts'),
+  'utf8',
+);
 const policies = ACTION_POLICIES as Record<string, { principals: readonly string[] }>;
 
 /** The matrix and its gaps for a given tool table (so the gap detection itself can be tested). */
@@ -70,6 +74,20 @@ function matrix(
       openapi: !openapi.includes('operationId: communications.deliver\n'),
       harness: harness.includes('membership_inactive'),
     },
+    // Closeout A4: the E10 overdue-escalation sweep, worker-only and service-only like the sender;
+    // its scope, revoked, human-principal and cross-tenant cases live in the worker test.
+    {
+      operationId: 'messaging.threads.escalate',
+      surface: 'worker' as const,
+      rest: !ROUTES.some((r) => r.operationId === 'messaging.threads.escalate'),
+      registered: true,
+      mcp: !tools.some((t) => t.operationId === 'messaging.threads.escalate'),
+      policy: policies['messaging.threads.escalate']?.principals.join(',') === 'service',
+      openapi: !openapi.includes('operationId: messaging.threads.escalate\n'),
+      harness: ['never a bypass', 'are refused', 'never escalates tenant B'].every((c) =>
+        escalationHarness.includes(c),
+      ),
+    },
   ];
   const gaps = rows.flatMap((r) =>
     (['rest', 'registered', 'mcp', 'policy', 'openapi', 'harness'] as const)
@@ -109,7 +127,7 @@ describe('E9 parity matrix', () => {
     const eTools = TOOLS.filter((t) => ENGAGEMENT_OPS.some((o) => o.tool === t.name));
     expect(new Set(eTools.map((t) => t.name)).size).toBe(ENGAGEMENT_OPS.length);
     process.stdout.write(
-      `\nE PARITY MATRIX (${rows.length} rows: ${staff} staff REST+MCP, ${portal} portal REST-only, 1 worker)\n${rows
+      `\nE PARITY MATRIX (${rows.length} rows: ${staff} staff REST+MCP, ${portal} portal REST-only, 2 worker)\n${rows
         .map((r) => `${r.surface.padEnd(6)} ${r.operationId}`)
         .join('\n')}\n`,
     );

@@ -39,7 +39,7 @@ human decision (A-D2). No default role grant is asserted here.
 | `clinical.read` | human, service | no | C | phiBulk | 34 |
 | `clinical.sign` | human | yes | C | phi | 3 |
 | `clinical.write` | human | yes | C | phi | 44 |
-| `communications.deliver` | service | no | E | phi | 1 |
+| `communications.deliver` | service | no | E | phi | 2 |
 | `communications.read` | human, service | no | E | phi | 11 |
 | `communications.receipts` | service | no | E | phi | 1 |
 | `communications.write` | human, service | no | E | phi | 6 |

@@ -13794,6 +13794,18 @@
       ]
     },
     {
+      "operation": "messaging.threads.escalate",
+      "transports": [
+        "worker"
+      ],
+      "scope": "communications.deliver",
+      "principals": [
+        "service"
+      ],
+      "idempotency": "none",
+      "refusals": []
+    },
+    {
       "operation": "messaging.threads.hold",
       "transports": [
         "rest",

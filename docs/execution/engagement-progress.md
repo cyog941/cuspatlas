@@ -310,7 +310,7 @@ Design.
 
 Tests: portal message creates one item with a due time that matches the work item; staff reply clears it; overdue escalates once (repeat reads, worklist and MCP) and a new episode escalates again; per-queue policy changes the due time; unread counts isolated per staff member; location-restricted scope for list, counts and escalation; envelope for empty, truncated and cursor pages; marker hygiene across the new tables, audit, outbox, attempts, idempotency, sensitive-read events and logs.
 
-Open items: practice confirmation of the weekday definition and of escalation to the practice manager queue; no holiday calendar; the escalation depends on a reader or worker polling; unread filter counts closed threads with unread portal messages.
+Open items: practice confirmation of the weekday definition and of escalation to the practice manager queue; no holiday calendar; (closed in Closeout A4: the worker now sweeps overdue episodes, so escalation no longer depends on a reader); unread filter counts closed threads with unread portal messages.
 
 ## Pending decisions
 

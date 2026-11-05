@@ -540,7 +540,8 @@
         "E"
       ],
       "operations": [
-        "communications.deliver"
+        "communications.deliver",
+        "messaging.threads.escalate"
       ],
       "sensitivity": "phi"
     },

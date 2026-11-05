@@ -20,6 +20,7 @@ import {
   createAutomationService,
   createBillingService,
   createDurableExecutor,
+  createEngagementService,
   createImagingAttachmentSource,
   createImagingService,
   createMigrationService,
@@ -62,6 +63,9 @@ import { createWebhookDispatcher } from './webhook-dispatch';
  *   claim workflow timers in process (only with a clearinghouse port); every other event goes to the
  *   delivery adapter (only with one). Without an adapter only the in-process aggregates are leased.
  * - E7 outbound messages (only with a messaging port).
+ * - E10 reply escalation (always on; `communications.deliver`): overdue needs-reply episodes escalate
+ *   to the practice manager queue once per episode through `messaging.threads.escalate`, without a
+ *   human read, using each queue's reply-due policy; no read receipt is recorded.
  * - I imaging reconcile (`imaging.storage.reconcile`: integrity sweep, abandoned ingress and staging,
  *   bridge lease sweep and expired device nonces; only with an object store).
  * - Maintenance on a privileged connection (only with `CUSPATLAS_MAINTENANCE_DATABASE_URL`): expired
@@ -148,6 +152,8 @@ export interface TickReport {
   readonly outbox: readonly { readonly eventId: string; readonly result: DispatchResult }[];
   readonly outbound: readonly { readonly messageRef: string; readonly result: SendResult }[];
   readonly imagingReconciled: number;
+  /** E10 episodes this tick escalated (across served tenants). */
+  readonly replyEscalations: number;
   readonly agentTasks: readonly AgentTaskOutcome[];
   /** Recorded verifications this tick (empty: none due); null when the job is disabled. */
   readonly backupVerification:
@@ -356,6 +362,14 @@ export async function composeWorker(
     }),
     principalId,
   );
+  // E10: the overdue-escalation sweep goes through the messaging domain (no transport, no provider).
+  const engagement = createEngagementService({
+    authorize,
+    withTenantTransaction,
+    recording,
+    execute,
+    matchKeyPepper,
+  });
   const storeDir = env.CUSPATLAS_OBJECT_STORE_DIR;
   const imaging = storeDir
     ? createImagingService({
@@ -426,6 +440,7 @@ export async function composeWorker(
       outbox: [] as { eventId: string; result: DispatchResult }[],
       outbound: [] as { messageRef: string; result: SendResult }[],
       imagingReconciled: 0,
+      replyEscalations: 0,
       agentTasks: [] as AgentTaskOutcome[],
       backupVerification: (backupVerifier ? [] : null) as
         | { tenantId: string; recorded: boolean; result: string | null }[]
@@ -459,6 +474,13 @@ export async function composeWorker(
           }
         });
       }
+      await stage('reply_escalation', async () => {
+        const { escalated } = await engagement.sweepReplyEscalations(
+          { ...serviceCtx(tenantId), scopes: ['communications.deliver'] },
+          { operation: 'messaging.threads.escalate', idempotencyKey: randomUUID(), payload: {} },
+        );
+        report.replyEscalations += escalated;
+      });
       await stage('webhooks', async () => {
         await webhooks.runOnce(tenantId);
       });

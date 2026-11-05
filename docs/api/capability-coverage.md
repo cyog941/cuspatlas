@@ -6,7 +6,7 @@ Evidence category: **tested on synthetic data**. Coverage means a row resolves t
 
 Rows: 27 (matrix rows plus plan-defined A rows). Covered: 25. Gaps: 2. Unknown: 0. Unmapped matrix rows: 0. Scope defects: 0.
 
-MCP surface: 461 operations have an MCP tool; 33 do not.
+MCP surface: 461 operations have an MCP tool; 34 do not.
 
 | Capability row | Owners | Release | Status | Operations | Negative cases | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -27,7 +27,7 @@ MCP surface: 461 operations have an MCP tool; 33 do not.
 | Financial ledger | B | P1 | covered | 17: `billing.adjustments.decide`, `billing.adjustments.post`, `billing.balances.read`, `billing.charges.post` and 13 more | `billing-allocations.test.ts`, `billing-journal.test.ts`, `billing-negative-matrix.test.ts` and 6 more |  |
 | Patient billing | B | P1 | covered | 11: `billing.plans.amend`, `billing.plans.authorize`, `billing.plans.autopay`, `billing.plans.close` and 7 more | `billing-allocations.test.ts`, `billing-payment-plans.test.ts`, `billing-statements.test.ts` and 2 more | Card tokenization and payment links need a payment provider (blocked on discovery). |
 | Prescribing | A | Integration gate before a pilot depends on it | covered | 3: `prescriptions.cancel`, `prescriptions.drafts.create`, `prescriptions.submit` | `agents-negative-harness.test.ts`, `prescribing-envelope.test.ts` | Envelope only; the e-prescribing partner, prescriber identity proofing and controlled-substance workflow are blocked on discovery. |
-| Communications | E | P1 | covered | 32: `communications.channelPolicies.define`, `communications.channelPolicies.list`, `communications.consents.list`, `communications.consents.optOut` and 28 more | `action-proposals.test.ts`, `comms-delivery.test.ts`, `comms-parity.test.ts` and 6 more | SMS, email and telephony carriers are synthetic adapters; carrier selection is blocked on discovery. |
+| Communications | E | P1 | covered | 33: `communications.channelPolicies.define`, `communications.channelPolicies.list`, `communications.consents.list`, `communications.consents.optOut` and 29 more | `action-proposals.test.ts`, `comms-delivery.test.ts`, `comms-parity.test.ts` and 6 more | SMS, email and telephony carriers are synthetic adapters; carrier selection is blocked on discovery. |
 | Recall and follow-up | S, E | P1 | covered | 11: `communications.recall.enroll`, `communications.recall.enrollments`, `scheduling.followUp.worklist`, `scheduling.recall.createTask` and 7 more | `cancellation-recovery.test.ts`, `engagement-negative-harness.test.ts`, `mcp-parity.test.ts` and 2 more |  |
 | Lab/referrals | C | P1 basic; advanced P2 | covered | 21: `clinical.labCases.attach`, `clinical.labCases.create`, `clinical.labCases.export`, `clinical.labCases.list` and 17 more | `clinical-lab-cases.test.ts`, `clinical-referrals.test.ts`, `mcp-parity.test.ts` and 1 more |  |
 | Analytics | A, B | P1 | covered | 3: `analytics.measures.list`, `analytics.measures.read`, `billing.reports.receivables` | `analytics.test.ts`, `billing-negative-matrix.test.ts`, `mcp-parity.test.ts` |  |
@@ -65,6 +65,7 @@ These are portal, device, pairing, bridge, worker or public operations; the forb
 - `imaging.ingress.upload`
 - `imaging.objects.content`
 - `imaging.storage.sweep`
+- `messaging.threads.escalate`
 - `outbox.deliver`
 - `patients.unmerge.reconcile`
 - `portal.consents.record`

@@ -8997,6 +8997,24 @@
     "status": "active"
   },
   {
+    "operation": "messaging.threads.escalate",
+    "owner": "E",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "messaging.threads.escalate",
+    "scope": "communications.deliver",
+    "principals": [
+      "service"
+    ],
+    "transports": [
+      "worker"
+    ],
+    "refusals": [],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
     "operation": "messaging.threads.hold",
     "owner": "E",
     "kind": "command",

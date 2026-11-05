@@ -9,7 +9,7 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-494 operations.
+495 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
@@ -18,7 +18,7 @@ transport tables and are declarations, not independent proof.
 | S | 92 | 90 | 90 | 0 | 0 | 0 |
 | C | 88 | 87 | 87 | 0 | 0 | 0 |
 | B | 66 | 66 | 66 | 0 | 0 | 0 |
-| E | 60 | 48 | 48 | 11 | 0 | 1 |
+| E | 61 | 48 | 48 | 11 | 0 | 2 |
 | I | 55 | 47 | 44 | 0 | 6 | 1 |
 | M | 35 | 35 | 35 | 0 | 0 | 0 |
 
@@ -293,6 +293,7 @@ transport tables and are declarations, not independent proof.
 | `messaging.retention.evaluate` | E | query | authorize | `messaging.read` | human, service | rest, mcp | GET `/v1/messaging/threads/{threadRef}/retention` | `messaging_retention_evaluate` | none | phi | active |
 | `messaging.threads.assign` | E | command | authorize | `messaging.write` | human | rest, mcp | POST `/v1/messaging/threads/{threadRef}/assign` | `messaging_threads_assign` | required | phi | active |
 | `messaging.threads.close` | E | command | authorize | `messaging.write` | human | rest, mcp | POST `/v1/messaging/threads/{threadRef}/close` | `messaging_threads_close` | required | phi | active |
+| `messaging.threads.escalate` | E | command | authorize | `communications.deliver` | service | worker | - | - | none | phi | active |
 | `messaging.threads.hold` | E | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/messaging/threads/{threadRef}/legal-hold` | `messaging_threads_legal_hold` | required | operational | active |
 | `messaging.threads.list` | E | query | authorize | `messaging.read` | human, service | rest, mcp | GET `/v1/messaging/threads` | `messaging_threads_list` | none | phi | active |
 | `messaging.threads.open` | E | command | authorize | `messaging.write` | human | rest, mcp | POST `/v1/patients/{patientRef}/message-threads` | `messaging_threads_open` | required | phi | active |

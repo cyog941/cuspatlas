@@ -22,6 +22,7 @@ import { seedBillingScopes } from './support/billing-fixtures';
 import { seedClinicalScopes } from './support/clinical-fixtures';
 import { actorFor } from './support/domain-harness';
 import { seedEngagementScopes } from './support/engagement-fixtures';
+import { createAndBuild, EXPORT_WORKER, exportWorker } from './support/export-jobs';
 import { T_ALPHA, USER_A1, USER_A4, USER_B1 } from './support/fixtures';
 import { type ImagingStack, ingestVia, pngBytes, startImagingStack } from './support/imaging-fixtures';
 import { seedMigrationScopes } from './support/migration-fixtures';
@@ -56,7 +57,8 @@ async function createExport(
   body: Record<string, unknown>,
   who: Parameters<ImagingStack['command']>[0] = 'owner',
 ) {
-  return s.command(who, '/v1/exports', {
+  // Closeout C: the build is a worker job; the helper runs it and returns the polled request.
+  return createAndBuild(s, who, {
     formatVersion: 'cuspatlas-export/1',
     purpose: 'rightOfAccess',
     ...body,
@@ -89,6 +91,7 @@ beforeAll(async () => {
   await seedMigrationScopes(s.db.admin);
   await setScopes(USER_A1, ['exports.create', 'exports.read', 'admin.configure']);
   await setScopes(USER_B1, ['exports.create', 'exports.read', 'admin.configure']);
+  await exportWorker(s);
   for (const [name, seed] of [
     ['Export Subjectone', 9401],
     ['Export Othertwo', 9402],
@@ -204,9 +207,10 @@ describe('A15 export surface', () => {
         exporters: { scheduling: drop, imaging: drop, clinical: drop, engagement: drop, billing: drop },
         objectStore: s.store,
         tokenSecret: new Uint8Array(32).fill(5),
+        memberships: createMembershipSource(s.db.app),
       },
     });
-    const r = await svc.createExport(owner, {
+    const created = await svc.createExport(owner, {
       operation: 'exports.create',
       idempotencyKey: randomUUID(),
       payload: {
@@ -216,6 +220,14 @@ describe('A15 export surface', () => {
         purpose: 'integration',
       },
     });
+    expect(created.data.state).toBe('building');
+    // Closeout C: the build job (as the worker) builds it as the requester and fails it.
+    await svc.runExportBuilds(await actorFor(s.db, EXPORT_WORKER, T_ALPHA), {
+      operation: 'exports.build',
+      idempotencyKey: randomUUID(),
+      payload: {},
+    });
+    const r = await svc.readExport(owner, { exportRef: created.data.exportRef });
     expect(r.data).toMatchObject({ state: 'failed', diagnostic: 'missing_entity', packageDigest: null });
     const g = await s.command('owner', '/v1/exports/grants', { exportRef: r.data.exportRef });
     expect([g.status, (g.json.detail as { reason?: string })?.reason]).toStrictEqual([
@@ -421,7 +433,7 @@ describe('A15 hardening: requester-bound delivery, re-authorization, linkage map
       formatVersion: 'cuspatlas-export/1',
       purpose: 'integration',
     };
-    const first = await s.command('owner', '/v1/exports', body, key);
+    const first = await createAndBuild(s, 'owner', body, key);
     expect(data<Req>(first).state).toBe('ready');
     const replay = await s.command('owner', '/v1/exports', body, key);
     expect(data<Req>(replay)).toMatchObject({ exportRef: data<Req>(first).exportRef, state: 'ready' });

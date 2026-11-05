@@ -16,9 +16,11 @@ import {
   type AttemptRecordingDeps,
   type ClaimsPartnerPort,
   createAgentService,
+  createAppointmentService,
   createAuthorize,
   createAutomationService,
   createBillingService,
+  createClinicalService,
   createDurableExecutor,
   createEngagementService,
   createImagingAttachmentSource,
@@ -27,6 +29,7 @@ import {
   createPatientService,
   createProposalService,
   type DeliveryAdapter,
+  type ExportBuildOutcome,
   type MessagingPort,
   type PaymentProviderPort,
   resolveBridgeSigningKey,
@@ -68,6 +71,9 @@ import { createWebhookDispatcher } from './webhook-dispatch';
  *   human read, using each queue's reply-due policy; no read receipt is recorded.
  * - I imaging reconcile (`imaging.storage.reconcile`: integrity sweep, abandoned ingress and staging,
  *   bridge lease sweep and expired device nonces; only with an object store).
+ * - Closeout C A15 export builds (`exports.build`, `outbox.deliver`; only with an object store and an
+ *   imaging token secret): leased, fenced builds of requested exports, each as its requester's live
+ *   membership, the package promoted under the imaging content lock.
  * - Maintenance on a privileged connection (only with `CUSPATLAS_MAINTENANCE_DATABASE_URL`): expired
  *   idempotency records, finished patient-reference observations and expired agent memory (A23).
  * - A23 scheduled agent tasks (only with `agentTools`, the MCP deployment tool path): due tasks run as
@@ -116,6 +122,7 @@ export type WorkerConsumer =
   | 'imagingReconcile'
   | 'agentTasks'
   | 'backupVerification'
+  | 'exportBuilds'
   | 'maintenance';
 
 export type WorkerMainLogLine =
@@ -155,6 +162,8 @@ export interface TickReport {
   /** E10 episodes this tick escalated (across served tenants). */
   readonly replyEscalations: number;
   readonly agentTasks: readonly AgentTaskOutcome[];
+  /** Closeout C: what each A15 export build lease did this tick (across served tenants). */
+  readonly exportBuilds: readonly { readonly exportRef: string; readonly outcome: ExportBuildOutcome }[];
   /** Recorded verifications this tick (empty: none due); null when the job is disabled. */
   readonly backupVerification:
     | readonly { readonly tenantId: string; readonly recorded: boolean; readonly result: string | null }[]
@@ -173,6 +182,11 @@ export interface ComposedWorker {
   readonly disabled: readonly { readonly consumer: WorkerConsumer; readonly reason: string }[];
   /** One pass over every tenant and every enabled consumer. Never throws for a failing stage. */
   tick(): Promise<TickReport>;
+  /**
+   * Closeout C: only the export build stage, for every served tenant (what the tick runs as its
+   * export_builds stage). Empty when the stage is disabled.
+   */
+  runExportBuilds(): Promise<readonly { readonly exportRef: string; readonly outcome: ExportBuildOutcome }[]>;
   /** Ticks until `signal` aborts; the tick in progress completes first. */
   run(
     signal: AbortSignal,
@@ -371,6 +385,7 @@ export async function composeWorker(
     matchKeyPepper,
   });
   const storeDir = env.CUSPATLAS_OBJECT_STORE_DIR;
+  const objectStore = storeDir ? createLocalObjectStore({ root: storeDir, env: runtimeEnv }) : null;
   const imaging = storeDir
     ? createImagingService({
         authorize,
@@ -379,13 +394,88 @@ export async function composeWorker(
         execute,
         tokenSecret,
         matchKeyPepper,
-        objectStore: createLocalObjectStore({ root: storeDir, env: runtimeEnv }),
+        objectStore: objectStore ?? createLocalObjectStore({ root: storeDir, env: runtimeEnv }),
         stagingMaintenance: createLocalStagingMaintenance(storeDir),
         bridgeSigningKey,
         alert: (code) => log({ msg: 'worker_stage_failed', stage: 'imaging_alert', kind: String(code) }),
       })
     : null;
   if (!imaging) disable('imagingReconcile', 'no object store is configured (CUSPATLAS_OBJECT_STORE_DIR)');
+  // Closeout C: the A15 export build job. Each build runs as its requester's live membership through
+  // the same module exports the API composes (S, I, C, E, B and the M1 practice export).
+  const exportBuilder =
+    imaging && objectStore && tokenSecret
+      ? (() => {
+          const appointments = createAppointmentService({
+            authorize,
+            withTenantTransaction,
+            memberships,
+            recording,
+            execute,
+          });
+          const clinical = createClinicalService({ authorize, withTenantTransaction, recording, execute });
+          const exporters = {
+            scheduling: (c: ActorContext, a?: Parameters<typeof appointments.exportScheduling>[1]) =>
+              appointments.exportScheduling(c, a),
+            imaging: (c: ActorContext, a?: Parameters<typeof imaging.exportImaging>[1]) =>
+              imaging.exportImaging(c, a),
+            clinical: (c: ActorContext, a?: Parameters<typeof clinical.exportClinical>[1]) =>
+              clinical.exportClinical(c, a),
+            engagement: (c: ActorContext, a?: Parameters<typeof engagement.exportEngagement>[2]) =>
+              engagement.exportEngagement(c, {}, a),
+            billing: (c: ActorContext, a?: Parameters<typeof billing.exportBilling>[1]) =>
+              billing.exportBilling(c, a),
+          };
+          const migration = createMigrationService({
+            authorize,
+            withTenantTransaction,
+            recording,
+            execute,
+            matchKeyPepper,
+            patients: createPatientService({
+              authorize,
+              withTenantTransaction,
+              recording,
+              execute,
+              matchKeyPepper,
+            }),
+            practiceExport: { exporters, objectStore, tokenSecret },
+          });
+          return createAutomationService({
+            env: runtimeEnv,
+            authorize,
+            withTenantTransaction,
+            recording,
+            execute,
+            exports: {
+              memberships,
+              exporters,
+              practice: {
+                create: (c, e) => migration.createPracticeExport(c, e),
+                grant: (c, e) => migration.grantPracticeExport(c, e),
+                download: (c, e) => migration.downloadPracticeExport(c, e),
+              },
+              objectStore,
+              tokenSecret,
+            },
+          });
+        })()
+      : null;
+  if (!exportBuilder)
+    disable(
+      'exportBuilds',
+      objectStore
+        ? 'no imaging token secret is configured (CUSPATLAS_IMAGING_TOKEN_SECRET)'
+        : 'no object store is configured (CUSPATLAS_OBJECT_STORE_DIR)',
+    );
+  const buildExports = async (tenantId: string) => {
+    if (!exportBuilder) return [];
+    const r = await exportBuilder.runExportBuilds(
+      { ...serviceCtx(tenantId), scopes: ['outbox.deliver'] },
+      { operation: 'exports.build', idempotencyKey: randomUUID(), payload: {} },
+    );
+    return r.data.outcomes;
+  };
   const agentTasks = opts.agentTools
     ? createAgentTaskRunner({
         workerPrincipalId: principalId,
@@ -442,6 +532,7 @@ export async function composeWorker(
       imagingReconciled: 0,
       replyEscalations: 0,
       agentTasks: [] as AgentTaskOutcome[],
+      exportBuilds: [] as { exportRef: string; outcome: ExportBuildOutcome }[],
       backupVerification: (backupVerifier ? [] : null) as
         | { tenantId: string; recorded: boolean; result: string | null }[]
         | null,
@@ -497,6 +588,11 @@ export async function composeWorker(
       if (agentTasks) {
         await stage('agent_tasks', async () => {
           report.agentTasks.push(...(await agentTasks.runDue(tenantId)));
+        });
+      }
+      if (exportBuilder) {
+        await stage('export_builds', async () => {
+          report.exportBuilds.push(...(await buildExports(tenantId)));
         });
       }
     }
@@ -575,6 +671,11 @@ export async function composeWorker(
     tenants,
     disabled,
     tick,
+    async runExportBuilds() {
+      const out: { exportRef: string; outcome: ExportBuildOutcome }[] = [];
+      for (const tenantId of tenants) out.push(...(await buildExports(tenantId)));
+      return out;
+    },
     async run(signal, runOpts = {}) {
       const interval = runOpts.intervalMs ?? 5000;
       while (!signal.aborted) {

@@ -6526,6 +6526,24 @@
     "status": "active"
   },
   {
+    "operation": "exports.build",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "exports.build",
+    "scope": "outbox.deliver",
+    "principals": [
+      "service"
+    ],
+    "transports": [
+      "worker"
+    ],
+    "refusals": [],
+    "idempotency": "none",
+    "sensitivity": "phiBulk",
+    "status": "active"
+  },
+  {
     "operation": "exports.create",
     "owner": "A",
     "kind": "command",

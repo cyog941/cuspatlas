@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { seedBillingScopes } from './support/billing-fixtures';
 import { seedClinicalScopes } from './support/clinical-fixtures';
 import { seedEngagementScopes } from './support/engagement-fixtures';
+import { createAndBuild } from './support/export-jobs';
 import { T_ALPHA, USER_A1, USER_B1 } from './support/fixtures';
 import {
   type ImagingStack,
@@ -89,7 +90,7 @@ const automation: Target = {
   name: 'exports.download',
   url: '/v1/exports/package',
   async build() {
-    const r = await s.command('owner', '/v1/exports', {
+    const r = await createAndBuild(s, 'owner', {
       formatVersion: 'cuspatlas-export/1',
       purpose: 'rightOfAccess',
       scope: 'patient',
@@ -325,7 +326,7 @@ describe('A8 chunked download: exports.download specifics', () => {
   });
 
   it('a practice-scope export delivers the M1 package bytes with the recorded digest', async () => {
-    const r = await s.command('owner', '/v1/exports', {
+    const r = await createAndBuild(s, 'owner', {
       formatVersion: 'cuspatlas-export/1',
       purpose: 'practiceExit',
       scope: 'practice',

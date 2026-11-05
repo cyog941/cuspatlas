@@ -155,7 +155,7 @@ export const AUTOMATION_OPS: AutomationOp[] = [
     refusals: COMMAND,
     tool: 'exports_create',
     description:
-      'A15: request and build an export in the versioned machine-readable format: the whole practice (the M1 package), one patient (right of access across S, I, C, E and B) or one domain. Each module export re-authorizes the caller; the package passes its completeness check or the request fails with a diagnostic and no artifact. Granted by the ordinary exports.create scope: no licence, plan or feature key. Human only.',
+      'A15: request and build an export in the versioned machine-readable format: the whole practice (the M1 package), one patient (right of access across S, I, C, E and B) or one domain. The request is recorded and answered as building; a worker job builds it as the caller (each module export re-authorizes the caller, now and again at build time) and the caller polls exports.read until it is ready, or failed with a diagnostic and no artifact. Granted by the ordinary exports.create scope: no licence, plan or feature key. Human only.',
     invoke: (svc, actor, i) => svc.createExport(actor, env('exports.create', i)),
   },
   {

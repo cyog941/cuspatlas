@@ -7,6 +7,7 @@ export {
   buildScopedManifest,
   EXPORT_DOMAINS,
   EXPORT_FORMAT,
+  type ExportBuildOutcome,
   type ExportDeps,
   type ExportPracticePort,
   type ExportRequestView,

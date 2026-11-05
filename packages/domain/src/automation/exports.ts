@@ -5,6 +5,7 @@ import {
   type CommandResult,
   isRefusalError,
   listEnvelope,
+  type MembershipSource,
   type ObjectStorePort,
   type TenantTransaction,
   validateExportCreate,
@@ -89,7 +90,20 @@ export interface ExportDeps {
   readonly maxInlineBytes?: number;
   /** A request still building after this many seconds is failed as build_interrupted (crash recovery). */
   readonly buildDeadlineSeconds?: number;
+  /**
+   * Closeout C: the build job's lease (seconds, default the build deadline). A worker that holds a
+   * lease builds; another worker takes the request over only after the lease expired.
+   */
+  readonly buildLeaseSeconds?: number;
+  /**
+   * Closeout C: live membership lookups. The build job runs as the requester with the requester's
+   * live membership (re-authorized for exports.create and every module export), never as the worker.
+   */
+  readonly memberships?: MembershipSource;
 }
+
+/** Closeout C: what one leased build did (fixed codes only). */
+export type ExportBuildOutcome = 'ready' | 'failed' | 'skipped' | 'lease_lost';
 
 type Doc = ComposedDocument;
 type Row = Record<string, unknown>;
@@ -466,6 +480,8 @@ interface RequestRow extends Record<string, unknown> {
   created_at: Date;
   completed_at: Date | null;
   created_by: string;
+  build_attempt: number;
+  build_leased_until: Date | null;
 }
 const present = (r: RequestRow) => ({
   exportRef: r.id,
@@ -518,13 +534,18 @@ export function createExportOperations(base: AutomationBase, ex: ExportDeps | un
   const maxPackageBytes = ex?.maxPackageBytes ?? 256 * 1024 * 1024;
   const maxInlineBytes = ex?.maxInlineBytes ?? 64 * 1024 * 1024;
   const buildDeadlineSeconds = ex?.buildDeadlineSeconds ?? 900;
+  const buildLeaseSeconds = ex?.buildLeaseSeconds ?? buildDeadlineSeconds;
 
-  /** Crash recovery: a request still building past the deadline is failed, never left stuck. */
+  /**
+   * Crash recovery: a request still building past the deadline, with no live build lease, is failed,
+   * never left stuck (a build in progress under a live lease is not interrupted).
+   */
   const failStaleBuilds = async (tx: TenantTransaction, op: string) => {
     const { rows } = await tx.query<{ id: string; version: number }>(
       `UPDATE cuspatlas.export_requests SET state = 'failed', diagnostic = 'build_interrupted',
          version = version + 1, completed_at = now()
-       WHERE state = 'building' AND created_at < now() - make_interval(secs => $1) RETURNING id, version`,
+       WHERE state = 'building' AND created_at < now() - make_interval(secs => $1)
+         AND (build_leased_until IS NULL OR build_leased_until <= now()) RETURNING id, version`,
       [buildDeadlineSeconds],
     );
     for (const r of rows)
@@ -595,7 +616,10 @@ export function createExportOperations(base: AutomationBase, ex: ExportDeps | un
     payload,
   });
 
-  /** Builds the artifact as the caller; returns the completion columns or a fixed diagnostic. */
+  /**
+   * Builds the artifact as the caller; returns the completion columns or a fixed diagnostic. Scoped
+   * package bytes are only staged here: the completion promotes them under the content lock.
+   */
   const build = async (ctx: ActorContext, row: RequestRow) => {
     const { exporters, objectStore } = need();
     if (row.scope === 'practice') {
@@ -612,7 +636,7 @@ export function createExportOperations(base: AutomationBase, ex: ExportDeps | un
         packageDigest: r.data.packageDigest,
         byteLength: r.data.byteLength,
         documentCount: r.data.documentCount,
-        storageKey: null,
+        staged: null,
       };
     }
     const order = [
@@ -648,7 +672,6 @@ export function createExportOperations(base: AutomationBase, ex: ExportDeps | un
     const bytes = Buffer.from(JSON.stringify(pkg), 'utf8');
     if (bytes.byteLength > maxPackageBytes) return { diagnostic: 'export_too_large' };
     const staged = await objectStore.stage(ctx.tenantId, bytes);
-    const { storageKey } = await objectStore.promote(ctx.tenantId, staged.stagingKey, staged.digestSha256);
     return {
       artifactFormat: EXPORT_FORMAT,
       practiceExportId: null,
@@ -657,8 +680,123 @@ export function createExportOperations(base: AutomationBase, ex: ExportDeps | un
       packageDigest: staged.digestSha256,
       byteLength: bytes.byteLength,
       documentCount: docs.length,
-      storageKey,
+      staged,
     };
+  };
+  type Built = Awaited<ReturnType<typeof build>>;
+
+  /**
+   * Completes one leased build (fenced by its attempt). The package digest's content lock is taken
+   * first (the orphan-bytes sweep skips a locked digest), then the request row; only the holder of the
+   * current attempt of a still-building request promotes the staged bytes and records the outcome, so
+   * an expired lease can never complete (or double-complete) a successor's build. Returns null when the
+   * lease was lost.
+   */
+  const complete = async (
+    ctx: ActorContext,
+    ref: string,
+    fence: number,
+    outcome: Built | { diagnostic: string },
+  ): Promise<RequestRow | null> => {
+    const op = 'exports.create';
+    const o = outcome as Partial<Built> & { diagnostic?: string };
+    const failedState = o.diagnostic !== undefined;
+    return deps.withTenantTransaction(ctx, async (tx) => {
+      if (!failedState && o.staged)
+        await tx.query('SELECT cuspatlas.imaging_lock_content(cuspatlas.current_tenant_id(), $1)', [
+          o.staged.digestSha256,
+        ]);
+      const cur = await loadRequest(tx, ref, true);
+      if (cur.state !== 'building' || cur.build_attempt !== fence) return null;
+      let storageKey: string | null = null;
+      if (!failedState && o.staged) {
+        const promoted = await need().objectStore.promote(
+          ctx.tenantId,
+          o.staged.stagingKey,
+          o.staged.digestSha256,
+        );
+        storageKey = promoted.storageKey;
+      }
+      const { rows } = await tx.query<RequestRow>(
+        `UPDATE cuspatlas.export_requests SET state = $2, artifact_format = $3, practice_export_id = $4,
+           manifest = $5, manifest_digest = $6, package_digest = $7, byte_length = $8, document_count = $9,
+           storage_key = $10, diagnostic = $11, version = version + 1, completed_at = now(),
+           build_leased_until = NULL
+         WHERE id = $1 AND state = 'building' AND build_attempt = $12 RETURNING *`,
+        [
+          ref,
+          failedState ? 'failed' : 'ready',
+          failedState ? null : o.artifactFormat,
+          failedState ? null : (o.practiceExportId ?? null),
+          failedState || !o.manifest ? null : JSON.stringify(o.manifest),
+          failedState ? null : o.manifestDigest,
+          failedState ? null : o.packageDigest,
+          failedState ? null : o.byteLength,
+          failedState ? null : o.documentCount,
+          failedState ? null : storageKey,
+          failedState ? o.diagnostic : null,
+          fence,
+        ],
+      );
+      const row = rows[0] as RequestRow;
+      await recordCommand(
+        tx,
+        { operation: op, resourceType: 'exportRequest', resourceRef: row.id, resourceVersion: row.version },
+        { changedFields: ['state'] },
+      );
+      if (!failedState)
+        await recordSensitiveRead(tx, {
+          operation: op,
+          resourceType: 'exportRequest',
+          resourceRefs: row.subject_id ? [row.id, row.subject_id] : [row.id],
+          queryFields: [],
+        });
+      return row;
+    });
+  };
+
+  /** The requester's live membership as an actor (human only), or null when it no longer holds. */
+  const requesterContext = async (tenantId: string, principalId: string): Promise<ActorContext | null> => {
+    const m = await ex?.memberships?.load(principalId, tenantId);
+    if (!m?.active || m.principal !== 'human') return null;
+    return {
+      tenantId,
+      actorId: principalId,
+      principal: 'human',
+      sessionId: randomUUID(),
+      scopes: [...m.scopes],
+      correlationId: randomUUID(),
+    };
+  };
+
+  /** Leases one building request (the fencing attempt) and builds it as the requester. */
+  const buildOne = async (worker: ActorContext, ref: string): Promise<ExportBuildOutcome> => {
+    const claimed = await deps.withTenantTransaction(worker, async (tx) => {
+      const { rows } = await tx.query<RequestRow>(
+        `UPDATE cuspatlas.export_requests SET build_attempt = build_attempt + 1,
+           build_leased_until = now() + make_interval(secs => $2)
+         WHERE id = $1 AND state = 'building' AND (build_leased_until IS NULL OR build_leased_until <= now())
+         RETURNING *`,
+        [ref, buildLeaseSeconds],
+      );
+      return rows[0] ?? null;
+    });
+    if (!claimed) return 'skipped';
+    const requester = await requesterContext(worker.tenantId, claimed.created_by);
+    let outcome: Built | { diagnostic: string };
+    if (!requester) outcome = { diagnostic: 'requester_inactive' };
+    else {
+      try {
+        // Fresh policy: the requester must still hold exports.create (and each module export).
+        await base.tenantWide(requester, 'exports.create', 'exports');
+        outcome = await build(requester, claimed);
+      } catch (err) {
+        outcome = { diagnostic: isRefusalError(err) ? err.code : 'build_failed' };
+      }
+    }
+    const done = await complete(requester ?? worker, claimed.id, claimed.build_attempt, outcome);
+    if (!done) return 'lease_lost';
+    return done.state === 'ready' ? 'ready' : 'failed';
   };
 
   /**
@@ -747,6 +885,10 @@ export function createExportOperations(base: AutomationBase, ex: ExportDeps | un
         if (p.scope === 'practice' && !M1_PURPOSES.has(p.purpose))
           throw failed('purpose_not_allowed_for_scope');
         need();
+        // Closeout C: the module access the build needs is checked now, so a caller refused by a module
+        // is refused here (nothing recorded); the build job re-checks it when it runs.
+        if (p.scope === 'practice') await base.tenantWide(ctx, 'practice.export.create', 'exports');
+        else await reauthorizeModules(ctx, { scope: p.scope, domain: p.domain ?? null } as RequestRow);
         const r = await deps.withTenantTransaction(ctx, (tx) =>
           execute(ctx, envelope, tx, async () => {
             await failStaleBuilds(tx, op);
@@ -779,59 +921,41 @@ export function createExportOperations(base: AutomationBase, ex: ExportDeps | un
           });
           return { ...r, data: present(now), version: now.version };
         }
-        if (r.data.state !== 'building') return r;
-        let outcome: Awaited<ReturnType<typeof build>> | { diagnostic: string };
-        let rethrow: unknown = null;
-        const start = await deps.withTenantTransaction(ctx, (tx) => loadRequest(tx, r.data.exportRef));
-        try {
-          outcome = await build(ctx, start);
-        } catch (err) {
-          outcome = { diagnostic: isRefusalError(err) ? err.code : 'build_failed' };
-          if (isRefusalError(err)) rethrow = err;
-        }
-        const done = await deps.withTenantTransaction(ctx, async (tx) => {
-          const o = outcome as Partial<Awaited<ReturnType<typeof build>>> & { diagnostic?: string };
-          const failedState = o.diagnostic !== undefined;
-          const { rows } = await tx.query<RequestRow>(
-            `UPDATE cuspatlas.export_requests SET state = $2, artifact_format = $3, practice_export_id = $4,
-               manifest = $5, manifest_digest = $6, package_digest = $7, byte_length = $8, document_count = $9,
-               storage_key = $10, diagnostic = $11, version = version + 1, completed_at = now()
-             WHERE id = $1 AND state = 'building' RETURNING *`,
-            [
-              r.data.exportRef,
-              failedState ? 'failed' : 'ready',
-              failedState ? null : o.artifactFormat,
-              failedState ? null : (o.practiceExportId ?? null),
-              failedState || !o.manifest ? null : JSON.stringify(o.manifest),
-              failedState ? null : o.manifestDigest,
-              failedState ? null : o.packageDigest,
-              failedState ? null : o.byteLength,
-              failedState ? null : o.documentCount,
-              failedState ? null : (o.storageKey ?? null),
-              failedState ? o.diagnostic : null,
-            ],
+        // Closeout C: the build runs as a worker job (runExportBuilds); the caller polls exports.read.
+        return r;
+      });
+    },
+
+    /**
+     * Closeout C: the export build job (worker only, `exports.build`). Leases up to `limit` building
+     * requests of the caller's tenant whose lease is free or expired, builds each as its requester
+     * (fresh live membership, re-authorized for exports.create and every module export), and completes
+     * it fenced by the lease attempt. Returns what each lease did.
+     */
+    runExportBuilds(
+      ctx: ActorContext,
+      envelope: CommandEnvelope<unknown>,
+      opts: { readonly limit?: number } = {},
+    ): Promise<{ data: { outcomes: { exportRef: string; outcome: ExportBuildOutcome }[] } }> {
+      const op = 'exports.build';
+      return base.guarded(ctx, op, async () => {
+        await base.tenantWide(ctx, op, 'exports');
+        checkEnvelope(envelope, op);
+        need();
+        const limit = Math.min(Math.max(Math.trunc(opts.limit ?? 5), 1), 50);
+        const ids = await deps.withTenantTransaction(ctx, async (tx) => {
+          await failStaleBuilds(tx, op);
+          const { rows } = await tx.query<{ id: string }>(
+            `SELECT id FROM cuspatlas.export_requests
+             WHERE state = 'building' AND (build_leased_until IS NULL OR build_leased_until <= now())
+             ORDER BY created_at, id LIMIT $1`,
+            [limit],
           );
-          const row = rows[0] as RequestRow;
-          await recordCommand(
-            tx,
-            {
-              operation: op,
-              resourceType: 'exportRequest',
-              resourceRef: row.id,
-              resourceVersion: row.version,
-            },
-            { changedFields: ['state'] },
-          );
-          await recordSensitiveRead(tx, {
-            operation: op,
-            resourceType: 'exportRequest',
-            resourceRefs: row.subject_id ? [row.id, row.subject_id] : [row.id],
-            queryFields: [],
-          });
-          return row;
+          return rows.map((r) => r.id);
         });
-        if (rethrow) throw rethrow;
-        return { ...r, data: present(done), version: done.version };
+        const outcomes: { exportRef: string; outcome: ExportBuildOutcome }[] = [];
+        for (const id of ids) outcomes.push({ exportRef: id, outcome: await buildOne(ctx, id) });
+        return { data: { outcomes } };
       });
     },
 

@@ -995,10 +995,11 @@
       ],
       "operations": [
         "agents.tasks.dispatch",
+        "exports.build",
         "outbox.deliver",
         "webhooks.deliveries.dispatch"
       ],
-      "sensitivity": "operational"
+      "sensitivity": "phiBulk"
     },
     {
       "name": "patients.merge",

@@ -711,6 +711,9 @@ export const ACTION_POLICIES = {
   'exports.grants.revoke': { scope: 'exports.create', principals: ['human'] },
   // Elevated: read, grant and download another requester's export (each access is sensitive-read logged).
   'exports.administer': { scope: 'exports.admin', principals: ['human'] },
+  // Closeout C: the export build job. Only the worker's service principal leases and completes builds;
+  // each build runs as its requester's live membership (re-authorized for exports.create and modules).
+  'exports.build': { scope: 'outbox.deliver', principals: ['service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

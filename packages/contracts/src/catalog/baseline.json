@@ -10164,6 +10164,18 @@
       "refusals": []
     },
     {
+      "operation": "exports.build",
+      "transports": [
+        "worker"
+      ],
+      "scope": "outbox.deliver",
+      "principals": [
+        "service"
+      ],
+      "idempotency": "none",
+      "refusals": []
+    },
+    {
       "operation": "exports.create",
       "transports": [
         "rest",

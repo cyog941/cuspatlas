@@ -9,12 +9,12 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-506 operations.
+507 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
 | F | 14 | 12 | 10 | 0 | 0 | 1 |
-| A | 84 | 81 | 81 | 0 | 0 | 2 |
+| A | 85 | 81 | 81 | 0 | 0 | 3 |
 | S | 92 | 90 | 90 | 0 | 0 | 0 |
 | C | 88 | 87 | 87 | 0 | 0 | 0 |
 | B | 68 | 68 | 68 | 0 | 0 | 0 |
@@ -218,6 +218,7 @@ transport tables and are declarations, not independent proof.
 | `communications.templates.define` | E | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/communications/templates` | `communications_templates_define` | required | operational | active |
 | `communications.templates.withdraw` | E | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/communications/templates/{templateRef}/withdraw` | `communications_templates_withdraw` | required | operational | active |
 | `exports.administer` | A | capability | capability | `exports.admin` | human | - | - | - | none | phi | active |
+| `exports.build` | A | command | authorize | `outbox.deliver` | service | worker | - | - | none | phiBulk | active |
 | `exports.create` | A | command | authorize | `exports.create` | human | rest, mcp | POST `/v1/exports` | `exports_create` | required | phiBulk | active |
 | `exports.download` | A | command | authorize | `exports.create` | human | rest, mcp | POST `/v1/exports/package` | `exports_download` | required | phiBulk | active |
 | `exports.grant` | A | command | authorize | `exports.create` | human | rest, mcp | POST `/v1/exports/grants` | `exports_grant` | required | phi | active |

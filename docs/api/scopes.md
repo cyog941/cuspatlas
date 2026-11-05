@@ -60,7 +60,7 @@ human decision (A-D2). No default role grant is asserted here.
 | `migration.signoff` | human | yes | M | phi | 2 |
 | `migration.write` | human, service | no | M | phi | 14 |
 | `openClaims.read` | human, service | no | B | phi | 4 |
-| `outbox.deliver` | service | no | A, F | operational | 3 |
+| `outbox.deliver` | service | no | A, F | phiBulk | 4 |
 | `patients.merge` | human | yes | S | phi | 3 |
 | `patients.mergeReconcile` | human | yes | S | phi | 1 |
 | `patients.read` | human, service | no | E, S | phi | 12 |

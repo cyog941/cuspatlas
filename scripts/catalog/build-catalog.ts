@@ -119,7 +119,7 @@ function sensitivityOf(op: string, scope: string | null, auth: string): Sensitiv
   // configuration (`admin.configure`) is operational.
   if (/\.export(\.|$)/.test(op)) return 'phiBulk';
   // A15: the export surface builds and delivers bulk PHI (a whole practice, a patient, a domain).
-  if (/^exports\.(create|download)$/.test(op)) return 'phiBulk';
+  if (/^exports\.(create|download|build)$/.test(op)) return 'phiBulk';
   if (scope === 'admin.configure') return 'operational';
   if (op === 'session.read' || (scope !== null && OPERATIONAL_SCOPES.has(scope))) return 'operational';
   return 'phi';

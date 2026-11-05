@@ -353,6 +353,11 @@ export function createPracticeExportOperations(base: MigrationBase) {
             if (!check.accepted) throw conflict(check.reason, [{ kind: 'exportEntity', ref: check.entity }]);
             const bytes = Buffer.from(JSON.stringify(pkg), 'utf8');
             const staged = await objectStore.stage(ctx.tenantId, bytes);
+            // Closeout C: promotion holds the content lock until the row referencing the bytes commits,
+            // so the orphan-bytes sweep (which skips a locked digest) cannot remove them in between.
+            await tx.query('SELECT cuspatlas.imaging_lock_content(cuspatlas.current_tenant_id(), $1)', [
+              staged.digestSha256,
+            ]);
             const { storageKey } = await objectStore.promote(
               ctx.tenantId,
               staged.stagingKey,

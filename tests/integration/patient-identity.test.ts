@@ -617,3 +617,17 @@ describe('S4 MCP parity and privacy', () => {
     expect(surface).not.toContain('CHART-42');
   });
 });
+
+describe('S3 registration status history precision (clock audit)', () => {
+  // The registration history row copied status_effective_at through a JavaScript Date, which keeps
+  // milliseconds only: the history instant sat up to 999 µs before the patient's own stamp.
+  it('the first status history row carries the exact status_effective_at of the new patient', async () => {
+    const { ref } = await newPatient('Synthetic Precision');
+    const { rows } = await db.admin.query<{ same: boolean }>(
+      `SELECT h.effective_at = p.status_effective_at AS same FROM cuspatlas.patients p
+       JOIN cuspatlas.patient_status_history h ON h.patient_id = p.id WHERE p.id = $1`,
+      [ref],
+    );
+    expect(rows).toStrictEqual([{ same: true }]);
+  });
+});

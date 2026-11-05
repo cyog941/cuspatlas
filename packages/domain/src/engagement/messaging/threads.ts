@@ -150,6 +150,8 @@ async function escalateOverdue(
   // with a long policy never starves another.
   const queues = THREAD_QUEUES.map((q) => q as string);
   const days = THREAD_QUEUES.map((q) => policies[q].replyDueBusinessDays);
+  // The keyset is the millisecond instant a JavaScript Date carries: ordering and comparing by the
+  // microsecond created_at would re-read the last row of every batch (clock audit, precision).
   let after = null as { at: Date; id: string } | null;
   for (let batch = 0; batch < 20; batch += 1) {
     const { rows }: { rows: EscalationCandidate[] } = await tx.query<EscalationCandidate>(
@@ -165,10 +167,10 @@ async function escalateOverdue(
        WHERE t.state = 'open' AND t.awaiting = 'practice'
          AND ep.created_at <= $2::timestamptz - make_interval(days => pol.days)
          AND ($1::text[] IS NULL OR l.location_ref = ANY ($1::text[]))
-         AND ($5::timestamptz IS NULL OR (ep.created_at, t.id) > ($5::timestamptz, $6::uuid))
+         AND ($5::timestamptz IS NULL OR (date_trunc('milliseconds', ep.created_at), t.id) > ($5::timestamptz, $6::uuid))
          AND NOT EXISTS (SELECT 1 FROM cuspatlas.thread_reply_escalations e
            WHERE e.thread_id = t.id AND e.trigger_message_id = ep.id)
-       ORDER BY ep.created_at, t.id LIMIT 500`,
+       ORDER BY date_trunc('milliseconds', ep.created_at), t.id LIMIT 500`,
       [decision.locationRefs, now, queues, days, after?.at ?? null, after?.id ?? null],
     );
     for (const t of rows) {

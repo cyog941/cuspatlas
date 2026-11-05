@@ -161,8 +161,9 @@ export function createIdentityCommands(s: PatientServiceContext) {
               await tx.query(
                 `INSERT INTO cuspatlas.patient_status_history (tenant_id, patient_id, status, effective_at,
                    reason_code, patient_version, recorded_by)
-                 VALUES (cuspatlas.current_tenant_id(), $1, 'active', $2, 'registered', 1, cuspatlas.current_actor_id())`,
-                [row.id, row.status_effective_at],
+                 VALUES (cuspatlas.current_tenant_id(), $1, 'active', now(), 'registered', 1, cuspatlas.current_actor_id())`,
+                // now(), the patient's own status_effective_at: a JavaScript Date copy drops microseconds.
+                [row.id],
               );
               await recordCommand(
                 tx,

@@ -6091,6 +6091,8 @@ export type MigrationCount = number;
 
 export type MigrationCurrencyCode = string;
 
+export type MigrationCursor = string;
+
 export type MigrationCutoverAdvance = {
   readonly "packageRef": MigrationPackageRef;
   readonly "reportRef": MigrationUuid;
@@ -6124,6 +6126,7 @@ export type MigrationDowntimeEntryKind = "appointment_booking" | "attendance" | 
 
 export type MigrationDowntimeEntryList = {
   readonly "envelope": MigrationListEnvelope;
+  readonly "nextCursor": (MigrationCursor) | (null);
   readonly "data": readonly ({
     readonly "entryRef": MigrationUuid;
     readonly "windowRef": MigrationUuid;
@@ -6197,6 +6200,7 @@ export type MigrationDowntimeStart = {
 
 export type MigrationDowntimeWindowList = {
   readonly "envelope": MigrationListEnvelope;
+  readonly "nextCursor": (MigrationCursor) | (null);
   readonly "data": readonly ({
     readonly "windowRef": MigrationUuid;
     readonly "scope": "tenant" | "locations";
@@ -6635,6 +6639,7 @@ export type MigrationReviewerAssign = {
 
 export type MigrationReviewerAssignmentList = {
   readonly "envelope": MigrationListEnvelope;
+  readonly "nextCursor": (MigrationCursor) | (null);
   readonly "data": readonly ({
     readonly "assignmentRef": MigrationUuid;
     readonly "principalRef": MigrationUuid;
@@ -11983,7 +11988,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/migration/reviewers";
     params: {  };
-    query: { readonly role?: string; readonly principalRef?: string; readonly state?: string; };
+    query: { readonly limit?: string; readonly cursor?: string; readonly role?: string; readonly principalRef?: string; readonly state?: string; };
     body: undefined;
     result: MigrationReviewerAssignmentList;
     successStatus: 200;
@@ -12063,7 +12068,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/operations/downtime/entries";
     params: {  };
-    query: { readonly windowRef?: string; readonly reviewState?: string; readonly entryKind?: string; };
+    query: { readonly limit?: string; readonly cursor?: string; readonly windowRef?: string; readonly reviewState?: string; readonly entryKind?: string; };
     body: undefined;
     result: MigrationDowntimeEntryList;
     successStatus: 200;
@@ -12103,7 +12108,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/operations/downtime/windows";
     params: {  };
-    query: { readonly state?: string; };
+    query: { readonly limit?: string; readonly cursor?: string; readonly state?: string; };
     body: undefined;
     result: MigrationDowntimeWindowList;
     successStatus: 200;

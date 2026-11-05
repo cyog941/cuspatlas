@@ -457,6 +457,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       });
       // Workstream M: patients only through S4/S6 commands; ledger postings through the B1 primitive.
       const migration = createMigrationService({
+        // Closeout C: the shared cursor key ring for the downtime and reviewer list pages.
+        cursors: schedulingCursors,
         authorize,
         withTenantTransaction: deps.tenantTransactions,
         recording,

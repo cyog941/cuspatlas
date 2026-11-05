@@ -500,6 +500,8 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     alert: (code) => write({ level: 'error', msg: 'imaging alert', alert: code }),
   });
   const migration = createMigrationService({
+    // Closeout C: the shared cursor key ring for the downtime and reviewer list pages.
+    cursors: schedulingCursors,
     authorize,
     withTenantTransaction: deps.tenantTransactions,
     recording,

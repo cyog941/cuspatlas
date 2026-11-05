@@ -399,12 +399,12 @@ export const LIST_OPERATIONS: Readonly<Record<string, ListOperationSpec>> = {
     cursor: false,
     scope: 'tenant',
   },
-  // Closeout A6: the tenant reviewer list (live and ended), capped at 500 rows without a cursor.
+  // Closeout A6: the tenant reviewer list (live and ended); Closeout C: signed keyset cursor pages.
   'migration.reviewers.list': {
     rows: 'data',
     ordering: { key: 'assignedAt', direction: 'asc', tieBreak: 'assignmentRef' },
     limit: { default: 500, max: 500 },
-    cursor: false,
+    cursor: true,
     scope: 'tenant',
   },
   'operations.alerts.list': {
@@ -416,19 +416,19 @@ export const LIST_OPERATIONS: Readonly<Record<string, ListOperationSpec>> = {
     scope: 'tenant',
     total: 'data.count',
   },
-  // Closeout A2 downtime log: tenant-wide reads capped at 500 rows without a cursor (truncated when full).
+  // Closeout A2 downtime log: tenant-wide reads; Closeout C: signed keyset cursor pages of up to 500 rows.
   'operations.downtime.entries.list': {
     rows: 'data',
     ordering: { key: 'capturedAt', direction: 'asc', tieBreak: 'entryRef' },
     limit: { default: 500, max: 500 },
-    cursor: false,
+    cursor: true,
     scope: 'tenant',
   },
   'operations.downtime.windows.list': {
     rows: 'data',
     ordering: { key: 'startedAt', direction: 'desc', tieBreak: 'windowRef' },
     limit: { default: 500, max: 500 },
-    cursor: false,
+    cursor: true,
     scope: 'tenant',
   },
   'patients.duplicates.find': {

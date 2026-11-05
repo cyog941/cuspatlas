@@ -13,7 +13,17 @@ import {
 } from '@cuspatlas/contracts';
 import { recordCommand } from '../events/record-command';
 import type { ActionName, AuthorizationDecision } from '../policy/authorize';
-import { checkEnvelope, conflict, failed, isPgError, type MigrationBase, notFound, validate } from './base';
+import {
+  checkEnvelope,
+  conflict,
+  failed,
+  isPgError,
+  keysetPage,
+  type MigrationBase,
+  notFound,
+  positionSql,
+  validate,
+} from './base';
 
 /**
  * Closeout A2 downtime log (M8 runbook gap; synthetic only). A window records that the tenant or some
@@ -386,17 +396,24 @@ export function createDowntimeOperations(base: MigrationBase) {
         await decide(ctx, op);
         const q = query ?? {};
         validate<{ state?: 'open' | 'ended' }>(validateDowntimeWindowListQuery, q);
+        // Closeout C: signed keyset pages (newest start first, id ascending within one instant).
+        const pg = keysetPage(base, ctx, op, q, DOWNTIME_LIST_LIMIT);
         return deps.withTenantTransaction(ctx, async (tx) => {
-          const { rows } = await tx.query<WindowRow & { pending: number }>(
+          const { rows: fetched } = await tx.query<WindowRow & { pending: number; position: string }>(
             `SELECT w.id, w.scope_kind, w.location_refs, w.reason_code, w.state, w.started_at, w.ended_at, w.version,
                (SELECT count(*)::int FROM cuspatlas.ops_downtime_entries e
-                WHERE e.window_id = w.id AND e.review_state = 'pending_review') AS pending
+                WHERE e.window_id = w.id AND e.review_state = 'pending_review') AS pending,
+               ${positionSql('w.started_at')}
              FROM cuspatlas.ops_downtime_windows w
              WHERE ($1::text IS NULL OR w.state = $1)
+               AND ($3::timestamp IS NULL OR w.started_at AT TIME ZONE 'UTC' < $3::timestamp
+                 OR (w.started_at AT TIME ZONE 'UTC' = $3::timestamp AND w.id > $4::uuid))
              ORDER BY w.started_at DESC, w.id LIMIT $2`,
-            [q.state ?? null, DOWNTIME_LIST_LIMIT],
+            [q.state ?? null, pg.limit + 1, pg.afterAt, pg.afterId],
           );
+          const { rows, nextCursor } = pg.next(fetched);
           return {
+            nextCursor,
             data: rows.map((w) => ({
               windowRef: w.id,
               scope: w.scope_kind,
@@ -423,9 +440,12 @@ export function createDowntimeOperations(base: MigrationBase) {
           validateDowntimeEntryListQuery,
           q,
         );
+        // Closeout C: signed keyset pages (oldest capture first, id ascending within one instant).
+        const pg = keysetPage(base, ctx, op, q, DOWNTIME_LIST_LIMIT);
         return deps.withTenantTransaction(ctx, async (tx) => {
-          const { rows } = await tx.query<{
+          const { rows: fetched } = await tx.query<{
             id: string;
+            position: string;
             window_id: string;
             entry_kind: string;
             summary: string;
@@ -446,14 +466,24 @@ export function createDowntimeOperations(base: MigrationBase) {
           }>(
             `SELECT id, window_id, entry_kind, summary, payload, paper_ref, captured_at, logged_at, logged_by,
                review_state, reviewed_by, reviewed_at, applied_operation, applied_resource_ref, applied_correlation_id,
-               rejection_reason, superseded_by, version
+               rejection_reason, superseded_by, version, ${positionSql('captured_at')}
              FROM cuspatlas.ops_downtime_entries
              WHERE ($1::uuid IS NULL OR window_id = $1) AND ($2::text IS NULL OR review_state = $2)
                AND ($3::text IS NULL OR entry_kind = $3)
+               AND ($5::timestamp IS NULL OR (captured_at AT TIME ZONE 'UTC', id) > ($5::timestamp, $6::uuid))
              ORDER BY captured_at, id LIMIT $4`,
-            [q.windowRef ?? null, q.reviewState ?? null, q.entryKind ?? null, DOWNTIME_LIST_LIMIT],
+            [
+              q.windowRef ?? null,
+              q.reviewState ?? null,
+              q.entryKind ?? null,
+              pg.limit + 1,
+              pg.afterAt,
+              pg.afterId,
+            ],
           );
+          const { rows, nextCursor } = pg.next(fetched);
           return {
+            nextCursor,
             data: rows.map((e) => ({
               entryRef: e.id,
               windowRef: e.window_id,

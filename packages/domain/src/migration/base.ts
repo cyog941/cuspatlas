@@ -14,6 +14,7 @@ import { executeOnce } from '../commands/execute-once';
 import type { CommandExecutor } from '../commands/executor';
 import type { PatientService } from '../patients';
 import type { ActionName, Authorize } from '../policy/authorize';
+import { createSchedulingCursorCodec, type SchedulingCursorCodec } from '../scheduling/cursor';
 import type { PracticeExportDeps } from './practice-export';
 
 export interface MigrationDeps {
@@ -27,11 +28,17 @@ export interface MigrationDeps {
   readonly execute?: CommandExecutor;
   /** M1: the composed S/I/C/E/B exports, the private store and the delivery-grant secret. */
   readonly practiceExport?: PracticeExportDeps;
+  /**
+   * Closeout C: the signed list-cursor codec (the shared CUSPATLAS_CURSOR_KEY ring). Defaults to a
+   * per-process random key for isolated domain tests; transports pass the configured ring.
+   */
+  readonly cursors?: SchedulingCursorCodec;
 }
 
 export interface MigrationBase {
   readonly deps: MigrationDeps;
   readonly execute: CommandExecutor;
+  readonly cursors: SchedulingCursorCodec;
   guarded<T>(ctx: ActorContext, operation: ActionName, work: () => Promise<T>): Promise<T>;
   authorize(ctx: ActorContext, action: ActionName): Promise<void>;
 }
@@ -44,6 +51,7 @@ export function createMigrationBase(deps: MigrationDeps): MigrationBase {
   return {
     deps,
     execute: deps.execute ?? executeOnce,
+    cursors: deps.cursors ?? createSchedulingCursorCodec(),
     guarded: (ctx, operation, work) =>
       withAttemptRecording(
         deps.recording,
@@ -127,4 +135,63 @@ export async function bumpChange(tx: TenantTransaction, packageId: string): Prom
     [packageId],
   );
   return rows[0]?.version ?? 1;
+}
+
+/**
+ * Closeout C: one keyset page of a migration or operations list. The cursor is signed (tenant-bound)
+ * and bound to the listing and its filters; its position is the ordering instant in UTC microseconds
+ * and the row id (`<instant>_<uuid>`). A page fetches `limit + 1` rows; the extra row only says that
+ * another page exists. The SQL uses `position` (see POSITION_SQL) and the after-instant/after-id pair.
+ */
+export interface KeysetPage {
+  readonly limit: number;
+  readonly afterAt: string | null;
+  readonly afterId: string | null;
+  next<R extends { id: string; position: string }>(
+    rows: readonly R[],
+  ): { rows: R[]; nextCursor: string | null };
+}
+
+/** The ordering instant of a row as a cursor position (UTC, microseconds). */
+export const positionSql = (column: string) =>
+  `to_char(${column} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US') AS position`;
+
+export function keysetPage(
+  base: MigrationBase,
+  ctx: ActorContext,
+  listing: string,
+  query: Readonly<Record<string, unknown>>,
+  defaultLimit: number,
+): KeysetPage {
+  const filters = Object.keys(query)
+    .filter((k) => k !== 'limit' && k !== 'cursor')
+    .sort()
+    .map((k) => [k, query[k]]);
+  const scope = `${listing}:${JSON.stringify(filters)}`;
+  const limit = typeof query.limit === 'string' ? Number.parseInt(query.limit, 10) : defaultLimit;
+  let afterAt: string | null = null;
+  let afterId: string | null = null;
+  if (typeof query.cursor === 'string') {
+    const after = base.cursors.decode(ctx.tenantId, scope, query.cursor);
+    const m = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6})_([0-9a-f-]{36})$/.exec(after);
+    if (!m) throw new RefusalError({ code: 'invalid_request' });
+    afterAt = m[1] as string;
+    afterId = m[2] as string;
+  }
+  return {
+    limit,
+    afterAt,
+    afterId,
+    next(rows) {
+      const page = rows.slice(0, limit);
+      const last = page[page.length - 1];
+      return {
+        rows: page,
+        nextCursor:
+          rows.length > limit && last
+            ? base.cursors.encode(ctx.tenantId, scope, `${last.position}_${last.id}`)
+            : null,
+      };
+    },
+  };
 }

@@ -12615,9 +12615,19 @@ paths:
     get:
       operationId: operations.downtime.windows.list
       description: >-
-        Downtime log (M8 runbook): downtime windows of the tenant, newest first (at most 500), with scope,
-        state, bounds and the count of entries still pending review.
+        Downtime log (M8 runbook): downtime windows of the tenant, newest first (signed cursor pages of up
+        to 500), with scope, state, bounds and the count of entries still pending review.
       parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/migration.schema.json#/$defs/PageLimit500'
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/migration.schema.json#/$defs/Cursor'
         - name: state
           in: query
           required: false
@@ -12717,8 +12727,19 @@ paths:
       operationId: operations.downtime.entries.list
       description: >-
         Downtime log (M8 runbook): the reconciliation worklist of transcribed entries, filtered by window,
-        review state and kind, oldest capture first (at most 500), with each review and its linked command.
+        review state and kind, oldest capture first (signed cursor pages of up to 500), with each review and
+        its linked command.
       parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/migration.schema.json#/$defs/PageLimit500'
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/migration.schema.json#/$defs/Cursor'
         - name: windowRef
           in: query
           required: false
@@ -12830,9 +12851,19 @@ paths:
     get:
       operationId: migration.reviewers.list
       description: >-
-        H2 M-5: the tenant migration reviewer list, live and ended assignments, oldest first (at most 500),
-        filtered by role, member and state, with who assigned and who ended each one.
+        H2 M-5: the tenant migration reviewer list, live and ended assignments, oldest first (signed cursor
+        pages of up to 500), filtered by role, member and state, with who assigned and who ended each one.
       parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/migration.schema.json#/$defs/PageLimit500'
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/migration.schema.json#/$defs/Cursor'
         - name: role
           in: query
           required: false

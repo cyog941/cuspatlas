@@ -418,7 +418,7 @@ export const MIGRATION_OPS: MigrationOp[] = [
     refusals: READ,
     tool: 'operations_downtime_entries_list',
     description:
-      'Downtime log (M8 runbook): the reconciliation worklist of transcribed entries, filtered by window, review state and kind, oldest capture first (at most 500), with each review and its linked command.',
+      'Downtime log (M8 runbook): the reconciliation worklist of transcribed entries, filtered by window, review state and kind, oldest capture first (signed cursor pages of up to 500), with each review and its linked command.',
     invoke: (svc, actor, i) => svc.listDowntimeEntries(actor, i.body),
   },
   {
@@ -431,7 +431,7 @@ export const MIGRATION_OPS: MigrationOp[] = [
     refusals: READ,
     tool: 'operations_downtime_windows_list',
     description:
-      'Downtime log (M8 runbook): downtime windows of the tenant, newest first (at most 500), with scope, state, bounds and the count of entries still pending review.',
+      'Downtime log (M8 runbook): downtime windows of the tenant, newest first (signed cursor pages of up to 500), with scope, state, bounds and the count of entries still pending review.',
     invoke: (svc, actor, i) => svc.listDowntimeWindows(actor, i.body),
   },
   // Closeout A6 (H2 M-5): the administrator-facing reviewer list that the sign-off role check reads.
@@ -471,7 +471,7 @@ export const MIGRATION_OPS: MigrationOp[] = [
     refusals: READ,
     tool: 'migration_reviewers_list',
     description:
-      'H2 M-5: the tenant migration reviewer list, live and ended assignments, oldest first (at most 500), filtered by role, member and state, with who assigned and who ended each one.',
+      'H2 M-5: the tenant migration reviewer list, live and ended assignments, oldest first (signed cursor pages of up to 500), filtered by role, member and state, with who assigned and who ended each one.',
     invoke: (svc, actor, i) => svc.listReviewers(actor, i.body),
   },
   // M10 migration export: the migration workspace for audit (B10 carries the opening chain).

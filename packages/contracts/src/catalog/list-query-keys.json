@@ -154,17 +154,23 @@
     "state"
   ],
   "migration.reviewers.list": [
+    "cursor",
+    "limit",
     "principalRef",
     "role",
     "state"
   ],
   "operations.alerts.list": [],
   "operations.downtime.entries.list": [
+    "cursor",
     "entryKind",
+    "limit",
     "reviewState",
     "windowRef"
   ],
   "operations.downtime.windows.list": [
+    "cursor",
+    "limit",
     "state"
   ],
   "patients.duplicates.find": [],

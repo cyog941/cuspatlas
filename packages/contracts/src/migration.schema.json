@@ -12,6 +12,16 @@
       "minimum": 1,
       "maximum": 2147483647
     },
+    "Cursor": {
+      "type": "string",
+      "description": "Opaque, tenant-bound, HMAC-protected. Never parse it.",
+      "pattern": "^[A-Za-z0-9_-]{1,600}\\.[A-Za-z0-9_-]{22}$"
+    },
+    "PageLimit500": {
+      "type": "string",
+      "description": "Closeout C: page size of a cursor-paged list, 1 to 500 (default 500).",
+      "pattern": "^([1-9]|[1-9][0-9]|[1-4][0-9][0-9]|500)$"
+    },
     "Uuid": {
       "type": "string",
       "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
@@ -2127,6 +2137,8 @@
       "additionalProperties": false,
       "required": [],
       "properties": {
+        "limit": { "$ref": "#/$defs/PageLimit500" },
+        "cursor": { "$ref": "#/$defs/Cursor" },
         "state": {
           "enum": ["open", "ended"]
         }
@@ -2137,6 +2149,8 @@
       "additionalProperties": false,
       "required": [],
       "properties": {
+        "limit": { "$ref": "#/$defs/PageLimit500" },
+        "cursor": { "$ref": "#/$defs/Cursor" },
         "windowRef": {
           "$ref": "#/$defs/DowntimeWindowRef"
         },
@@ -2151,9 +2165,10 @@
     "DowntimeWindowList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data", "envelope"],
+      "required": ["data", "envelope", "nextCursor"],
       "properties": {
         "envelope": { "$ref": "#/$defs/ListEnvelope" },
+        "nextCursor": { "anyOf": [{ "$ref": "#/$defs/Cursor" }, { "type": "null" }] },
         "data": {
           "type": "array",
           "maxItems": 500,
@@ -2211,9 +2226,10 @@
     "DowntimeEntryList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data", "envelope"],
+      "required": ["data", "envelope", "nextCursor"],
       "properties": {
         "envelope": { "$ref": "#/$defs/ListEnvelope" },
+        "nextCursor": { "anyOf": [{ "$ref": "#/$defs/Cursor" }, { "type": "null" }] },
         "data": {
           "type": "array",
           "maxItems": 500,
@@ -2452,6 +2468,8 @@
       "additionalProperties": false,
       "required": [],
       "properties": {
+        "limit": { "$ref": "#/$defs/PageLimit500" },
+        "cursor": { "$ref": "#/$defs/Cursor" },
         "role": {
           "$ref": "#/$defs/ReviewerRole"
         },
@@ -2466,9 +2484,10 @@
     "ReviewerAssignmentList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data", "envelope"],
+      "required": ["data", "envelope", "nextCursor"],
       "properties": {
         "envelope": { "$ref": "#/$defs/ListEnvelope" },
+        "nextCursor": { "anyOf": [{ "$ref": "#/$defs/Cursor" }, { "type": "null" }] },
         "data": {
           "type": "array",
           "maxItems": 500,

@@ -14,7 +14,17 @@ import {
 } from '@cuspatlas/contracts';
 import { recordCommand } from '../events/record-command';
 import type { ActionName } from '../policy/authorize';
-import { checkEnvelope, conflict, failed, isPgError, type MigrationBase, notFound, validate } from './base';
+import {
+  checkEnvelope,
+  conflict,
+  failed,
+  isPgError,
+  keysetPage,
+  type MigrationBase,
+  notFound,
+  positionSql,
+  validate,
+} from './base';
 
 /**
  * Closeout A6 (H2 M-5 open item; synthetic only): the administrator-facing reviewer list. A tenant-wide
@@ -173,15 +183,20 @@ export function createReviewerOperations(base: MigrationBase) {
         await base.authorize(ctx, op);
         const q = query ?? {};
         validate<ReviewerListQuery>(validateReviewerListQuery, q);
+        // Closeout C: signed keyset pages (oldest assignment first, id ascending within one instant).
+        const pg = keysetPage(base, ctx, op, q as Readonly<Record<string, unknown>>, REVIEWER_LIST_LIMIT);
         return deps.withTenantTransaction(ctx, async (tx) => {
-          const { rows } = await tx.query<AssignmentRow>(
-            `SELECT ${COLUMNS} FROM cuspatlas.migration_reviewer_assignments
+          const { rows: fetched } = await tx.query<AssignmentRow & { position: string }>(
+            `SELECT ${COLUMNS}, ${positionSql('assigned_at')} FROM cuspatlas.migration_reviewer_assignments
              WHERE ($1::text IS NULL OR role = $1) AND ($2::uuid IS NULL OR principal_id = $2::uuid)
                AND ($3::text IS NULL OR (revoked_at IS NULL) = ($3 = 'active'))
+               AND ($5::timestamp IS NULL OR (assigned_at AT TIME ZONE 'UTC', id) > ($5::timestamp, $6::uuid))
              ORDER BY assigned_at, id LIMIT $4`,
-            [q.role ?? null, q.principalRef ?? null, q.state ?? null, REVIEWER_LIST_LIMIT],
+            [q.role ?? null, q.principalRef ?? null, q.state ?? null, pg.limit + 1, pg.afterAt, pg.afterId],
           );
+          const { rows, nextCursor } = pg.next(fetched);
           return {
+            nextCursor,
             data: rows.map((r) => ({
               assignmentRef: r.id,
               principalRef: r.principal_id,

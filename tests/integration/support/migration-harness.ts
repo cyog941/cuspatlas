@@ -42,6 +42,12 @@ const resolveBody = (f: F) => ({
   reasonCode: 'reviewed',
 });
 
+const applyBody = (f: F) => ({
+  packageRef: f.alphaMigrationPackage,
+  expectedPlanDigest: '0'.repeat(64),
+  batchSize: 1,
+});
+
 export const MIGRATION_HARNESS_ROWS: Row[] = [
   {
     operation: 'migration.sourceProfiles.register',
@@ -83,6 +89,22 @@ export const MIGRATION_HARNESS_ROWS: Row[] = [
     rest: (f) => post('/v1/migration/review-items/resolve', resolveBody(f)),
     mcpArgs: (f) => keyed(resolveBody(f)),
   },
+  {
+    operation: 'migration.imports.plan',
+    tool: 'migration_imports_plan',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => get(`/v1/migration/imports/plan?${pq(f)}`),
+    mcpArgs: (f) => ({ packageRef: f.alphaMigrationPackage }),
+  },
+  {
+    operation: 'migration.imports.apply',
+    tool: 'migration_imports_apply',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => post('/v1/migration/imports/apply', applyBody(f)),
+    mcpArgs: (f) => keyed(applyBody(f)),
+  },
 ];
 
 type Owner = (
@@ -120,4 +142,5 @@ export const MIGRATION_STATE_SQL: readonly string[] = [
   'SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.migration_packages',
   'SELECT count(*)::int AS n FROM cuspatlas.migration_staged_records',
   'SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.migration_review_items',
+  'SELECT count(*)::int AS n FROM cuspatlas.migration_applied_records',
 ];

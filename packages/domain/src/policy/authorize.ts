@@ -497,6 +497,8 @@ export const ACTION_POLICIES = {
   'migration.packages.read': { scope: 'migration.read', principals: ['human', 'service'] },
   'migration.reviewItems.list': { scope: 'migration.read', principals: ['human', 'service'] },
   'migration.reviewItems.resolve': { scope: 'migration.write', principals: ['human'] },
+  'migration.imports.plan': { scope: 'migration.read', principals: ['human', 'service'] },
+  'migration.imports.apply': { scope: 'migration.write', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

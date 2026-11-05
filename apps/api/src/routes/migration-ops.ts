@@ -98,6 +98,32 @@ export const MIGRATION_OPS: MigrationOp[] = [
       'M2/M4: record a staff decision on one review item (exclude, archive only, accept the proposal, or an identity decision). Resolved once; any decision invalidates an earlier reconciliation sign-off.',
     invoke: (svc, actor, i) => svc.resolveReviewItem(actor, env('migration.reviewItems.resolve', i)),
   },
+  {
+    method: 'get',
+    path: '/v1/migration/imports/plan',
+    operationId: 'migration.imports.plan',
+    protected: true,
+    query: 'PackageQuery',
+    success: { status: '200', schema: M('ImportPlan') },
+    refusals: READ,
+    tool: 'migration_imports_plan',
+    description:
+      'M3: dry run. The full import plan of one package (per-entity staged, planned, applied, excluded and blocked counts, exceptions with the required action) and its digest. Writes nothing.',
+    invoke: (svc, actor, i) => data(svc.planImport(actor, i.body)),
+  },
+  {
+    method: 'post',
+    path: '/v1/migration/imports/apply',
+    operationId: 'migration.imports.apply',
+    protected: true,
+    requestBody: M('ImportApply'),
+    success: { status: '200', schema: M('ImportApplyResult') },
+    refusals: COMMAND,
+    tool: 'migration_imports_apply',
+    description:
+      'M3: apply one bounded batch of exactly the planned operations (409 plan_digest_changed when the plan moved). Idempotent per source record and resumable after a crash; patients through S4 createPatient only, legacy appointments and procedures as archive references only. Call again until remaining is 0.',
+    invoke: (svc, actor, i) => svc.applyImport(actor, env('migration.imports.apply', i)),
+  },
 ];
 
 export const MIGRATION_OP_ROUTES = (): RouteContract[] =>

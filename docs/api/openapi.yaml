@@ -11168,6 +11168,72 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/migration/imports/plan:
+    get:
+      operationId: migration.imports.plan
+      description: >-
+        M3: dry run. The full import plan of one package (per-entity staged, planned, applied, excluded and
+        blocked counts, exceptions with the required action) and its digest. Writes nothing.
+      parameters:
+        - name: packageRef
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/migration.schema.json#/$defs/PackageRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/ImportPlan'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/migration/imports/apply:
+    post:
+      operationId: migration.imports.apply
+      description: >-
+        M3: apply one bounded batch of exactly the planned operations (409 plan_digest_changed when the plan
+        moved). Idempotent per source record and resumable after a crash; patients through S4 createPatient
+        only, legacy appointments and procedures as archive references only. Call again until remaining is
+        0.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/migration.schema.json#/$defs/ImportApply'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/ImportApplyResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   # END generated: MIGRATION_OPS
 components:
   securitySchemes:

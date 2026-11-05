@@ -217,6 +217,7 @@ describe('runtime database role', () => {
       'message_receipts',
       'message_templates',
       'message_threads',
+      'migration_applied_records',
       'migration_packages',
       'migration_review_items',
       'migration_source_profiles',

@@ -370,6 +370,8 @@ const TOOL_NAMES = [
   'migration_packages_read',
   'migration_review_items_list',
   'migration_review_items_resolve',
+  'migration_imports_plan',
+  'migration_imports_apply',
 ].sort();
 
 let db: TestDatabase;

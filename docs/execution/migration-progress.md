@@ -24,6 +24,7 @@ format; a real adapter is a new format/version in `SOURCE_ADAPTERS` (MG-01).
 | Task | State | Evidence |
 |---|---|---|
 | M2 intake and mapping | tested (synthetic) | `tests/integration/migration-intake.test.ts`; negative-harness rows |
+| M3 dry run and staged import | tested (synthetic) | `tests/integration/migration-import.test.ts`; harness rows |
 
 ### M2
 
@@ -44,3 +45,24 @@ format; a real adapter is a new format/version in `SOURCE_ADAPTERS` (MG-01).
   red phase is the guard failure rather than a missing feature (recorded honestly).
 - Deviation: the raw package is kept in `migration_packages.raw` (dedicated staging store) rather
   than an I1 object; I1 bytes storage is not needed for CSV text and stays untouched.
+
+### M3
+
+- `migration.imports.plan` (dry run, read scope, human or service): a pure function of the staged
+  rows, the review decisions and the adapter version; returns per-entity staged/planned/applied/
+  excluded/blocked counts, exceptions with the required action, and the plan digest. Proven to leave
+  every application table's row count unchanged (no sensitive-read row either: no source values).
+- `migration.imports.apply` (write scope, human or service): refuses `plan_digest_changed`; applies
+  one bounded batch (1..200) in plan order (patients first). One `migration_applied_records` row per
+  source record (unique staged record, append-only): a re-run applies nothing twice. Patients only via
+  S4 `createPatient` (idempotency key per staged record) with a `prior_system` identifier and a
+  per-record `external_record` identifier, so a crashed run finds the patient it already created
+  even after idempotency rows expire (tested with a simulated crash after the S4 commit).
+- Historical appointments and procedures are archive references (`historicalReference`, minute/day
+  precision, legacy status/code kept): no S10 booking, S11 attendance or C clinical fact is created
+  (separate facts). Procedures need a reviewed legacy code (`archiveOnly`); future appointments are
+  queued for rebooking through scheduling and never booked by the import.
+- The apply route validates the Idempotency-Key but relies on per-record idempotency (it is not a
+  stored-result command); every applied batch is audited and bumps the change sequence.
+- Red: 6/6 failing (exit 1, routes absent). Green: 6/6; full suite 2860/2860.
+- Owning-scope note: the operator also needs `patients.write` (S4 authorizes its own command).

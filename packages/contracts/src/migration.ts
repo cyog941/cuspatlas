@@ -120,3 +120,4 @@ export const validatePackageIntake = def('PackageIntake');
 export const validatePackageQuery = def('PackageQuery');
 export const validateReviewItemListQuery = def('ReviewItemListQuery');
 export const validateReviewItemResolve = def('ReviewItemResolve');
+export const validateImportApply = def('ImportApply');

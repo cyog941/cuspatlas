@@ -1,5 +1,7 @@
+import { loadSettings } from '../billing/base';
 import { createMigrationBase, failed, type MigrationDeps } from './base';
 import { createIntakeOperations } from './intake';
+import { createImportOperations } from './plan';
 
 /**
  * The migration service (workstream M: M2-M6). The only command/query layer for the migration
@@ -15,6 +17,10 @@ export function createMigrationService(deps: MigrationDeps) {
       existingPatient: async () => {
         throw failed('decision_not_allowed');
       },
+    }),
+    ...createImportOperations(base, {
+      financial: null,
+      currency: async (tx) => (await loadSettings(tx)).currency,
     }),
   };
 }

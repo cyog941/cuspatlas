@@ -561,6 +561,53 @@ export const ACTION_POLICIES = {
   'practice.export.grant': { scope: 'admin.configure', principals: ['human'] },
   'practice.export.download': { scope: 'admin.configure', principals: ['human'] },
   'practice.export.verify': { scope: 'admin.configure', principals: ['human'] },
+  // Workstream A batch 2, A8 agent principals (synthetic; A-D9 open): the lifecycle is a human
+  // administrator's act under the non-delegable agents.manage scope, so no agent can create, sponsor,
+  // suspend or revoke an agent. One agent record is readable by an agent (its own grants, A23 seam);
+  // the registry and the separate agent-audit stream are human reads.
+  'agents.principals.create': { scope: 'agents.manage', principals: ['human'] },
+  'agents.principals.suspend': { scope: 'agents.manage', principals: ['human'] },
+  'agents.principals.resume': { scope: 'agents.manage', principals: ['human'] },
+  'agents.principals.revoke': { scope: 'agents.manage', principals: ['human'] },
+  'agents.credentials.rotate': { scope: 'agents.manage', principals: ['human'] },
+  'agents.sponsors.change': { scope: 'agents.manage', principals: ['human'] },
+  'agents.principals.read': { scope: 'agents.read', principals: ['human', 'service'] },
+  'agents.principals.list': { scope: 'agents.read', principals: ['human'] },
+  'agents.audit.list': { scope: 'agents.read', principals: ['human'] },
+  // A9 consent and budgets (A-D3 open): consent is granted and revoked by a human holding
+  // agents.manage; the registry is a human read; an agent may read its own budget usage.
+  'agents.consents.record': { scope: 'agents.manage', principals: ['human'] },
+  'agents.consents.revoke': { scope: 'agents.manage', principals: ['human'] },
+  'agents.consents.list': { scope: 'agents.read', principals: ['human'] },
+  'agents.budgets.read': { scope: 'agents.read', principals: ['human', 'service'] },
+  // A10 generalized prepare/commit (A-D4 pending): anyone holding the proposed operation's own
+  // authority (an agent included) may prepare; approval and commit are a human's act under the
+  // non-delegable actions.approve; an agent reads only its own proposals.
+  'actions.proposals.prepare': { scope: 'actions.prepare', principals: ['human', 'service'] },
+  'actions.proposals.approve': { scope: 'actions.approve', principals: ['human'] },
+  'actions.proposals.commit': { scope: 'actions.approve', principals: ['human'] },
+  'actions.proposals.abandon': { scope: 'actions.prepare', principals: ['human', 'service'] },
+  'actions.proposals.read': { scope: 'actions.read', principals: ['human', 'service'] },
+  'actions.proposals.list': { scope: 'actions.read', principals: ['human', 'service'] },
+  // A11 draft-only AI (A-D5/A-D6 pending; synthetic model only): a person or an agent may request a
+  // draft from records it can already read; only a person (ai.review, non-delegable) accepts or
+  // rejects one; switching use cases is practice configuration.
+  'ai.drafts.create': { scope: 'ai.draft', principals: ['human', 'service'] },
+  'ai.drafts.read': { scope: 'ai.read', principals: ['human', 'service'] },
+  'ai.drafts.list': { scope: 'ai.read', principals: ['human', 'service'] },
+  'ai.drafts.accept': { scope: 'ai.review', principals: ['human'] },
+  'ai.drafts.reject': { scope: 'ai.review', principals: ['human'] },
+  'ai.useCases.list': { scope: 'ai.read', principals: ['human', 'service'] },
+  'ai.useCases.configure': { scope: 'admin.configure', principals: ['human'] },
+  // A12 evaluation (A-S3 open): running the harness is practice configuration by a person; runs are
+  // readable with ai.read.
+  'ai.evaluations.run': { scope: 'admin.configure', principals: ['human'] },
+  'ai.evaluations.list': { scope: 'ai.read', principals: ['human', 'service'] },
+  // A13 prescribing envelope (no qualified partner): drafting and submission are a human
+  // prescriber's acts; prescriptions.submit (controlled substances included) is non-delegable.
+  'prescriptions.drafts.create': { scope: 'prescriptions.draft', principals: ['human'] },
+  'prescriptions.submit': { scope: 'prescriptions.submit', principals: ['human'] },
+  'prescriptions.cancel': { scope: 'prescriptions.draft', principals: ['human'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**
@@ -569,6 +616,43 @@ export const ACTION_POLICIES = {
  * (`policy_changed`). Bump it whenever a rule that an approver relied on changes.
  */
 export const PROPOSAL_POLICY_VERSION = 'synthetic-proposals.1';
+
+/**
+ * A10 / A-D4 (pending approval): operations an agent may only PREPARE (catalog `approval: proposal`).
+ * They are human only (H1): a human keeps the direct path, a non-agent service is refused
+ * (`principal_kind_denied`), and an agent calling one directly is refused (`proposal_required`) and must
+ * go through actions.proposals.* with a distinct human approver (`proposerAllows`).
+ */
+export const PROPOSAL_REQUIRED_FOR_AGENTS: ReadonlySet<string> = new Set([
+  'portal.principals.enroll',
+  'communications.consents.record',
+  'patients.relationships.add',
+  'billing.plans.authorize',
+]);
+
+/**
+ * A10: may this live membership PREPARE (and, at commit, still stand behind) a proposal for `action`?
+ * The operation's own policy, except that an agent service principal also qualifies for an operation in
+ * PROPOSAL_REQUIRED_FOR_AGENTS (a human-only operation an agent may only propose). Never used for the
+ * direct path, where `authorize` refuses that agent with `proposal_required`.
+ */
+export function proposerAllows(
+  m: MembershipRecord | null,
+  kind: PrincipalKind,
+  action: ActionName,
+): SecurityReasonCode | null {
+  if (
+    m?.active &&
+    m.agent &&
+    kind === 'service' &&
+    m.principal === kind &&
+    PROPOSAL_REQUIRED_FOR_AGENTS.has(action)
+  ) {
+    const scope = ACTION_POLICIES[action].scope;
+    return scope !== null && !m.scopes.includes(scope) ? 'scope_missing' : null;
+  }
+  return membershipAllows(m, kind, action);
+}
 
 /**
  * Pure check of a live membership record against an action's policy (used to recheck other
@@ -633,6 +717,9 @@ export function createAuthorize(memberships: MembershipSource): Authorize {
 
     const m = await memberships.load(ctx.actorId, ctx.tenantId);
     if (!m?.active) deny('membership_inactive');
+    // A10: an agent reaching a propose-only (human-only) operation directly is told to propose it.
+    if (m.agent && m.principal === ctx.principal && PROPOSAL_REQUIRED_FOR_AGENTS.has(action))
+      deny('proposal_required');
     if (m.principal !== ctx.principal || !policy.principals.includes(m.principal))
       deny('principal_kind_denied');
     if (policy.scope !== null && !(m.scopes.includes(policy.scope) && ctx.scopes.includes(policy.scope))) {

@@ -145,3 +145,202 @@ Branch `codex/a-api-1`, based on the integrated F+S+C+E+I+B head `6871689`.
 - OR-02 version coverage: `VOCABULARY_BEARING` (contracts) makes the transports add top-level `vocabularies: {name: version}` to `scheduling.appointments.read`, `scheduling.attendance.list`, `scheduling.attendance.visitStatus`, `scheduling.worklist.daily` (attendance, appointment booking), the eight work-item lists (work-item kind), `rcm.claims.read` (claim, appeal), `rcm.claims.queues` (claim), `messaging.threads.read`/`.list` (message thread) and `communications.deliveries.read` (outbound message). Not yet covered: other module reads carrying codes (clinical, imaging, migration, intake, portal).
 - B11 (OR-07): `GET /v1/rcm/claims/queues` (`rcm.claims.queues`, MCP `rcm_claims_queues`, scope `openClaims.read`) returns one queue (`queue`, default `all`) with every queue's count in the same call, the OR-01 envelope (count exact from `data.queueCount`) and the claim vocabulary version. Predicates in `packages/domain/src/rcm/claim-queues.ts` over the derived claim state, head validation issues, appeals and open B8 escalations: `to_create` (posted clinical-procedure charges, not reversed or replaced, on no claim, patient has coverage), `ready_to_submit` (validated), `attachments_needed` (prepared/replaced with an `attachment_*` issue), `awaiting_payer` (transmitted, payer_acknowledged), `returned` (transport_rejected), `rejected_or_denied` (payer_rejected, denied), `appeals` (an appeal draft/sent/send_unknown), `filing_deadline_soon` (not yet with the payer and deadline within `filingDeadlineDays`, default 30, 1-730), `paid_closed` (paid), `all` (every claim; charges are not claims). Filing deadline = earliest date of service + 365 days (PROPOSED synthetic timely-filing default, no payer-specific limits yet; date basis UTC). OR-D3 work priority: days to deadline asc (none last), exception severity desc (2 exception state, 1 validation issues, 0, plus open B8 escalation level), createdAt asc, claimRef asc (chargeRef for to_create); documented in the `ClaimQueueResult` schema description. `GET /v1/rcm/claims/measures` (`rcm.claims.measures`, MCP `rcm_claims_measures`, needs `receivables.read` and rechecks `openClaims.read`): `open_insurer_receivable` (insurer_receivable journal balance, money), `claims_over_30_days`, `needs_action` (claims with a CL-08 work item), `open_appeals`, each with definition text, `definitionVersion`, unit, filters and as-of (A16 pattern; A16 itself is not implemented). Tests `tests/integration/claim-queues.test.ts`: nine synthetic subjects each in exactly its expected queues, counts per queue in one call, window default/override and 400 for 0, stable order equal to `compareWorkPriority` on REST and MCP, measures reconciling to the journal sum and the worklist, cross-tenant/no-scope/revoked/receivables-less negatives; billing negative matrix rows added.
 - Open (B11): queue reads scan at most 1000 claims and 1000 to_create charges (beyond that the counts would be lower bounds; not yet signalled as `atLeast`); no location scope (claims carry no location; same as `rcm.claims.worklist`); measures read every claim (no projection); `claims_over_30_days` is only tested at 0 (no back-dated synthetic claim); payer-specific timely filing limits and a practice-local date basis are pending billing review.
+
+## A batch 2
+
+Workstream A batch 2 (A8-A13) on synthetic data only. Framing, recorded before any task:
+
+- A-S1 (MCP authorization revision and remote transport qualification), A-S2 (model provider and
+  data-processing arrangement) and A-S3 (evaluation acceptance criteria and reviewer authority) are
+  blocked-on-discovery. Nothing here qualifies a remote transport, a model provider or an evaluation
+  threshold.
+- No real model call and no network egress: the AI pipeline runs only against a deterministic fake
+  model adapter, constructed by the API and MCP builders under `synthetic-test` only (the billing
+  adapter pattern). A missing model adapter disables the AI operations with a typed 503
+  (`service_unavailable`, reason `adapter_not_configured`).
+- AI output is always a draft. Nothing an AI produces becomes signed, posted, sent or booked without a
+  human command through the owning workstream.
+- Prescribing (A13): no e-prescribing partner exists. Only the operation envelope and the refusal
+  semantics are implemented; every prescribing operation refuses with a typed reason
+  (`prescribing_not_available`), never a fake success.
+- Every decision below is recommended-pending-approval.
+
+### A8: agent principals, sponsorship, revocation and separated audit
+
+- Red: `tests/integration/api-agent-identity.test.ts` 14 failed (exit 1) before the implementation;
+  green 14/14 after.
+- An agent is a service principal with an agent record (`agent_principals`, migration
+  `20261201000000`): one named human sponsor (the creating human), a purpose, a recorded scope set, an
+  expiry (required, at most 90 days: A-D9 open), a rotatable credential reference and terminal
+  revocation. The principal, membership and agent rows are written only by checked SECURITY DEFINER
+  functions that re-check a live human manager holding `agents.manage`.
+- Scope ceiling: an agent scope must be grantable (a scope some service-admitting operation uses, from
+  the generated scope registry) and not in the non-delegable set (`clinical.sign`,
+  `clinical.oversight`, `agents.manage`, `actions.approve`, `ai.review`, `prescriptions.submit`), and
+  the sponsor must hold it. A human-only scope is refused (`human_only_scope`).
+- Live authority: the membership source folds the agent state, expiry and the sponsor's live human
+  membership into every load and narrows scopes to the agent's set (reads only while suspended).
+  Because `authorize`, the MCP transport and the worker all reload memberships per call, suspension,
+  revocation, expiry and sponsor loss apply at the next call, including an open MCP session and work
+  the agent already queued (the worker refuses it as `membership_inactive`).
+- Credentials: an agent token's `sid` must equal the current credential reference; after rotation the
+  earlier one is `unauthenticated` (`agent_credential_rotated`).
+- Transport (decision, pending approval): agents are admitted only by the MCP authenticator, so consent
+  and budgets (A9) cannot be bypassed; REST refuses an agent credential (`agent_transport_denied`).
+- Separated audit: a SECURITY DEFINER trigger copies every audit row whose actor is an agent into
+  `agent_audit_events` with the sponsorship in force (actor = agent, sponsor = sponsor of record; a
+  check forbids agent = sponsor). A sponsor change is a new append-only sponsorship row, so earlier
+  actions keep their sponsor. Lifecycle events are append-only too.
+- Operations (owner A, 9): `agents.principals.create|suspend|resume|revoke|read|list`,
+  `agents.credentials.rotate`, `agents.sponsors.change`, `agents.audit.list`; lists return the OR-01
+  ListEnvelope. New scopes `agents.manage` (human only) and `agents.read`.
+- Not done: an agent credential presented after its principal record is gone cannot happen here
+  (principals are never deleted); the authorization server that would mint agent tokens is out of
+  scope (A-S1).
+
+### A9: MCP consent and per-call budgets
+
+- Red: `tests/integration/mcp-budgets.test.ts` 10 failed / 1 passed (exit 1); green 11/11 after.
+- The remote transport itself remains blocked on A-S1 (no revision or audience qualification is
+  claimed). What is implemented is the server-side consent and budget gate every MCP tool call of an
+  agent passes, on the existing stateless Streamable HTTP endpoint.
+- Consent (migration `20261201010000`): a human holding `agents.manage` records which agent may call
+  which catalog operations on which deployment (the MCP resource identifier, the token audience),
+  with a budget and an expiry no later than the agent's. An operation is consentable only if the
+  catalog lists it on MCP, admits a service principal and its scope is in the agent's scope set
+  (`consent_scope_exceeded`, `consent_operation_not_agent_callable`). Revocation is effective on the
+  next call of an open session.
+- Gate (apps/mcp/src/server.ts `callTool`): for an agent, before any argument check or handler, an
+  active unexpired consent for this deployment naming the tool's operation (else 403
+  `consent_missing`, recorded as a security attempt), then one call reserved atomically against the
+  period budget (else 429 `rate_limited` with `detail.reason = budget_exhausted`, the limit name and
+  the earliest retry time). After the handler, records and PHI scalar fields (operations whose
+  catalog sensitivity is phi/phiBulk) are counted: a query result over `recordsPerCall`,
+  `phiFieldsPerCall` or the remaining period budget is refused and never returned (not silently
+  shortened); a command is counted and logged only (it has already committed). A failed accounting
+  write aborts the call. Every admitted agent call (allowed or refused) is appended to
+  `agent_tool_calls`.
+- Ceilings (A-D3, pending approval): the schema maxima are the hard ceilings (calls 100000/period,
+  records 1000/call, PHI fields 100000/call, period 60 s to 24 h); a budget above them is refused at
+  recording (400). Humans and non-agent service principals are not subject to agent consent.
+- RFC 9728 metadata now states `cuspatlas_agent_consent: required` and the budgeted dimensions.
+- Operations (4): `agents.consents.record|revoke|list`, `agents.budgets.read` (an agent may read only
+  its own usage).
+- Not done (A-S1): truncation with a resume cursor and wall-clock budgets with unknown-outcome
+  recording are not implemented; the current rule refuses an oversized query result instead.
+
+### A10: generalized prepare/commit and non-self approval
+
+- Red: `tests/integration/action-proposals.test.ts` failed at setup (exit 1, 10 skipped: no
+  `actions.*` scope or operation existed); green 11/11 after.
+- The catalog now carries `approval: proposal` on the A-D4 grey-zone operations
+  (`portal.principals.enroll`, `communications.consents.record`, `patients.relationships.add`,
+  `billing.plans.authorize`); the domain registry (`ELEVATED_OPERATIONS`) and `authorize`'s
+  `PROPOSAL_REQUIRED_FOR_AGENTS` are asserted equal to it. This replaces "human-only" with "an agent
+  may prepare, a human approves" for those four, consistent with the AI default. A human or a non-agent
+  service keeps the direct path (no principal removed from the A5 baseline); an agent calling one
+  directly is refused (`proposal_required`).
+- Proposal (`operation_proposals`, migration `20261201020000`): operation, payload and canonical
+  digest, bound resource versions (patient version, or the plan's expected version which the owning
+  command checks), policy version `actions.1`, proposer and kind, an agent proposer's sponsor of record,
+  one-hour expiry (A-D4 open). Terminal states are guarded by a trigger and never revived.
+- Approval: a human holding `actions.approve` (non-delegable) and authorized for the proposed
+  operation; never the proposer and never the agent proposer's sponsor of record or current sponsor
+  (`self_approval_denied`; also a table check). A human cannot approve a proposal the same human
+  prepared (A-D4 recommended rule; the F7a synthetic exception is not carried over).
+- Commit (human, `actions.approve`): rechecks the proposer's and approver's live memberships
+  (a revoked agent proposer gives `approval_invalid`), digest (`payload_mismatch` closes it), expiry
+  (`proposal_expired`), policy version and resource versions (`stale_version` closes it), claims the
+  proposal for the committer, then runs the owning command as that human with `proposal:<id>` as its
+  idempotency key: one effect for repeated or concurrent commits; a committed proposal replays. An
+  owning-command refusal closes the proposal with `owner_<code>`; an unknown failure leaves it
+  claimed and committable by the same human, reconciled by the owner's idempotency key.
+- Operations (6): `actions.proposals.prepare|approve|commit|abandon|read|list` (list in the OR-01
+  envelope; an agent sees only its own). Scopes `actions.prepare`, `actions.approve` (human only),
+  `actions.read`.
+- Not done: deprecation of a proposed operation between prepare and commit is refused by the policy
+  version only (no operation is deprecated at this head); the F7a synthetic proposal service is left
+  as it is (it is its own frozen synthetic contract).
+
+### A11: draft-only AI pipeline with explicit human sign-off
+
+- Red: `tests/integration/ai-boundary.test.ts` run against the pre-implementation tree (implementation
+  stashed): 2 failed, 9 skipped (exit 1); green 11/11 after.
+- Port (`packages/domain/src/agents/ai-port.ts`): `ModelAdapter` with an explicit unavailable outcome.
+  The only adapter is the deterministic synthetic model (no network, no randomness), built by the API
+  and MCP builders under synthetic-test only (`resolveModelAdapter`; an injected adapter outside
+  synthetic-test refuses startup). No adapter: every AI operation is 503 `adapter_not_configured`
+  before anything is read or written. Egress policy (A-D5): only `synthetic-local` passes; any
+  provider adapter is refused before a request is built (A-S2 blocks every provider).
+- AS-07 use-case registry: `clinicalNoteDraft`, `patientMessageDraft`, `claimReadinessExplanation`
+  (recommended-pending-approval) and `diagnosisSuggestion` registered as not approved (A-D6: no
+  diagnosis); an unapproved use case can neither run nor be enabled. Every use case is off per tenant
+  until an administrator enables it; a tenant-wide switch turns all off; deterministic workflows are
+  unaffected (a human note is written with AI switched off).
+- Pipeline: each source is read through its owning service AS the caller (hidden and missing are one
+  404), minimized (references, identifiers and timestamps dropped), wrapped as quoted data with the
+  delimiters neutralized, and the instructions state that source text is never an instruction. Flags:
+  `injection_suspected` (instruction-like source text) and `unsupported_reference` (a tooth, date or
+  procedure code in the draft that no source contains). A flagged draft can be accepted only with a
+  human edit. A model outage is 503 `model_unavailable` and persists nothing.
+- Drafts (`ai_drafts`, migration `20261201030000`): use case, text, model, prompt version, source
+  references with the versions they were built from, flags, creator; provenance is immutable (trigger)
+  and a decided draft never changes. Freshness is rechecked on read and accept; a changed source makes
+  the draft `stale` (not silently re-offered) and acceptance is refused.
+- Acceptance (human only, `ai.review`): through the owning command as that person, idempotent on
+  `ai-draft:<id>`: a clinical note DRAFT with `source: ai_draft` and the model and prompt references
+  (signing stays `clinical.notes.sign` by a person with `clinical.sign`), or a staff message (E5);
+  a claim-readiness explanation is acknowledged only. Reject records a reason.
+- Prompt injection proven with a hostile synthetic note: the draft is flagged, no note is signed,
+  nothing is sent, and the hostile note itself is unchanged.
+- Operations (7): `ai.drafts.create|read|list|accept|reject`, `ai.useCases.list|configure`. Scopes
+  `ai.draft`, `ai.read`, `ai.review` (human only).
+- Not done: the message-draft and claim-explanation acceptance paths are wired but exercised only by
+  their refusal cases here (no thread or claim fixture in this suite); the full ordinary-day scenario
+  is not re-run with the port removed (the switch-off case proves a human note still works).
+
+### A12: evaluation harness, red-team corpus and the regression gate
+
+- Red: `tests/integration/ai-eval-gate.test.ts` 8 failed (exit 1: no case sets, no run operation);
+  green 8/8 after; `ai-boundary.test.ts` updated so enabling first needs a passing run (11/11).
+- Versioned synthetic case sets per runnable use case (`AI_EVAL_CASE_SETS`, versions equal to the
+  registry's `caseSetVersion`) with faithfulness cases and a red-team part: prompt injection, PHI
+  exfiltration attempts (contact values and links are now redacted before the model, and the output
+  is checked for them), out-of-scope tool requests, and an outage case.
+- Runner: every case through the same minimization, quoting and flagging as the pipeline,
+  `repetitions` times. Per-case verdict, never aggregate: one failing case fails the run and is named;
+  fewer than 3 repetitions or availability below 0.5 is inconclusive; outages are availability only.
+  Thresholds (all 1.0 for faithfulness, injection, minimization, refusal) are recorded with reasons in
+  `docs/ai/evaluation.md`, pending approval under A-S3.
+- Gate of record: the latest run of the CURRENT model, prompt version and case set (`stale` when only
+  other identities were evaluated, `none` without a run). Enabling a use case requires `pass`, and
+  every draft request rechecks it, so a later failing run suspends the use case. A candidate prompt
+  (`note-draft.1.weak`, which fabricates a tooth and a date) fails with `nd-faith-1` named and leaves
+  the current gate alone. Runs are append-only (`ai_evaluation_runs`, migration `20261201040000`).
+- Evidence: AS-07 (use-case registry), AS-09 (evaluation) and AS-10 (human oversight) added to
+  `docs/assurance/controls.json`, bound to their suites in the evidence manifest (unreviewed, not
+  certified).
+- Operations (2): `ai.evaluations.run` (human, `admin.configure`), `ai.evaluations.list`.
+- Not done: manual-verdict cases and reviewer sign-off (A-S3); subgroup performance; drift monitoring
+  beyond the per-request gate.
+
+### A13: prescribing operation envelope and refusal semantics
+
+- Red: `tests/integration/prescribing-envelope.test.ts` 6 failed (exit 1: no operations); green 6/6.
+- Envelope only (no partner, no verification source): `prescriptions.drafts.create`,
+  `prescriptions.submit` (requires an A10 `proposalRef` in the contract) and `prescriptions.cancel`,
+  human only; `prescriptions.submit` is non-delegable. Every one refuses after authorization and
+  validation with 503 `service_unavailable`, reason `prescribing_not_available`, blocking references
+  naming each missing fact and capability; nothing is persisted and no success is fabricated.
+- `PrescribingPort` (explicit `unsupported` and `unknown` outcomes) and `PrescriberIdentity` are the
+  seams for a qualified partner; a partner reporting every capability still refuses without a verified
+  prescriber, and the port is never called. Agents are refused on REST (transport) and MCP alike.
+- Qualification note and explicit non-claim: `docs/integrations/prescribing-qualification.md`.
+
+### A batch 2 CI fixes
+
+- First full `ci` run: 5 failed / 3187 passed. Causes: the agent principal and sponsorship tables
+  formed a foreign-key cycle (the restore orders tables by keys: restore smoke, M8/M9 and I9 drills
+  failed); and the S14 structural check listed `agent_consents` as a communication-consent table.
+  Fixed by dropping the back-reference key (the checked functions write both rows together) and by
+  excluding `agent_*` tables from the patient-consent check with the reason stated.

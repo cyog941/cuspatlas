@@ -18,6 +18,8 @@ import {
   type ClaimsPartnerPort,
   type CommandExecutor,
   type CursorCodec,
+  createAgentService,
+  createAiSourceReaders,
   createAppointmentService,
   createAuthorize,
   createBillingEstimatePricing,
@@ -40,11 +42,13 @@ import {
   createVocabularyService,
   type ImageRefResolver,
   type ImagingLimits,
+  type ModelAdapter,
   type PaymentProviderPort,
   readLatestCompletedProcedures,
   resolveIdempotencyDigestKey,
   resolveImagingTokenSecret,
   resolveMatchKeyPepper,
+  resolveModelAdapter,
   type StagingMaintenance,
 } from '@cuspatlas/domain';
 import Fastify, {
@@ -64,6 +68,7 @@ import { registerDeprecationHeaders } from './deprecation';
 import { createDeviceAuthenticator } from './device-auth';
 import { mapErrorToRefusal, safeErrorKind } from './errors';
 import { registerListEnvelope } from './list-envelope-hook';
+import { registerAgentOpRoutes } from './routes/agent-ops';
 import {
   registerAppointmentRoutes,
   registerAttendanceRoutes,
@@ -104,6 +109,8 @@ export interface AppDeps {
   readonly tenantTransactions?: WithTenantTransaction;
   /** Command executor; defaults to the durable executeOnce. Tests may inject a faulting one. */
   readonly execute?: CommandExecutor;
+  /** A11: model adapter; synthetic-test only (default: the synthetic adapter; null: AI disabled). */
+  readonly aiModel?: ModelAdapter | null;
   /** Pagination cursor codec; defaults to a per-process random HMAC key. */
   readonly cursors?: CursorCodec;
   /** Proposal policy version (defaults to PROPOSAL_POLICY_VERSION); tests bump it. */
@@ -432,6 +439,24 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         },
       });
       registerMigrationOpRoutes(app, { authenticator, migration });
+      // Workstream A batch 2 (A8-A13): agents, consent, proposals, AI drafts and prescribing envelope.
+      const agents = createAgentService({
+        authorize,
+        withTenantTransaction: deps.tenantTransactions,
+        recording,
+        execute,
+        memberships: deps.membership,
+        owners: { patients, engagement, billing },
+        ai: {
+          model: resolveModelAdapter(deps.env, deps.aiModel),
+          readers: createAiSourceReaders({ clinical, engagement, billing }),
+          owners: {
+            createNoteDraft: (c, r, e) => clinical.createNoteDraft(c, r, e),
+            postStaffMessage: (c, r, e) => engagement.postStaffMessage(c, r, e),
+          },
+        },
+      });
+      registerAgentOpRoutes(app, { authenticator, agents });
     }
   }
 

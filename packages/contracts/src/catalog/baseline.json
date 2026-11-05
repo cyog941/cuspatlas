@@ -2,6 +2,1341 @@
   "version": 2,
   "operations": [
     {
+      "operation": "actions.proposals.abandon",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "actions.prepare",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/actions/proposals/abandon"
+      },
+      "mcpTool": "actions_proposals_abandon",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "expectedVersion": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 2147483647,
+            "minimum": 1
+          },
+          "proposalRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "reason": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z_]{1,64}$"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "proposalRef",
+          "reason"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "actions.proposals.approve",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "actions.approve",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/actions/proposals/approve"
+      },
+      "mcpTool": "actions_proposals_approve",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "expectedVersion": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 2147483647,
+            "minimum": 1
+          },
+          "payloadDigest": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "proposalRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "payloadDigest",
+          "proposalRef"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "actions.proposals.commit",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "actions.approve",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/actions/proposals/commit"
+      },
+      "mcpTool": "actions_proposals_commit",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "payloadDigest": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "proposalRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "payloadDigest",
+          "proposalRef"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "actions.proposals.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "actions.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/actions/proposals"
+      },
+      "mcpTool": "actions_proposals_list",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
+      "operation": "actions.proposals.prepare",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "actions.prepare",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/actions/proposals"
+      },
+      "mcpTool": "actions_proposals_prepare",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "operation": {
+            "enum": [
+              "\"billing.plans.authorize\"",
+              "\"communications.consents.record\"",
+              "\"patients.relationships.add\"",
+              "\"portal.principals.enroll\""
+            ]
+          },
+          "payload": {
+            "type": [
+              "object"
+            ],
+            "additional": {}
+          }
+        },
+        "required": [
+          "operation",
+          "payload"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "actions.proposals.read",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "actions.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/actions/proposals/state"
+      },
+      "mcpTool": "actions_proposals_get",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
+      "operation": "agents.audit.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agents.read",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/agents/audit"
+      },
+      "mcpTool": "agents_audit_list",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
+      "operation": "agents.budgets.read",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agents.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/agents/budgets"
+      },
+      "mcpTool": "agents_budgets_get",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
+      "operation": "agents.consents.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agents.read",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/agents/consents"
+      },
+      "mcpTool": "agents_consents_list",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
+      "operation": "agents.consents.record",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agents.manage",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/agents/consents"
+      },
+      "mcpTool": "agents_consents_record",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "agentRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "budget": {
+            "type": [
+              "object"
+            ],
+            "closed": true,
+            "properties": {
+              "callsPerPeriod": {
+                "type": [
+                  "integer"
+                ],
+                "maximum": 100000,
+                "minimum": 1
+              },
+              "periodSeconds": {
+                "type": [
+                  "integer"
+                ],
+                "maximum": 86400,
+                "minimum": 60
+              },
+              "phiFieldsPerCall": {
+                "type": [
+                  "integer"
+                ],
+                "maximum": 100000,
+                "minimum": 0
+              },
+              "phiFieldsPerPeriod": {
+                "type": [
+                  "integer"
+                ],
+                "maximum": 10000000,
+                "minimum": 0
+              },
+              "recordsPerCall": {
+                "type": [
+                  "integer"
+                ],
+                "maximum": 1000,
+                "minimum": 0
+              },
+              "recordsPerPeriod": {
+                "type": [
+                  "integer"
+                ],
+                "maximum": 1000000,
+                "minimum": 0
+              }
+            },
+            "required": [
+              "callsPerPeriod",
+              "periodSeconds",
+              "phiFieldsPerCall",
+              "phiFieldsPerPeriod",
+              "recordsPerCall",
+              "recordsPerPeriod"
+            ]
+          },
+          "deployment": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[A-Za-z0-9:._/-]{1,200}$"
+          },
+          "expiresAt": {
+            "type": [
+              "string"
+            ],
+            "maxLength": 40,
+            "format": "date-time"
+          },
+          "operations": {
+            "type": [
+              "array"
+            ],
+            "maxItems": 400,
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": [
+                "string"
+              ],
+              "maxLength": 128,
+              "pattern": "^[a-z][A-Za-z]{0,40}(\\.[a-z][A-Za-z]{0,40}){0,3}$"
+            }
+          }
+        },
+        "required": [
+          "agentRef",
+          "budget",
+          "deployment",
+          "expiresAt",
+          "operations"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "agents.consents.revoke",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agents.manage",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/agents/consents/revoke"
+      },
+      "mcpTool": "agents_consents_revoke",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "consentRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "expectedVersion": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 2147483647,
+            "minimum": 1
+          }
+        },
+        "required": [
+          "consentRef",
+          "expectedVersion"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "agents.credentials.rotate",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agents.manage",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/agents/credentials/rotate"
+      },
+      "mcpTool": "agents_credentials_rotate",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "agentRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "expectedVersion": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 2147483647,
+            "minimum": 1
+          },
+          "reason": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z_]{1,64}$"
+          }
+        },
+        "required": [
+          "agentRef",
+          "expectedVersion"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "agents.principals.create",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agents.manage",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/agents/principals"
+      },
+      "mcpTool": "agents_principals_create",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "expiresAt": {
+            "type": [
+              "string"
+            ],
+            "maxLength": 40,
+            "format": "date-time"
+          },
+          "purpose": {
+            "type": [
+              "string"
+            ],
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[^\\u0000-\\u001f]*$"
+          },
+          "scopes": {
+            "type": [
+              "array"
+            ],
+            "maxItems": 64,
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": [
+                "string"
+              ],
+              "maxLength": 64,
+              "pattern": "^[a-z][a-zA-Z]*\\.[a-z][a-zA-Z]*$"
+            }
+          }
+        },
+        "required": [
+          "expiresAt",
+          "purpose",
+          "scopes"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "agents.principals.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agents.read",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/agents/principals"
+      },
+      "mcpTool": "agents_principals_list",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
+      "operation": "agents.principals.read",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agents.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/agents/principals/state"
+      },
+      "mcpTool": "agents_principals_get",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
+      "operation": "agents.principals.resume",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agents.manage",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/agents/principals/resume"
+      },
+      "mcpTool": "agents_principals_resume",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "agentRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "expectedVersion": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 2147483647,
+            "minimum": 1
+          },
+          "reason": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z_]{1,64}$"
+          }
+        },
+        "required": [
+          "agentRef",
+          "expectedVersion"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "agents.principals.revoke",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agents.manage",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/agents/principals/revoke"
+      },
+      "mcpTool": "agents_principals_revoke",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "agentRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "expectedVersion": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 2147483647,
+            "minimum": 1
+          },
+          "reason": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z_]{1,64}$"
+          }
+        },
+        "required": [
+          "agentRef",
+          "expectedVersion"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "agents.principals.suspend",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agents.manage",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/agents/principals/suspend"
+      },
+      "mcpTool": "agents_principals_suspend",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "agentRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "expectedVersion": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 2147483647,
+            "minimum": 1
+          },
+          "reason": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z_]{1,64}$"
+          }
+        },
+        "required": [
+          "agentRef",
+          "expectedVersion"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "agents.sponsors.change",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agents.manage",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/agents/sponsors/change"
+      },
+      "mcpTool": "agents_sponsors_change",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "agentRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "expectedVersion": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 2147483647,
+            "minimum": 1
+          },
+          "sponsorRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "agentRef",
+          "expectedVersion",
+          "sponsorRef"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "ai.drafts.accept",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "ai.review",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/ai/drafts/accept"
+      },
+      "mcpTool": "ai_drafts_accept",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "draftRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "editedText": {
+            "type": [
+              "string"
+            ],
+            "maxLength": 20000,
+            "minLength": 1
+          },
+          "expectedVersion": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 2147483647,
+            "minimum": 1
+          }
+        },
+        "required": [
+          "draftRef",
+          "expectedVersion"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "ai.drafts.create",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "ai.draft",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/ai/drafts"
+      },
+      "mcpTool": "ai_drafts_create",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "sourceRefs": {
+            "type": [
+              "array"
+            ],
+            "maxItems": 8,
+            "minItems": 1,
+            "items": {
+              "type": [
+                "object"
+              ],
+              "closed": true,
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "\"claim\"",
+                    "\"encounter\"",
+                    "\"note\"",
+                    "\"thread\""
+                  ]
+                },
+                "ref": {
+                  "type": [
+                    "string"
+                  ],
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                }
+              },
+              "required": [
+                "kind",
+                "ref"
+              ]
+            }
+          },
+          "useCase": {
+            "enum": [
+              "\"claimReadinessExplanation\"",
+              "\"clinicalNoteDraft\"",
+              "\"diagnosisSuggestion\"",
+              "\"patientMessageDraft\""
+            ]
+          }
+        },
+        "required": [
+          "sourceRefs",
+          "useCase"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "ai.drafts.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "ai.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/ai/drafts"
+      },
+      "mcpTool": "ai_drafts_list",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
+      "operation": "ai.drafts.read",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "ai.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/ai/drafts/state"
+      },
+      "mcpTool": "ai_drafts_get",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
+      "operation": "ai.drafts.reject",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "ai.review",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/ai/drafts/reject"
+      },
+      "mcpTool": "ai_drafts_reject",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "draftRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "expectedVersion": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 2147483647,
+            "minimum": 1
+          },
+          "reason": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z_]{1,64}$"
+          }
+        },
+        "required": [
+          "draftRef",
+          "expectedVersion",
+          "reason"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "ai.evaluations.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "ai.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/ai/evaluations"
+      },
+      "mcpTool": "ai_evaluations_list",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
+      "operation": "ai.evaluations.run",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "admin.configure",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/ai/evaluations"
+      },
+      "mcpTool": "ai_evaluations_run",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "promptVersionRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z0-9.-]{1,64}$"
+          },
+          "repetitions": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 10,
+            "minimum": 1
+          },
+          "useCase": {
+            "enum": [
+              "\"claimReadinessExplanation\"",
+              "\"clinicalNoteDraft\"",
+              "\"diagnosisSuggestion\"",
+              "\"patientMessageDraft\""
+            ]
+          }
+        },
+        "required": [
+          "useCase"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "ai.useCases.configure",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "admin.configure",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/ai/use-cases/configure"
+      },
+      "mcpTool": "ai_use_cases_configure",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "enabled": {
+            "type": [
+              "boolean"
+            ]
+          },
+          "useCase": {
+            "enum": [
+              "\"claimReadinessExplanation\"",
+              "\"clinicalNoteDraft\"",
+              "\"diagnosisSuggestion\"",
+              "\"patientMessageDraft\""
+            ]
+          }
+        },
+        "required": [
+          "enabled"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "ai.useCases.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "ai.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/ai/use-cases"
+      },
+      "mcpTool": "ai_use_cases_list",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
       "operation": "billing.adjustments.decide",
       "transports": [
         "rest",
@@ -15525,6 +16860,236 @@
         "401",
         "403",
         "404",
+        "503"
+      ]
+    },
+    {
+      "operation": "prescriptions.cancel",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "prescriptions.draft",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/prescriptions/cancel"
+      },
+      "mcpTool": "prescriptions_cancel",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "draftRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "expectedVersion": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 2147483647,
+            "minimum": 1
+          },
+          "reason": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z_]{1,64}$"
+          }
+        },
+        "required": [
+          "draftRef",
+          "expectedVersion",
+          "reason"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "prescriptions.drafts.create",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "prescriptions.draft",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/prescriptions/drafts"
+      },
+      "mcpTool": "prescriptions_drafts_create",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "aiDraftRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "controlledSubstance": {
+            "type": [
+              "boolean"
+            ]
+          },
+          "medication": {
+            "type": [
+              "object"
+            ],
+            "closed": true,
+            "properties": {
+              "form": {
+                "type": [
+                  "string"
+                ],
+                "maxLength": 40,
+                "minLength": 1
+              },
+              "name": {
+                "type": [
+                  "string"
+                ],
+                "maxLength": 120,
+                "minLength": 1
+              },
+              "strength": {
+                "type": [
+                  "string"
+                ],
+                "maxLength": 40,
+                "minLength": 1
+              }
+            },
+            "required": [
+              "form",
+              "name",
+              "strength"
+            ]
+          },
+          "patientRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "quantity": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 10000,
+            "minimum": 1
+          },
+          "refills": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 12,
+            "minimum": 0
+          },
+          "sig": {
+            "type": [
+              "string"
+            ],
+            "maxLength": 500,
+            "minLength": 1
+          }
+        },
+        "required": [
+          "controlledSubstance",
+          "medication",
+          "patientRef",
+          "quantity",
+          "refills",
+          "sig"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "prescriptions.submit",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "prescriptions.submit",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/prescriptions/submit"
+      },
+      "mcpTool": "prescriptions_submit",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "draftRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "expectedVersion": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 2147483647,
+            "minimum": 1
+          },
+          "proposalRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "draftRef",
+          "expectedVersion",
+          "proposalRef"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
         "503"
       ]
     },

@@ -1,5 +1,963 @@
 [
   {
+    "operation": "actions.proposals.abandon",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "actions.proposals.abandon",
+    "scope": "actions.prepare",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/actions/proposals/abandon",
+      "requestSchema": "agents:ActionAbandon",
+      "successStatus": "200",
+      "successSchema": "agents:ActionProposalResult"
+    },
+    "mcpTool": "actions_proposals_abandon",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "actions.proposals.approve",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "actions.proposals.approve",
+    "scope": "actions.approve",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/actions/proposals/approve",
+      "requestSchema": "agents:ActionApprove",
+      "successStatus": "200",
+      "successSchema": "agents:ActionProposalResult"
+    },
+    "mcpTool": "actions_proposals_approve",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "actions.proposals.commit",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "actions.proposals.commit",
+    "scope": "actions.approve",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/actions/proposals/commit",
+      "requestSchema": "agents:ActionCommit",
+      "successStatus": "200",
+      "successSchema": "agents:ActionProposalResult"
+    },
+    "mcpTool": "actions_proposals_commit",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "actions.proposals.list",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "actions.proposals.list",
+    "scope": "actions.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/actions/proposals",
+      "successStatus": "200",
+      "successSchema": "agents:ActionProposalList"
+    },
+    "mcpTool": "actions_proposals_list",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "actions.proposals.prepare",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "actions.proposals.prepare",
+    "scope": "actions.prepare",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/actions/proposals",
+      "requestSchema": "agents:ActionPrepare",
+      "successStatus": "201",
+      "successSchema": "agents:ActionProposalResult"
+    },
+    "mcpTool": "actions_proposals_prepare",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "actions.proposals.read",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "actions.proposals.read",
+    "scope": "actions.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/actions/proposals/state",
+      "successStatus": "200",
+      "successSchema": "agents:ActionProposalRead"
+    },
+    "mcpTool": "actions_proposals_get",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "agents.audit.list",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "agents.audit.list",
+    "scope": "agents.read",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/agents/audit",
+      "successStatus": "200",
+      "successSchema": "agents:AgentAuditList"
+    },
+    "mcpTool": "agents_audit_list",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "agents.budgets.read",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "agents.budgets.read",
+    "scope": "agents.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/agents/budgets",
+      "successStatus": "200",
+      "successSchema": "agents:BudgetRead"
+    },
+    "mcpTool": "agents_budgets_get",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "agents.consents.list",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "agents.consents.list",
+    "scope": "agents.read",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/agents/consents",
+      "successStatus": "200",
+      "successSchema": "agents:ConsentList"
+    },
+    "mcpTool": "agents_consents_list",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "agents.consents.record",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "agents.consents.record",
+    "scope": "agents.manage",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/agents/consents",
+      "requestSchema": "agents:ConsentRecord",
+      "successStatus": "201",
+      "successSchema": "agents:ConsentCommandResult"
+    },
+    "mcpTool": "agents_consents_record",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "agents.consents.revoke",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "agents.consents.revoke",
+    "scope": "agents.manage",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/agents/consents/revoke",
+      "requestSchema": "agents:ConsentRevoke",
+      "successStatus": "200",
+      "successSchema": "agents:ConsentCommandResult"
+    },
+    "mcpTool": "agents_consents_revoke",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "agents.credentials.rotate",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "agents.credentials.rotate",
+    "scope": "agents.manage",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/agents/credentials/rotate",
+      "requestSchema": "agents:AgentTransition",
+      "successStatus": "200",
+      "successSchema": "agents:AgentCommandResult"
+    },
+    "mcpTool": "agents_credentials_rotate",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "agents.principals.create",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "agents.principals.create",
+    "scope": "agents.manage",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/agents/principals",
+      "requestSchema": "agents:AgentCreate",
+      "successStatus": "201",
+      "successSchema": "agents:AgentCommandResult"
+    },
+    "mcpTool": "agents_principals_create",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "agents.principals.list",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "agents.principals.list",
+    "scope": "agents.read",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/agents/principals",
+      "successStatus": "200",
+      "successSchema": "agents:AgentList"
+    },
+    "mcpTool": "agents_principals_list",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "agents.principals.read",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "agents.principals.read",
+    "scope": "agents.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/agents/principals/state",
+      "successStatus": "200",
+      "successSchema": "agents:AgentRead"
+    },
+    "mcpTool": "agents_principals_get",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "agents.principals.resume",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "agents.principals.resume",
+    "scope": "agents.manage",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/agents/principals/resume",
+      "requestSchema": "agents:AgentTransition",
+      "successStatus": "200",
+      "successSchema": "agents:AgentCommandResult"
+    },
+    "mcpTool": "agents_principals_resume",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "agents.principals.revoke",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "agents.principals.revoke",
+    "scope": "agents.manage",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/agents/principals/revoke",
+      "requestSchema": "agents:AgentTransition",
+      "successStatus": "200",
+      "successSchema": "agents:AgentCommandResult"
+    },
+    "mcpTool": "agents_principals_revoke",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "agents.principals.suspend",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "agents.principals.suspend",
+    "scope": "agents.manage",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/agents/principals/suspend",
+      "requestSchema": "agents:AgentTransition",
+      "successStatus": "200",
+      "successSchema": "agents:AgentCommandResult"
+    },
+    "mcpTool": "agents_principals_suspend",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "agents.sponsors.change",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "agents.sponsors.change",
+    "scope": "agents.manage",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/agents/sponsors/change",
+      "requestSchema": "agents:AgentSponsorChange",
+      "successStatus": "200",
+      "successSchema": "agents:AgentCommandResult"
+    },
+    "mcpTool": "agents_sponsors_change",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "ai.drafts.accept",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "ai.drafts.accept",
+    "scope": "ai.review",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/ai/drafts/accept",
+      "requestSchema": "agents:AiDraftAccept",
+      "successStatus": "200",
+      "successSchema": "agents:AiDraftCommandResult"
+    },
+    "mcpTool": "ai_drafts_accept",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "ai.drafts.create",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "ai.drafts.create",
+    "scope": "ai.draft",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/ai/drafts",
+      "requestSchema": "agents:AiDraftCreate",
+      "successStatus": "201",
+      "successSchema": "agents:AiDraftCommandResult"
+    },
+    "mcpTool": "ai_drafts_create",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "ai.drafts.list",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "ai.drafts.list",
+    "scope": "ai.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/ai/drafts",
+      "successStatus": "200",
+      "successSchema": "agents:AiDraftList"
+    },
+    "mcpTool": "ai_drafts_list",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "ai.drafts.read",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "ai.drafts.read",
+    "scope": "ai.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/ai/drafts/state",
+      "successStatus": "200",
+      "successSchema": "agents:AiDraftRead"
+    },
+    "mcpTool": "ai_drafts_get",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "ai.drafts.reject",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "ai.drafts.reject",
+    "scope": "ai.review",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/ai/drafts/reject",
+      "requestSchema": "agents:AiDraftReject",
+      "successStatus": "200",
+      "successSchema": "agents:AiDraftCommandResult"
+    },
+    "mcpTool": "ai_drafts_reject",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "ai.evaluations.list",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "ai.evaluations.list",
+    "scope": "ai.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/ai/evaluations",
+      "successStatus": "200",
+      "successSchema": "agents:AiEvaluationList"
+    },
+    "mcpTool": "ai_evaluations_list",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "ai.evaluations.run",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "ai.evaluations.run",
+    "scope": "admin.configure",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/ai/evaluations",
+      "requestSchema": "agents:AiEvaluationRun",
+      "successStatus": "201",
+      "successSchema": "agents:AiEvaluationCommandResult"
+    },
+    "mcpTool": "ai_evaluations_run",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "operational",
+    "status": "active"
+  },
+  {
+    "operation": "ai.useCases.configure",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "ai.useCases.configure",
+    "scope": "admin.configure",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/ai/use-cases/configure",
+      "requestSchema": "agents:AiUseCaseConfigure",
+      "successStatus": "200",
+      "successSchema": "agents:AiUseCaseCommandResult"
+    },
+    "mcpTool": "ai_use_cases_configure",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "operational",
+    "status": "active"
+  },
+  {
+    "operation": "ai.useCases.list",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "ai.useCases.list",
+    "scope": "ai.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/ai/use-cases",
+      "successStatus": "200",
+      "successSchema": "agents:AiUseCaseList"
+    },
+    "mcpTool": "ai_use_cases_list",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
     "operation": "billing.adjustments.decide",
     "owner": "B",
     "kind": "command",
@@ -681,7 +1639,8 @@
     ],
     "idempotency": "required",
     "sensitivity": "phi",
-    "status": "active"
+    "status": "active",
+    "approval": "proposal"
   },
   {
     "operation": "billing.plans.autopay",
@@ -4226,7 +5185,8 @@
     ],
     "idempotency": "required",
     "sensitivity": "phi",
-    "status": "active"
+    "status": "active",
+    "approval": "proposal"
   },
   {
     "operation": "communications.contacts.verify",
@@ -8227,7 +9187,8 @@
     ],
     "idempotency": "required",
     "sensitivity": "phi",
-    "status": "active"
+    "status": "active",
+    "approval": "proposal"
   },
   {
     "operation": "patients.relationships.list",
@@ -8647,7 +9608,8 @@
     ],
     "idempotency": "required",
     "sensitivity": "phi",
-    "status": "active"
+    "status": "active",
+    "approval": "proposal"
   },
   {
     "operation": "portal.principals.read",
@@ -9105,6 +10067,111 @@
     ],
     "idempotency": "none",
     "sensitivity": "phiBulk",
+    "status": "active"
+  },
+  {
+    "operation": "prescriptions.cancel",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "prescriptions.cancel",
+    "scope": "prescriptions.draft",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/prescriptions/cancel",
+      "requestSchema": "agents:PrescriptionCancel",
+      "successStatus": "200",
+      "successSchema": "agents:PrescriptionCommandResult"
+    },
+    "mcpTool": "prescriptions_cancel",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "prescriptions.drafts.create",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "prescriptions.drafts.create",
+    "scope": "prescriptions.draft",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/prescriptions/drafts",
+      "requestSchema": "agents:PrescriptionDraftCreate",
+      "successStatus": "201",
+      "successSchema": "agents:PrescriptionCommandResult"
+    },
+    "mcpTool": "prescriptions_drafts_create",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "prescriptions.submit",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "prescriptions.submit",
+    "scope": "prescriptions.submit",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/prescriptions/submit",
+      "requestSchema": "agents:PrescriptionSubmit",
+      "successStatus": "200",
+      "successSchema": "agents:PrescriptionCommandResult"
+    },
+    "mcpTool": "prescriptions_submit",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
     "status": "active"
   },
   {

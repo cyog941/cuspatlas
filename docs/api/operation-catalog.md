@@ -9,7 +9,7 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-404 operations.
+435 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
@@ -23,6 +23,34 @@ transport tables and are declarations, not independent proof.
 
 | Operation | Owner | Kind | Authorization | Scope | Principals | Transports | REST | MCP tool | Idempotency | Sensitivity | Status |
 |---|---|---|---|---|---|---|---|---|---|---|---|
+| `actions.proposals.abandon` | A | command | authorize | `actions.prepare` | human, service | rest, mcp | POST `/v1/actions/proposals/abandon` | `actions_proposals_abandon` | required | phi | active |
+| `actions.proposals.approve` | A | command | authorize | `actions.approve` | human | rest, mcp | POST `/v1/actions/proposals/approve` | `actions_proposals_approve` | required | phi | active |
+| `actions.proposals.commit` | A | command | authorize | `actions.approve` | human | rest, mcp | POST `/v1/actions/proposals/commit` | `actions_proposals_commit` | required | phi | active |
+| `actions.proposals.list` | A | query | authorize | `actions.read` | human, service | rest, mcp | GET `/v1/actions/proposals` | `actions_proposals_list` | none | phi | active |
+| `actions.proposals.prepare` | A | command | authorize | `actions.prepare` | human, service | rest, mcp | POST `/v1/actions/proposals` | `actions_proposals_prepare` | required | phi | active |
+| `actions.proposals.read` | A | query | authorize | `actions.read` | human, service | rest, mcp | GET `/v1/actions/proposals/state` | `actions_proposals_get` | none | phi | active |
+| `agents.audit.list` | A | query | authorize | `agents.read` | human | rest, mcp | GET `/v1/agents/audit` | `agents_audit_list` | none | phi | active |
+| `agents.budgets.read` | A | query | authorize | `agents.read` | human, service | rest, mcp | GET `/v1/agents/budgets` | `agents_budgets_get` | none | phi | active |
+| `agents.consents.list` | A | query | authorize | `agents.read` | human | rest, mcp | GET `/v1/agents/consents` | `agents_consents_list` | none | phi | active |
+| `agents.consents.record` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/consents` | `agents_consents_record` | required | phi | active |
+| `agents.consents.revoke` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/consents/revoke` | `agents_consents_revoke` | required | phi | active |
+| `agents.credentials.rotate` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/credentials/rotate` | `agents_credentials_rotate` | required | phi | active |
+| `agents.principals.create` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/principals` | `agents_principals_create` | required | phi | active |
+| `agents.principals.list` | A | query | authorize | `agents.read` | human | rest, mcp | GET `/v1/agents/principals` | `agents_principals_list` | none | phi | active |
+| `agents.principals.read` | A | query | authorize | `agents.read` | human, service | rest, mcp | GET `/v1/agents/principals/state` | `agents_principals_get` | none | phi | active |
+| `agents.principals.resume` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/principals/resume` | `agents_principals_resume` | required | phi | active |
+| `agents.principals.revoke` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/principals/revoke` | `agents_principals_revoke` | required | phi | active |
+| `agents.principals.suspend` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/principals/suspend` | `agents_principals_suspend` | required | phi | active |
+| `agents.sponsors.change` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/sponsors/change` | `agents_sponsors_change` | required | phi | active |
+| `ai.drafts.accept` | A | command | authorize | `ai.review` | human | rest, mcp | POST `/v1/ai/drafts/accept` | `ai_drafts_accept` | required | phi | active |
+| `ai.drafts.create` | A | command | authorize | `ai.draft` | human, service | rest, mcp | POST `/v1/ai/drafts` | `ai_drafts_create` | required | phi | active |
+| `ai.drafts.list` | A | query | authorize | `ai.read` | human, service | rest, mcp | GET `/v1/ai/drafts` | `ai_drafts_list` | none | phi | active |
+| `ai.drafts.read` | A | query | authorize | `ai.read` | human, service | rest, mcp | GET `/v1/ai/drafts/state` | `ai_drafts_get` | none | phi | active |
+| `ai.drafts.reject` | A | command | authorize | `ai.review` | human | rest, mcp | POST `/v1/ai/drafts/reject` | `ai_drafts_reject` | required | phi | active |
+| `ai.evaluations.list` | A | query | authorize | `ai.read` | human, service | rest, mcp | GET `/v1/ai/evaluations` | `ai_evaluations_list` | none | phi | active |
+| `ai.evaluations.run` | A | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/ai/evaluations` | `ai_evaluations_run` | required | operational | active |
+| `ai.useCases.configure` | A | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/ai/use-cases/configure` | `ai_use_cases_configure` | required | operational | active |
+| `ai.useCases.list` | A | query | authorize | `ai.read` | human, service | rest, mcp | GET `/v1/ai/use-cases` | `ai_use_cases_list` | none | phi | active |
 | `billing.adjustments.decide` | B | command | authorize | `billing.correct` | human | rest, mcp | POST `/v1/billing/adjustment-requests/{requestRef}/decision` | `billing_adjustments_decide` | required | phi | active |
 | `billing.adjustments.post` | B | command | authorize | `billing.write` | human | rest, mcp | POST `/v1/billing/charges/{chargeRef}/adjustments` | `billing_adjustments_post` | required | phi | active |
 | `billing.balances.read` | B | query | authorize | `ledger.read` | human, service | rest, mcp | GET `/v1/billing/patients/{patientRef}/balance` | `billing_balances_get` | none | phi | active |
@@ -296,6 +324,9 @@ transport tables and are declarations, not independent proof.
 | `practice.export.download` | M | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/practice/exports/package` | `practice_export_download` | required | phiBulk | active |
 | `practice.export.grant` | M | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/practice/exports/grants` | `practice_export_grant` | required | phiBulk | active |
 | `practice.export.verify` | M | query | authorize | `admin.configure` | human | rest, mcp | GET `/v1/practice/exports/verification` | `practice_export_verify` | none | phiBulk | active |
+| `prescriptions.cancel` | A | command | authorize | `prescriptions.draft` | human | rest, mcp | POST `/v1/prescriptions/cancel` | `prescriptions_cancel` | required | phi | active |
+| `prescriptions.drafts.create` | A | command | authorize | `prescriptions.draft` | human | rest, mcp | POST `/v1/prescriptions/drafts` | `prescriptions_drafts_create` | required | phi | active |
+| `prescriptions.submit` | A | command | authorize | `prescriptions.submit` | human | rest, mcp | POST `/v1/prescriptions/submit` | `prescriptions_submit` | required | phi | active |
 | `rcm.appeals.draft` | B | command | authorize | `billing.write` | human | rest, mcp | POST `/v1/rcm/claims/{claimRef}/appeals` | `rcm_appeals_draft` | required | phi | active |
 | `rcm.appeals.review` | B | command | authorize | `billing.correct` | human | rest, mcp | POST `/v1/rcm/appeals/{appealRef}/review` | `rcm_appeals_review` | required | phi | active |
 | `rcm.claims.attach` | B | command | authorize | `billing.write` | human, service | rest, mcp | POST `/v1/rcm/claims/{claimRef}/attachments` | `rcm_claims_attach` | required | phi | active |

@@ -89,6 +89,8 @@ Registered by workstream I imaging (2026-11-11, synthetic implementation; decisi
 
 Registered by workstream M migration (synthetic implementation; decisions pending approval in docs/execution/migration-progress.md): `migration.read` (source profiles, packages, staged records, review items and reconciliation reports), `migration.write` (registering source profiles, package intake, staging, review resolution, apply and report builds) and `migration.signoff` (human only: recording a reviewer sign-off bound to one report version and digest).
 
+Registered by workstream A batch 2 (2026-11-05, synthetic implementation; A-D2, A-D4 and A-D9 recommended-pending-approval, see docs/execution/api-progress.md): `agents.manage` (human only, non-delegable: create, suspend, resume, revoke, rotate and re-sponsor agent principals) and `agents.read` (agent records and their live grants; the registry and the separate agent-audit stream are human reads). A9 consent records use `agents.manage`; budget reads use `agents.read`. A10: `actions.prepare` (prepare or abandon a proposal for an operation whose catalog approval mode is `proposal`; the proposer must also hold that operation's own scope), `actions.approve` (human only, non-delegable: approve and commit proposals; never the proposer or an agent proposer's sponsor) and `actions.read`. A11: `ai.draft` (request an AI draft from records the caller can already read), `ai.read` (AI drafts and the use-case registry) and `ai.review` (human only, non-delegable: accept or reject an AI draft through the owning command); switching AI use cases is `admin.configure`. A13: `prescriptions.draft` and `prescriptions.submit` (both human only; submission, controlled substances included, is non-delegable). No partner is qualified, so every prescribing operation refuses.
+
 Camel-case scope names (`receivables.read` written as `receivablesRead`) are a defect. A scope used in any plan must appear in the registry; a plan that needs a new scope adds it there first.
 
 ### Scope registry table
@@ -97,7 +99,15 @@ The machine-readable registry rows (A-M2/A-S8, 2026-11-05). Generation reads **o
 
 | Scope | Human only |
 | --- | --- |
+| `actions.approve` | yes |
+| `actions.prepare` | no |
+| `actions.read` | no |
 | `admin.configure` | no |
+| `agents.manage` | yes |
+| `agents.read` | no |
+| `ai.draft` | no |
+| `ai.read` | no |
+| `ai.review` | yes |
 | `billing.correct` | yes |
 | `billing.write` | no |
 | `claims.read` | no |
@@ -130,6 +140,8 @@ The machine-readable registry rows (A-M2/A-S8, 2026-11-05). Generation reads **o
 | `patients.write` | no |
 | `paymentDistribution.read` | no |
 | `portal.manage` | no |
+| `prescriptions.draft` | yes |
+| `prescriptions.submit` | yes |
 | `receivables.read` | no |
 | `scheduling.override` | yes |
 | `scheduling.read` | no |

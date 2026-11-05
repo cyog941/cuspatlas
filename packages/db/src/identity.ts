@@ -29,16 +29,47 @@ export function createMembershipSource(pool: pg.Pool): MembershipSource {
              WHERE m.principal_id = $1 AND m.tenant_id = $2`,
             [principalId, tenantId],
           );
-          await client.query('COMMIT');
           const row = rows[0];
+          // A8: an agent's authority is its record (state, expiry, sponsor's live membership) and its
+          // recorded scope set, narrowed to reads while suspended. Read through the checked function.
+          const agentRows =
+            row?.kind === 'service'
+              ? (
+                  await client.query<{
+                    agent_ref: string;
+                    state: 'active' | 'suspended' | 'revoked';
+                    live: boolean;
+                    scope_set: string[];
+                    sponsor_ref: string;
+                    sponsorship_ref: string;
+                    credential_ref: string;
+                  }>('SELECT * FROM cuspatlas.agent_authority($1, $2)', [principalId, tenantId])
+                ).rows
+              : [];
+          await client.query('COMMIT');
           if (!row) return null;
-          return {
+          const base = {
             tenantId,
             principalId,
             principal: row.kind,
-            scopes: Object.freeze([...row.scopes]),
             locationRefs: row.location_refs === null ? null : Object.freeze([...row.location_refs]),
-            active: row.active,
+          };
+          const a = agentRows[0];
+          if (!a) return { ...base, scopes: Object.freeze([...row.scopes]), active: row.active };
+          const granted = row.scopes.filter(
+            (sc) => a.scope_set.includes(sc) && (a.state === 'active' || sc.endsWith('.read')),
+          );
+          return {
+            ...base,
+            scopes: Object.freeze(granted),
+            active: row.active && a.live,
+            agent: Object.freeze({
+              agentRef: a.agent_ref,
+              sponsorRef: a.sponsor_ref,
+              sponsorshipRef: a.sponsorship_ref,
+              state: a.state,
+              credentialRef: a.credential_ref,
+            }),
           };
         } catch (err) {
           await client.query('ROLLBACK').catch((e: Error) => {

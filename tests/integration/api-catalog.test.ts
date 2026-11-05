@@ -39,6 +39,9 @@ const fastify = (p: string) => p.replace(/\{(\w+)\}/g, ':$1');
 /** A-S4 reviewed registration sites (manifest loops over operation tables, plus /healthz). */
 const REVIEWED_ROUTE_SITES: Record<string, number> = {
   'apps/api/src/app.ts: app.get': 1,
+  // A2: one loop over AGENT_OPS rows, each with onRequest authentication for its operation id.
+  'apps/api/src/routes/agent-ops.ts: app.get': 1,
+  'apps/api/src/routes/agent-ops.ts: app.post': 1,
   'apps/api/src/routes/appointments.ts: app.get': 5,
   'apps/api/src/routes/appointments.ts: app.post': 3,
   'apps/api/src/routes/billing-ops-routes.ts: app.get': 1,

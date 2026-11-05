@@ -16,6 +16,7 @@ import {
 } from '@cuspatlas/contracts';
 import {
   type ActionName,
+  type AgentService,
   type AppointmentService,
   type AttemptRecordingDeps,
   type Authorize,
@@ -93,6 +94,8 @@ export type Args = Record<string, unknown>;
 type Violations = { pointer: string; rule: string }[];
 
 export interface ToolDeps {
+  /** Workstream A batch 2 (A8-A13). */
+  readonly agents: AgentService;
   readonly service: SyntheticTaskService;
   readonly proposals: ProposalService;
   readonly patients: PatientService;

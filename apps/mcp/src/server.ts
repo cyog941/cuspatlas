@@ -35,10 +35,13 @@ import {
   type AttachmentRefResolver,
   type AttemptRecordingDeps,
   BILLING_POST_MERGE_PROBE,
+  type BudgetTicket,
   CLINICAL_POST_MERGE_FACT_PROBES,
   type ClaimsPartnerPort,
   type CommandExecutor,
   type CursorCodec,
+  createAgentService,
+  createAiSourceReaders,
   createAppointmentService,
   createAuthorize,
   createBillingEstimatePricing,
@@ -60,12 +63,14 @@ import {
   createSyntheticTaskService,
   type ImageRefResolver,
   type ImagingLimits,
+  type ModelAdapter,
   newListScope,
   type PaymentProviderPort,
   readLatestCompletedProcedures,
   resolveIdempotencyDigestKey,
   resolveImagingTokenSecret,
   resolveMatchKeyPepper,
+  resolveModelAdapter,
   runInListScope,
   type StagingMaintenance,
 } from '@cuspatlas/domain';
@@ -79,6 +84,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { assertDistinctAudience, assertIdentityAllowed, createMcpAuthenticator } from './auth';
 import { toolCatalogDrift } from './catalog';
+import { AGENT_TOOLS } from './tools/agent-ops';
 import { APPOINTMENT_TOOLS } from './tools/appointments';
 import { BILLING_TOOLS } from './tools/billing';
 import { BILLING_OP_TOOLS } from './tools/billing-ops';
@@ -140,6 +146,8 @@ export interface McpServerDeps {
   readonly attempts: SecurityAttemptSink;
   readonly tenantTransactions: WithTenantTransaction;
   readonly execute?: CommandExecutor;
+  /** A11: model adapter; synthetic-test only (default: the synthetic adapter; null: AI disabled). */
+  readonly aiModel?: ModelAdapter | null;
   readonly cursors?: CursorCodec;
   /** Proposal policy version (defaults to PROPOSAL_POLICY_VERSION); tests bump it. */
   readonly proposalPolicyVersion?: string;
@@ -201,6 +209,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   ...ENGAGEMENT_OP_TOOLS,
   ...IMAGING_TOOLS,
   ...MIGRATION_TOOLS,
+  ...AGENT_TOOLS,
 ];
 
 /** Path parameters of the REST twin. A malformed one is a 404 there, decided by the domain. */
@@ -470,7 +479,24 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
       tokenSecret: resolveImagingTokenSecret(deps.env, deps.imagingTokenSecret),
     },
   });
+  const agents = createAgentService({
+    authorize,
+    withTenantTransaction: deps.tenantTransactions,
+    recording,
+    execute,
+    memberships: deps.membership,
+    owners: { patients, engagement, billing },
+    ai: {
+      model: resolveModelAdapter(deps.env, deps.aiModel),
+      readers: createAiSourceReaders({ clinical, engagement, billing }),
+      owners: {
+        createNoteDraft: (c, r, e) => clinical.createNoteDraft(c, r, e),
+        postStaffMessage: (c, r, e) => engagement.postStaffMessage(c, r, e),
+      },
+    },
+  });
   const toolDeps: ToolDeps = {
+    agents,
     service,
     proposals,
     patients,
@@ -526,7 +552,13 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     const valid = registered.validate(args);
     const violations = valid ? [] : violationsOf(registered.validate.errors);
     let code = 'ok';
+    // A9: an agent needs a live consent for this deployment and operation, and one call is reserved
+    // against its budget before any handler (or argument check) runs.
+    let ticket: BudgetTicket | null = null;
+    let settled = false;
     try {
+      if (actor.agent)
+        ticket = await agents.admitToolCall(actor, deps.identity.audience, registered.tool.operationId);
       // Arguments are validated before any handler runs (the handler sees only valid input, except
       // for tools whose domain service performs the identical validation itself).
       if (!valid && registered.tool.onInvalid !== 'domain' && !onlyRefMalformed(registered, args)) {
@@ -545,6 +577,16 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
           ? attachListEnvelope(listSpec, ran, { asOf, filters: args, locationRefs: listScope.locationRefs })
           : ran,
       );
+      if (ticket) {
+        settled = true;
+        await agents.settleToolCall(
+          actor,
+          ticket,
+          registered.tool.readOnly ? 'query' : 'command',
+          result,
+          'ok',
+        );
+      }
       if (!valid) {
         // Defense in depth: an input rejected by the tool schema can never succeed.
         // Invariant for `onInvalid: 'domain'` tools (propose, approve, commit): their handler has
@@ -563,6 +605,9 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     } catch (err) {
       const { body } = mapErrorToRefusal(err, actor.correlationId);
       code = body.code;
+      if (ticket && !settled) {
+        await agents.settleToolCall(actor, ticket, 'command', null, body.code).catch(() => undefined);
+      }
       if (REFUSAL_HTTP_STATUS[body.code] >= 500)
         write({ level: 'error', msg: 'tool failed', ...safeErrorKind(err) });
       return { ...refusalResult(body), ...metaFor(name) };
@@ -618,6 +663,10 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
           resource: deps.identity.audience,
           authorization_servers: [deps.identity.issuer],
           bearer_methods_supported: ['header'],
+          // A9 (extension, pending A-S1): an agent principal needs a recorded per-deployment consent
+          // naming each tool, and every agent call is budgeted (429 rate_limited, budget_exhausted).
+          cuspatlas_agent_consent: 'required',
+          cuspatlas_agent_budgets: ['calls', 'records', 'phiFields'],
         },
         common,
       );

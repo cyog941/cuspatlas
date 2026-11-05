@@ -267,7 +267,9 @@ describe('S14 acceptance (no verified channel; E6 decides through its seam)', ()
       `SELECT table_name FROM information_schema.tables WHERE table_schema = 'cuspatlas'
        AND table_name ~ '(consent|opt_?out|suppression)'
        -- C13 clinical treatment consent (clinical_consent*) is a clinical record, not communication consent.
-       AND table_name !~ '^clinical_' ORDER BY 1`,
+       AND table_name !~ '^clinical_'
+       -- A9 agent consent (agent_consents) authorizes an agent's MCP tools; it is not patient consent.
+       AND table_name !~ '^agent_' ORDER BY 1`,
     );
     // The only consent and suppression tables are E's (E6 facts and decisions; E4's link of an intake
     // submission to the E6 facts it recorded).

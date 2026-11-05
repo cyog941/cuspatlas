@@ -3,7 +3,8 @@ import { resolve } from 'node:path';
 import { REFUSAL_CODES } from '@cuspatlas/contracts';
 import { parse } from 'yaml';
 import { extractBillingOpsBlock, renderBillingOpsBlock } from './billing-openapi';
-import { extractMigrationOpsBlock, renderMigrationOpsBlock } from './migration-openapi';
+import { extractMigrationOpsBlock, extractOpsBlock, renderMigrationOpsBlock } from './migration-openapi';
+import { AGENT_OPS, AGENT_OPS_BLOCK, renderAgentOpsBlock } from './routes/agent-ops';
 import { BILLING_OPS } from './routes/billing-ops';
 import { ENGAGEMENT_OPS } from './routes/engagement-ops';
 import { IMAGING_OPS } from './routes/imaging-ops';
@@ -34,6 +35,7 @@ export interface ContractSources {
   readonly engagementSchemaText: string;
   readonly imagingSchemaText: string;
   readonly migrationSchemaText: string;
+  readonly agentsSchemaText: string;
 }
 
 export const OPENAPI_PATH = 'docs/api/openapi.yaml';
@@ -55,6 +57,9 @@ export const IMAGING_SCHEMA_PATH = `packages/contracts/src/${IMAGING_SCHEMA_FILE
 const IMAGING_REF_PREFIX = `../../${IMAGING_SCHEMA_PATH}#`;
 export const MIGRATION_SCHEMA_PATH = `packages/contracts/src/${MIGRATION_SCHEMA_FILE}`;
 const MIGRATION_REF_PREFIX = `../../${MIGRATION_SCHEMA_PATH}#`;
+export const AGENTS_SCHEMA_FILE = 'agents.schema.json';
+export const AGENTS_SCHEMA_PATH = `packages/contracts/src/${AGENTS_SCHEMA_FILE}`;
+const AGENTS_REF_PREFIX = `../../${AGENTS_SCHEMA_PATH}#`;
 
 export function loadContractSources(root: string): ContractSources {
   return {
@@ -68,6 +73,7 @@ export function loadContractSources(root: string): ContractSources {
     engagementSchemaText: readFileSync(resolve(root, ENGAGEMENT_SCHEMA_PATH), 'utf8'),
     imagingSchemaText: readFileSync(resolve(root, IMAGING_SCHEMA_PATH), 'utf8'),
     migrationSchemaText: readFileSync(resolve(root, MIGRATION_SCHEMA_PATH), 'utf8'),
+    agentsSchemaText: readFileSync(resolve(root, AGENTS_SCHEMA_PATH), 'utf8'),
   };
 }
 
@@ -99,23 +105,25 @@ function collectRefs(node: unknown, out: string[] = []): string[] {
 const schemaRef = (name: string) =>
   name.startsWith('#/')
     ? name
-    : name.startsWith('migration:')
-      ? `${MIGRATION_REF_PREFIX}/$defs/${name.slice('migration:'.length)}`
-      : name.startsWith('proposal:')
-        ? `${PROPOSAL_REF_PREFIX}/$defs/${name.slice('proposal:'.length)}`
-        : name.startsWith('patient:')
-          ? `${PATIENT_REF_PREFIX}/$defs/${name.slice('patient:'.length)}`
-          : name.startsWith('scheduling:')
-            ? `${SCHEDULING_REF_PREFIX}/$defs/${name.slice('scheduling:'.length)}`
-            : name.startsWith('clinical:')
-              ? `${CLINICAL_REF_PREFIX}/$defs/${name.slice('clinical:'.length)}`
-              : name.startsWith('engagement:')
-                ? `${ENGAGEMENT_REF_PREFIX}/$defs/${name.slice('engagement:'.length)}`
-                : name.startsWith('imaging:')
-                  ? `${IMAGING_REF_PREFIX}/$defs/${name.slice('imaging:'.length)}`
-                  : name.startsWith('billing:')
-                    ? `${BILLING_REF_PREFIX}/$defs/${name.slice('billing:'.length)}`
-                    : `${SCHEMA_REF_PREFIX}/$defs/${name}`;
+    : name.startsWith('agents:')
+      ? `${AGENTS_REF_PREFIX}/$defs/${name.slice('agents:'.length)}`
+      : name.startsWith('migration:')
+        ? `${MIGRATION_REF_PREFIX}/$defs/${name.slice('migration:'.length)}`
+        : name.startsWith('proposal:')
+          ? `${PROPOSAL_REF_PREFIX}/$defs/${name.slice('proposal:'.length)}`
+          : name.startsWith('patient:')
+            ? `${PATIENT_REF_PREFIX}/$defs/${name.slice('patient:'.length)}`
+            : name.startsWith('scheduling:')
+              ? `${SCHEDULING_REF_PREFIX}/$defs/${name.slice('scheduling:'.length)}`
+              : name.startsWith('clinical:')
+                ? `${CLINICAL_REF_PREFIX}/$defs/${name.slice('clinical:'.length)}`
+                : name.startsWith('engagement:')
+                  ? `${ENGAGEMENT_REF_PREFIX}/$defs/${name.slice('engagement:'.length)}`
+                  : name.startsWith('imaging:')
+                    ? `${IMAGING_REF_PREFIX}/$defs/${name.slice('imaging:'.length)}`
+                    : name.startsWith('billing:')
+                      ? `${BILLING_REF_PREFIX}/$defs/${name.slice('billing:'.length)}`
+                      : `${SCHEMA_REF_PREFIX}/$defs/${name}`;
 
 /** Definitions the scheduling contract copies from the task contract; they must stay byte-identical. */
 const SCHEDULING_SHARED_DEFS = ['LocationRef', 'Version', 'IdempotencyKey'] as const;
@@ -341,6 +349,7 @@ export function checkContractDrift(src: ContractSources): string[] {
   let engagement: Json;
   let imaging: Json;
   let migration: Json;
+  let agents: Json;
   try {
     api = parse(src.openapiText) as Json;
     schema = JSON.parse(src.schemaText) as Json;
@@ -352,12 +361,17 @@ export function checkContractDrift(src: ContractSources): string[] {
     engagement = JSON.parse(src.engagementSchemaText) as Json;
     imaging = JSON.parse(src.imagingSchemaText) as Json;
     migration = JSON.parse(src.migrationSchemaText) as Json;
+    agents = JSON.parse(src.agentsSchemaText) as Json;
   } catch {
     return ['OpenAPI or JSON Schema does not parse'];
   }
 
   for (const ref of collectRefs(api)) {
-    if (ref.startsWith(MIGRATION_REF_PREFIX)) {
+    if (ref.startsWith(AGENTS_REF_PREFIX)) {
+      if (pointer(agents, ref.slice(AGENTS_REF_PREFIX.length)) === undefined) {
+        problems.push(`OpenAPI $ref does not resolve in ${AGENTS_SCHEMA_FILE}: ${ref}`);
+      }
+    } else if (ref.startsWith(MIGRATION_REF_PREFIX)) {
       if (pointer(migration, ref.slice(MIGRATION_REF_PREFIX.length)) === undefined) {
         problems.push(`OpenAPI $ref does not resolve in ${MIGRATION_SCHEMA_FILE}: ${ref}`);
       }
@@ -627,6 +641,27 @@ export function checkContractDrift(src: ContractSources): string[] {
   for (const name of ['IdempotencyKey', 'Version']) {
     if (JSON.stringify(mdef(name)) !== JSON.stringify(def(name)))
       problems.push(`${MIGRATION_SCHEMA_FILE} ${name} differs from ${SCHEMA_FILE}`);
+  }
+  // Workstream A batch 2: the generated AGENT_OPS block matches the table; every body and query is
+  // closed; the shared definitions stay identical to the task contract.
+  try {
+    const committed = extractOpsBlock(src.openapiText, AGENT_OPS_BLOCK);
+    if (committed !== renderAgentOpsBlock((agents as { $defs: never }).$defs))
+      problems.push('generated AGENT_OPS block differs from scripts/openapi-agents.ts (run openapi:agents)');
+  } catch (err) {
+    problems.push(`generated AGENT_OPS block cannot be rendered: ${String(err)}`);
+  }
+  const adef = (name: string) => pointer(agents, `/$defs/${name}`);
+  for (const name of AGENT_OPS.flatMap((o) => [
+    ...(o.requestBody ? [o.requestBody.replace('agents:', '')] : []),
+    ...(o.query ? [o.query] : []),
+  ])) {
+    if (pointer(adef(name), '/additionalProperties') !== false)
+      problems.push(`${name} must set additionalProperties: false`);
+  }
+  for (const name of ['IdempotencyKey', 'Version', 'Cursor']) {
+    if (JSON.stringify(adef(name)) !== JSON.stringify(def(name)))
+      problems.push(`${AGENTS_SCHEMA_FILE} ${name} differs from ${SCHEMA_FILE}`);
   }
   if (pointer(mdef('MinorUnits'), '/type') !== 'integer')
     problems.push('MinorUnits must be an integer (no float money)');

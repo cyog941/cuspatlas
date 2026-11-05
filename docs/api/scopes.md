@@ -15,11 +15,19 @@ docs/api/forbidden-matrix.md, proves the refusal). There is no grant API for sta
 memberships are administered outside the API, and the default role-to-scope grants remain an open
 human decision (A-D2). No default role grant is asserted here.
 
-41 staff scopes.
+51 staff scopes.
 
 | Scope | Principal kinds | Human only | Owners | Highest sensitivity | Operations |
 |---|---|---|---|---|---|
-| `admin.configure` | human, service | no | B, C, E, I, M, S | phiBulk | 42 |
+| `actions.approve` | human | yes | A | phi | 2 |
+| `actions.prepare` | human, service | no | A | phi | 2 |
+| `actions.read` | human, service | no | A | phi | 2 |
+| `admin.configure` | human, service | no | A, B, C, E, I, M, S | phiBulk | 44 |
+| `agents.manage` | human | yes | A | phi | 8 |
+| `agents.read` | human, service | no | A | phi | 5 |
+| `ai.draft` | human, service | no | A | phi | 1 |
+| `ai.read` | human, service | no | A | phi | 4 |
+| `ai.review` | human | yes | A | phi | 2 |
 | `billing.correct` | human | yes | B | phi | 12 |
 | `billing.write` | human, service | no | B | phi | 30 |
 | `clinical.oversight` | human | yes | C | phi | 1 |
@@ -51,6 +59,8 @@ human decision (A-D2). No default role grant is asserted here.
 | `patients.write` | human, service | no | E, S | phi | 7 |
 | `paymentDistribution.read` | human, service | no | B | phi | 2 |
 | `portal.manage` | human | no | E | phi | 3 |
+| `prescriptions.draft` | human | yes | A | phi | 2 |
+| `prescriptions.submit` | human | yes | A | phi | 1 |
 | `receivables.read` | human, service | no | B | phi | 5 |
 | `scheduling.override` | human | yes | S | phi | 1 |
 | `scheduling.read` | human, service | no | S | phi | 29 |

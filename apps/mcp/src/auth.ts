@@ -78,7 +78,11 @@ export function createMcpAuthenticator(
   recording: AttemptRecordingDeps,
 ): McpAuthenticator {
   assertDistinctAudience(opts);
-  const inner: Authenticator = createAuthenticator(opts.identity, memberships, recording);
+  // A8/A9: the MCP deployment is the one surface an agent credential is admitted on (consent and
+  // budgets are enforced per tool call in server.ts).
+  const inner: Authenticator = createAuthenticator(opts.identity, memberships, recording, {
+    agents: 'admit',
+  });
   return {
     authenticate: (authorization, correlationId) =>
       inner.authenticate(authorization, correlationId, MCP_OPERATION),

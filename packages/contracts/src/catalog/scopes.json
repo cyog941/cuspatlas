@@ -2,6 +2,59 @@
   "version": 1,
   "scopes": [
     {
+      "name": "actions.approve",
+      "noun": "actions",
+      "verb": "approve",
+      "principalClasses": [
+        "human"
+      ],
+      "humanOnly": true,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "actions.proposals.approve",
+        "actions.proposals.commit"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "actions.prepare",
+      "noun": "actions",
+      "verb": "prepare",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "actions.proposals.abandon",
+        "actions.proposals.prepare"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "actions.read",
+      "noun": "actions",
+      "verb": "read",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "actions.proposals.list",
+        "actions.proposals.read"
+      ],
+      "sensitivity": "phi"
+    },
+    {
       "name": "admin.configure",
       "noun": "admin",
       "verb": "configure",
@@ -11,6 +64,7 @@
       ],
       "humanOnly": false,
       "owners": [
+        "A",
         "B",
         "C",
         "E",
@@ -19,6 +73,8 @@
         "S"
       ],
       "operations": [
+        "ai.evaluations.run",
+        "ai.useCases.configure",
         "billing.export",
         "clinical.authors.define",
         "clinical.consentTemplates.register",
@@ -63,6 +119,104 @@
         "telephony.config.define"
       ],
       "sensitivity": "phiBulk"
+    },
+    {
+      "name": "agents.manage",
+      "noun": "agents",
+      "verb": "manage",
+      "principalClasses": [
+        "human"
+      ],
+      "humanOnly": true,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "agents.consents.record",
+        "agents.consents.revoke",
+        "agents.credentials.rotate",
+        "agents.principals.create",
+        "agents.principals.resume",
+        "agents.principals.revoke",
+        "agents.principals.suspend",
+        "agents.sponsors.change"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "agents.read",
+      "noun": "agents",
+      "verb": "read",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "agents.audit.list",
+        "agents.budgets.read",
+        "agents.consents.list",
+        "agents.principals.list",
+        "agents.principals.read"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "ai.draft",
+      "noun": "ai",
+      "verb": "draft",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "ai.drafts.create"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "ai.read",
+      "noun": "ai",
+      "verb": "read",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "ai.drafts.list",
+        "ai.drafts.read",
+        "ai.evaluations.list",
+        "ai.useCases.list"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "ai.review",
+      "noun": "ai",
+      "verb": "review",
+      "principalClasses": [
+        "human"
+      ],
+      "humanOnly": true,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "ai.drafts.accept",
+        "ai.drafts.reject"
+      ],
+      "sensitivity": "phi"
     },
     {
       "name": "billing.correct",
@@ -802,6 +956,39 @@
         "portal.principals.enroll",
         "portal.principals.revoke",
         "portal.principals.verify"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "prescriptions.draft",
+      "noun": "prescriptions",
+      "verb": "draft",
+      "principalClasses": [
+        "human"
+      ],
+      "humanOnly": true,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "prescriptions.cancel",
+        "prescriptions.drafts.create"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "prescriptions.submit",
+      "noun": "prescriptions",
+      "verb": "submit",
+      "principalClasses": [
+        "human"
+      ],
+      "humanOnly": true,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "prescriptions.submit"
       ],
       "sensitivity": "phi"
     },

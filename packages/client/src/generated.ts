@@ -8714,7 +8714,7 @@ export type SyntheticMeasureDefinition = {
   readonly "dateBasis": string;
   readonly "filters": readonly (string)[];
   readonly "requiredActions": readonly (string)[];
-  readonly "suppression": "population" | "count" | "none";
+  readonly "suppression": "population" | "count" | "contributors" | "none";
   readonly "source": "live" | "B11";
   readonly [k: string]: unknown;
 };

@@ -1079,7 +1079,7 @@
     },
     "MeasureKey": {
       "type": "string",
-      "pattern": "^[a-z]{1,20}\\.[a-z_]{1,40}$"
+      "pattern": "^[a-z]{1,20}\\.[a-z0-9_]{1,40}$"
     },
     "MeasureQuery": {
       "type": "object",
@@ -1150,7 +1150,7 @@
           }
         },
         "suppression": {
-          "enum": ["population", "count", "none"]
+          "enum": ["population", "count", "contributors", "none"]
         },
         "source": {
           "enum": ["live", "B11"]

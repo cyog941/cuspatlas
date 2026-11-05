@@ -1,3 +1,4 @@
+import { outputSchemaOf } from './output-schema';
 import type { ToolDefinition } from './tools/synthetic-tasks';
 
 /**
@@ -54,14 +55,18 @@ export function advertisedTool(
   description: string,
   caller: { readonly agent: boolean },
 ) {
+  // Closeout D6: a read-only list tool also declares its outputSchema (every caller).
+  const output = tool.readOnly ? outputSchemaOf(tool.operationId) : null;
   const base = {
     name: tool.name,
     description,
     annotations: { readOnlyHint: tool.readOnly, openWorldHint: false },
+    ...(output ? { outputSchema: output } : {}),
   };
   if (!caller.agent || !isTruncatable(tool))
     return { ...base, inputSchema: tool.inputSchema } as typeof base & {
       inputSchema: ToolDefinition['inputSchema'];
+      outputSchema?: Record<string, unknown>;
       _meta?: Record<string, unknown>;
     };
   return {

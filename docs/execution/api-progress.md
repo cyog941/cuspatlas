@@ -319,3 +319,11 @@ Workstream A batch 2 (A8-A13) on synthetic data only. Framing, recorded before a
   seams for a qualified partner; a partner reporting every capability still refuses without a verified
   prescriber, and the port is never called. Agents are refused on REST (transport) and MCP alike.
 - Qualification note and explicit non-claim: `docs/integrations/prescribing-qualification.md`.
+
+### A batch 2 CI fixes
+
+- First full `ci` run: 5 failed / 3187 passed. Causes: the agent principal and sponsorship tables
+  formed a foreign-key cycle (the restore orders tables by keys: restore smoke, M8/M9 and I9 drills
+  failed); and the S14 structural check listed `agent_consents` as a communication-consent table.
+  Fixed by dropping the back-reference key (the checked functions write both rows together) and by
+  excluding `agent_*` tables from the patient-consent check with the reason stated.

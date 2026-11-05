@@ -36,9 +36,9 @@ CREATE TABLE cuspatlas.agent_sponsorships (
   effective_at timestamptz NOT NULL DEFAULT clock_timestamp()
 );
 CREATE INDEX agent_sponsorships_agent ON cuspatlas.agent_sponsorships (agent_ref, effective_at);
-ALTER TABLE cuspatlas.agent_principals
-  ADD CONSTRAINT agent_principals_sponsorship FOREIGN KEY (sponsorship_ref)
-  REFERENCES cuspatlas.agent_sponsorships (id) DEFERRABLE INITIALLY DEFERRED;
+-- No foreign key from agent_principals.sponsorship_ref back to agent_sponsorships: the pair would be a
+-- foreign-key cycle (the restore orders tables by their keys). The checked functions below always
+-- write the agent row and its sponsorship together, and every read joins them.
 
 CREATE TABLE cuspatlas.agent_lifecycle_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

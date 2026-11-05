@@ -186,7 +186,7 @@ describe('A12 evaluation harness', () => {
     const l = await s.call('humanAll', 'GET', '/v1/ai/evaluations?useCase=clinicalNoteDraft');
     expect(l.status).toBe(200);
     expect((l.body.data as Run[]).length).toBeGreaterThanOrEqual(2);
-    expect(l.body.envelope.count).toBeDefined();
+    expect((l.body.envelope as { count: unknown }).count).toBeDefined();
     await expect(
       s.db.admin.query(`UPDATE cuspatlas.ai_evaluation_runs SET verdict = 'pass'`),
     ).rejects.toThrow();

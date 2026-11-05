@@ -379,7 +379,7 @@ describe('A23 scheduled tasks', () => {
     expect((await schedule(b, p, 'syntheticTasks.list')).body.code).toBe('not_found');
     const listed = await s.call('humanAll', 'GET', `/v1/agents/tasks?agentRef=${a.agentRef}`);
     expect(listed.status).toBe(200);
-    expect(listed.body.envelope.count).toStrictEqual({ exact: 1 });
+    expect((listed.body.envelope as { count: unknown }).count).toStrictEqual({ exact: 1 });
   });
 
   it('the worker runs a due task through MCP admission and records the outcome', async () => {

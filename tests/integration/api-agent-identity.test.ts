@@ -132,8 +132,8 @@ describe('A8 separated agent audit', () => {
     const items = listed.body.data as Record<string, unknown>[];
     expect(items.length).toBe(1);
     expect(items[0]?.sponsorRef).toBe(SPONSOR);
-    expect(listed.body.envelope.count).toStrictEqual({ exact: 1 });
-    expect(listed.body.envelope.nextCursor).toBeNull();
+    expect((listed.body.envelope as { count: unknown }).count).toStrictEqual({ exact: 1 });
+    expect((listed.body.envelope as { nextCursor: unknown }).nextCursor).toBeNull();
   });
 
   it('a sponsor change is a new sponsorship; earlier actions keep the sponsor of record', async () => {

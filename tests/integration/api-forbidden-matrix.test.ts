@@ -170,10 +170,15 @@ describe('A7 forbidden-operation matrix', () => {
     const automationAdmitted = catalog.filter(
       (o) =>
         o.principals.includes('service') &&
+        // Closeout C: the worker-only build job (no REST, MCP or agent path) is the one exception.
+        !(o.operation === 'exports.build' && o.transports.join() === 'worker') &&
         (/^exports\./.test(o.operation) ||
           (/^webhooks\./.test(o.operation) && o.scope !== 'webhooks.read' && o.scope !== 'outbox.deliver')),
     );
     expect(automationAdmitted.map((o) => o.operation)).toStrictEqual([]);
+    const build = catalog.find((o) => o.operation === 'exports.build');
+    expect(build).toMatchObject({ transports: ['worker'], principals: ['service'] });
+    expect(build?.mcpTool).toBeUndefined();
     // An MCP caller can only be staff: no portal, device or pairing operation is a tool.
     expect(catalog.filter((o) => o.mcpTool && o.authorization !== 'authorize')).toStrictEqual([]);
   });

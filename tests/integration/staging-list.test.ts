@@ -237,3 +237,79 @@ describe('S20 staging list', () => {
     expect((await list()).items).toHaveLength(rest.items.length);
   });
 });
+
+describe('S20 hardening (R4)', () => {
+  const entryState = async (appointmentRef: string) =>
+    (
+      await db.admin.query(
+        `SELECT state, removal_reason FROM cuspatlas.scheduling_staging_entries
+         WHERE appointment_id = $1 ORDER BY created_at DESC LIMIT 1`,
+        [appointmentRef],
+      )
+    ).rows[0] as { state: string; removal_reason: string | null };
+  const fresh = async (capacity: number) => {
+    const l = await seedLocation(h, `loc-r4-${capacity}-${Math.random().toString(36).slice(2, 8)}`);
+    expect(
+      (await h.call('a1', 'POST', `${STAGING}/settings`, { locationRef: l.locationRef, capacity }))
+        .statusCode,
+    ).toBe(200);
+    const bookAt = async (startsAt: string, endsAt: string) =>
+      h.ok<{ data: { appointmentRef: string } }>(
+        await h.call('a1', 'POST', APPT, {
+          patientRef: patient,
+          locationRef: l.locationRef,
+          startsAt,
+          endsAt,
+          timeZone: 'America/New_York',
+          provider: { kind: 'provider', resourceRef: l.provider },
+          operatory: { kind: 'operatory', resourceRef: l.operatory },
+        }),
+        201,
+      ).data.appointmentRef;
+    const stageAt = (appointmentRef: string) =>
+      h.call('a1', 'POST', `${STAGING}/entries`, {
+        locationRef: l.locationRef,
+        reasonCode: 'provider_out',
+        appointmentRef,
+      });
+    return { l, bookAt, stageAt };
+  };
+
+  it('cancelling or rescheduling a staged appointment through S10 resolves its entry and frees capacity', async () => {
+    const { l, bookAt, stageAt } = await fresh(1);
+    const a = await bookAt('2030-03-04T14:00:00Z', '2030-03-04T15:00:00Z');
+    const b = await bookAt('2030-03-05T14:00:00Z', '2030-03-05T15:00:00Z');
+    expect((await stageAt(a)).statusCode).toBe(201);
+    expect((await stageAt(b)).json().detail).toMatchObject({ reason: 'staging_capacity_reached' });
+    const cancelled = await h.call('a1', 'POST', `${APPT}/${a}/cancel`, {
+      expectedVersion: 1,
+      reasonCode: 'patient_request',
+    });
+    expect(cancelled.statusCode, cancelled.body).toBe(200);
+    expect(await entryState(a)).toStrictEqual({ state: 'removed', removal_reason: 'appointment_cancelled' });
+    // Capacity is free again, and a reschedule through S10 resolves the entry as moved.
+    expect((await stageAt(b)).statusCode).toBe(201);
+    const moved = await h.call('a1', 'POST', `${APPT}/${b}/reschedule`, {
+      expectedVersion: 1,
+      reasonCode: 'provider_out',
+      startsAt: '2030-03-06T14:00:00Z',
+      endsAt: '2030-03-06T15:00:00Z',
+      timeZone: 'America/New_York',
+      provider: { kind: 'provider', resourceRef: l.provider },
+      operatory: { kind: 'operatory', resourceRef: l.operatory },
+    });
+    expect(moved.statusCode, moved.body).toBe(200);
+    expect((await entryState(b)).state).toBe('moved');
+  });
+
+  it('concurrent adds into the last free slot: exactly one wins, the other names the capacity', async () => {
+    const { bookAt, stageAt } = await fresh(1);
+    const a = await bookAt('2030-03-11T14:00:00Z', '2030-03-11T15:00:00Z');
+    const b = await bookAt('2030-03-12T14:00:00Z', '2030-03-12T15:00:00Z');
+    const results = await Promise.all([stageAt(a), stageAt(b)]);
+    const codes = results.map((r) => r.statusCode).sort();
+    expect(codes).toStrictEqual([201, 409]);
+    const loser = results.find((r) => r.statusCode === 409);
+    expect(loser?.json().detail).toMatchObject({ reason: 'staging_capacity_reached' });
+  });
+});

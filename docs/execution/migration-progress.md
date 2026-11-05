@@ -342,3 +342,6 @@ operator, hosting model and tested objectives). Every real-practice use of M wai
 Honest status: planned, configured and tested on synthetic data. Not approved, not deployed, not
 compliant, not clinically validated; the drill timings describe the embedded test cluster only.
 Not a production-ready PMS.
+- Full-run fixes: `migration_archive_entries.patient_id` is a merge-excluded reference (an immutable
+  archive entry keeps the patient it was registered for; open item: resolve a survivor's references
+  through the merge chain), and the C18 import-order expectation names the migration export.

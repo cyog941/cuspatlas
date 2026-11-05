@@ -300,6 +300,27 @@ describe('A21 appointment detail (OR-10)', () => {
 });
 
 describe('A batch 3 hardening: appointment detail', () => {
+  it('answers another location appointment exactly like a missing one (location checked first)', async () => {
+    const south = await seedLocation(h, 'loc-south');
+    const other = await createPatient(h, 'Southern');
+    const away = h.ok<{ data: { appointmentRef: string } }>(
+      await h.call('a1', 'POST', '/v1/scheduling/appointments', {
+        patientRef: other,
+        locationRef: 'loc-south',
+        startsAt: `${DAY}T15:00:00.000Z`,
+        endsAt: `${DAY}T15:30:00.000Z`,
+        timeZone: 'America/New_York',
+        provider: { kind: 'provider', resourceRef: south.provider },
+        operatory: { kind: 'operatory', resourceRef: south.operatory },
+      }),
+      201,
+    ).data.appointmentRef;
+    const hidden = await h.call('a3', 'GET', `/v1/appointments/${away}/detail`);
+    const missing = await h.call('a3', 'GET', '/v1/appointments/00000000-0000-4000-8000-00000000dead/detail');
+    expect([hidden.statusCode, missing.statusCode]).toEqual([404, 404]);
+    expect(hidden.json().code).toBe(missing.json().code);
+  });
+
   it('logs a sensitive read when only a billing component of the patient is returned', async () => {
     await db.admin.query('UPDATE cuspatlas.memberships SET scopes = $2::text[] WHERE principal_id = $1', [
       USER_A4,

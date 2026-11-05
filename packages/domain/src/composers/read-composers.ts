@@ -309,6 +309,17 @@ export function createReadComposers(base: ComposerBase, producers: ComposerProdu
         if (!UUID.test(appointmentRef)) throw notFound();
         const allowed = await base.permissions(ctx, SPECS);
         return deps.withTenantTransaction(ctx, async (tx) => {
+          // Location first, from the bare row: another location's appointment is answered exactly like a
+          // missing one, before any of its facts are read.
+          const { rows: at } = await tx.query<{ location_ref: string }>(
+            `SELECT l.location_ref FROM cuspatlas.appointments a
+             JOIN cuspatlas.scheduling_locations l ON l.id = a.location_id AND l.tenant_id = a.tenant_id
+             WHERE a.id = $1`,
+            [appointmentRef],
+          );
+          const where = at[0]?.location_ref;
+          if (where === undefined) throw notFound();
+          if (decision.locationRefs !== null && !decision.locationRefs.includes(where)) throw notFound();
           const a = await appointmentFacts(tx, appointmentRef);
           if (!a) throw notFound();
           assertLocation(decision.locationRefs, a.location.locationRef);

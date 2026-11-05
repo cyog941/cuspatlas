@@ -10,7 +10,7 @@ Status values: not started, in progress, blocked with cause, verified (on synthe
 |---|---|---|---|
 | 1. Merge `codex/e-portal-1` (a2966ef) | verified | merge commit | 16 conflicted files, all resolved keeping both behaviours; combined S+C+E import |
 | 2. Integration seams (E4 to C8, E2 `clinical_read`, E attachment port, E6 over C14) | verified (E4 to C8, E6 over C14); E2 documents and E attachments recorded as ports | step 2 commit | migration `20261120000000` |
-| 3. S-table relink guard | not started | | |
+| 3. S-table relink guard | verified | step 3 commit | migration `20261120010000` |
 | 4. Keyed idempotency payload digest | not started | | |
 | Phase 2: merge I and B, resolver and fee/coverage seams | not started (waiting for the I and B branches) | | |
 
@@ -40,6 +40,12 @@ Gate: see the commit message of the merge for the run counts.
 - E2 portal `clinical_read` view (`documents`): kept `unavailable` (owner C15). C exposes no patient-facing projection: every C read is a staff sensitive read, and C15 stores opaque `imageRef`s whose documents live in I. Revisit in Phase 2 when I3 reference reads exist and a patient-facing document projection is specified.
 - E `AttachmentRefResolver`: kept as a port (fail closed) until I merges (Phase 2).
 - Test-only fix carried with this step: `clinical-procedures.test.ts` and `clinical-review-hardening-c12.test.ts` computed TODAY as the UTC date while the server checks the date of service in the location zone (America/New_York), so 21 C14 tests failed between 00:00 and 05:00 UTC; TODAY is now the New York date.
+
+## 3. S-table relink guard
+
+Gap reported by C: the S record classes of the merge registry had no database relink guard. Migration `20261120010000_integration_s_relink_guard.sql` adds `merge_reference_relink_guard(column)`, the column-parameterised form of C's `clinical_subject_relink_guard` (as hardened by `20261109100000`: forward relink only with an unreversed merge of that pair recorded and observed in the same transaction that lists the record and column; reversal relink only with the reversal recorded and observed in the same transaction, a listed move, and no later merge of the record), as deferred constraint triggers on every S class of `MERGE_RECORD_CLASSES`: `patient_relationships.subject_patient_id` and `.counterparty_patient_id`, `appointment_requests`, `appointments`, `appointment_series`, `waitlist_entries` (`subject_patient_id`). Bound to the runtime role `cuspatlas_app` (the C guard scope assumption); privileged roles can disable triggers in any case. The excluded S reference `recall_tasks.subject_patient_id` never moves under the runtime role. The existing S6 observation triggers (`20261109050000`) and the moves-cover guard already applied to these tables.
+
+Tests (`s-relink-guard.test.ts`, runtime role, committed so deferred checks run): per class, a bare relink to the survivor or a stranger is refused (42501), the real merge and unmerge relink, a bare move back after a merge is refused, and after merge/unmerge/merge a bare relink cannot borrow the old reversal; the trigger set equals the S classes; a recall task's patient cannot be moved and a real merge leaves it in place. Without the migration all 8 tests fail (checked).
 
 ## Open items
 

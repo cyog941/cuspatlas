@@ -198,3 +198,7 @@ An S10 cancel or reschedule of a staged appointment resolves its staging entry i
 ### 10.5 Group R: R5 and floor nits (S21)
 
 Floor and provider-request reads use configurable caps (`SchedulingDeps.floorCaps`, default 100 each), read `cap + 1` rows and report `truncated` with `count: { atLeast }` when capped (`cappedCount`). A visit with attendance activity in the last day stays on the floor even when its booked window left the ±1 day range. The anonymized projection drops `requestRef` (FloorVisit `providerRequest.requestRef` is now optional), which also removes the redundant ternary. Red (3 failed) then green.
+
+### 10.6 Group R: R7 (E10 escalation)
+
+The episode is keyed on the first portal message after the last staff message; due is measured from it; a follow-up neither de-escalates nor restarts the due time. Only a human who may post staff replies (`messaging.messages.post`) records the escalation fact during a read; read-only readers and service principals get the same list with the overdue item routed to the escalation queue (derived) and `escalatedAt: null` until a staff read records it. The scan uses each queue's policy as its cutoff (no 23-hour constant) and walks batches with a keyset cursor, so no queue starves another. No worker stage was added (open: a worker escalation sweep would remove the dependence on a staff read). Red (2 failed) then green; the two exact-due assertions now allow under one second between the thread activity time and the episode message time.

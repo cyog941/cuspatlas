@@ -127,53 +127,72 @@ async function markRead(tx: TenantTransaction, threadId: string): Promise<void> 
  * message start a new episode (a new key). The escalation moves the work item to the practice manager
  * queue; it never changes the thread.
  */
+interface EscalationCandidate extends Record<string, unknown> {
+  id: string;
+  queue: ThreadQueue;
+  version: number;
+  episode_at: Date;
+  time_zone: string;
+  trigger_id: string;
+}
+
 async function escalateOverdue(
   tx: TenantTransaction,
   decision: AuthorizationDecision,
   policies: PolicyMap,
   now: Date,
 ): Promise<void> {
-  const { rows } = await tx.query<{
-    id: string;
-    queue: ThreadQueue;
-    version: number;
-    last_message_at: Date;
-    time_zone: string;
-    trigger_id: string;
-  }>(
-    `SELECT t.id, t.queue, t.version, t.last_message_at, l.time_zone, lp.id AS trigger_id
-     FROM cuspatlas.message_threads t
-     JOIN cuspatlas.scheduling_locations l ON l.id = t.location_id AND l.tenant_id = t.tenant_id
-     JOIN LATERAL (SELECT m.id FROM cuspatlas.thread_messages m
-       WHERE m.thread_id = t.id AND m.author_kind = 'portal' ORDER BY m.created_at DESC, m.id DESC LIMIT 1) lp ON true
-     WHERE t.state = 'open' AND t.awaiting = 'practice' AND t.last_message_at < $2::timestamptz - interval '23 hours'
-       AND ($1::text[] IS NULL OR l.location_ref = ANY ($1::text[]))
-       AND NOT EXISTS (SELECT 1 FROM cuspatlas.thread_reply_escalations e
-         WHERE e.thread_id = t.id AND e.trigger_message_id = lp.id)
-     ORDER BY t.last_message_at, t.id LIMIT 500`,
-    [decision.locationRefs, now],
-  );
-  for (const t of rows) {
-    const due = replyDueAt(t.last_message_at, t.queue, t.time_zone, policies);
-    if (due.getTime() > now.getTime()) continue;
-    const ins = await tx.query<{ id: string }>(
-      `INSERT INTO cuspatlas.thread_reply_escalations (tenant_id, thread_id, trigger_message_id, due_at, escalated_to_queue)
-       VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4)
-       ON CONFLICT (thread_id, trigger_message_id) DO NOTHING RETURNING id`,
-      [t.id, t.trigger_id, due, ESCALATION_QUEUE],
+  // R7: the cutoff is each queue's own policy (business days are never shorter than calendar days, so
+  // an episode younger than the policy in days cannot be due); batches walk the whole set, so a queue
+  // with a long policy never starves another.
+  const queues = THREAD_QUEUES.map((q) => q as string);
+  const days = THREAD_QUEUES.map((q) => policies[q].replyDueBusinessDays);
+  let after = null as { at: Date; id: string } | null;
+  for (let batch = 0; batch < 20; batch += 1) {
+    const { rows }: { rows: EscalationCandidate[] } = await tx.query<EscalationCandidate>(
+      `SELECT t.id, t.queue, t.version, ep.created_at AS episode_at, l.time_zone, ep.id AS trigger_id
+       FROM cuspatlas.message_threads t
+       JOIN cuspatlas.scheduling_locations l ON l.id = t.location_id AND l.tenant_id = t.tenant_id
+       JOIN LATERAL (SELECT m.id, m.created_at FROM cuspatlas.thread_messages m
+       WHERE m.thread_id = t.id AND m.author_kind = 'portal'
+         AND m.created_at > coalesce((SELECT max(s.created_at) FROM cuspatlas.thread_messages s
+                                      WHERE s.thread_id = t.id AND s.author_kind = 'staff'), '-infinity'::timestamptz)
+       ORDER BY m.created_at, m.id LIMIT 1) ep ON true
+       JOIN unnest($3::text[], $4::int[]) AS pol(queue, days) ON pol.queue = t.queue
+       WHERE t.state = 'open' AND t.awaiting = 'practice'
+         AND ep.created_at <= $2::timestamptz - make_interval(days => pol.days)
+         AND ($1::text[] IS NULL OR l.location_ref = ANY ($1::text[]))
+         AND ($5::timestamptz IS NULL OR (ep.created_at, t.id) > ($5::timestamptz, $6::uuid))
+         AND NOT EXISTS (SELECT 1 FROM cuspatlas.thread_reply_escalations e
+           WHERE e.thread_id = t.id AND e.trigger_message_id = ep.id)
+       ORDER BY ep.created_at, t.id LIMIT 500`,
+      [decision.locationRefs, now, queues, days, after?.at ?? null, after?.id ?? null],
     );
-    if (ins.rows[0]) {
-      await recordCommand(
-        tx,
-        {
-          operation: 'messaging.threads.escalate',
-          resourceType: 'messageThread',
-          resourceRef: t.id,
-          resourceVersion: t.version,
-        },
-        { changedFields: ['escalation'] },
+    for (const t of rows) {
+      const due = replyDueAt(t.episode_at, t.queue, t.time_zone, policies);
+      if (due.getTime() > now.getTime()) continue;
+      const ins = await tx.query<{ id: string }>(
+        `INSERT INTO cuspatlas.thread_reply_escalations (tenant_id, thread_id, trigger_message_id, due_at, escalated_to_queue)
+         VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4)
+         ON CONFLICT (thread_id, trigger_message_id) DO NOTHING RETURNING id`,
+        [t.id, t.trigger_id, due, ESCALATION_QUEUE],
       );
+      if (ins.rows[0]) {
+        await recordCommand(
+          tx,
+          {
+            operation: 'messaging.threads.escalate',
+            resourceType: 'messageThread',
+            resourceRef: t.id,
+            resourceVersion: t.version,
+          },
+          { changedFields: ['escalation'] },
+        );
+      }
     }
+    const last: EscalationCandidate | undefined = rows[rows.length - 1];
+    if (rows.length < 500 || !last) break;
+    after = { at: last.episode_at, id: last.id };
   }
 }
 
@@ -182,6 +201,8 @@ interface QueueRow extends ThreadRow {
   unread: boolean;
   needs_reply: boolean;
   escalated_at: Date | null;
+  /** R7: the first portal message after the last staff message (the episode start), or null. */
+  episode_at: Date | null;
 }
 
 /** The thread set the queue reads: E5 threads plus the caller's receipt and the escalation of the episode. */
@@ -191,14 +212,20 @@ const QUEUE_BASE = `WITH base AS (
     t.created_at,
     coalesce(lp.created_at > coalesce(r.last_read_at, '-infinity'::timestamptz), false) AS unread,
     (t.state = 'open' AND t.awaiting = 'practice') AS needs_reply,
-    e.escalated_at
+    e.escalated_at,
+    ep.created_at AS episode_at
   FROM cuspatlas.message_threads t
   JOIN cuspatlas.scheduling_locations l ON l.id = t.location_id AND l.tenant_id = t.tenant_id
   LEFT JOIN LATERAL (SELECT m.id, m.created_at FROM cuspatlas.thread_messages m
     WHERE m.thread_id = t.id AND m.author_kind = 'portal' ORDER BY m.created_at DESC, m.id DESC LIMIT 1) lp ON true
+  LEFT JOIN LATERAL (SELECT m.id, m.created_at FROM cuspatlas.thread_messages m
+    WHERE m.thread_id = t.id AND m.author_kind = 'portal'
+      AND m.created_at > coalesce((SELECT max(s.created_at) FROM cuspatlas.thread_messages s
+                                   WHERE s.thread_id = t.id AND s.author_kind = 'staff'), '-infinity'::timestamptz)
+    ORDER BY m.created_at, m.id LIMIT 1) ep ON true
   LEFT JOIN cuspatlas.thread_read_receipts r
     ON r.thread_id = t.id AND r.principal_id = cuspatlas.current_actor_id()
-  LEFT JOIN cuspatlas.thread_reply_escalations e ON e.thread_id = t.id AND e.trigger_message_id = lp.id
+  LEFT JOIN cuspatlas.thread_reply_escalations e ON e.thread_id = t.id AND e.trigger_message_id = ep.id
   WHERE ($1::text[] IS NULL OR l.location_ref = ANY ($1::text[]))
     AND ($2::text IS NULL OR t.queue = $2::text)
     AND ($3::uuid IS NULL OR t.assigned_to = $3::uuid))`;
@@ -566,10 +593,12 @@ export function createMessagingOperations(base: EngagementBase) {
       return base.guarded(ctx, op, async () => {
         const decision = await base.authorize(ctx, op);
         assertValid(validateEmptyQuery, query, ENGAGEMENT_PROPERTIES);
+        const mayEscalate = ctx.principal === 'human' && (await base.can(ctx, 'messaging.messages.post'));
         return deps.withTenantTransaction(ctx, async (tx) => {
           const now = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
           const policies = await loadPolicies(tx);
-          await escalateOverdue(tx, decision, policies, now);
+          // R7: only staff who may reply record the escalation fact; other readers see it derived.
+          if (mayEscalate) await escalateOverdue(tx, decision, policies, now);
           // The needs-reply queue (E10) and this work item share one predicate: open and awaiting the practice.
           const { rows } = await tx.query<QueueRow>(
             `${QUEUE_BASE} SELECT * FROM base WHERE needs_reply ORDER BY last_message_at, id LIMIT 500`,
@@ -578,8 +607,11 @@ export function createMessagingOperations(base: EngagementBase) {
           return workList(
             now,
             AVAILABLE,
-            rows.map((t) =>
-              workItem({
+            rows.map((t) => {
+              const due = replyDueAt(t.episode_at ?? t.last_message_at, t.queue, t.time_zone, policies);
+              // R7: an overdue item is in the escalation queue for every reader, recorded or not yet.
+              const escalated = t.escalated_at !== null || due.getTime() <= now.getTime();
+              return workItem({
                 workItemRef: t.id,
                 kind: 'message_awaiting_reply',
                 reasonCode: 'patient_message_unanswered',
@@ -590,16 +622,15 @@ export function createMessagingOperations(base: EngagementBase) {
                   { kind: 'patient', ref: t.patient_id },
                 ],
                 owner: {
-                  queue: t.escalated_at === null ? WORK_QUEUE[t.queue] : ESCALATION_QUEUE,
+                  queue: escalated ? ESCALATION_QUEUE : WORK_QUEUE[t.queue],
                   principalRef: t.assigned_to,
                 },
-                dueAt: replyDueAt(t.last_message_at, t.queue, t.time_zone, policies).toISOString(),
+                dueAt: due.toISOString(),
                 suggestedNextAction: t.assigned_to === null ? 'assign_then_reply' : 'reply',
                 blockingDependencies: [],
-                priorityRationale:
-                  t.escalated_at === null ? 'reply_due_by_queue_policy' : 'reply_overdue_escalated',
-              }),
-            ),
+                priorityRationale: escalated ? 'reply_overdue_escalated' : 'reply_due_by_queue_policy',
+              });
+            }),
           );
         });
       });
@@ -624,10 +655,12 @@ export function createMessagingOperations(base: EngagementBase) {
         const filter = q.filter ?? 'all';
         const limit = q.limit === undefined ? PAGE_DEFAULT : Number(q.limit);
         const offset = offsetOf(q.cursor);
+        const mayEscalate = ctx.principal === 'human' && (await base.can(ctx, 'messaging.messages.post'));
         return deps.withTenantTransaction(ctx, async (tx) => {
           const now = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
           const policies = await loadPolicies(tx);
-          await escalateOverdue(tx, decision, policies, now);
+          // R7: only staff who may reply record the escalation fact; other readers see it derived.
+          if (mayEscalate) await escalateOverdue(tx, decision, policies, now);
           const args = [decision.locationRefs, q.queue ?? null, q.assigneeRef ?? null];
           const counts = (
             await tx.query<{ all: string; unread: string; needs_reply: string }>(
@@ -664,7 +697,7 @@ export function createMessagingOperations(base: EngagementBase) {
             policies,
             items: rows.map((t) => {
               const due = t.needs_reply
-                ? replyDueAt(t.last_message_at, t.queue, t.time_zone, policies)
+                ? replyDueAt(t.episode_at ?? t.last_message_at, t.queue, t.time_zone, policies)
                 : null;
               return {
                 ...threadOut(t),

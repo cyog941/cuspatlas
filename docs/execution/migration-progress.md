@@ -137,3 +137,15 @@ format; a real adapter is a new format/version in `SOURCE_ADAPTERS` (MG-01).
   per-role reviewer list is a pending decision.
 - Red: 4/4 failing (exit 1). Green after two fixes (sign-off audit row used the report's resource
   version, colliding with the build audit; test expected 200 for a 201 route): 4/4.
+
+## Hardening H2
+
+Independent review findings on M2-M6, fixed on `codex/hardening-migration` (synthetic only;
+recommended-pending-approval). Tests in `tests/integration/migration-hardening.test.ts`.
+
+- M-1 apply never wedges: the planner checks the `amount_minor` cap (99,999,999,999) on every
+  financial row, real calendar days (`as_of`, `received_on`, patient birth day/month), and the
+  opening-balance key of the unique index (patient after link decisions, currency,
+  `coalesce(as_of, 1900-01-01)`) within the plan and against posted balances of other packages.
+  Offenders are `excluded` (`validation_failed`; a key collision keeps the more precise
+  `duplicate_opening`, both visible in the plan and report). Red: 1/1 failing (exit 1); green 1/1.

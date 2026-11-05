@@ -102,7 +102,14 @@ export interface ImportApplySummary {
 /** Decides financial rows (M5); without it they stay blocked. */
 export type FinancialPlanner = (
   staged: StagedRecord,
-  ctx: { accepted: boolean; patient: PlannedEntry | undefined; currency: string; seen: Set<string> },
+  ctx: {
+    accepted: boolean;
+    patient: PlannedEntry | undefined;
+    currency: string;
+    seen: Set<string>;
+    /** Posted opening balances of the tenant: `patient|currency|day` -> staged record (H2 M-1). */
+    existing: ReadonlyMap<string, string>;
+  },
 ) => Omit<PlannedEntry, 'staged'>;
 
 export const ENTITY_ORDER = [
@@ -124,6 +131,13 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const MONTH = /^\d{4}-\d{2}$/;
 const YEAR = /^\d{4}$/;
 
+/** A real calendar day that Postgres `date` accepts (H2 M-1: `2026-02-30` passes the shape, not the cast). */
+export function realDay(v: string): boolean {
+  if (!DAY.test(v) || v < '0001-01-01') return false;
+  const d = new Date(`${v}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v;
+}
+
 /** The S4 create body of one staged patient (validated with the S4 contract), or null when invalid. */
 export function patientCreateOf(row: StagedRecord, sourceSystem: string): PatientCreate | null {
   const p = row.payload;
@@ -132,6 +146,8 @@ export function patientCreateOf(row: StagedRecord, sourceSystem: string): Patien
   const birth = (p.birth_date ?? '').trim();
   const precision = DAY.test(birth) ? 'day' : MONTH.test(birth) ? 'month' : YEAR.test(birth) ? 'year' : null;
   if (birth !== '' && precision === null) return null;
+  if (precision === 'day' && !realDay(birth)) return null;
+  if (precision === 'month' && !realDay(`${birth}-01`)) return null;
   const phone = (p.phone ?? '').trim();
   const body: PatientCreate = {
     legalName: given && family ? { known: true, given, family } : { known: false, reason: 'not_provided' },
@@ -212,6 +228,15 @@ export async function computePlan(
     }
     for (const id of i.staged_record_ids) byRecord.set(id, [...(byRecord.get(id) ?? []), i]);
   }
+  const existing = new Map<string, string>();
+  if (financial) {
+    const { rows: posted } = await tx.query<{ k: string; staged_record_id: string }>(
+      `SELECT patient_id::text || '|' || currency || '|' || to_char(coalesce(as_of, '1900-01-01'::date), 'YYYY-MM-DD') AS k,
+         staged_record_id::text AS staged_record_id
+       FROM cuspatlas.migration_opening_items WHERE kind = 'balance'`,
+    );
+    for (const r of posted) existing.set(r.k, r.staged_record_id);
+  }
   const patients = new Map<string, PlannedEntry>();
   const seen = new Set<string>();
   const entries: PlannedEntry[] = [];
@@ -266,6 +291,7 @@ export async function computePlan(
                 patient: patients.get(dep.patientSource),
                 currency,
                 seen,
+                existing,
               }),
               patientSource: dep.patientSource,
             }
@@ -322,6 +348,8 @@ const REQUIRED_ACTION: Readonly<Record<string, string>> = {
   unknown_patient: 'correct_source_and_reintake',
   patient_excluded: 'none_patient_excluded',
   excluded_by_review: 'none_excluded_by_staff',
+  duplicate_opening: 'correct_source_and_reintake',
+  zero_amount: 'none_zero_amount',
   missing_source_id: 'correct_source_and_reintake',
   duplicate_source_id: 'correct_source_and_reintake',
 };

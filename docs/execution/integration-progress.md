@@ -164,3 +164,9 @@ Five-way export decision: M tables (`migration_source_profiles`, `migration_pack
 
 - `clinical-review-hardening-c12` "coverage that turned stale after presentation…": staleness is judged by the application clock (`Date.now()` in `estimates.ts`), so the test fakes only `Date` (`vi.useFakeTimers({ toFake: ['Date'], shouldAdvanceTime: true })`; timers and the database stay real), enters a source one minute short of 30 days old, and moves the clock two minutes forward after presentation instead of sleeping 3 s.
 - `rcm-review-hardening-b6b9` "a submission left pending by a crash…": the lookup deadline is the stored `call_deadline` compared with the database clock, so the test places it explicitly (admin session, `session_replication_role = replica` to pass the submission guard, as `billing-fees-procedures` does): one hour ahead for the early poll (now strictly `submission_in_flight`), one second behind for the worklist and lookup. No product change.
+
+### 9.7 Gate (round 2)
+
+`corepack pnpm run ci` exit 0: 145 files, 3070 tests (catalog 384 operations). The first run (1 file, 2 tests failed in `review-hardening-s2` "same-key retry after the start has passed") started booking a five-minute window at about 23:58 America/New_York; the window crossed midnight and the all-day availability ends at the day boundary (`outside_availability`), so it was a midnight edge, not a merge effect; the rerun passed.
+
+Open (round 2): `review-hardening-s2` `soon()` windows can cross local midnight (test-only fix: keep the window inside one local day); M export format / opening-item chain for the five-way round trip (section 9.5); E10 tables not in E9 export (section 9.4); no insurer portion from B5/B9 in C12 estimates. Nothing here is approved, deployed, compliant or clinically validated.

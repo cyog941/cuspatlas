@@ -228,6 +228,20 @@ export function createWorker(deps: WorkerDeps) {
   async function reauthorize(event: LeasedEvent): Promise<SecurityReasonCode | null> {
     const m = await deps.memberships.load(event.actorId, event.tenantId);
     if (!m?.active) return 'membership_inactive';
+    // H3 / A9: work an agent queued is carried out only while a live consent still names its
+    // operation (withdrawn or expired consent: refused and dead-lettered, recorded as consent_missing).
+    if (m.agent) {
+      const consented = await deps.withTenantTransaction(workerCtx(event.tenantId), async (tx) => {
+        const { rowCount } = await tx.query(
+          `SELECT 1 FROM cuspatlas.agent_consents
+           WHERE agent_ref = $1 AND $2 = ANY (operations) AND state = 'active' AND expires_at > now()
+           LIMIT 1`,
+          [event.actorId, event.operation],
+        );
+        return (rowCount ?? 0) > 0;
+      });
+      if (!consented) return 'consent_missing';
+    }
     const ctx: ActorContext = {
       tenantId: event.tenantId,
       actorId: event.actorId,

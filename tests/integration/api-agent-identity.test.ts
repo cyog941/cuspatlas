@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { AGENT_SCOPE_CEILING } from '@cuspatlas/contracts';
 import {
   createMembershipSource,
   createSecurityAttemptSink,
@@ -10,7 +11,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { type AgentStack, inDays, SPONSOR, startAgentStack } from './support/agent-stack';
 import { M_HUMAN_ALL, M_SERVICE_ALL } from './support/catalog-stack';
 import { FakeProvider } from './support/fake-provider';
-import { T_ALPHA } from './support/fixtures';
+import { ctxFor, T_ALPHA } from './support/fixtures';
 
 /**
  * A8: agent principals (a service-principal subtype) with a named human sponsor, purpose, scope set,
@@ -314,6 +315,61 @@ describe('A8 suspension, rotation and revocation', () => {
     expect(denied.rowCount).toBeGreaterThan(0);
   });
 
+  it('queued agent work whose consent was withdrawn is refused and dead-lettered by the worker', async () => {
+    const a = await s.createAgent(TASK_SCOPES, 'consent withdrawn before delivery');
+    const created = await s.agentTool(a, 'synthetic_tasks_create', create('queued under consent'));
+    expect(created.isError).toBe(false);
+    const c = await s.db.admin.query<{ id: string; version: number }>(
+      `SELECT id, version FROM cuspatlas.agent_consents WHERE agent_ref = $1 AND state = 'active'`,
+      [a.agentRef],
+    );
+    for (const row of c.rows) {
+      const r = await s.call('humanAll', 'POST', '/v1/agents/consents/revoke', {
+        consentRef: row.id,
+        expectedVersion: row.version,
+      });
+      expect(r.status, JSON.stringify(r.body)).toBe(200);
+    }
+    const WORKER = randomUUID();
+    await s.db.admin.query(`INSERT INTO cuspatlas.principals (id, kind, handle) VALUES ($1, 'service', $2)`, [
+      WORKER,
+      `agent-test-worker-${WORKER.slice(0, 8)}`,
+    ]);
+    await s.db.admin.query(
+      `INSERT INTO cuspatlas.memberships (tenant_id, principal_id, scopes) VALUES ($1, $2, $3)`,
+      [T_ALPHA, WORKER, ['outbox.deliver', ...TASK_SCOPES]],
+    );
+    const memberships = createMembershipSource(s.db.app);
+    const worker = createWorker({
+      workerPrincipalId: WORKER,
+      withTenantTransaction: createTenantTransactionRunner(s.db.app),
+      authorize: createAuthorize(memberships),
+      memberships,
+      attempts: createSecurityAttemptSink(s.db.sink),
+      backoffSeconds: () => 0,
+    });
+    const provider = new FakeProvider();
+    for (let i = 0; i < 40; i++) {
+      await worker.runOnce(T_ALPHA, provider);
+      const left = await s.db.admin.query(
+        `SELECT 1 FROM cuspatlas.outbox_events WHERE actor_id = $1 AND state IN ('pending', 'leased', 'retry')`,
+        [a.agentRef],
+      );
+      if (left.rowCount === 0) break;
+    }
+    const { rows } = await s.db.admin.query<{ state: string }>(
+      'SELECT state FROM cuspatlas.outbox_events WHERE actor_id = $1',
+      [a.agentRef],
+    );
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every((r) => r.state === 'dead_letter')).toBe(true);
+    const denied = await s.db.admin.query(
+      `SELECT 1 FROM cuspatlas.security_attempt_events WHERE actor_id = $1 AND reason_code = 'consent_missing'`,
+      [a.agentRef],
+    );
+    expect(denied.rowCount).toBeGreaterThan(0);
+  });
+
   it('agent lifecycle commands are human-only and need agents.manage', async () => {
     expect(M_SERVICE_ALL).not.toBe(M_HUMAN_ALL);
     const a = await s.createAgent(TASK_SCOPES);
@@ -331,5 +387,73 @@ describe('A8 suspension, rotation and revocation', () => {
     expect(none.status).toBe(403);
     const beta = await s.call('humanBeta', 'GET', `/v1/agents/principals/state?agentRef=${a.agentRef}`);
     expect(beta.status).toBe(404);
+  });
+});
+describe('H3 agent credential and sponsor hardening', () => {
+  it('the stored idempotency result of create and rotate never holds the credential reference', async () => {
+    const key = randomUUID();
+    const body = { purpose: 'replayed create', scopes: TASK_SCOPES, expiresAt: inDays(5) };
+    const first = await s.call('humanAll', 'POST', '/v1/agents/principals', body, key);
+    expect(first.status).toBe(201);
+    const credential = (first.body.data as { credentialRef: string }).credentialRef;
+    expect(credential).toMatch(/^agc-/);
+    const replay = await s.call('humanAll', 'POST', '/v1/agents/principals', body, key);
+    expect(replay.body.data).not.toHaveProperty('credentialRef');
+    const agentRef = (first.body.data as { agentRef: string }).agentRef;
+    const rotated = await s.call('humanAll', 'POST', '/v1/agents/credentials/rotate', {
+      agentRef,
+      expectedVersion: 1,
+      reason: 'synthetic_test',
+    });
+    expect(rotated.status).toBe(200);
+    const stored = await s.db.admin.query<{ result: unknown }>(
+      `SELECT result FROM cuspatlas.command_idempotency
+       WHERE operation IN ('agents.principals.create', 'agents.credentials.rotate')`,
+    );
+    expect(JSON.stringify(stored.rows)).not.toMatch(/agc-/);
+  });
+
+  it("a sponsor's lost scope leaves the agent at once (effective scopes = scope set ∩ sponsor's live scopes)", async () => {
+    const sp = await s.db.admin.query<{ id: string }>(
+      `INSERT INTO cuspatlas.principals (id, kind, handle) VALUES (gen_random_uuid(), 'human', 'agent-sponsor-four')
+       RETURNING id`,
+    );
+    const sponsor = sp.rows[0]?.id as string;
+    await s.db.admin.query(
+      `INSERT INTO cuspatlas.memberships (tenant_id, principal_id, scopes) VALUES ($1, $2, $3)`,
+      [T_ALPHA, sponsor, [...TASK_SCOPES, 'agents.manage', 'agents.read']],
+    );
+    const a = await s.createAgent(TASK_SCOPES, 'sponsored by four', sponsor);
+    expect((await s.agentTool(a, 'synthetic_tasks_create', create('before downgrade'))).isError).toBe(false);
+    await s.db.admin.query(
+      `UPDATE cuspatlas.memberships SET scopes = array_remove(scopes, 'syntheticTasks.write')
+       WHERE principal_id = $1 AND tenant_id = $2`,
+      [sponsor, T_ALPHA],
+    );
+    expect((await s.agentTool(a, 'synthetic_tasks_create', create('after downgrade'))).body.code).toBe(
+      'forbidden',
+    );
+    expect((await s.agentTool(a, 'synthetic_tasks_list', {})).isError).toBe(false);
+  });
+
+  it('the database refuses a non-delegable or human-only scope for an agent whatever the caller sends', async () => {
+    const ceiling = await s.db.admin.query<{ scope: string }>(
+      'SELECT scope FROM cuspatlas.agent_scope_ceiling',
+    );
+    expect(new Set(ceiling.rows.map((r) => r.scope))).toStrictEqual(new Set(AGENT_SCOPE_CEILING));
+    const run = createTenantTransactionRunner(s.db.app);
+    const ctx = ctxFor(T_ALPHA, M_HUMAN_ALL, 'human', ['agents.manage']);
+    for (const scope of ['agents.manage', 'clinical.sign', 'ai.review']) {
+      await expect(
+        run(ctx, (tx) =>
+          tx.query('SELECT cuspatlas.agent_create($1, $2, $3, $4)', [
+            'direct',
+            [scope],
+            inDays(2),
+            'agc-direct',
+          ]),
+        ),
+      ).rejects.toMatchObject({ code: 'P0422' });
+    }
   });
 });

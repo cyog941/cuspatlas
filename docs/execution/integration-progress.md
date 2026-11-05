@@ -194,3 +194,7 @@ Red then green: `api-change-control-gate` (4 failed, then green), `api-scopes` r
 ### 10.4 Group R: R4 (S20 staging)
 
 An S10 cancel or reschedule of a staged appointment resolves its staging entry in the same transaction (`removed`/`appointment_cancelled` or `moved`, audited), so capacity is free at once (`packages/domain/src/scheduling/staging-resolve.ts`). Red (entry stayed `staged`) then green; a concurrent-add race into the last slot gives exactly one 201 and one `staging_capacity_reached` (passed before and after: the list-row lock already serialized it; kept as a regression test).
+
+### 10.5 Group R: R5 and floor nits (S21)
+
+Floor and provider-request reads use configurable caps (`SchedulingDeps.floorCaps`, default 100 each), read `cap + 1` rows and report `truncated` with `count: { atLeast }` when capped (`cappedCount`). A visit with attendance activity in the last day stays on the floor even when its booked window left the ±1 day range. The anonymized projection drops `requestRef` (FloorVisit `providerRequest.requestRef` is now optional), which also removes the redundant ternary. Red (3 failed) then green.

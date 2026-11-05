@@ -5611,7 +5611,7 @@
             {
               "type": "object",
               "additionalProperties": false,
-              "required": ["requestRef", "state"],
+              "required": ["state"],
               "properties": {
                 "requestRef": {
                   "$ref": "#/$defs/ResourceRefId"

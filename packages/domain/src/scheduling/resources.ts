@@ -102,6 +102,8 @@ export interface SchedulingDeps {
   readonly memberships?: MembershipSource;
   /** S18/OR-D6: maximum availability search window in local days (default 60). */
   readonly availabilityMaxWindowDays?: number;
+  /** R5: floor read caps (operatories and provider requests; defaults 100 each). */
+  readonly floorCaps?: { readonly operatories?: number; readonly providerRequests?: number };
 }
 
 /** Version of the reserved state-label vocabulary held by cuspatlas.scheduling_state_terms(). */

@@ -5647,7 +5647,7 @@ export type SchedulingFloorVisit = {
     readonly "patientRef": SchedulingResourceRefId;
   }) | ("restricted" | "anonymized");
   readonly "providerRequest": ({
-    readonly "requestRef": SchedulingResourceRefId;
+    readonly "requestRef"?: SchedulingResourceRefId;
     readonly "state": "open" | "acknowledged";
   }) | (null);
 };

@@ -48,9 +48,18 @@ Paper records enter the system as **reviewed entries**, never as silent overwrit
 4. The downtime is closed only when every paper item is either entered or explicitly marked not
    entered with a reason. Closing with unreconciled items reports the count; it never closes silently.
 
-Planned, not yet built: a downtime log and manual-event reconciliation operation (plan M8
-`openDowntimeLog` / `recordManualEvent` / `reconcileManualEvents`). Until then this section is the
-procedure, carried out with the existing operations.
+The downtime log (Closeout A2; tested on synthetic data, not approved or deployed) records this
+procedure: `operations.downtime.start` / `operations.downtime.end` open and end a window for the tenant
+or some locations (one open window per scope), `operations.downtime.log` records each transcribed paper
+item as `pending_review` (kind, structured payload, summary, paper reference, capture time inside the
+window; up to 14 days after the window ended), and `operations.downtime.entries.list` is the
+reconciliation worklist. The log never applies an entry: the reviewer enters the fact through the
+ordinary operation first (step 1), then a human resolves the entry with
+`operations.downtime.entries.resolve`, linking that committed command (operation, resource and
+correlation id, checked against the tenant audit record), rejecting it with a reason code, or marking
+it superseded by another entry. Ending a window does not require every entry to be resolved; the
+window list reports the count still pending, so step 4 is read from that count. The two-person rule
+for payments and notes is not enforced by the log.
 
 ## 5. Restore (when downtime is a data loss event)
 

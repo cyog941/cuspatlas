@@ -180,6 +180,14 @@ export const validateOperatorProfileRecord = def('OperatorProfileRecord');
 export const validateBackupVerificationRecord = def('BackupVerificationRecord');
 export const validateOperationsEmptyQuery = def('OperationsEmptyQuery');
 
+/** Closeout A2 downtime log (M8 runbook gap): windows, transcribed entries and their human review. */
+export const validateDowntimeStart = def('DowntimeStart');
+export const validateDowntimeEnd = def('DowntimeEnd');
+export const validateDowntimeLog = def('DowntimeLog');
+export const validateDowntimeEntryResolve = def('DowntimeEntryResolve');
+export const validateDowntimeWindowListQuery = def('DowntimeWindowListQuery');
+export const validateDowntimeEntryListQuery = def('DowntimeEntryListQuery');
+
 /**
  * M10 migration export: the migration workspace an audit needs (profiles, packages and staged records
  * outside B's opening chain, review items, runs, applied records with provenance, reviewer
@@ -203,6 +211,8 @@ export const MIGRATION_EXPORT_TABLES = [
   'migration_archive_holds',
   'ops_operator_profiles',
   'ops_backup_verifications',
+  'ops_downtime_windows',
+  'ops_downtime_entries',
 ] as const;
 export interface MigrationExport {
   readonly format: typeof MIGRATION_EXPORT_FORMAT;

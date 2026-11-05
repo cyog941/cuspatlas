@@ -15143,6 +15143,377 @@
       ]
     },
     {
+      "operation": "operations.downtime.end",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.write",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/operations/downtime/windows/end"
+      },
+      "mcpTool": "operations_downtime_end",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "endedAt": {
+            "type": [
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "expectedVersion": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 2147483647,
+            "minimum": 1
+          },
+          "windowRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "windowRef"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "operations.downtime.entries.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/operations/downtime/entries"
+      },
+      "mcpTool": "operations_downtime_entries_list",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
+      "operation": "operations.downtime.entries.resolve",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.write",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/operations/downtime/entries/resolve"
+      },
+      "mcpTool": "operations_downtime_entries_resolve",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "appliedCommand": {
+            "type": [
+              "object"
+            ],
+            "closed": true,
+            "properties": {
+              "correlationId": {
+                "type": [
+                  "string"
+                ],
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "operation": {
+                "type": [
+                  "string"
+                ],
+                "pattern": "^[a-z][A-Za-z]{0,40}(\\.[a-z][A-Za-z]{0,40}){0,3}$"
+              },
+              "resourceRef": {
+                "type": [
+                  "string"
+                ],
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            "required": [
+              "correlationId",
+              "operation",
+              "resourceRef"
+            ]
+          },
+          "decision": {
+            "enum": [
+              "\"applied\"",
+              "\"rejected\"",
+              "\"superseded\""
+            ]
+          },
+          "entryRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "expectedVersion": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 2147483647,
+            "minimum": 1
+          },
+          "rejectionReason": {
+            "enum": [
+              "\"already_recorded\"",
+              "\"duplicate\"",
+              "\"entered_in_error\"",
+              "\"illegible\"",
+              "\"not_applicable\""
+            ]
+          },
+          "supersededByRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "decision",
+          "entryRef",
+          "expectedVersion"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "operations.downtime.log",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.write",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/operations/downtime/entries"
+      },
+      "mcpTool": "operations_downtime_log",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "capturedAt": {
+            "type": [
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "entryKind": {
+            "enum": [
+              "\"appointment_booking\"",
+              "\"attendance\"",
+              "\"clinical_note\"",
+              "\"other\"",
+              "\"patient_registration\"",
+              "\"payment\""
+            ]
+          },
+          "paperRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,63}$"
+          },
+          "payload": {
+            "type": [
+              "object"
+            ]
+          },
+          "summary": {
+            "type": [
+              "string"
+            ],
+            "maxLength": 500,
+            "minLength": 1
+          },
+          "windowRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "capturedAt",
+          "entryKind",
+          "paperRef",
+          "payload",
+          "summary",
+          "windowRef"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "operations.downtime.start",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.write",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/operations/downtime/windows"
+      },
+      "mcpTool": "operations_downtime_start",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "locationRefs": {
+            "type": [
+              "array"
+            ],
+            "maxItems": 20,
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": [
+                "string"
+              ],
+              "pattern": "^[a-z0-9-]{1,64}$"
+            }
+          },
+          "reasonCode": {
+            "enum": [
+              "\"network_outage\"",
+              "\"other\"",
+              "\"planned_maintenance\"",
+              "\"power_outage\"",
+              "\"system_outage\"",
+              "\"vendor_outage\""
+            ]
+          },
+          "scope": {
+            "enum": [
+              "\"locations\"",
+              "\"tenant\""
+            ]
+          },
+          "startedAt": {
+            "type": [
+              "string"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "reasonCode",
+          "scope"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "operations.downtime.windows.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/operations/downtime/windows"
+      },
+      "mcpTool": "operations_downtime_windows_list",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
       "operation": "operations.operatorProfiles.record",
       "transports": [
         "rest",

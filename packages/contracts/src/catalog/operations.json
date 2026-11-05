@@ -9977,6 +9977,215 @@
     "status": "active"
   },
   {
+    "operation": "operations.downtime.end",
+    "owner": "M",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "operations.downtime.end",
+    "scope": "migration.write",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/operations/downtime/windows/end",
+      "requestSchema": "migration:DowntimeEnd",
+      "successStatus": "200",
+      "successSchema": "migration:DowntimeWindowResult"
+    },
+    "mcpTool": "operations_downtime_end",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "operations.downtime.entries.list",
+    "owner": "M",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "operations.downtime.entries.list",
+    "scope": "migration.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/operations/downtime/entries",
+      "successStatus": "200",
+      "successSchema": "migration:DowntimeEntryList"
+    },
+    "mcpTool": "operations_downtime_entries_list",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "operations.downtime.entries.resolve",
+    "owner": "M",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "operations.downtime.entries.resolve",
+    "scope": "migration.write",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/operations/downtime/entries/resolve",
+      "requestSchema": "migration:DowntimeEntryResolve",
+      "successStatus": "200",
+      "successSchema": "migration:DowntimeEntryResult"
+    },
+    "mcpTool": "operations_downtime_entries_resolve",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "operations.downtime.log",
+    "owner": "M",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "operations.downtime.log",
+    "scope": "migration.write",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/operations/downtime/entries",
+      "requestSchema": "migration:DowntimeLog",
+      "successStatus": "201",
+      "successSchema": "migration:DowntimeEntryResult"
+    },
+    "mcpTool": "operations_downtime_log",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "operations.downtime.start",
+    "owner": "M",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "operations.downtime.start",
+    "scope": "migration.write",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/operations/downtime/windows",
+      "requestSchema": "migration:DowntimeStart",
+      "successStatus": "201",
+      "successSchema": "migration:DowntimeWindowResult"
+    },
+    "mcpTool": "operations_downtime_start",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "operations.downtime.windows.list",
+    "owner": "M",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "operations.downtime.windows.list",
+    "scope": "migration.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/operations/downtime/windows",
+      "successStatus": "200",
+      "successSchema": "migration:DowntimeWindowList"
+    },
+    "mcpTool": "operations_downtime_windows_list",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
     "operation": "operations.operatorProfiles.record",
     "owner": "M",
     "kind": "command",

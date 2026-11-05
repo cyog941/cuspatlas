@@ -408,6 +408,21 @@ export const LIST_OPERATIONS: Readonly<Record<string, ListOperationSpec>> = {
     scope: 'tenant',
     total: 'data.count',
   },
+  // Closeout A2 downtime log: tenant-wide reads capped at 500 rows without a cursor (truncated when full).
+  'operations.downtime.entries.list': {
+    rows: 'data',
+    ordering: { key: 'capturedAt', direction: 'asc', tieBreak: 'entryRef' },
+    limit: { default: 500, max: 500 },
+    cursor: false,
+    scope: 'tenant',
+  },
+  'operations.downtime.windows.list': {
+    rows: 'data',
+    ordering: { key: 'startedAt', direction: 'desc', tieBreak: 'windowRef' },
+    limit: { default: 500, max: 500 },
+    cursor: false,
+    scope: 'tenant',
+  },
   'patients.duplicates.find': {
     rows: 'data',
     ordering: { key: 'score', direction: 'desc', tieBreak: 'candidateRef' },

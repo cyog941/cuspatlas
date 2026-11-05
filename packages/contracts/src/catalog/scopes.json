@@ -899,6 +899,8 @@
         "migration.reports.read",
         "migration.reviewItems.list",
         "operations.alerts.list",
+        "operations.downtime.entries.list",
+        "operations.downtime.windows.list",
         "operations.readiness.assert"
       ],
       "sensitivity": "phi"
@@ -942,7 +944,11 @@
         "migration.reports.build",
         "migration.reviewItems.resolve",
         "migration.sourceProfiles.register",
-        "operations.backupVerifications.record"
+        "operations.backupVerifications.record",
+        "operations.downtime.end",
+        "operations.downtime.entries.resolve",
+        "operations.downtime.log",
+        "operations.downtime.start"
       ],
       "sensitivity": "phi"
     },

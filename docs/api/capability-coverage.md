@@ -6,12 +6,12 @@ Evidence category: **tested on synthetic data**. Coverage means a row resolves t
 
 Rows: 27 (matrix rows plus plan-defined A rows). Covered: 25. Gaps: 2. Unknown: 0. Unmapped matrix rows: 0. Scope defects: 0.
 
-MCP surface: 455 operations have an MCP tool; 33 do not.
+MCP surface: 461 operations have an MCP tool; 33 do not.
 
 | Capability row | Owners | Release | Status | Operations | Negative cases | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | Practice setup | S, B | P1 | covered | 12: `billing.feeSchedules.publish`, `billing.fees.resolve`, `scheduling.locations.changeTimeZone`, `scheduling.locations.define` and 8 more | `billing-negative-matrix.test.ts`, `mcp-parity.test.ts`, `negative-harness.test.ts` and 2 more | Organization profile, holiday calendars and procedure catalog administration are not separate operations yet. |
-| Patient identity | S | P1 | covered | 14: `patients.access.resolve`, `patients.create`, `patients.duplicates.find`, `patients.merge` and 10 more | `action-proposals.test.ts`, `agent-workspace-hardening.test.ts`, `agent-workspace.test.ts` and 31 more |  |
+| Patient identity | S | P1 | covered | 14: `patients.access.resolve`, `patients.create`, `patients.duplicates.find`, `patients.merge` and 10 more | `action-proposals.test.ts`, `agent-workspace-hardening.test.ts`, `agent-workspace.test.ts` and 32 more |  |
 | Family and consent | S, E, C | P1 | covered | 12: `clinical.consents.capture`, `clinical.consents.list`, `clinical.consents.read`, `clinical.consents.withdraw` and 8 more | `action-proposals.test.ts`, `clinical-consents.test.ts`, `comms-parity.test.ts` and 4 more |  |
 | Scheduling | S, A | P1 | covered | 29: `schedule.view`, `scheduling.appointments.book`, `scheduling.appointments.cancel`, `scheduling.appointments.override` and 25 more | `booking-conflicts.test.ts`, `mcp-parity.test.ts`, `navigation.test.ts` and 11 more |  |
 | Intake and portal | E, S | P1 | covered | 33: `intake.forms.list`, `intake.forms.publish`, `intake.forms.retire`, `intake.reviews.read` and 29 more | `appointment-requests.test.ts`, `comms-parity.test.ts`, `engagement-negative-harness.test.ts` and 10 more |  |

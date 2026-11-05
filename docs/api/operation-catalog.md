@@ -9,7 +9,7 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-488 operations.
+494 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
@@ -20,7 +20,7 @@ transport tables and are declarations, not independent proof.
 | B | 66 | 66 | 66 | 0 | 0 | 0 |
 | E | 60 | 48 | 48 | 11 | 0 | 1 |
 | I | 55 | 47 | 44 | 0 | 6 | 1 |
-| M | 29 | 29 | 29 | 0 | 0 | 0 |
+| M | 35 | 35 | 35 | 0 | 0 | 0 |
 
 | Operation | Owner | Kind | Authorization | Scope | Principals | Transports | REST | MCP tool | Idempotency | Sensitivity | Status |
 |---|---|---|---|---|---|---|---|---|---|---|---|
@@ -322,6 +322,12 @@ transport tables and are declarations, not independent proof.
 | `navigation.read` | A | query | authorize | - | human, service | rest, mcp | GET `/v1/navigation` | `navigation_get` | none | phi | active |
 | `operations.alerts.list` | M | query | authorize | `migration.read` | human, service | rest, mcp | GET `/v1/operations/alerts` | `operations_alerts_list` | none | phi | active |
 | `operations.backupVerifications.record` | M | command | authorize | `migration.write` | human, service | rest, mcp | POST `/v1/operations/backup-verifications` | `operations_backup_verifications_record` | required | phi | active |
+| `operations.downtime.end` | M | command | authorize | `migration.write` | human, service | rest, mcp | POST `/v1/operations/downtime/windows/end` | `operations_downtime_end` | required | phi | active |
+| `operations.downtime.entries.list` | M | query | authorize | `migration.read` | human, service | rest, mcp | GET `/v1/operations/downtime/entries` | `operations_downtime_entries_list` | none | phi | active |
+| `operations.downtime.entries.resolve` | M | command | authorize | `migration.write` | human | rest, mcp | POST `/v1/operations/downtime/entries/resolve` | `operations_downtime_entries_resolve` | required | phi | active |
+| `operations.downtime.log` | M | command | authorize | `migration.write` | human, service | rest, mcp | POST `/v1/operations/downtime/entries` | `operations_downtime_log` | required | phi | active |
+| `operations.downtime.start` | M | command | authorize | `migration.write` | human, service | rest, mcp | POST `/v1/operations/downtime/windows` | `operations_downtime_start` | required | phi | active |
+| `operations.downtime.windows.list` | M | query | authorize | `migration.read` | human, service | rest, mcp | GET `/v1/operations/downtime/windows` | `operations_downtime_windows_list` | none | phi | active |
 | `operations.operatorProfiles.record` | M | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/operations/operator-profiles` | `operations_operator_profiles_record` | required | operational | active |
 | `operations.readiness.assert` | M | query | authorize | `migration.read` | human, service | rest, mcp | GET `/v1/operations/readiness` | `operations_readiness_assert` | none | phi | active |
 | `outbox.deliver` | F | command | authorize | `outbox.deliver` | service | worker | - | - | none | operational | active |

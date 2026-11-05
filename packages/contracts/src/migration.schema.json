@@ -1887,6 +1887,418 @@
         }
       }
     },
+    "DowntimeWindowRef": {
+      "$ref": "#/$defs/Uuid",
+      "description": "Opaque reference of one downtime window (tenant from context)."
+    },
+    "DowntimeEntryRef": {
+      "$ref": "#/$defs/Uuid",
+      "description": "Opaque reference of one downtime log entry."
+    },
+    "DowntimeLocationRef": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,64}$",
+      "description": "Membership location reference (the same reference space as location policy)."
+    },
+    "DowntimeReasonCode": {
+      "enum": [
+        "network_outage",
+        "power_outage",
+        "system_outage",
+        "vendor_outage",
+        "planned_maintenance",
+        "other"
+      ]
+    },
+    "DowntimeEntryKind": {
+      "enum": [
+        "appointment_booking",
+        "attendance",
+        "payment",
+        "clinical_note",
+        "patient_registration",
+        "other"
+      ]
+    },
+    "DowntimeReviewState": {
+      "enum": ["pending_review", "applied", "rejected", "superseded"]
+    },
+    "DowntimeRejectionReason": {
+      "enum": ["duplicate", "illegible", "not_applicable", "already_recorded", "entered_in_error"]
+    },
+    "DowntimeAppliedCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "resourceRef", "correlationId"],
+      "description": "The committed owning command that applied the entry: its operation id, the resource it produced or changed, and its request correlation id.",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "pattern": "^[a-z][A-Za-z]{0,40}(\\.[a-z][A-Za-z]{0,40}){0,3}$"
+        },
+        "resourceRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "correlationId": {
+          "$ref": "#/$defs/Uuid"
+        }
+      }
+    },
+    "DowntimeStart": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope", "reasonCode"],
+      "properties": {
+        "scope": {
+          "enum": ["tenant", "locations"]
+        },
+        "locationRefs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/DowntimeLocationRef"
+          }
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/DowntimeReasonCode"
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "DowntimeEnd": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["windowRef", "expectedVersion"],
+      "properties": {
+        "windowRef": {
+          "$ref": "#/$defs/DowntimeWindowRef"
+        },
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "endedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "DowntimeLog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["windowRef", "entryKind", "summary", "payload", "paperRef", "capturedAt"],
+      "properties": {
+        "windowRef": {
+          "$ref": "#/$defs/DowntimeWindowRef"
+        },
+        "entryKind": {
+          "$ref": "#/$defs/DowntimeEntryKind"
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "payload": {
+          "type": "object",
+          "maxProperties": 64,
+          "description": "Structured transcription of the paper record (synthetic only); stored as logged, never applied."
+        },
+        "paperRef": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,63}$",
+          "description": "Reference of the paper sheet or form the entry was transcribed from."
+        },
+        "capturedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "DowntimeEntryResolve": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entryRef", "expectedVersion", "decision"],
+      "properties": {
+        "entryRef": {
+          "$ref": "#/$defs/DowntimeEntryRef"
+        },
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "decision": {
+          "enum": ["applied", "rejected", "superseded"]
+        },
+        "appliedCommand": {
+          "$ref": "#/$defs/DowntimeAppliedCommand"
+        },
+        "rejectionReason": {
+          "$ref": "#/$defs/DowntimeRejectionReason"
+        },
+        "supersededByRef": {
+          "$ref": "#/$defs/DowntimeEntryRef"
+        }
+      }
+    },
+    "DowntimeWindowResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["windowRef", "state", "startedAt", "endedAt"],
+          "properties": {
+            "windowRef": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "state": {
+              "enum": ["open", "ended"]
+            },
+            "startedAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "endedAt": {
+              "anyOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }]
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "DowntimeEntryResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["entryRef", "windowRef", "reviewState"],
+          "properties": {
+            "entryRef": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "windowRef": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "reviewState": {
+              "$ref": "#/$defs/DowntimeReviewState"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "DowntimeWindowListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "state": {
+          "enum": ["open", "ended"]
+        }
+      }
+    },
+    "DowntimeEntryListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "windowRef": {
+          "$ref": "#/$defs/DowntimeWindowRef"
+        },
+        "reviewState": {
+          "$ref": "#/$defs/DowntimeReviewState"
+        },
+        "entryKind": {
+          "$ref": "#/$defs/DowntimeEntryKind"
+        }
+      }
+    },
+    "DowntimeWindowList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "envelope"],
+      "properties": {
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
+        "data": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "windowRef",
+              "scope",
+              "locationRefs",
+              "reasonCode",
+              "state",
+              "startedAt",
+              "endedAt",
+              "pendingEntries",
+              "version"
+            ],
+            "properties": {
+              "windowRef": {
+                "$ref": "#/$defs/Uuid"
+              },
+              "scope": {
+                "enum": ["tenant", "locations"]
+              },
+              "locationRefs": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/DowntimeLocationRef"
+                }
+              },
+              "reasonCode": {
+                "$ref": "#/$defs/ReasonCode"
+              },
+              "state": {
+                "enum": ["open", "ended"]
+              },
+              "startedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "endedAt": {
+                "anyOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }]
+              },
+              "pendingEntries": {
+                "$ref": "#/$defs/Count"
+              },
+              "version": {
+                "$ref": "#/$defs/Version"
+              }
+            }
+          }
+        }
+      }
+    },
+    "DowntimeEntryList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "envelope"],
+      "properties": {
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
+        "data": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "entryRef",
+              "windowRef",
+              "entryKind",
+              "summary",
+              "payload",
+              "paperRef",
+              "capturedAt",
+              "loggedAt",
+              "loggedBy",
+              "reviewState",
+              "review",
+              "version"
+            ],
+            "properties": {
+              "entryRef": {
+                "$ref": "#/$defs/Uuid"
+              },
+              "windowRef": {
+                "$ref": "#/$defs/Uuid"
+              },
+              "entryKind": {
+                "$ref": "#/$defs/DowntimeEntryKind"
+              },
+              "summary": {
+                "type": "string"
+              },
+              "payload": {
+                "type": "object"
+              },
+              "paperRef": {
+                "type": "string"
+              },
+              "capturedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "loggedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "loggedBy": {
+                "$ref": "#/$defs/Uuid"
+              },
+              "reviewState": {
+                "$ref": "#/$defs/DowntimeReviewState"
+              },
+              "review": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "reviewedBy",
+                      "reviewedAt",
+                      "appliedCommand",
+                      "rejectionReason",
+                      "supersededByRef"
+                    ],
+                    "properties": {
+                      "reviewedBy": {
+                        "$ref": "#/$defs/Uuid"
+                      },
+                      "reviewedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "appliedCommand": {
+                        "anyOf": [{ "$ref": "#/$defs/DowntimeAppliedCommand" }, { "type": "null" }]
+                      },
+                      "rejectionReason": {
+                        "anyOf": [{ "$ref": "#/$defs/DowntimeRejectionReason" }, { "type": "null" }]
+                      },
+                      "supersededByRef": {
+                        "anyOf": [{ "$ref": "#/$defs/Uuid" }, { "type": "null" }]
+                      }
+                    }
+                  },
+                  { "type": "null" }
+                ]
+              },
+              "version": {
+                "$ref": "#/$defs/Version"
+              }
+            }
+          }
+        }
+      }
+    },
     "ListScope": {
       "type": "object",
       "additionalProperties": false,

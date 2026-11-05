@@ -154,6 +154,14 @@
     "state"
   ],
   "operations.alerts.list": [],
+  "operations.downtime.entries.list": [
+    "entryKind",
+    "reviewState",
+    "windowRef"
+  ],
+  "operations.downtime.windows.list": [
+    "state"
+  ],
   "patients.duplicates.find": [],
   "patients.merges.list": [],
   "patients.relationships.list": [],

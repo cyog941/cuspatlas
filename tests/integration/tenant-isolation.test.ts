@@ -254,6 +254,8 @@ describe('runtime database role', () => {
       'notification_intents',
       'operation_proposals',
       'ops_backup_verifications',
+      'ops_downtime_entries',
+      'ops_downtime_windows',
       'ops_operator_profiles',
       'outbound_messages',
       'outbox_events',

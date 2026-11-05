@@ -5958,6 +5958,119 @@ export type MigrationCutoverResult = {
 
 export type MigrationDigest = string;
 
+export type MigrationDowntimeAppliedCommand = {
+  readonly "operation": string;
+  readonly "resourceRef": MigrationUuid;
+  readonly "correlationId": MigrationUuid;
+};
+
+export type MigrationDowntimeEnd = {
+  readonly "windowRef": MigrationDowntimeWindowRef;
+  readonly "expectedVersion": MigrationVersion;
+  readonly "endedAt"?: string;
+};
+
+export type MigrationDowntimeEntryKind = "appointment_booking" | "attendance" | "payment" | "clinical_note" | "patient_registration" | "other";
+
+export type MigrationDowntimeEntryList = {
+  readonly "envelope": MigrationListEnvelope;
+  readonly "data": readonly ({
+    readonly "entryRef": MigrationUuid;
+    readonly "windowRef": MigrationUuid;
+    readonly "entryKind": MigrationDowntimeEntryKind;
+    readonly "summary": string;
+    readonly "payload": { readonly [k: string]: unknown };
+    readonly "paperRef": string;
+    readonly "capturedAt": string;
+    readonly "loggedAt": string;
+    readonly "loggedBy": MigrationUuid;
+    readonly "reviewState": MigrationDowntimeReviewState;
+    readonly "review": ({
+      readonly "reviewedBy": MigrationUuid;
+      readonly "reviewedAt": string;
+      readonly "appliedCommand": (MigrationDowntimeAppliedCommand) | (null);
+      readonly "rejectionReason": (MigrationDowntimeRejectionReason) | (null);
+      readonly "supersededByRef": (MigrationUuid) | (null);
+    }) | (null);
+    readonly "version": MigrationVersion;
+  })[];
+};
+
+export type MigrationDowntimeEntryRef = MigrationUuid;
+
+export type MigrationDowntimeEntryResolve = {
+  readonly "entryRef": MigrationDowntimeEntryRef;
+  readonly "expectedVersion": MigrationVersion;
+  readonly "decision": "applied" | "rejected" | "superseded";
+  readonly "appliedCommand"?: MigrationDowntimeAppliedCommand;
+  readonly "rejectionReason"?: MigrationDowntimeRejectionReason;
+  readonly "supersededByRef"?: MigrationDowntimeEntryRef;
+};
+
+export type MigrationDowntimeEntryResult = {
+  readonly "data": {
+    readonly "entryRef": MigrationUuid;
+    readonly "windowRef": MigrationUuid;
+    readonly "reviewState": MigrationDowntimeReviewState;
+  };
+  readonly "version": MigrationVersion;
+  readonly "correlationId": string;
+  readonly "replayed": boolean;
+};
+
+export type MigrationDowntimeLocationRef = string;
+
+export type MigrationDowntimeLog = {
+  readonly "windowRef": MigrationDowntimeWindowRef;
+  readonly "entryKind": MigrationDowntimeEntryKind;
+  readonly "summary": string;
+  readonly "payload": { readonly [k: string]: unknown };
+  readonly "paperRef": string;
+  readonly "capturedAt": string;
+};
+
+export type MigrationDowntimeReasonCode = "network_outage" | "power_outage" | "system_outage" | "vendor_outage" | "planned_maintenance" | "other";
+
+export type MigrationDowntimeRejectionReason = "duplicate" | "illegible" | "not_applicable" | "already_recorded" | "entered_in_error";
+
+export type MigrationDowntimeReviewState = "pending_review" | "applied" | "rejected" | "superseded";
+
+export type MigrationDowntimeStart = {
+  readonly "scope": "tenant" | "locations";
+  readonly "locationRefs"?: readonly (MigrationDowntimeLocationRef)[];
+  readonly "reasonCode": MigrationDowntimeReasonCode;
+  readonly "startedAt"?: string;
+};
+
+export type MigrationDowntimeWindowList = {
+  readonly "envelope": MigrationListEnvelope;
+  readonly "data": readonly ({
+    readonly "windowRef": MigrationUuid;
+    readonly "scope": "tenant" | "locations";
+    readonly "locationRefs": readonly (MigrationDowntimeLocationRef)[];
+    readonly "reasonCode": MigrationReasonCode;
+    readonly "state": "open" | "ended";
+    readonly "startedAt": string;
+    readonly "endedAt": (string) | (null);
+    readonly "pendingEntries": MigrationCount;
+    readonly "version": MigrationVersion;
+  })[];
+};
+
+export type MigrationDowntimeWindowRef = MigrationUuid;
+
+export type MigrationDowntimeWindowResult = {
+  readonly "data": {
+    readonly "windowRef": MigrationUuid;
+    readonly "state": "open" | "ended";
+    readonly "startedAt": string;
+    readonly "endedAt": (string) | (null);
+  };
+  readonly "version": MigrationVersion;
+  readonly "correlationId": string;
+  readonly "replayed": boolean;
+};
+
 export type MigrationEntityName = string;
 
 export type MigrationExportRef = MigrationUuid;
@@ -11658,6 +11771,66 @@ export interface Operations {
     successStatus: 201;
     idempotent: true;
   };
+  "operations.downtime.end": {
+    method: "POST";
+    path: "/v1/operations/downtime/windows/end";
+    params: {  };
+    query: Record<string, never>;
+    body: MigrationDowntimeEnd;
+    result: MigrationDowntimeWindowResult;
+    successStatus: 200;
+    idempotent: true;
+  };
+  "operations.downtime.entries.list": {
+    method: "GET";
+    path: "/v1/operations/downtime/entries";
+    params: {  };
+    query: { readonly windowRef?: string; readonly reviewState?: string; readonly entryKind?: string; };
+    body: undefined;
+    result: MigrationDowntimeEntryList;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "operations.downtime.entries.resolve": {
+    method: "POST";
+    path: "/v1/operations/downtime/entries/resolve";
+    params: {  };
+    query: Record<string, never>;
+    body: MigrationDowntimeEntryResolve;
+    result: MigrationDowntimeEntryResult;
+    successStatus: 200;
+    idempotent: true;
+  };
+  "operations.downtime.log": {
+    method: "POST";
+    path: "/v1/operations/downtime/entries";
+    params: {  };
+    query: Record<string, never>;
+    body: MigrationDowntimeLog;
+    result: MigrationDowntimeEntryResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "operations.downtime.start": {
+    method: "POST";
+    path: "/v1/operations/downtime/windows";
+    params: {  };
+    query: Record<string, never>;
+    body: MigrationDowntimeStart;
+    result: MigrationDowntimeWindowResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "operations.downtime.windows.list": {
+    method: "GET";
+    path: "/v1/operations/downtime/windows";
+    params: {  };
+    query: { readonly state?: string; };
+    body: undefined;
+    result: MigrationDowntimeWindowList;
+    successStatus: 200;
+    idempotent: false;
+  };
   "operations.operatorProfiles.record": {
     method: "POST";
     path: "/v1/operations/operator-profiles";
@@ -13815,6 +13988,12 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "navigation.read": { method: "GET", path: "/v1/navigation", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "operations.alerts.list": { method: "GET", path: "/v1/operations/alerts", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "operations.backupVerifications.record": { method: "POST", path: "/v1/operations/backup-verifications", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "operations.downtime.end": { method: "POST", path: "/v1/operations/downtime/windows/end", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "operations.downtime.entries.list": { method: "GET", path: "/v1/operations/downtime/entries", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "operations.downtime.entries.resolve": { method: "POST", path: "/v1/operations/downtime/entries/resolve", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "operations.downtime.log": { method: "POST", path: "/v1/operations/downtime/entries", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "operations.downtime.start": { method: "POST", path: "/v1/operations/downtime/windows", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "operations.downtime.windows.list": { method: "GET", path: "/v1/operations/downtime/windows", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "operations.operatorProfiles.record": { method: "POST", path: "/v1/operations/operator-profiles", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "operations.readiness.assert": { method: "GET", path: "/v1/operations/readiness", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "patients.access.resolve": { method: "GET", path: "/v1/patients/{patientRef}/access", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },

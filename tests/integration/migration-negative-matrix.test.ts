@@ -144,6 +144,60 @@ export const BATCH2_ROWS: Row[] = [
     crossTenant: 'own_tenant',
     call: () => get('/v1/operations/alerts'),
   },
+  {
+    operation: 'operations.downtime.start',
+    crossTenant: 'own_tenant',
+    call: () =>
+      post('/v1/operations/downtime/windows', {
+        scope: 'locations',
+        locationRefs: ['loc-matrix'],
+        reasonCode: 'other',
+      }),
+  },
+  {
+    operation: 'operations.downtime.end',
+    crossTenant: 'not_found',
+    call: (x) =>
+      post('/v1/operations/downtime/windows/end', {
+        windowRef: x.downtimeWindow as string,
+        expectedVersion: 1,
+      }),
+  },
+  {
+    operation: 'operations.downtime.log',
+    crossTenant: 'not_found',
+    call: (x) =>
+      post('/v1/operations/downtime/entries', {
+        windowRef: x.downtimeWindow as string,
+        entryKind: 'other',
+        summary: 'Synthetic matrix sheet',
+        payload: { sheet: 'matrix' },
+        paperRef: 'MATRIX-2',
+        capturedAt: x.downtimeCaptured as string,
+      }),
+  },
+  {
+    operation: 'operations.downtime.entries.resolve',
+    crossTenant: 'not_found',
+    call: (x) =>
+      post('/v1/operations/downtime/entries/resolve', {
+        entryRef: x.downtimeEntry as string,
+        expectedVersion: 1,
+        decision: 'rejected',
+        rejectionReason: 'duplicate',
+      }),
+  },
+  {
+    operation: 'operations.downtime.entries.list',
+    crossTenant: 'own_tenant',
+    // Filtered by state, not by an alpha window ref: the envelope echoes the caller filters.
+    call: () => get('/v1/operations/downtime/entries?reviewState=pending_review'),
+  },
+  {
+    operation: 'operations.downtime.windows.list',
+    crossTenant: 'own_tenant',
+    call: () => get('/v1/operations/downtime/windows'),
+  },
   { operation: 'migration.export', crossTenant: 'own_tenant', call: () => get('/v1/migration/export') },
 ];
 
@@ -171,6 +225,8 @@ const STATE_TABLES = [
   'migration_archive_holds',
   'ops_operator_profiles',
   'ops_backup_verifications',
+  'ops_downtime_windows',
+  'ops_downtime_entries',
   'audit_events',
   'sensitive_read_events',
 ];
@@ -221,6 +277,27 @@ beforeAll(async () => {
   f.entryRef = rows[0].id;
   f.archivePatient = rows[0].patient_id;
   await s.command('owner', '/v1/operations/operator-profiles', placeholderProfile);
+  // Closeout A2: one open downtime window over a matrix-only location with one pending entry.
+  const started = new Date(Date.now() - 3_600_000).toISOString();
+  f.downtimeCaptured = new Date(Date.now() - 1_800_000).toISOString();
+  f.downtimeWindow = data<{ windowRef: string }>(
+    await s.command('owner', '/v1/operations/downtime/windows', {
+      scope: 'locations',
+      locationRefs: ['loc-matrix'],
+      reasonCode: 'network_outage',
+      startedAt: started,
+    }),
+  ).windowRef;
+  f.downtimeEntry = data<{ entryRef: string }>(
+    await s.command('owner', '/v1/operations/downtime/entries', {
+      windowRef: f.downtimeWindow,
+      entryKind: 'other',
+      summary: 'Synthetic matrix sheet',
+      payload: { sheet: 'matrix' },
+      paperRef: 'MATRIX-1',
+      capturedAt: f.downtimeCaptured,
+    }),
+  ).entryRef;
 }, 300_000);
 
 afterAll(async () => {
@@ -346,6 +423,8 @@ describe('M10 migration export', () => {
       'migration_reports',
       'migration_archive_entries',
       'ops_operator_profiles',
+      'ops_downtime_windows',
+      'ops_downtime_entries',
     ]) {
       expect([t, (m.tables[t]?.length ?? 0) > 0]).toStrictEqual([t, true]);
     }

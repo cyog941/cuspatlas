@@ -580,6 +580,15 @@ export const ACTION_POLICIES = {
   'operations.backupVerifications.record': { scope: 'migration.write', principals: ['human', 'service'] },
   'operations.readiness.assert': { scope: 'migration.read', principals: ['human', 'service'] },
   'operations.alerts.list': { scope: 'migration.read', principals: ['human', 'service'] },
+  // Closeout A2 downtime log (M8 runbook gap): staff or a transcription job (service) open and end a
+  // window and log paper records; only a human reviewer resolves an entry, after applying it through the
+  // owning command. Reads are tenant-wide work lists of migration/operations state.
+  'operations.downtime.start': { scope: 'migration.write', principals: ['human', 'service'] },
+  'operations.downtime.end': { scope: 'migration.write', principals: ['human', 'service'] },
+  'operations.downtime.log': { scope: 'migration.write', principals: ['human', 'service'] },
+  'operations.downtime.entries.resolve': { scope: 'migration.write', principals: ['human'] },
+  'operations.downtime.entries.list': { scope: 'migration.read', principals: ['human', 'service'] },
+  'operations.downtime.windows.list': { scope: 'migration.read', principals: ['human', 'service'] },
   // M10 migration export (the audit workspace): a tenant-wide human administrator only, like B10.
   'migration.export': { scope: 'admin.configure', principals: ['human'] },
   // M1 practice export (easy exit, MG-03): the whole tenant leaves in one versioned package. A tenant-wide

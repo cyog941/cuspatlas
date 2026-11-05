@@ -189,7 +189,7 @@ Sub-decisions held in the ledgers (all pending): billing M-1..M-12, P-1..P-7, ST
 - The list cursor HMAC key is per process: cursors do not survive a restart or work across instances.
 - The privacy scan and SBOM are partial controls; a green CI is not authorization to deploy or hold PHI.
 - Open integration items: no insurer portion in C12 estimates; E2 portal documents stay unavailable; A batch 2 responses have no `data` wrapper.
-- Not built: downtime-log operations, backup-verify wiring into the worker tick, export build as a worker job, streamed/chunked download.
+- Not built: backup-verify wiring into the worker tick, export build as a worker job, streamed/chunked download.
 - No retention period ships for messages or images, so nothing in those classes is deletable.
 - Agent memory PHI screening is a best-effort heuristic, not enforced default-deny (A23 hardening).
 

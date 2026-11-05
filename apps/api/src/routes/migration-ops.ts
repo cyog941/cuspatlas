@@ -348,6 +348,84 @@ export const MIGRATION_OPS: MigrationOp[] = [
       'M9: operator alerts as work items (practice manager queue, owed by the platform operator): one per unmet readiness obligation, with the evidence reference and the suggested next action.',
     invoke: (svc, actor, i) => svc.listOperationsAlerts(actor, i.body),
   },
+  {
+    method: 'post',
+    path: '/v1/operations/downtime/windows',
+    operationId: 'operations.downtime.start',
+    protected: true,
+    requestBody: M('DowntimeStart'),
+    success: { status: '201', schema: M('DowntimeWindowResult') },
+    refusals: COMMAND,
+    tool: 'operations_downtime_start',
+    description:
+      'Downtime log (M8 runbook): open a downtime window for the tenant or a set of locations, with a reason code and the time paper records began (startedAt, not in the future). Refused (409 downtime_already_open) while an open window covers an overlapping scope; a location-restricted member may open windows for its own locations only.',
+    invoke: (svc, actor, i) => svc.startDowntime(actor, env('operations.downtime.start', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/operations/downtime/windows/end',
+    operationId: 'operations.downtime.end',
+    protected: true,
+    requestBody: M('DowntimeEnd'),
+    success: { status: '200', schema: M('DowntimeWindowResult') },
+    refusals: COMMAND,
+    tool: 'operations_downtime_end',
+    description:
+      'Downtime log (M8 runbook): end the open window at its expected version (409 stale_version otherwise; 409 window_not_open once ended). Entries may still be logged against it for 14 days, captured inside its bounds.',
+    invoke: (svc, actor, i) => svc.endDowntime(actor, env('operations.downtime.end', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/operations/downtime/entries',
+    operationId: 'operations.downtime.log',
+    protected: true,
+    requestBody: M('DowntimeLog'),
+    success: { status: '201', schema: M('DowntimeEntryResult') },
+    refusals: COMMAND,
+    tool: 'operations_downtime_log',
+    description:
+      'Downtime log (M8 runbook): record one paper record transcribed after downtime (kind, structured synthetic payload, summary, paper reference, capture time inside the window) as pending_review. The log never applies or overwrites anything; a reviewer applies it through the owning command and resolves the entry.',
+    invoke: (svc, actor, i) => svc.logDowntimeEntry(actor, env('operations.downtime.log', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/operations/downtime/entries/resolve',
+    operationId: 'operations.downtime.entries.resolve',
+    protected: true,
+    requestBody: M('DowntimeEntryResolve'),
+    success: { status: '200', schema: M('DowntimeEntryResult') },
+    refusals: COMMAND,
+    tool: 'operations_downtime_entries_resolve',
+    description:
+      'Downtime log (M8 runbook): a human reviewer resolves one pending entry once. applied links the committed owning command that applied it (operation, resource, correlation; it must exist in the tenant audit record after the entry was logged, fit the entry kind and apply no other entry); rejected names a reason code; superseded names the replacing entry. Never applies the payload itself.',
+    invoke: (svc, actor, i) => svc.resolveDowntimeEntry(actor, env('operations.downtime.entries.resolve', i)),
+  },
+  {
+    method: 'get',
+    path: '/v1/operations/downtime/entries',
+    operationId: 'operations.downtime.entries.list',
+    protected: true,
+    query: 'DowntimeEntryListQuery',
+    success: { status: '200', schema: M('DowntimeEntryList') },
+    refusals: READ,
+    tool: 'operations_downtime_entries_list',
+    description:
+      'Downtime log (M8 runbook): the reconciliation worklist of transcribed entries, filtered by window, review state and kind, oldest capture first (at most 500), with each review and its linked command.',
+    invoke: (svc, actor, i) => svc.listDowntimeEntries(actor, i.body),
+  },
+  {
+    method: 'get',
+    path: '/v1/operations/downtime/windows',
+    operationId: 'operations.downtime.windows.list',
+    protected: true,
+    query: 'DowntimeWindowListQuery',
+    success: { status: '200', schema: M('DowntimeWindowList') },
+    refusals: READ,
+    tool: 'operations_downtime_windows_list',
+    description:
+      'Downtime log (M8 runbook): downtime windows of the tenant, newest first (at most 500), with scope, state, bounds and the count of entries still pending review.',
+    invoke: (svc, actor, i) => svc.listDowntimeWindows(actor, i.body),
+  },
   // M10 migration export: the migration workspace for audit (B10 carries the opening chain).
   {
     method: 'get',
@@ -359,7 +437,7 @@ export const MIGRATION_OPS: MigrationOp[] = [
     refusals: READ,
     tool: 'migration_export',
     description:
-      'M10: versioned migration workspace export of the caller tenant (cuspatlas-migration-export/1): profiles, packages and staged records outside the B10 opening chain, review items, runs, applied records with provenance, reviewer assignments, reports, sign-offs, archive packages, entries and holds, operator profiles and backup verifications, tenant column removed. Tenant-wide human administrators only; sensitive-read logged.',
+      'M10: versioned migration workspace export of the caller tenant (cuspatlas-migration-export/1): profiles, packages and staged records outside the B10 opening chain, review items, runs, applied records with provenance, reviewer assignments, reports, sign-offs, archive packages, entries and holds, operator profiles, backup verifications and downtime windows and entries, tenant column removed. Tenant-wide human administrators only; sensitive-read logged.',
     invoke: (svc, actor, i) => data(svc.exportMigration(actor, i.body)),
   },
   // M1 practice export (easy exit): one versioned package of the whole tenant, private delivery.

@@ -12422,6 +12422,220 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/operations/downtime/windows:
+    post:
+      operationId: operations.downtime.start
+      description: >-
+        Downtime log (M8 runbook): open a downtime window for the tenant or a set of locations, with a
+        reason code and the time paper records began (startedAt, not in the future). Refused (409
+        downtime_already_open) while an open window covers an overlapping scope; a location-restricted
+        member may open windows for its own locations only.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/migration.schema.json#/$defs/DowntimeStart'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/DowntimeWindowResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: operations.downtime.windows.list
+      description: >-
+        Downtime log (M8 runbook): downtime windows of the tenant, newest first (at most 500), with scope,
+        state, bounds and the count of entries still pending review.
+      parameters:
+        - name: state
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/migration.schema.json#/$defs/DowntimeWindowListQuery'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/DowntimeWindowList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/operations/downtime/windows/end:
+    post:
+      operationId: operations.downtime.end
+      description: >-
+        Downtime log (M8 runbook): end the open window at its expected version (409 stale_version otherwise;
+        409 window_not_open once ended). Entries may still be logged against it for 14 days, captured inside
+        its bounds.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/migration.schema.json#/$defs/DowntimeEnd'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/DowntimeWindowResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/operations/downtime/entries:
+    post:
+      operationId: operations.downtime.log
+      description: >-
+        Downtime log (M8 runbook): record one paper record transcribed after downtime (kind, structured
+        synthetic payload, summary, paper reference, capture time inside the window) as pending_review. The
+        log never applies or overwrites anything; a reviewer applies it through the owning command and
+        resolves the entry.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/migration.schema.json#/$defs/DowntimeLog'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/DowntimeEntryResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: operations.downtime.entries.list
+      description: >-
+        Downtime log (M8 runbook): the reconciliation worklist of transcribed entries, filtered by window,
+        review state and kind, oldest capture first (at most 500), with each review and its linked command.
+      parameters:
+        - name: windowRef
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/migration.schema.json#/$defs/DowntimeWindowRef'
+        - name: reviewState
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/migration.schema.json#/$defs/DowntimeReviewState'
+        - name: entryKind
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/migration.schema.json#/$defs/DowntimeEntryKind'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/DowntimeEntryList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/operations/downtime/entries/resolve:
+    post:
+      operationId: operations.downtime.entries.resolve
+      description: >-
+        Downtime log (M8 runbook): a human reviewer resolves one pending entry once. applied links the
+        committed owning command that applied it (operation, resource, correlation; it must exist in the
+        tenant audit record after the entry was logged, fit the entry kind and apply no other entry);
+        rejected names a reason code; superseded names the replacing entry. Never applies the payload
+        itself.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/migration.schema.json#/$defs/DowntimeEntryResolve'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/DowntimeEntryResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   /v1/migration/export:
     get:
       operationId: migration.export
@@ -12429,8 +12643,8 @@ paths:
         M10: versioned migration workspace export of the caller tenant (cuspatlas-migration-export/1):
         profiles, packages and staged records outside the B10 opening chain, review items, runs, applied
         records with provenance, reviewer assignments, reports, sign-offs, archive packages, entries and
-        holds, operator profiles and backup verifications, tenant column removed. Tenant-wide human
-        administrators only; sensitive-read logged.
+        holds, operator profiles, backup verifications and downtime windows and entries, tenant column
+        removed. Tenant-wide human administrators only; sensitive-read logged.
       responses:
         '200':
           description: Success.

@@ -9,7 +9,7 @@ import { vocabularyEntry as e, type ModuleVocabularies } from './types';
 export const MIGRATION_VOCABULARIES: ModuleVocabularies = {
   module: 'migration',
   owner: 'M',
-  version: 'migration-state-labels.2',
+  version: 'migration-state-labels.3',
   vocabularies: [
     {
       name: 'migration_cutover',
@@ -34,6 +34,24 @@ export const MIGRATION_VOCABULARIES: ModuleVocabularies = {
         e('verified', 'VER', 'Verified, readable', 'lifecycle', false),
         e('partial', 'PAR', 'Partly readable', 'exception', false),
         e('failed', 'FAI', 'Failed, not served', 'exception', false),
+      ],
+    },
+    {
+      name: 'downtime_window',
+      sources: ['ops_downtime_windows.state'],
+      entries: [
+        e('open', 'OPN', 'Downtime in progress', 'lifecycle', false),
+        e('ended', 'END', 'Downtime ended', 'lifecycle', true),
+      ],
+    },
+    {
+      name: 'downtime_entry_review',
+      sources: ['ops_downtime_entries.review_state'],
+      entries: [
+        e('pending_review', 'PND', 'Awaiting review', 'lifecycle', false),
+        e('applied', 'APL', 'Applied through the owning command', 'lifecycle', true),
+        e('rejected', 'REJ', 'Rejected', 'exception', true),
+        e('superseded', 'SUP', 'Superseded by another entry', 'lifecycle', true),
       ],
     },
   ],

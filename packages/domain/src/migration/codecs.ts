@@ -42,6 +42,10 @@ export const MIGRATION_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<any>>>
   'migration.archive.holds.record': flat(['holdRef', 'action']),
   'operations.operatorProfiles.record': flat(['profileRef', 'profileVersion']),
   'operations.backupVerifications.record': flat(['verificationRef', 'result']),
+  'operations.downtime.start': flat(['windowRef', 'state', 'startedAt', 'endedAt']),
+  'operations.downtime.end': flat(['windowRef', 'state', 'startedAt', 'endedAt']),
+  'operations.downtime.log': flat(['entryRef', 'windowRef', 'reviewState']),
+  'operations.downtime.entries.resolve': flat(['entryRef', 'windowRef', 'reviewState']),
   'practice.export.create': flat([
     'exportRef',
     'format',

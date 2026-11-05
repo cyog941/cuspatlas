@@ -1,4 +1,5 @@
 import type { MembershipSource } from '@cuspatlas/contracts';
+import { createAdministrationOperations } from '../administration/administration';
 import { executeOnce } from '../commands/execute-once';
 import type { CommandExecutor } from '../commands/executor';
 import { createNavigationReads } from '../navigation/navigation';
@@ -30,6 +31,7 @@ export function createReadSurfaceService(deps: ReadSurfaceDeps) {
     ...createReadComposers(base, { ...DEFAULT_PRODUCERS, ...deps.producers }),
     ...createNavigationReads(base, deps.memberships),
     ...createPreferenceOperations(base, { execute: deps.execute ?? executeOnce }),
+    ...createAdministrationOperations(base, { execute: deps.execute ?? executeOnce }),
     ...createMeasureReads(base, {
       ...(deps.suppressionThreshold === undefined ? {} : { suppressionThreshold: deps.suppressionThreshold }),
       ...(deps.financialMeasures ? { financial: deps.financialMeasures } : {}),

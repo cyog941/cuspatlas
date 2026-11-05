@@ -1,5 +1,102 @@
 [
   {
+    "operation": "admin.access.review",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "admin.access.review",
+    "scope": "access.manage",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/admin/access-review",
+      "successStatus": "200",
+      "successSchema": "AccessReview"
+    },
+    "mcpTool": "admin_access_review",
+    "refusals": [
+      "401",
+      "403",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "admin.access.revoke",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "admin.access.revoke",
+    "scope": "access.manage",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/admin/access/revocations",
+      "requestSchema": "AccessRevoke",
+      "successStatus": "201",
+      "successSchema": "AccessRevokeResult"
+    },
+    "mcpTool": "admin_access_revoke",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "admin.audit.search",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "admin.audit.search",
+    "scope": "audit.read",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/admin/audit",
+      "successStatus": "200",
+      "successSchema": "AuditSearchResult"
+    },
+    "mcpTool": "admin_audit_search",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
     "operation": "analytics.measures.list",
     "owner": "A",
     "kind": "query",

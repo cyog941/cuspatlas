@@ -152,6 +152,8 @@ export const NAVIGATION: readonly NavigationGroup[] = [
       cap('vocabularies', 'State vocabularies', ['vocabularies.list', 'vocabularies.read']),
       cap('analytics', 'Measures', ['analytics.measures.list', 'analytics.measures.read']),
       cap('operations', 'Operational alerts', ['operations.alerts.list']),
+      cap('audit', 'Audit search', ['admin.audit.search']),
+      cap('access', 'Access review', ['admin.access.review', 'admin.access.revoke']),
     ],
   },
   {

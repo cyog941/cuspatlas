@@ -12680,6 +12680,124 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/admin/audit:
+    get:
+      operationId: admin.audit.search
+      description: >-
+        A17: search the committed-change audit, security attempts and sensitive reads of the tenant (source,
+        actorRef, principal, operation, from, to; newest first; at most 200). principal=service selects
+        agent activity. Read only, human only, audit.read; the search itself is recorded as a sensitive
+        read.
+      parameters:
+        - name: source
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/AuditSearchQuery'
+        - name: actorRef
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/Uuid'
+        - name: principal
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/AuditSearchQuery'
+        - name: operation
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/OperationId'
+        - name: from
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/AuditSearchQuery'
+        - name: to
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/AuditSearchQuery'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/AuditSearchQuery'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/AuditSearchResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/admin/access-review:
+    get:
+      operationId: admin.access.review
+      description: >-
+        A17: access review of the tenant: staff memberships (human and service principals) with scopes,
+        locations, grant and revocation instants and last activity; portal principals and imaging devices
+        with state. Each entry names the command that revokes it. Human only, access.manage.
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/AccessReview'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/admin/access/revocations:
+    post:
+      operationId: admin.access.revoke
+      description: >-
+        A17: revoke one staff membership (human or service principal) of the tenant with a reason code.
+        Effective on the next REST request, MCP call or queued job of that principal (every call reloads the
+        membership). The caller cannot revoke itself (409). Portal principals and devices are revoked with
+        portal.principals.revoke and imaging.devices.revoke. Human only, access.manage.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/AccessRevoke'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/AccessRevokeResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   /v1/analytics/measures:
     get:
       operationId: analytics.measures.list

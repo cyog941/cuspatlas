@@ -7268,6 +7268,23 @@ export type SchedulingWorkItemList = {
   };
 };
 
+export type SyntheticAccessReview = {
+  readonly "data": {
+    readonly "memberships": readonly ({ readonly [k: string]: unknown })[];
+    readonly "portalPrincipals": readonly ({ readonly [k: string]: unknown })[];
+    readonly "devices": readonly ({ readonly [k: string]: unknown })[];
+    readonly [k: string]: unknown;
+  };
+  readonly [k: string]: unknown;
+};
+
+export type SyntheticAccessRevoke = {
+  readonly "principalRef": SyntheticUuid;
+  readonly "reasonCode": string;
+};
+
+export type SyntheticAccessRevokeResult = SyntheticPreferenceCommandResult;
+
 export type SyntheticAppointmentDetail = {
   readonly "patient": SyntheticReadComponent;
   readonly "coverage": SyntheticReadComponent;
@@ -7280,6 +7297,24 @@ export type SyntheticAppointmentDetail = {
 export type SyntheticAppointmentDetailResult = {
   readonly "data": SyntheticAppointmentDetail;
   readonly [k: string]: unknown;
+};
+
+export type SyntheticAuditRecord = {
+  readonly "source": "committed_change" | "security_attempt" | "sensitive_read";
+  readonly "eventRef": SyntheticUuid;
+  readonly "occurredAt": string;
+  readonly "actorRef": string | null;
+  readonly "principal": "human" | "service" | null;
+  readonly "operation": string;
+  readonly "resourceType": string | null;
+  readonly "resourceRef": string | null;
+  readonly "reasonCode": string | null;
+  readonly "resultCount": number | null;
+};
+
+export type SyntheticAuditSearchResult = {
+  readonly "data": readonly (SyntheticAuditRecord)[];
+  readonly "envelope": SyntheticListEnvelope;
 };
 
 export type SyntheticCursor = string;
@@ -7613,6 +7648,36 @@ export type SyntheticVocabularyRead = {
 
 /** Every REST operation of the catalog with its path parameters, body and success result types. */
 export interface Operations {
+  "admin.access.review": {
+    method: "GET";
+    path: "/v1/admin/access-review";
+    params: {  };
+    query: Record<string, never>;
+    body: undefined;
+    result: SyntheticAccessReview;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "admin.access.revoke": {
+    method: "POST";
+    path: "/v1/admin/access/revocations";
+    params: {  };
+    query: Record<string, never>;
+    body: SyntheticAccessRevoke;
+    result: SyntheticAccessRevokeResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "admin.audit.search": {
+    method: "GET";
+    path: "/v1/admin/audit";
+    params: {  };
+    query: { readonly source?: string; readonly actorRef?: string; readonly principal?: string; readonly operation?: string; readonly from?: string; readonly to?: string; readonly limit?: string; };
+    body: undefined;
+    result: SyntheticAuditSearchResult;
+    successStatus: 200;
+    idempotent: false;
+  };
   "analytics.measures.list": {
     method: "GET";
     path: "/v1/analytics/measures";
@@ -11728,6 +11793,9 @@ export interface OperationMeta {
 }
 
 export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
+  "admin.access.review": { method: "GET", path: "/v1/admin/access-review", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "admin.access.revoke": { method: "POST", path: "/v1/admin/access/revocations", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "admin.audit.search": { method: "GET", path: "/v1/admin/audit", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "analytics.measures.list": { method: "GET", path: "/v1/analytics/measures", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "analytics.measures.read": { method: "GET", path: "/v1/analytics/measures/{measureKey}", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "appointments.detail": { method: "GET", path: "/v1/appointments/{appointmentRef}/detail", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },

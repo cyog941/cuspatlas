@@ -2,6 +2,102 @@
   "version": 2,
   "operations": [
     {
+      "operation": "admin.access.review",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "access.manage",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/admin/access-review"
+      },
+      "mcpTool": "admin_access_review",
+      "idempotency": "none",
+      "refusals": [
+        "401",
+        "403",
+        "503"
+      ]
+    },
+    {
+      "operation": "admin.access.revoke",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "access.manage",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/admin/access/revocations"
+      },
+      "mcpTool": "admin_access_revoke",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "principalRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "reasonCode": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z_]{1,64}$"
+          }
+        },
+        "required": [
+          "principalRef",
+          "reasonCode"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "admin.audit.search",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "audit.read",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/admin/audit"
+      },
+      "mcpTool": "admin_audit_search",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
       "operation": "analytics.measures.list",
       "transports": [
         "rest",

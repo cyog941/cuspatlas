@@ -1196,6 +1196,161 @@
           }
         }
       }
+    },
+    "AuditSearchQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "type": "string",
+          "pattern": "^(committed_change|security_attempt|sensitive_read)(,(committed_change|security_attempt|sensitive_read)){0,2}$"
+        },
+        "actorRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "principal": {
+          "enum": ["human", "service"]
+        },
+        "operation": {
+          "$ref": "#/$defs/OperationId"
+        },
+        "from": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "to": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "limit": {
+          "type": "string",
+          "pattern": "^[0-9]{1,3}$"
+        }
+      }
+    },
+    "AuditRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "eventRef",
+        "occurredAt",
+        "actorRef",
+        "principal",
+        "operation",
+        "resourceType",
+        "resourceRef",
+        "reasonCode",
+        "resultCount"
+      ],
+      "properties": {
+        "source": {
+          "enum": ["committed_change", "security_attempt", "sensitive_read"]
+        },
+        "eventRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "occurredAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "actorRef": {
+          "type": ["string", "null"]
+        },
+        "principal": {
+          "enum": ["human", "service", null]
+        },
+        "operation": {
+          "type": "string"
+        },
+        "resourceType": {
+          "type": ["string", "null"]
+        },
+        "resourceRef": {
+          "type": ["string", "null"]
+        },
+        "reasonCode": {
+          "type": ["string", "null"]
+        },
+        "resultCount": {
+          "type": ["integer", "null"]
+        }
+      }
+    },
+    "AuditSearchResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "envelope"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "#/$defs/AuditRecord"
+          }
+        },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
+        }
+      }
+    },
+    "AccessReview": {
+      "type": "object",
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "required": ["asOf", "memberships", "portalPrincipals", "devices"],
+          "properties": {
+            "memberships": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "principalRef",
+                  "kind",
+                  "scopes",
+                  "locationRefs",
+                  "active",
+                  "lastActivityAt",
+                  "revokeOperation"
+                ]
+              }
+            },
+            "portalPrincipals": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["principalRef", "state", "revokeOperation"]
+              }
+            },
+            "devices": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["deviceRef", "state", "revokeOperation"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "AccessRevoke": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["principalRef", "reasonCode"],
+      "properties": {
+        "principalRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "reasonCode": {
+          "type": "string",
+          "pattern": "^[a-z_]{1,64}$"
+        }
+      }
+    },
+    "AccessRevokeResult": {
+      "$ref": "#/$defs/PreferenceCommandResult"
     }
   }
 }

@@ -2,6 +2,23 @@
   "version": 1,
   "scopes": [
     {
+      "name": "access.manage",
+      "noun": "access",
+      "verb": "manage",
+      "principalClasses": [
+        "human"
+      ],
+      "humanOnly": true,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "admin.access.review",
+        "admin.access.revoke"
+      ],
+      "sensitivity": "phi"
+    },
+    {
       "name": "admin.configure",
       "noun": "admin",
       "verb": "configure",
@@ -79,6 +96,22 @@
       "operations": [
         "analytics.measures.list",
         "analytics.measures.read"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "audit.read",
+      "noun": "audit",
+      "verb": "read",
+      "principalClasses": [
+        "human"
+      ],
+      "humanOnly": true,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "admin.audit.search"
       ],
       "sensitivity": "phi"
     },

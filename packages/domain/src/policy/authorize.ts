@@ -28,6 +28,12 @@ export const ACTION_POLICIES = {
   'navigation.read': { scope: null, principals: ['human', 'service'] },
   // A22 (OR-12): the caller's own preferences (RLS binds every row to tenant AND actor). Human only:
   // an agent keeps no recent-patient list. Recording a recent patient also needs patients.read.
+  // A17 administration (human only; A-D2 grants pending): audit search over the tenant's audit,
+  // attempts and sensitive reads; access review; membership revocation (portal principals and devices
+  // keep their own revocation commands).
+  'admin.audit.search': { scope: 'audit.read', principals: ['human'] },
+  'admin.access.review': { scope: 'access.manage', principals: ['human'] },
+  'admin.access.revoke': { scope: 'access.manage', principals: ['human'] },
   // A16 analytics: the measure catalog and measures; each measure also requires its owning read action.
   'analytics.measures.list': { scope: 'analytics.read', principals: ['human', 'service'] },
   'analytics.measures.read': { scope: 'analytics.read', principals: ['human', 'service'] },

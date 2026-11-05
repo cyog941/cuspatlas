@@ -478,6 +478,15 @@ export const LIST_OPERATIONS: Readonly<Record<string, ListOperationSpec>> = {
     scope: 'tenant',
   },
   // The whole registry (bounded by the contracts, never truncated).
+  // A17: audit search (bounded, newest first, no cursor; envelope built by the domain read).
+  'admin.audit.search': {
+    rows: 'data',
+    ordering: { key: 'occurredAt', direction: 'desc', tieBreak: 'eventRef' },
+    limit: { default: 100, max: 200 },
+    cursor: false,
+    scope: 'tenant',
+    placement: 'existing',
+  },
   // A16: the measure catalog (registry order; envelope built by the domain read).
   'analytics.measures.list': {
     rows: 'data',

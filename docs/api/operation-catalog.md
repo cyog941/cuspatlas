@@ -9,12 +9,12 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-418 operations.
+421 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
 | F | 14 | 12 | 10 | 0 | 0 | 1 |
-| A | 14 | 14 | 14 | 0 | 0 | 0 |
+| A | 17 | 17 | 17 | 0 | 0 | 0 |
 | S | 92 | 90 | 90 | 0 | 0 | 0 |
 | C | 88 | 87 | 87 | 0 | 0 | 0 |
 | B | 66 | 66 | 66 | 0 | 0 | 0 |
@@ -24,6 +24,9 @@ transport tables and are declarations, not independent proof.
 
 | Operation | Owner | Kind | Authorization | Scope | Principals | Transports | REST | MCP tool | Idempotency | Sensitivity | Status |
 |---|---|---|---|---|---|---|---|---|---|---|---|
+| `admin.access.review` | A | query | authorize | `access.manage` | human | rest, mcp | GET `/v1/admin/access-review` | `admin_access_review` | none | phi | active |
+| `admin.access.revoke` | A | command | authorize | `access.manage` | human | rest, mcp | POST `/v1/admin/access/revocations` | `admin_access_revoke` | required | phi | active |
+| `admin.audit.search` | A | query | authorize | `audit.read` | human | rest, mcp | GET `/v1/admin/audit` | `admin_audit_search` | none | phi | active |
 | `analytics.measures.list` | A | query | authorize | `analytics.read` | human, service | rest, mcp | GET `/v1/analytics/measures` | `analytics_measures_list` | none | phi | active |
 | `analytics.measures.read` | A | query | authorize | `analytics.read` | human, service | rest, mcp | GET `/v1/analytics/measures/{measureKey}` | `analytics_measures_read` | none | phi | active |
 | `appointments.detail` | A | query | authorize | `scheduling.read` | human, service | rest, mcp | GET `/v1/appointments/{appointmentRef}/detail` | `appointments_detail` | none | phi | active |

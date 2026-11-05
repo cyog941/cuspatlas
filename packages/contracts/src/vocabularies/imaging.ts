@@ -9,7 +9,8 @@ import { vocabularyEntry as e, type ModuleVocabularies } from './types';
 export const IMAGING_VOCABULARIES: ModuleVocabularies = {
   module: 'imaging',
   owner: 'I',
-  version: 'imaging-state-labels.1',
+  // .2 (Closeout D): orphan_removal (durable orphan-bytes removal intents).
+  version: 'imaging-state-labels.2',
   vocabularies: [
     {
       name: 'acquisition_deferral',
@@ -50,6 +51,16 @@ export const IMAGING_VOCABULARIES: ModuleVocabularies = {
       entries: [
         e('pending', 'PEN', 'Pending', 'lifecycle', false),
         e('executed', 'EXE', 'Executed', 'lifecycle', true),
+      ],
+    },
+    {
+      name: 'orphan_removal',
+      sources: ['imaging_orphan_removals.state'],
+      entries: [
+        e('intended', 'INT', 'Removal intended', 'lifecycle', false),
+        e('removed', 'REM', 'Removed', 'lifecycle', true),
+        e('absent', 'ABS', 'Already absent', 'lifecycle', true),
+        e('kept', 'KEP', 'Kept', 'lifecycle', true),
       ],
     },
     {

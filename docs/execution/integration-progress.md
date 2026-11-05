@@ -299,3 +299,9 @@ Remaining internally buildable backend gaps before the UI phase, on synthetic da
   - These cases are still refused with 429: a single-record result, a result where even one record exceeds the per-call budget, and a page that would exceed a remaining period budget. An exhausted period budget is still refused at admission.
   - Tests: red, then green. `mcp-budgets.test.ts` failed 2 tests (exit 1), then passed 12/12. The old test "refused, not silently shortened" was replaced by "truncated with a resume cursor, resume walks the rest without repeats, only returned records are charged, a bad cursor is refused". There is also a new test: the period budget still refuses.
   - **Open:** `resumeCursor` is not yet advertised in the tool input schemas. It is documented through `_meta.truncated` only.
+- **Hosted-Windows embedded PostgreSQL diagnostics.** This is a CI and test-only change; no product code changed. The previous non-blocking windows-smoke step printed nothing. It is now three steps:
+  1. `node scripts/pg-diagnostic.mjs "$RUNNER_TEMP/pg-diagnostic.log"` runs the bundled `initdb --version`, `postgres --version` and `initdb` (password auth, UTF8, C locale) into a temp dir. It then starts `postgres` on a free loopback port and captures status, signal, spawn error, stdout and stderr until it is ready or exits.
+  2. The `service-boundary` integration run with `CUSPATLAS_PG_DIAG_FILE`. When initialise or start fails, `global-setup.ts` writes the phase, the reason and the whole server log to that file.
+  3. An `if: always()` step that prints all three files.
+  - Locally on the Windows host, the script exits 0 (initdb OK, server ready).
+  - The real cause on hosted runners will be visible in the next GitHub run. Nothing has been pushed, so it has **not been observed yet**.

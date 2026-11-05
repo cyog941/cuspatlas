@@ -12,6 +12,7 @@ import {
   type SecurityReasonCode,
   type TenantTransaction,
 } from '@cuspatlas/contracts';
+import { ADMINISTRATION_REPLAY_CODECS } from '../administration/administration';
 import { AGENT_REPLAY_CODECS } from '../agents/codecs';
 import { BILLING_REPLAY_CODECS } from '../billing/codecs';
 import { CLINICAL_REPLAY_CODECS } from '../clinical/codecs';
@@ -19,6 +20,7 @@ import { ENGAGEMENT_REPLAY_CODECS } from '../engagement/codecs';
 import { IMAGING_REPLAY_CODECS } from '../imaging/codecs';
 import { MIGRATION_REPLAY_CODECS } from '../migration/codecs';
 import { PATIENT_REPLAY_CODECS } from '../patients/replay-codecs';
+import { PREFERENCE_REPLAY_CODECS } from '../preferences/preferences';
 import { APPOINTMENT_REPLAY_CODECS, SCHEDULING_REPLAY_CODECS } from '../scheduling/codecs';
 import { EXTENDED_SCHEDULING_CODECS } from '../scheduling/ext-codecs';
 import {
@@ -273,6 +275,8 @@ const ALL_CODECS: Readonly<Record<string, ReplayCodec<any>>> = {
   ...IMAGING_REPLAY_CODECS,
   ...MIGRATION_REPLAY_CODECS,
   ...AGENT_REPLAY_CODECS,
+  ...PREFERENCE_REPLAY_CODECS,
+  ...ADMINISTRATION_REPLAY_CODECS,
 };
 
 /**

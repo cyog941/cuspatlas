@@ -10,4 +10,5 @@ export * from './routes/imaging-ops';
 export * from './routes/manifest';
 export * from './routes/migration-ops';
 export * from './routes/portal-ops';
+export * from './routes/read-ops';
 export * from './routes/scheduling-ops';

@@ -7,10 +7,24 @@
       "type": "string",
       "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
     },
-    "LocationRef": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
-    "Label": { "type": "string", "minLength": 1, "maxLength": 120 },
-    "Version": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
-    "IdempotencyKey": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,128}$" },
+    "LocationRef": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,64}$"
+    },
+    "Label": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "Version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "IdempotencyKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$"
+    },
     "Cursor": {
       "type": "string",
       "description": "Opaque, tenant-bound, HMAC-protected. Never parse it.",
@@ -21,8 +35,12 @@
       "additionalProperties": false,
       "required": ["label"],
       "properties": {
-        "label": { "$ref": "#/$defs/Label" },
-        "locationRef": { "$ref": "#/$defs/LocationRef" }
+        "label": {
+          "$ref": "#/$defs/Label"
+        },
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        }
       }
     },
     "SyntheticTaskRelabel": {
@@ -30,16 +48,25 @@
       "additionalProperties": false,
       "required": ["label", "expectedVersion"],
       "properties": {
-        "label": { "$ref": "#/$defs/Label" },
-        "expectedVersion": { "$ref": "#/$defs/Version" }
+        "label": {
+          "$ref": "#/$defs/Label"
+        },
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        }
       }
     },
     "SyntheticTaskListQuery": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "limit": { "type": "string", "pattern": "^([1-9]|[1-9][0-9]|100)$" },
-        "cursor": { "$ref": "#/$defs/Cursor" }
+        "limit": {
+          "type": "string",
+          "pattern": "^([1-9]|[1-9][0-9]|100)$"
+        },
+        "cursor": {
+          "$ref": "#/$defs/Cursor"
+        }
       }
     },
     "SyntheticTask": {
@@ -47,26 +74,62 @@
       "additionalProperties": false,
       "required": ["taskRef", "label", "locationRef", "version"],
       "properties": {
-        "taskRef": { "$ref": "#/$defs/TaskRef" },
-        "label": { "$ref": "#/$defs/Label" },
-        "locationRef": { "anyOf": [{ "$ref": "#/$defs/LocationRef" }, { "type": "null" }] },
-        "version": { "$ref": "#/$defs/Version" }
+        "taskRef": {
+          "$ref": "#/$defs/TaskRef"
+        },
+        "label": {
+          "$ref": "#/$defs/Label"
+        },
+        "locationRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocationRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
       }
     },
     "SyntheticTaskRead": {
       "type": "object",
       "additionalProperties": false,
       "required": ["data"],
-      "properties": { "data": { "$ref": "#/$defs/SyntheticTask" } }
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/SyntheticTask"
+        }
+      }
     },
     "SyntheticTaskList": {
       "type": "object",
       "additionalProperties": false,
       "required": ["data", "nextCursor", "envelope"],
       "properties": {
-        "envelope": { "$ref": "#/$defs/ListEnvelope" },
-        "data": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/SyntheticTask" } },
-        "nextCursor": { "anyOf": [{ "$ref": "#/$defs/Cursor" }, { "type": "null" }] }
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
+        },
+        "data": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/SyntheticTask"
+          }
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Cursor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
       }
     },
     "SyntheticTaskCommandResult": {
@@ -78,11 +141,25 @@
           "type": "object",
           "additionalProperties": false,
           "required": ["taskRef", "label"],
-          "properties": { "taskRef": { "$ref": "#/$defs/TaskRef" }, "label": { "$ref": "#/$defs/Label" } }
+          "properties": {
+            "taskRef": {
+              "$ref": "#/$defs/TaskRef"
+            },
+            "label": {
+              "$ref": "#/$defs/Label"
+            }
+          }
         },
-        "version": { "$ref": "#/$defs/Version" },
-        "correlationId": { "type": "string", "format": "uuid" },
-        "replayed": { "type": "boolean" }
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
       }
     },
     "Refusal": {
@@ -110,14 +187,24 @@
             "approval_invalid"
           ]
         },
-        "retryable": { "type": "boolean" },
-        "correlationId": { "type": "string", "format": "uuid" },
+        "retryable": {
+          "type": "boolean"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
         "detail": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "currentVersion": { "$ref": "#/$defs/Version" },
-            "reason": { "type": "string", "pattern": "^[a-z_]{1,64}$" },
+            "currentVersion": {
+              "$ref": "#/$defs/Version"
+            },
+            "reason": {
+              "type": "string",
+              "pattern": "^[a-z_]{1,64}$"
+            },
             "deficits": {
               "type": "object",
               "additionalProperties": false,
@@ -127,17 +214,26 @@
                 "missingSections": {
                   "type": "array",
                   "maxItems": 30,
-                  "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$" }
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]{0,63}$"
+                  }
                 },
                 "missingCodeRefs": {
                   "type": "array",
                   "maxItems": 50,
-                  "items": { "type": "string", "pattern": "^SYN-[A-Z0-9-]{1,40}$" }
+                  "items": {
+                    "type": "string",
+                    "pattern": "^SYN-[A-Z0-9-]{1,40}$"
+                  }
                 },
                 "unresolvedSections": {
                   "type": "array",
                   "maxItems": 30,
-                  "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$" }
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]{0,63}$"
+                  }
                 }
               }
             },
@@ -154,7 +250,10 @@
                 "additionalProperties": false,
                 "required": ["kind", "ref"],
                 "properties": {
-                  "kind": { "type": "string", "pattern": "^[a-z][A-Za-z]{0,63}$" },
+                  "kind": {
+                    "type": "string",
+                    "pattern": "^[a-z][A-Za-z]{0,63}$"
+                  },
                   "ref": {
                     "type": "string",
                     "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
@@ -170,8 +269,14 @@
                 "additionalProperties": false,
                 "required": ["pointer", "rule"],
                 "properties": {
-                  "pointer": { "type": "string", "maxLength": 256 },
-                  "rule": { "type": "string", "pattern": "^[a-zA-Z]{1,32}$" }
+                  "pointer": {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  "rule": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z]{1,32}$"
+                  }
                 }
               }
             },
@@ -200,7 +305,9 @@
                     "additionalProperties": false,
                     "required": ["kind", "resourceRef"],
                     "properties": {
-                      "kind": { "enum": ["provider", "operatory", "equipment", "staff"] },
+                      "kind": {
+                        "enum": ["provider", "operatory", "equipment", "staff"]
+                      },
                       "resourceRef": {
                         "type": "string",
                         "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
@@ -211,8 +318,13 @@
                     "type": "string",
                     "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
                   },
-                  "explanation": { "type": "string", "maxLength": 200 },
-                  "overrideable": { "type": "boolean" }
+                  "explanation": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "overrideable": {
+                    "type": "boolean"
+                  }
                 }
               }
             },
@@ -222,8 +334,14 @@
               "required": ["name", "value"],
               "description": "S13 addition: the published configuration limit a request exceeded (for example the series occurrence limit).",
               "properties": {
-                "name": { "type": "string", "pattern": "^[a-z][A-Za-z.]{0,63}$" },
-                "value": { "type": "integer", "minimum": 0 }
+                "name": {
+                  "type": "string",
+                  "pattern": "^[a-z][A-Za-z.]{0,63}$"
+                },
+                "value": {
+                  "type": "integer",
+                  "minimum": 0
+                }
               }
             },
             "earliestAllowedAt": {
@@ -240,9 +358,18 @@
                 "additionalProperties": false,
                 "required": ["index", "startsAt", "conflicts"],
                 "properties": {
-                  "index": { "type": "integer", "minimum": 1, "maximum": 10000 },
-                  "startsAt": { "type": "string", "format": "date-time" },
-                  "conflicts": { "$ref": "#/$defs/Refusal/properties/detail/properties/conflicts" }
+                  "index": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10000
+                  },
+                  "startsAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "conflicts": {
+                    "$ref": "#/$defs/Refusal/properties/detail/properties/conflicts"
+                  }
                 }
               }
             }
@@ -453,6 +580,834 @@
         },
         "count": {
           "$ref": "#/$defs/ListCount"
+        }
+      }
+    },
+    "Uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "LocalDate": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "ReadComponent": {
+      "type": "object",
+      "description": "A21 (OR-09) component of a composed read: ok (with freshness and data), restricted (the caller may not see it; requiredAction/requiredScope named, no value) or unavailable (the producer is not deployed; owner named). Neither restricted nor unavailable means none.",
+      "required": ["status", "owner"],
+      "properties": {
+        "status": {
+          "enum": ["ok", "restricted", "unavailable"]
+        },
+        "owner": {
+          "type": "string"
+        },
+        "freshness": {
+          "$ref": "#/$defs/ReadFreshness"
+        },
+        "requiredAction": {
+          "type": "string"
+        },
+        "requiredScope": {
+          "type": "string"
+        },
+        "reason": {
+          "enum": ["producer_not_deployed", "producer_failed", "record_missing"]
+        },
+        "data": {}
+      }
+    },
+    "ReadFreshness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["asOf", "state", "basis"],
+      "properties": {
+        "asOf": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "state": {
+          "enum": ["current", "stale"]
+        },
+        "basis": {
+          "type": "string"
+        }
+      }
+    },
+    "ScheduleViewQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locationRef", "from"],
+      "properties": {
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "from": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "to": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "grain": {
+          "enum": ["detailed", "compact"]
+        }
+      }
+    },
+    "ScheduleView": {
+      "type": "object",
+      "required": [
+        "location",
+        "from",
+        "to",
+        "grain",
+        "asOf",
+        "appointments",
+        "appointmentsTruncated",
+        "blocks",
+        "unavailableIntervals",
+        "counters",
+        "freshness"
+      ],
+      "properties": {
+        "location": {
+          "type": "object"
+        },
+        "from": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "to": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "grain": {
+          "enum": ["detailed", "compact"]
+        },
+        "asOf": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "appointments": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "type": "object"
+          }
+        },
+        "appointmentsTruncated": {
+          "type": "boolean"
+        },
+        "blocks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["blockRef", "startsAt", "endsAt", "reasonCode", "resourceRefs", "locationWide"]
+          }
+        },
+        "unavailableIntervals": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["resourceRef", "startsAt", "endsAt", "reason"],
+            "properties": {
+              "reason": {
+                "enum": ["closed", "blocked", "outside_availability"]
+              }
+            }
+          }
+        },
+        "counters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["key", "value", "scope"]
+          }
+        },
+        "freshness": {
+          "$ref": "#/$defs/ReadFreshness"
+        }
+      }
+    },
+    "ScheduleViewResult": {
+      "type": "object",
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/ScheduleView"
+        }
+      }
+    },
+    "AppointmentDetail": {
+      "type": "object",
+      "required": [
+        "appointmentRef",
+        "status",
+        "patientRef",
+        "startsAt",
+        "endsAt",
+        "attendance",
+        "patient",
+        "coverage",
+        "balance",
+        "plannedProcedures",
+        "chart",
+        "freshness"
+      ],
+      "properties": {
+        "patient": {
+          "$ref": "#/$defs/ReadComponent"
+        },
+        "coverage": {
+          "$ref": "#/$defs/ReadComponent"
+        },
+        "balance": {
+          "$ref": "#/$defs/ReadComponent"
+        },
+        "plannedProcedures": {
+          "$ref": "#/$defs/ReadComponent"
+        },
+        "freshness": {
+          "$ref": "#/$defs/ReadFreshness"
+        }
+      }
+    },
+    "AppointmentDetailResult": {
+      "type": "object",
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/AppointmentDetail"
+        }
+      }
+    },
+    "NavigationOperation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "kind", "method", "path", "mcpTool"],
+      "properties": {
+        "operation": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": ["query", "command", "capability"]
+        },
+        "method": {
+          "enum": ["get", "post", null]
+        },
+        "path": {
+          "type": ["string", "null"]
+        },
+        "mcpTool": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "NavigationRead": {
+      "type": "object",
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["version", "areas"],
+          "properties": {
+            "version": {
+              "type": "string"
+            },
+            "areas": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["area", "label", "capabilities"],
+                "properties": {
+                  "area": {
+                    "enum": [
+                      "scheduling",
+                      "clinical",
+                      "financial",
+                      "communications",
+                      "imaging",
+                      "administration",
+                      "migration"
+                    ]
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "capabilities": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["key", "label", "entry", "operations"],
+                      "properties": {
+                        "key": {
+                          "type": "string"
+                        },
+                        "label": {
+                          "type": "string"
+                        },
+                        "entry": {
+                          "$ref": "#/$defs/NavigationOperation"
+                        },
+                        "operations": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/$defs/NavigationOperation"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "EmptyCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "SavedViewName": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z ._-]{0,59}$",
+      "description": "Letters, spaces, dots, dashes and underscores only: no digits, so no date, phone or chart number."
+    },
+    "OperationId": {
+      "type": "string",
+      "pattern": "^[a-z][A-Za-z]{0,40}(\\.[a-z][A-Za-z]{0,40}){0,3}$"
+    },
+    "SavedViewSave": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "operation", "filters"],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/SavedViewName"
+        },
+        "operation": {
+          "$ref": "#/$defs/OperationId"
+        },
+        "filters": {
+          "type": "object",
+          "maxProperties": 16,
+          "propertyNames": {
+            "pattern": "^[a-z][A-Za-z]{0,40}$"
+          },
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "array",
+                "maxItems": 20,
+                "items": {
+                  "type": "string",
+                  "maxLength": 64
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "SavedView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["viewRef", "name", "operation", "filters", "version", "updatedAt"],
+      "properties": {
+        "viewRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "name": {
+          "$ref": "#/$defs/SavedViewName"
+        },
+        "operation": {
+          "$ref": "#/$defs/OperationId"
+        },
+        "filters": {
+          "type": "object"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "SavedViewList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "envelope"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/SavedView"
+          }
+        },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
+        }
+      }
+    },
+    "PreferenceCommandResult": {
+      "type": "object",
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object"
+        },
+        "version": {
+          "type": "integer"
+        },
+        "correlationId": {
+          "type": "string"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "SavedViewCommandResult": {
+      "$ref": "#/$defs/PreferenceCommandResult"
+    },
+    "SavedViewDeleteResult": {
+      "$ref": "#/$defs/PreferenceCommandResult"
+    },
+    "FavouriteReportChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation"],
+      "properties": {
+        "operation": {
+          "$ref": "#/$defs/OperationId"
+        }
+      }
+    },
+    "FavouriteReportList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "envelope"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["operation", "addedAt"],
+            "properties": {
+              "operation": {
+                "$ref": "#/$defs/OperationId"
+              },
+              "addedAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
+        }
+      }
+    },
+    "FavouriteReportCommandResult": {
+      "$ref": "#/$defs/PreferenceCommandResult"
+    },
+    "RecentPatientRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["patientRef"],
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/Uuid"
+        }
+      }
+    },
+    "RecentPatientList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "retentionDays", "envelope"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["patientRef", "openedAt"],
+            "properties": {
+              "patientRef": {
+                "$ref": "#/$defs/Uuid"
+              },
+              "openedAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        },
+        "retentionDays": {
+          "const": 7
+        },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
+        }
+      }
+    },
+    "RecentPatientCommandResult": {
+      "$ref": "#/$defs/PreferenceCommandResult"
+    },
+    "RecentPatientClearResult": {
+      "$ref": "#/$defs/PreferenceCommandResult"
+    },
+    "MeasureKey": {
+      "type": "string",
+      "pattern": "^[a-z]{1,20}\\.[a-z_]{1,40}$"
+    },
+    "MeasureQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "from": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "to": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._]{1,64}$"
+        }
+      }
+    },
+    "MeasureDefinition": {
+      "type": "object",
+      "required": [
+        "measureKey",
+        "definitionVersion",
+        "owner",
+        "title",
+        "definition",
+        "unit",
+        "dateBasis",
+        "filters",
+        "requiredActions",
+        "suppression",
+        "source"
+      ],
+      "properties": {
+        "measureKey": {
+          "$ref": "#/$defs/MeasureKey"
+        },
+        "definitionVersion": {
+          "type": "string"
+        },
+        "owner": {
+          "enum": ["S", "B", "E"]
+        },
+        "title": {
+          "type": "string"
+        },
+        "definition": {
+          "type": "string"
+        },
+        "unit": {
+          "enum": ["ratio", "count", "money"]
+        },
+        "dateBasis": {
+          "type": "string"
+        },
+        "filters": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requiredActions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "suppression": {
+          "enum": ["population", "count", "none"]
+        },
+        "source": {
+          "enum": ["live", "B11"]
+        }
+      }
+    },
+    "MeasureCatalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "suppression", "envelope"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MeasureDefinition"
+          }
+        },
+        "suppression": {
+          "type": "object"
+        },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
+        }
+      }
+    },
+    "MeasureRead": {
+      "type": "object",
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "required": ["measureKey", "definitionVersion", "result"],
+          "properties": {
+            "result": {
+              "type": "object",
+              "required": ["state"],
+              "properties": {
+                "state": {
+                  "enum": ["value", "suppressed", "undefined", "unavailable"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "AuditSearchQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "type": "string",
+          "pattern": "^(committed_change|security_attempt|sensitive_read)(,(committed_change|security_attempt|sensitive_read)){0,2}$"
+        },
+        "actorRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "principal": {
+          "enum": ["human", "service"]
+        },
+        "operation": {
+          "$ref": "#/$defs/OperationId"
+        },
+        "from": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "to": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "limit": {
+          "type": "string",
+          "pattern": "^[0-9]{1,3}$"
+        }
+      }
+    },
+    "AuditRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "eventRef",
+        "occurredAt",
+        "actorRef",
+        "principal",
+        "operation",
+        "resourceType",
+        "resourceRef",
+        "reasonCode",
+        "resultCount"
+      ],
+      "properties": {
+        "source": {
+          "enum": ["committed_change", "security_attempt", "sensitive_read"]
+        },
+        "eventRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "occurredAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "actorRef": {
+          "type": ["string", "null"]
+        },
+        "principal": {
+          "enum": ["human", "service", null]
+        },
+        "operation": {
+          "type": "string"
+        },
+        "resourceType": {
+          "type": ["string", "null"]
+        },
+        "resourceRef": {
+          "type": ["string", "null"]
+        },
+        "reasonCode": {
+          "type": ["string", "null"]
+        },
+        "resultCount": {
+          "type": ["integer", "null"]
+        }
+      }
+    },
+    "AuditSearchResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "envelope"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "#/$defs/AuditRecord"
+          }
+        },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
+        }
+      }
+    },
+    "AccessReview": {
+      "type": "object",
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "required": ["asOf", "memberships", "portalPrincipals", "devices"],
+          "properties": {
+            "memberships": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "principalRef",
+                  "kind",
+                  "scopes",
+                  "locationRefs",
+                  "active",
+                  "lastActivityAt",
+                  "revokeOperation"
+                ]
+              }
+            },
+            "portalPrincipals": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["principalRef", "state", "revokeOperation"]
+              }
+            },
+            "devices": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["deviceRef", "state", "revokeOperation"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "AccessRevoke": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["principalRef", "reasonCode"],
+      "properties": {
+        "principalRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "reasonCode": {
+          "type": "string",
+          "pattern": "^[a-z_]{1,64}$"
+        }
+      }
+    },
+    "AccessRevokeResult": {
+      "$ref": "#/$defs/PreferenceCommandResult"
+    },
+    "HuddleQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locationRef"],
+      "properties": {
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "onDate": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "display": {
+          "enum": ["staff", "shared"]
+        }
+      }
+    },
+    "HuddleRead": {
+      "type": "object",
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "required": ["location", "onDate", "zone", "display", "displayForced", "asOf", "appointments"],
+          "properties": {
+            "display": {
+              "enum": ["staff", "shared"]
+            },
+            "displayForced": {
+              "type": "boolean"
+            },
+            "onDate": {
+              "$ref": "#/$defs/LocalDate"
+            },
+            "zone": {
+              "type": "string"
+            },
+            "sections": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["key", "owner", "status"],
+                "properties": {
+                  "status": {
+                    "enum": ["ok", "restricted", "unavailable"]
+                  }
+                }
+              }
+            },
+            "appointments": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "type": "object"
+              }
+            }
+          }
         }
       }
     }

@@ -416,6 +416,25 @@ const TOOL_NAMES = [
   'practice_export_verify',
   // Workstream A batch 2: listed by id and tool in agents-negative-harness.test.ts.
   ...AGENT_OPS.map((o) => o.tool),
+  // A batch 3 read surfaces.
+  'schedule_view',
+  'appointments_detail',
+  'navigation_get',
+  'huddle_read',
+  'admin_audit_search',
+  'admin_access_review',
+  'admin_access_revoke',
+  'analytics_measures_list',
+  'analytics_measures_read',
+  'preferences_saved_views_list',
+  'preferences_saved_views_save',
+  'preferences_saved_views_delete',
+  'preferences_favourites_list',
+  'preferences_favourites_add',
+  'preferences_favourites_remove',
+  'preferences_recent_patients_list',
+  'preferences_recent_patients_record',
+  'preferences_recent_patients_clear',
 ].sort();
 
 let db: TestDatabase;

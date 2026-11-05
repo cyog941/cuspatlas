@@ -22,7 +22,8 @@ const read = (p: string) => readFileSync(resolve(ROOT, p), 'utf8');
  * Registered in SHARED-CONTRACTS but used by no operation yet. Reported, never silently retained: a
  * new orphan (an operation removed while its scope stays) fails until it is reviewed here.
  */
-const REVIEWED_ORPHANS = ['claims.read'];
+// display.shared (A18) is a marker scope: it names a shared-display membership and gates no operation by itself.
+const REVIEWED_ORPHANS = ['claims.read', 'display.shared'];
 
 describe('A3 scope registry', () => {
   it('the machine-readable registry and docs/api/scopes.md are current', () => {

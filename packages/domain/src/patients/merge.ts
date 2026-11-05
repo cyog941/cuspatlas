@@ -293,6 +293,11 @@ export const MERGE_RECORD_CLASSES: readonly MergeRecordClass[] = [
 /** Foreign keys to patients that a merge deliberately does not move, with the reason. */
 export const MERGE_EXCLUDED_REFERENCES: readonly { table: string; column: string; why: string }[] = [
   {
+    table: 'user_recent_patients',
+    column: 'patient_id',
+    why: 'A22: a per-user navigation convenience kept 7 days (references only), not a patient record; it expires rather than being relinked',
+  },
+  {
     table: 'appointment_patient_reassignments',
     column: 'prior_patient_id',
     why: 'S22: the reassignment history keeps both identities it recorded (never relinked)',

@@ -8,6 +8,7 @@ import { ENGAGEMENT_OP_ROUTES } from './engagement-ops';
 import { IMAGING_OP_ROUTES } from './imaging-ops';
 import { MIGRATION_OP_ROUTES } from './migration-ops';
 import { PORTAL_ROUTES } from './portal-ops';
+import { READ_OP_ROUTES } from './read-ops';
 import { SCHEDULING_OP_ROUTES } from './scheduling-ops';
 
 /**
@@ -378,6 +379,7 @@ export const ROUTES: readonly RouteContract[] = [
   // Workstream M: migration intake, import, reconciliation and sign-off (REST + MCP).
   ...MIGRATION_OP_ROUTES(),
   ...AGENT_OP_ROUTES(),
+  ...READ_OP_ROUTES,
 ];
 
 export function routeFor(operationId: string): RouteContract & { fastifyPath: string } {

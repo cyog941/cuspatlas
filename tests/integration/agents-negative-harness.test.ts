@@ -1,4 +1,4 @@
-import { AGENT_OPS } from '@cuspatlas/api';
+import { AGENT_OPS, READ_OPS } from '@cuspatlas/api';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { type AgentHandle, type AgentStack, startAgentStack } from './support/agent-stack';
 import { T_ALPHA } from './support/fixtures';
@@ -130,5 +130,61 @@ describe('workstream A batch 2 negative harness', () => {
     expect(other.status).toBe(404);
     expect(missing.status).toBe(404);
     expect(other.body.code).toBe(missing.body.code);
+  });
+});
+
+/**
+ * A batch 3 read surfaces reached by an agent (integration of A2/H3 with A3): the administration and
+ * preference operations are human only, so an agent is refused them with a policy reason (never a
+ * missing consent), and a service-admitting read surface the agent is consented to is metered and
+ * logged against its budget like every other agent tool call.
+ */
+describe('agents on the A batch 3 read surfaces', () => {
+  const HUMAN_ONLY_READ_TOOLS = READ_OPS.filter(
+    (o) => o.tool !== undefined && /^(admin|preferences)\./.test(o.operationId),
+  );
+
+  it('names the human-only administration and preference tools', () => {
+    expect(HUMAN_ONLY_READ_TOOLS.map((o) => o.tool).sort()).toStrictEqual([
+      'admin_access_review',
+      'admin_access_revoke',
+      'admin_audit_search',
+      'preferences_favourites_add',
+      'preferences_favourites_list',
+      'preferences_favourites_remove',
+      'preferences_recent_patients_clear',
+      'preferences_recent_patients_list',
+      'preferences_recent_patients_record',
+      'preferences_saved_views_delete',
+      'preferences_saved_views_list',
+      'preferences_saved_views_save',
+    ]);
+  });
+
+  it('an agent on MCP is refused every administration and preference tool with a policy reason', async () => {
+    const client = await s.agentClient(agent.agentRef, agent.credentialRef);
+    for (const op of HUMAN_ONLY_READ_TOOLS) {
+      const r = await s.agentCall(client, op.tool as string, {});
+      expect(r.isError, op.operationId).toBe(true);
+      expect(r.body.code, op.operationId).toBe('forbidden');
+      const why = await s.db.admin.query<{ reason_code: string }>(
+        'SELECT reason_code FROM cuspatlas.security_attempt_events WHERE actor_id = $1 AND operation = $2',
+        [agent.agentRef, op.operationId],
+      );
+      const codes = why.rows.map((w) => w.reason_code);
+      expect(codes.length, op.operationId).toBeGreaterThan(0);
+      expect(codes, op.operationId).not.toContain('consent_missing');
+      expect(codes.includes('principal_kind_denied'), `${op.operationId} ${codes}`).toBe(true);
+    }
+  });
+
+  it('a consented read surface is metered against the agent budget', async () => {
+    const r = await s.agentTool(agent, 'navigation_get', {});
+    expect(r.isError, JSON.stringify(r.body)).toBe(false);
+    const log = await s.db.admin.query<{ outcome: string }>(
+      'SELECT outcome FROM cuspatlas.agent_tool_calls WHERE agent_ref = $1 AND operation = $2',
+      [agent.agentRef, 'navigation.read'],
+    );
+    expect(log.rows.map((x) => x.outcome)).toStrictEqual(['ok']);
   });
 });

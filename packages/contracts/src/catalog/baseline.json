@@ -272,6 +272,102 @@
       ]
     },
     {
+      "operation": "admin.access.review",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "access.manage",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/admin/access-review"
+      },
+      "mcpTool": "admin_access_review",
+      "idempotency": "none",
+      "refusals": [
+        "401",
+        "403",
+        "503"
+      ]
+    },
+    {
+      "operation": "admin.access.revoke",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "access.manage",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/admin/access/revocations"
+      },
+      "mcpTool": "admin_access_revoke",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "principalRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "reasonCode": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z_]{1,64}$"
+          }
+        },
+        "required": [
+          "principalRef",
+          "reasonCode"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "admin.audit.search",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "audit.read",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/admin/audit"
+      },
+      "mcpTool": "admin_audit_search",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
       "operation": "agents.audit.list",
       "transports": [
         "rest",
@@ -1327,6 +1423,79 @@
         "path": "/v1/ai/use-cases"
       },
       "mcpTool": "ai_use_cases_list",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
+      "operation": "analytics.measures.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "analytics.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/analytics/measures"
+      },
+      "mcpTool": "analytics_measures_list",
+      "idempotency": "none",
+      "refusals": [
+        "401",
+        "403",
+        "503"
+      ]
+    },
+    {
+      "operation": "analytics.measures.read",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "analytics.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/analytics/measures/{measureKey}"
+      },
+      "mcpTool": "analytics_measures_read",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
+      "operation": "appointments.detail",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "scheduling.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/appointments/{appointmentRef}/detail"
+      },
+      "mcpTool": "appointments_detail",
       "idempotency": "none",
       "refusals": [
         "400",
@@ -9166,6 +9335,31 @@
       "refusals": []
     },
     {
+      "operation": "huddle.read",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "scheduling.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/huddle"
+      },
+      "mcpTool": "huddle_read",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
       "operation": "imaging.acquisitions.request",
       "transports": [
         "rest",
@@ -13783,6 +13977,29 @@
       ]
     },
     {
+      "operation": "navigation.read",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": null,
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/navigation"
+      },
+      "mcpTool": "navigation_get",
+      "idempotency": "none",
+      "refusals": [
+        "401",
+        "403",
+        "503"
+      ]
+    },
+    {
       "operation": "operations.alerts.list",
       "transports": [
         "rest",
@@ -16864,6 +17081,355 @@
       ]
     },
     {
+      "operation": "preferences.favourites.add",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": null,
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/me/favourite-reports"
+      },
+      "mcpTool": "preferences_favourites_add",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "operation": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z][A-Za-z]{0,40}(\\.[a-z][A-Za-z]{0,40}){0,3}$"
+          }
+        },
+        "required": [
+          "operation"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "preferences.favourites.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": null,
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/me/favourite-reports"
+      },
+      "mcpTool": "preferences_favourites_list",
+      "idempotency": "none",
+      "refusals": [
+        "401",
+        "403",
+        "503"
+      ]
+    },
+    {
+      "operation": "preferences.favourites.remove",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": null,
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/me/favourite-reports/remove"
+      },
+      "mcpTool": "preferences_favourites_remove",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "operation": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z][A-Za-z]{0,40}(\\.[a-z][A-Za-z]{0,40}){0,3}$"
+          }
+        },
+        "required": [
+          "operation"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "preferences.recentPatients.clear",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": null,
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/me/recent-patients/clear"
+      },
+      "mcpTool": "preferences_recent_patients_clear",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {}
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "preferences.recentPatients.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": null,
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/me/recent-patients"
+      },
+      "mcpTool": "preferences_recent_patients_list",
+      "idempotency": "none",
+      "refusals": [
+        "401",
+        "403",
+        "503"
+      ]
+    },
+    {
+      "operation": "preferences.recentPatients.record",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": null,
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/me/recent-patients"
+      },
+      "mcpTool": "preferences_recent_patients_record",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "patientRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "patientRef"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "preferences.savedViews.delete",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": null,
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/me/saved-views/{viewRef}/delete"
+      },
+      "mcpTool": "preferences_saved_views_delete",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {}
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "preferences.savedViews.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": null,
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/me/saved-views"
+      },
+      "mcpTool": "preferences_saved_views_list",
+      "idempotency": "none",
+      "refusals": [
+        "401",
+        "403",
+        "503"
+      ]
+    },
+    {
+      "operation": "preferences.savedViews.save",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": null,
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/me/saved-views"
+      },
+      "mcpTool": "preferences_saved_views_save",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "filters": {
+            "type": [
+              "object"
+            ],
+            "additional": {
+              "anyOf": [
+                {
+                  "type": [
+                    "string"
+                  ],
+                  "maxLength": 64
+                },
+                {
+                  "type": [
+                    "integer"
+                  ]
+                },
+                {
+                  "type": [
+                    "boolean"
+                  ]
+                },
+                {
+                  "type": [
+                    "array"
+                  ],
+                  "maxItems": 20,
+                  "items": {
+                    "type": [
+                      "string"
+                    ],
+                    "maxLength": 64
+                  }
+                }
+              ]
+            }
+          },
+          "name": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[A-Za-z][A-Za-z ._-]{0,59}$"
+          },
+          "operation": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z][A-Za-z]{0,40}(\\.[a-z][A-Za-z]{0,40}){0,3}$"
+          }
+        },
+        "required": [
+          "filters",
+          "name",
+          "operation"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
       "operation": "prescriptions.cancel",
       "transports": [
         "rest",
@@ -18938,6 +19504,31 @@
         "404",
         "409",
         "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "schedule.view",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "scheduling.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/schedule/view"
+      },
+      "mcpTool": "schedule_view",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
         "503"
       ]
     },

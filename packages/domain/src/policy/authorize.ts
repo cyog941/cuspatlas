@@ -20,6 +20,34 @@ export const ACTION_POLICIES = {
   // A20 / OR-02: state vocabularies (labels only, no tenant data) for any active staff member.
   'vocabularies.list': { scope: null, principals: ['human', 'service'] },
   'vocabularies.read': { scope: null, principals: ['human', 'service'] },
+  // A21 (OR-09/OR-10) read composers: the composite needs scheduling.read; every component is then
+  // authorized by its owning domain's own read action (restricted when denied).
+  'schedule.view': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  'appointments.detail': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  // A24 (OR-14): navigation from the catalog, filtered by the caller's live permissions.
+  'navigation.read': { scope: null, principals: ['human', 'service'] },
+  // A18 (PT-01): the daily huddle projection; a display principal is forced to the shared projection.
+  'huddle.read': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  // A22 (OR-12): the caller's own preferences (RLS binds every row to tenant AND actor). Human only:
+  // an agent keeps no recent-patient list. Recording a recent patient also needs patients.read.
+  // A17 administration (human only; A-D2 grants pending): audit search over the tenant's audit,
+  // attempts and sensitive reads; access review; membership revocation (portal principals and devices
+  // keep their own revocation commands).
+  'admin.audit.search': { scope: 'audit.read', principals: ['human'] },
+  'admin.access.review': { scope: 'access.manage', principals: ['human'] },
+  'admin.access.revoke': { scope: 'access.manage', principals: ['human'] },
+  // A16 analytics: the measure catalog and measures; each measure also requires its owning read action.
+  'analytics.measures.list': { scope: 'analytics.read', principals: ['human', 'service'] },
+  'analytics.measures.read': { scope: 'analytics.read', principals: ['human', 'service'] },
+  'preferences.savedViews.list': { scope: null, principals: ['human'] },
+  'preferences.savedViews.save': { scope: null, principals: ['human'] },
+  'preferences.savedViews.delete': { scope: null, principals: ['human'] },
+  'preferences.favourites.list': { scope: null, principals: ['human'] },
+  'preferences.favourites.add': { scope: null, principals: ['human'] },
+  'preferences.favourites.remove': { scope: null, principals: ['human'] },
+  'preferences.recentPatients.list': { scope: null, principals: ['human'] },
+  'preferences.recentPatients.record': { scope: null, principals: ['human'] },
+  'preferences.recentPatients.clear': { scope: null, principals: ['human'] },
   'syntheticTasks.read': { scope: 'syntheticTasks.read', principals: ['human', 'service'] },
   'syntheticTasks.create': { scope: 'syntheticTasks.write', principals: ['human', 'service'] },
   'syntheticTasks.relabel': { scope: 'syntheticTasks.write', principals: ['human', 'service'] },
@@ -668,6 +696,8 @@ export function membershipAllows(
   const policy: ActionPolicy = ACTION_POLICIES[action];
   if (!m?.active) return 'membership_inactive';
   if (m.principal !== kind || !policy.principals.includes(m.principal)) return 'principal_kind_denied';
+  // A18: a shared-display membership is confined to the display projections here too.
+  if (m.scopes.includes(DISPLAY_SCOPE) && !DISPLAY_ACTIONS.has(action)) return 'principal_kind_denied';
   if (policy.scope !== null && !m.scopes.includes(policy.scope)) return 'scope_missing';
   if (
     locationId !== undefined &&
@@ -705,6 +735,43 @@ function deny(reasonCode: SecurityReasonCode): never {
   throw new RefusalError({ code: 'forbidden', reasonCode });
 }
 
+/** A18: the only actions a shared-display principal may call (each forces its anonymized projection). */
+export const DISPLAY_SCOPE = 'display.shared';
+export const DISPLAY_ACTIONS: ReadonlySet<string> = new Set([
+  'huddle.read',
+  'scheduling.floor.read',
+  'session.read',
+  'vocabularies.list',
+  'vocabularies.read',
+]);
+
+/**
+ * The membership part of the policy decision for one action (null = allowed), shared by `authorize`
+ * and by reads that evaluate many actions against ONE live membership load (A24 navigation). Resource
+ * and location checks stay with the caller of `authorize`.
+ */
+export function membershipDenial(
+  m: MembershipRecord | null | undefined,
+  ctx: ActorContext,
+  action: string,
+): SecurityReasonCode | null {
+  const policy: ActionPolicy | undefined = (ACTION_POLICIES as Record<string, ActionPolicy>)[action];
+  if (!policy) return 'scope_missing';
+  if (!m?.active) return 'membership_inactive';
+  // A10: an agent reaching a propose-only (human-only) operation directly is told to propose it
+  // (checked before the principal kind so the agent learns the supported path).
+  if (m.agent && m.principal === ctx.principal && PROPOSAL_REQUIRED_FOR_AGENTS.has(action))
+    return 'proposal_required';
+  if (m.principal !== ctx.principal || !policy.principals.includes(m.principal))
+    return 'principal_kind_denied';
+  // A18 / S21 shared-display rule: a membership holding display.shared is a display principal and may
+  // call only the anonymized display projections (the domain forces the projection for it).
+  if (m.scopes.includes(DISPLAY_SCOPE) && !DISPLAY_ACTIONS.has(action)) return 'principal_kind_denied';
+  if (policy.scope !== null && !(m.scopes.includes(policy.scope) && ctx.scopes.includes(policy.scope)))
+    return 'scope_missing';
+  return null;
+}
+
 /**
  * Builds `authorize`. Every call reloads the membership (no cached authority), so revocation, role
  * downgrade and kind changes apply to tokens and queued work issued earlier.
@@ -716,15 +783,9 @@ export function createAuthorize(memberships: MembershipSource): Authorize {
     if (resource.tenantId !== ctx.tenantId) deny('tenant_mismatch');
 
     const m = await memberships.load(ctx.actorId, ctx.tenantId);
-    if (!m?.active) deny('membership_inactive');
-    // A10: an agent reaching a propose-only (human-only) operation directly is told to propose it.
-    if (m.agent && m.principal === ctx.principal && PROPOSAL_REQUIRED_FOR_AGENTS.has(action))
-      deny('proposal_required');
-    if (m.principal !== ctx.principal || !policy.principals.includes(m.principal))
-      deny('principal_kind_denied');
-    if (policy.scope !== null && !(m.scopes.includes(policy.scope) && ctx.scopes.includes(policy.scope))) {
-      deny('scope_missing');
-    }
+    const reason = membershipDenial(m, ctx, action);
+    if (reason !== null) deny(reason);
+    if (!m) deny('membership_inactive');
     if (resource.locationId !== undefined) assertLocation(m.locationRefs, resource.locationId);
     recordListScope(m.locationRefs);
     return { action, locationRefs: m.locationRefs };

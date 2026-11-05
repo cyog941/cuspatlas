@@ -15,10 +15,11 @@ docs/api/forbidden-matrix.md, proves the refusal). There is no grant API for sta
 memberships are administered outside the API, and the default role-to-scope grants remain an open
 human decision (A-D2). No default role grant is asserted here.
 
-51 staff scopes.
+54 staff scopes.
 
 | Scope | Principal kinds | Human only | Owners | Highest sensitivity | Operations |
 |---|---|---|---|---|---|
+| `access.manage` | human | yes | A | phi | 2 |
 | `actions.approve` | human | yes | A | phi | 2 |
 | `actions.prepare` | human, service | no | A | phi | 2 |
 | `actions.read` | human, service | no | A | phi | 2 |
@@ -28,6 +29,8 @@ human decision (A-D2). No default role grant is asserted here.
 | `ai.draft` | human, service | no | A | phi | 1 |
 | `ai.read` | human, service | no | A | phi | 4 |
 | `ai.review` | human | yes | A | phi | 2 |
+| `analytics.read` | human, service | no | A | phi | 2 |
+| `audit.read` | human | yes | A | phi | 1 |
 | `billing.correct` | human | yes | B | phi | 12 |
 | `billing.write` | human, service | no | B | phi | 30 |
 | `clinical.oversight` | human | yes | C | phi | 1 |
@@ -63,7 +66,7 @@ human decision (A-D2). No default role grant is asserted here.
 | `prescriptions.submit` | human | yes | A | phi | 1 |
 | `receivables.read` | human, service | no | B | phi | 5 |
 | `scheduling.override` | human | yes | S | phi | 1 |
-| `scheduling.read` | human, service | no | S | phi | 29 |
+| `scheduling.read` | human, service | no | A, S | phi | 32 |
 | `scheduling.write` | human, service | no | S | phi | 37 |
 | `syntheticTasks.approve` | human | yes | F | operational | 2 |
 | `syntheticTasks.read` | human, service | no | F | operational | 5 |

@@ -2,6 +2,23 @@
   "version": 1,
   "scopes": [
     {
+      "name": "access.manage",
+      "noun": "access",
+      "verb": "manage",
+      "principalClasses": [
+        "human"
+      ],
+      "humanOnly": true,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "admin.access.review",
+        "admin.access.revoke"
+      ],
+      "sensitivity": "phi"
+    },
+    {
       "name": "actions.approve",
       "noun": "actions",
       "verb": "approve",
@@ -215,6 +232,40 @@
       "operations": [
         "ai.drafts.accept",
         "ai.drafts.reject"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "analytics.read",
+      "noun": "analytics",
+      "verb": "read",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "analytics.measures.list",
+        "analytics.measures.read"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "audit.read",
+      "noun": "audit",
+      "verb": "read",
+      "principalClasses": [
+        "human"
+      ],
+      "humanOnly": true,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "admin.audit.search"
       ],
       "sensitivity": "phi"
     },
@@ -1039,9 +1090,13 @@
       ],
       "humanOnly": false,
       "owners": [
+        "A",
         "S"
       ],
       "operations": [
+        "appointments.detail",
+        "huddle.read",
+        "schedule.view",
         "scheduling.appointments.read",
         "scheduling.attendance.list",
         "scheduling.attendance.visitStatus",

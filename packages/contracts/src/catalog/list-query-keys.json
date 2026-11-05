@@ -1,0 +1,185 @@
+{
+  "actions.proposals.list": [
+    "cursor",
+    "limit",
+    "state"
+  ],
+  "admin.audit.search": [
+    "actorRef",
+    "from",
+    "limit",
+    "operation",
+    "principal",
+    "source",
+    "to"
+  ],
+  "agents.audit.list": [
+    "agentRef",
+    "cursor",
+    "limit"
+  ],
+  "agents.consents.list": [
+    "agentRef",
+    "cursor",
+    "limit"
+  ],
+  "agents.principals.list": [
+    "cursor",
+    "limit",
+    "state"
+  ],
+  "ai.drafts.list": [
+    "cursor",
+    "limit",
+    "state",
+    "useCase"
+  ],
+  "ai.evaluations.list": [
+    "cursor",
+    "limit",
+    "useCase"
+  ],
+  "ai.useCases.list": [
+    "cursor",
+    "limit"
+  ],
+  "analytics.measures.list": [],
+  "billing.ledger.list": [
+    "cursor",
+    "limit"
+  ],
+  "billing.plans.worklist": [
+    "kind",
+    "limit"
+  ],
+  "billing.worklist.list": [
+    "kind",
+    "limit"
+  ],
+  "clinical.consents.list": [
+    "asOf",
+    "planVersionRef"
+  ],
+  "clinical.encounters.list": [
+    "cursor",
+    "limit"
+  ],
+  "clinical.estimates.list": [],
+  "clinical.imageLinks.list": [],
+  "clinical.labCases.list": [],
+  "clinical.labCases.worklist": [
+    "asOf"
+  ],
+  "clinical.notes.list": [],
+  "clinical.perio.listExams": [],
+  "clinical.procedures.list": [],
+  "clinical.referrals.list": [],
+  "clinical.referrals.worklist": [
+    "asOf"
+  ],
+  "clinical.treatmentPlans.alternatives": [],
+  "clinical.treatmentPlans.list": [],
+  "communications.channelPolicies.list": [],
+  "communications.consents.list": [],
+  "communications.deliveries.worklist": [],
+  "communications.recall.enrollments": [
+    "category"
+  ],
+  "imaging.annotations.list": [],
+  "imaging.bridge.worklist": [],
+  "imaging.devices.list": [],
+  "imaging.legalHolds.list": [],
+  "imaging.objects.list": [
+    "limit",
+    "state"
+  ],
+  "imaging.retention.policies": [],
+  "intake.forms.list": [],
+  "intake.reviews.worklist": [],
+  "intake.submissions.list": [],
+  "messaging.threads.list": [
+    "assigneeRef",
+    "cursor",
+    "filter",
+    "limit",
+    "queue"
+  ],
+  "messaging.threads.worklist": [],
+  "migration.archive.references": [
+    "patientRef"
+  ],
+  "migration.openingItems.list": [
+    "packageRef"
+  ],
+  "migration.provenance.read": [
+    "patientRef"
+  ],
+  "migration.reviewItems.list": [
+    "packageRef",
+    "state"
+  ],
+  "operations.alerts.list": [],
+  "patients.duplicates.find": [],
+  "patients.merges.list": [],
+  "patients.relationships.list": [],
+  "patients.search": [],
+  "portal.grants.list": [],
+  "preferences.favourites.list": [],
+  "preferences.recentPatients.list": [],
+  "preferences.savedViews.list": [],
+  "rcm.claims.queues": [
+    "filingDeadlineDays",
+    "limit",
+    "queue"
+  ],
+  "rcm.claims.worklist": [
+    "owner"
+  ],
+  "scheduling.attendance.list": [],
+  "scheduling.availability.search": [],
+  "scheduling.followUp.worklist": [
+    "locationRef"
+  ],
+  "scheduling.locations.list": [
+    "cursor",
+    "limit"
+  ],
+  "scheduling.notifications.worklist": [
+    "locationRef"
+  ],
+  "scheduling.presence.list": [
+    "locationRef"
+  ],
+  "scheduling.recall.policies": [],
+  "scheduling.recovery.list": [
+    "locationRef"
+  ],
+  "scheduling.requests.list": [
+    "cursor",
+    "limit",
+    "locationRef",
+    "state"
+  ],
+  "scheduling.resources.list": [
+    "cursor",
+    "kind",
+    "limit",
+    "locationRef"
+  ],
+  "scheduling.staging.list": [
+    "locationRef"
+  ],
+  "scheduling.standingPolicies.list": [],
+  "scheduling.visitContext.items": [],
+  "scheduling.waitlist.list": [
+    "locationRef",
+    "state"
+  ],
+  "scheduling.worklist.daily": [],
+  "syntheticTasks.list": [
+    "cursor",
+    "limit"
+  ],
+  "telephony.calls.list": [],
+  "vocabularies.list": []
+}

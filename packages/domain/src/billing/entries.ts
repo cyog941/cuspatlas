@@ -262,56 +262,72 @@ export function createEntryOperations(base: BillingBase) {
         validate<BalanceQuery>(validateBalanceQuery, query);
         assertRef(patientRef);
         return deps.withTenantTransaction(ctx, async (tx) => {
-          const patient = await loadPatient(tx, patientRef);
+          await loadPatient(tx, patientRef);
           const settings = await loadSettings(tx);
           if (query.currency !== undefined && query.currency !== settings.currency)
             throw failed('currency_mismatch');
-          const set = await mergeSet(tx, patient.id);
-          const { rows } = await tx.query<{ account: LedgerAccount; s: string }>(
-            `SELECT l.account, sum(l.amount_minor)::text AS s
-             FROM cuspatlas.billing_journal_lines l
-             JOIN cuspatlas.billing_journal_entries e ON e.id = l.entry_id AND e.tenant_id = l.tenant_id
-             WHERE l.patient_id = ANY ($1::uuid[]) AND l.currency = $2
-               AND date_trunc('milliseconds', e.posted_at) <= coalesce($3::timestamptz, now())
-             GROUP BY l.account`,
-            [set.ids, settings.currency, query.asOf ?? null],
-          );
-          const { rows: stats } = await tx.query<{ n: number; last: Date | null; as_of: Date }>(
-            `SELECT count(DISTINCT e.id)::int AS n, max(e.posted_at) AS last, coalesce($3::timestamptz, now()) AS as_of
-             FROM cuspatlas.billing_journal_entries e
-             JOIN cuspatlas.billing_journal_lines l ON l.entry_id = e.id AND l.tenant_id = e.tenant_id
-             WHERE l.patient_id = ANY ($1::uuid[]) AND e.currency = $2
-               AND date_trunc('milliseconds', e.posted_at) <= coalesce($3::timestamptz, now())`,
-            [set.ids, settings.currency, query.asOf ?? null],
-          );
-          const total = (account: LedgerAccount) =>
-            moneyFromMinorText(settings.currency, rows.find((r) => r.account === account)?.s ?? '0');
-          // H2 M-10: a migrated opening receivable and opening credit are part of the patient balance.
-          const patientResponsibility = addMoney(total('patient_receivable'), total('opening_receivable'));
-          // Unapplied credit is a credit balance (negative lines); it is reported as a positive amount.
-          const unappliedCredit = negateMoney(addMoney(total('unapplied_credit'), total('opening_credit')));
-          const s = stats[0];
+          const balance = await patientBalanceIn(tx, patientRef, query.asOf ?? null);
           await recordSensitiveRead(tx, {
             operation: op,
             resourceType: 'patient',
-            resourceRefs: set.ids.slice(0, 100),
+            resourceRefs: balance.coveredPatientRefs.slice(0, 100),
             queryFields: Object.keys(query as object).filter((k) => k === 'currency' || k === 'asOf'),
           });
-          return {
-            patientRef: patient.id,
-            accountPatientRef: set.root,
-            coveredPatientRefs: set.ids,
-            currency: settings.currency,
-            asOf: (s?.as_of ?? new Date()).toISOString(),
-            patientResponsibility,
-            insurerResponsibility: total('insurer_receivable'),
-            unappliedCredit,
-            balance: subtractMoney(patientResponsibility, unappliedCredit),
-            entryCount: s?.n ?? 0,
-            lastPostedAt: s?.last ? s.last.toISOString() : null,
-          };
+          return balance;
         });
       });
     },
+  };
+}
+
+/**
+ * B2 patient balance of a patient's merge set (published read function: the A21 composers and the
+ * balance read share it). Runs in the caller's tenant transaction; authorizes nothing and records no
+ * sensitive read of its own (the caller does both).
+ */
+export async function patientBalanceIn(
+  tx: TenantTransaction,
+  patientRef: string,
+  asOf: string | null,
+): Promise<PatientBalance> {
+  const patient = await loadPatient(tx, patientRef);
+  const settings = await loadSettings(tx);
+  const set = await mergeSet(tx, patient.id);
+  const { rows } = await tx.query<{ account: LedgerAccount; s: string }>(
+    `SELECT l.account, sum(l.amount_minor)::text AS s
+     FROM cuspatlas.billing_journal_lines l
+     JOIN cuspatlas.billing_journal_entries e ON e.id = l.entry_id AND e.tenant_id = l.tenant_id
+     WHERE l.patient_id = ANY ($1::uuid[]) AND l.currency = $2
+       AND date_trunc('milliseconds', e.posted_at) <= coalesce($3::timestamptz, now())
+     GROUP BY l.account`,
+    [set.ids, settings.currency, asOf],
+  );
+  const { rows: stats } = await tx.query<{ n: number; last: Date | null; as_of: Date }>(
+    `SELECT count(DISTINCT e.id)::int AS n, max(e.posted_at) AS last, coalesce($3::timestamptz, now()) AS as_of
+     FROM cuspatlas.billing_journal_entries e
+     JOIN cuspatlas.billing_journal_lines l ON l.entry_id = e.id AND l.tenant_id = e.tenant_id
+     WHERE l.patient_id = ANY ($1::uuid[]) AND e.currency = $2
+       AND date_trunc('milliseconds', e.posted_at) <= coalesce($3::timestamptz, now())`,
+    [set.ids, settings.currency, asOf],
+  );
+  const total = (account: LedgerAccount) =>
+    moneyFromMinorText(settings.currency, rows.find((r) => r.account === account)?.s ?? '0');
+  // H2 M-10: a migrated opening receivable and opening credit are part of the patient balance.
+  const patientResponsibility = addMoney(total('patient_receivable'), total('opening_receivable'));
+  // Unapplied credit is a credit balance (negative lines); it is reported as a positive amount.
+  const unappliedCredit = negateMoney(addMoney(total('unapplied_credit'), total('opening_credit')));
+  const s = stats[0];
+  return {
+    patientRef: patient.id,
+    accountPatientRef: set.root,
+    coveredPatientRefs: set.ids,
+    currency: settings.currency,
+    asOf: (s?.as_of ?? new Date()).toISOString(),
+    patientResponsibility,
+    insurerResponsibility: total('insurer_receivable'),
+    unappliedCredit,
+    balance: subtractMoney(patientResponsibility, unappliedCredit),
+    entryCount: s?.n ?? 0,
+    lastPostedAt: s?.last ? s.last.toISOString() : null,
   };
 }

@@ -40,7 +40,7 @@ and never admitted by the staff policy table: ${reg.relationshipScopes.map((s) =
 }
 
 export function renderCatalogMd(catalog: readonly CatalogOperation[]): string {
-  const owners = ['F', 'S', 'C', 'B', 'E', 'I', 'M'] as const;
+  const owners = ['F', 'A', 'S', 'C', 'B', 'E', 'I', 'M'] as const;
   const count = (f: (o: CatalogOperation) => boolean) => catalog.filter(f).length;
   const summary = owners.map(
     (w) =>

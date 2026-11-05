@@ -43,3 +43,6 @@ export const validateSyntheticTaskRelabel = def('SyntheticTaskRelabel');
 export const validateSyntheticTaskListQuery = def('SyntheticTaskListQuery');
 export const validateIdempotencyKey = def('IdempotencyKey');
 export const validateTaskRef = def('TaskRef');
+
+/** Read-surface (A16-A24) definitions live in the foundation contract file; validators by name. */
+export const foundationDef = (name: string): ValidateFunction => def(name as keyof typeof schema.$defs);

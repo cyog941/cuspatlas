@@ -538,6 +538,49 @@ export const LIST_OPERATIONS: Readonly<Record<string, ListOperationSpec>> = {
     scope: 'tenant',
   },
   // The whole registry (bounded by the contracts, never truncated).
+  // A17: audit search (bounded, newest first, no cursor; envelope built by the domain read).
+  'admin.audit.search': {
+    rows: 'data',
+    ordering: { key: 'occurredAt', direction: 'desc', tieBreak: 'eventRef' },
+    limit: { default: 100, max: 200 },
+    cursor: false,
+    scope: 'tenant',
+    placement: 'existing',
+  },
+  // A16: the measure catalog (registry order; envelope built by the domain read).
+  'analytics.measures.list': {
+    rows: 'data',
+    ordering: { key: 'registry', direction: 'asc', tieBreak: 'measureKey' },
+    limit: 'parent',
+    cursor: false,
+    scope: 'tenant',
+    placement: 'existing',
+  },
+  // A22 (OR-12): the caller's own preferences (envelope built by the domain read).
+  'preferences.savedViews.list': {
+    rows: 'data',
+    ordering: { key: 'name', direction: 'asc', tieBreak: 'viewRef' },
+    limit: { default: 100, max: 100 },
+    cursor: false,
+    scope: 'tenant',
+    placement: 'existing',
+  },
+  'preferences.favourites.list': {
+    rows: 'data',
+    ordering: { key: 'operation', direction: 'asc', tieBreak: 'operation' },
+    limit: { default: 100, max: 100 },
+    cursor: false,
+    scope: 'tenant',
+    placement: 'existing',
+  },
+  'preferences.recentPatients.list': {
+    rows: 'data',
+    ordering: { key: 'openedAt', direction: 'desc', tieBreak: 'patientRef' },
+    limit: { default: 50, max: 50 },
+    cursor: false,
+    scope: 'tenant',
+    placement: 'existing',
+  },
   'vocabularies.list': {
     rows: 'data',
     ordering: { key: 'name', direction: 'asc', tieBreak: 'name' },

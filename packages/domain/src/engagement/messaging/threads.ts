@@ -76,16 +76,16 @@ const WORK_QUEUE = {
  * days (messaging_reply_policies); a queue with no row uses this default.
  */
 export const DEFAULT_REPLY_DUE_BUSINESS_DAYS = 1;
-type ThreadQueue = 'front_desk' | 'billing' | 'clinical_team';
+export type ThreadQueue = 'front_desk' | 'billing' | 'clinical_team';
 const THREAD_QUEUES: readonly ThreadQueue[] = ['front_desk', 'billing', 'clinical_team'];
 const PAGE_DEFAULT = 50;
 const ESCALATION_QUEUE = 'practice_manager';
 
-type PolicyMap = Readonly<
+export type PolicyMap = Readonly<
   Record<ThreadQueue, { replyDueBusinessDays: number; source: 'default' | 'configured' }>
 >;
 
-async function loadPolicies(tx: TenantTransaction): Promise<PolicyMap> {
+export async function loadPolicies(tx: TenantTransaction): Promise<PolicyMap> {
   const { rows } = await tx.query<{ queue: ThreadQueue; reply_due_business_days: number }>(
     'SELECT queue, reply_due_business_days FROM cuspatlas.messaging_reply_policies',
   );
@@ -100,7 +100,7 @@ async function loadPolicies(tx: TenantTransaction): Promise<PolicyMap> {
   return out;
 }
 
-const replyDueAt = (lastMessageAt: Date, queue: ThreadQueue, zone: string, policies: PolicyMap) =>
+export const replyDueAt = (lastMessageAt: Date, queue: ThreadQueue, zone: string, policies: PolicyMap) =>
   addBusinessDays(lastMessageAt, policies[queue].replyDueBusinessDays, zone);
 
 /**

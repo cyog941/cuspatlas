@@ -6,6 +6,16 @@ import { ROOT } from './build-catalog';
 /** Staff reads that need no scope beyond an active membership (no tenant data: session context, A20 vocabularies). */
 export const NULL_SCOPE_OPERATIONS: readonly string[] = [
   'session.read',
+  'navigation.read',
+  'preferences.savedViews.list',
+  'preferences.savedViews.save',
+  'preferences.savedViews.delete',
+  'preferences.favourites.list',
+  'preferences.favourites.add',
+  'preferences.favourites.remove',
+  'preferences.recentPatients.list',
+  'preferences.recentPatients.record',
+  'preferences.recentPatients.clear',
   'vocabularies.list',
   'vocabularies.read',
 ];

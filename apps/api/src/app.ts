@@ -36,6 +36,7 @@ import {
   createMigrationService,
   createPatientService,
   createProposalService,
+  createReadSurfaceService,
   createSchedulingResourceService,
   createSyntheticPaymentProvider,
   createSyntheticTaskService,
@@ -83,6 +84,7 @@ import { registerMigrationOpRoutes } from './routes/migration-ops';
 import { registerPatientRoutes } from './routes/patients';
 import { registerEngagementOpRoutes, registerPortalRoutes } from './routes/portal-routes';
 import { registerProposalRoutes } from './routes/proposals';
+import { registerReadOpRoutes } from './routes/read-ops-routes';
 import { registerSchedulingRoutes } from './routes/scheduling';
 import { registerSchedulingOpRoutes } from './routes/scheduling-ops-routes';
 import { registerSessionRoutes } from './routes/session';
@@ -457,6 +459,18 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         },
       });
       registerAgentOpRoutes(app, { authenticator, agents });
+      // A batch 3 read surfaces: composers over the published domain reads (one tenant transaction).
+      registerReadOpRoutes(app, {
+        authenticator,
+        reads: createReadSurfaceService({
+          authorize,
+          withTenantTransaction: deps.tenantTransactions,
+          recording,
+          memberships: deps.membership,
+          execute,
+          financialMeasures: (ctx) => billing.claimMeasures(ctx, {}),
+        }),
+      });
     }
   }
 

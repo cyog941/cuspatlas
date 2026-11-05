@@ -93,12 +93,15 @@ Registered by workstream A batch 2 (2026-11-05, synthetic implementation; A-D2, 
 
 Camel-case scope names (`receivables.read` written as `receivablesRead`) are a defect. A scope used in any plan must appear in the registry; a plan that needs a new scope adds it there first.
 
+Registered by A batch 3 (2026-11-05, synthetic implementation; grants remain subject to A-D2): `analytics.read` (the A16 measure catalog and measures; each measure also needs its owning domain read action; human or service), `audit.read` (human only: the A17 audit search over the tenant committed-change audit, security attempts and sensitive reads) and `access.manage` (human only: the A17 access review and membership revocation). `display.shared` (A18) marks a shared-display principal: a membership holding it may call only the anonymized display projections.
+
 ### Scope registry table
 
 The machine-readable registry rows (A-M2/A-S8, 2026-11-05). Generation reads **only** these rows: a scope is registered when it has a row, and `Human only` = `yes` is the authoritative human-only flag published in `scopes.json` (never inferred from the policy table). CI fails when a catalog operation using a human-only scope admits a service, portal or device principal, or when the catalog uses a scope without a row. The prose above records who registered each scope and why.
 
 | Scope | Human only |
 | --- | --- |
+| `access.manage` | yes |
 | `actions.approve` | yes |
 | `actions.prepare` | no |
 | `actions.read` | no |
@@ -108,6 +111,8 @@ The machine-readable registry rows (A-M2/A-S8, 2026-11-05). Generation reads **o
 | `ai.draft` | no |
 | `ai.read` | no |
 | `ai.review` | yes |
+| `analytics.read` | no |
+| `audit.read` | yes |
 | `billing.correct` | yes |
 | `billing.write` | no |
 | `claims.read` | no |
@@ -121,6 +126,7 @@ The machine-readable registry rows (A-M2/A-S8, 2026-11-05). Generation reads **o
 | `communications.write` | no |
 | `coverage.read` | no |
 | `coverage.write` | no |
+| `display.shared` | no |
 | `imaging.associate` | yes |
 | `imaging.delete` | yes |
 | `imaging.legalHold` | yes |

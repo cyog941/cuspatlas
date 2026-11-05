@@ -7757,7 +7757,90 @@ export type SchedulingWorkItemList = {
   };
 };
 
+export type SyntheticAccessReview = {
+  readonly "data": {
+    readonly "memberships": readonly ({ readonly [k: string]: unknown })[];
+    readonly "portalPrincipals": readonly ({ readonly [k: string]: unknown })[];
+    readonly "devices": readonly ({ readonly [k: string]: unknown })[];
+    readonly [k: string]: unknown;
+  };
+  readonly [k: string]: unknown;
+};
+
+export type SyntheticAccessRevoke = {
+  readonly "principalRef": SyntheticUuid;
+  readonly "reasonCode": string;
+};
+
+export type SyntheticAccessRevokeResult = SyntheticPreferenceCommandResult;
+
+export type SyntheticAppointmentDetail = {
+  readonly "patient": SyntheticReadComponent;
+  readonly "coverage": SyntheticReadComponent;
+  readonly "balance": SyntheticReadComponent;
+  readonly "plannedProcedures": SyntheticReadComponent;
+  readonly "freshness": SyntheticReadFreshness;
+  readonly [k: string]: unknown;
+};
+
+export type SyntheticAppointmentDetailResult = {
+  readonly "data": SyntheticAppointmentDetail;
+  readonly [k: string]: unknown;
+};
+
+export type SyntheticAuditRecord = {
+  readonly "source": "committed_change" | "security_attempt" | "sensitive_read";
+  readonly "eventRef": SyntheticUuid;
+  readonly "occurredAt": string;
+  readonly "actorRef": string | null;
+  readonly "principal": "human" | "service" | null;
+  readonly "operation": string;
+  readonly "resourceType": string | null;
+  readonly "resourceRef": string | null;
+  readonly "reasonCode": string | null;
+  readonly "resultCount": number | null;
+};
+
+export type SyntheticAuditSearchResult = {
+  readonly "data": readonly (SyntheticAuditRecord)[];
+  readonly "envelope": SyntheticListEnvelope;
+};
+
 export type SyntheticCursor = string;
+
+export type SyntheticEmptyCommand = {
+
+};
+
+export type SyntheticFavouriteReportChange = {
+  readonly "operation": SyntheticOperationId;
+};
+
+export type SyntheticFavouriteReportCommandResult = SyntheticPreferenceCommandResult;
+
+export type SyntheticFavouriteReportList = {
+  readonly "data": readonly ({
+    readonly "operation": SyntheticOperationId;
+    readonly "addedAt": string;
+  })[];
+  readonly "envelope": SyntheticListEnvelope;
+};
+
+export type SyntheticHuddleRead = {
+  readonly "data": {
+    readonly "display": "staff" | "shared";
+    readonly "displayForced": boolean;
+    readonly "onDate": SyntheticLocalDate;
+    readonly "zone": string;
+    readonly "sections"?: readonly ({
+      readonly "status": "ok" | "restricted" | "unavailable";
+      readonly [k: string]: unknown;
+    })[];
+    readonly "appointments": readonly ({ readonly [k: string]: unknown })[];
+    readonly [k: string]: unknown;
+  };
+  readonly [k: string]: unknown;
+};
 
 export type SyntheticLabel = string;
 
@@ -7789,7 +7872,112 @@ export type SyntheticListScope = {
   readonly "locationRefs"?: readonly (string)[];
 };
 
+export type SyntheticLocalDate = string;
+
 export type SyntheticLocationRef = string;
+
+export type SyntheticMeasureCatalog = {
+  readonly "data": readonly (SyntheticMeasureDefinition)[];
+  readonly "suppression": { readonly [k: string]: unknown };
+  readonly "envelope": SyntheticListEnvelope;
+};
+
+export type SyntheticMeasureDefinition = {
+  readonly "measureKey": SyntheticMeasureKey;
+  readonly "definitionVersion": string;
+  readonly "owner": "S" | "B" | "E";
+  readonly "title": string;
+  readonly "definition": string;
+  readonly "unit": "ratio" | "count" | "money";
+  readonly "dateBasis": string;
+  readonly "filters": readonly (string)[];
+  readonly "requiredActions": readonly (string)[];
+  readonly "suppression": "population" | "count" | "none";
+  readonly "source": "live" | "B11";
+  readonly [k: string]: unknown;
+};
+
+export type SyntheticMeasureKey = string;
+
+export type SyntheticMeasureRead = {
+  readonly "data": {
+    readonly "result": {
+      readonly "state": "value" | "suppressed" | "undefined" | "unavailable";
+      readonly [k: string]: unknown;
+    };
+    readonly [k: string]: unknown;
+  };
+  readonly [k: string]: unknown;
+};
+
+export type SyntheticNavigationOperation = {
+  readonly "operation": string;
+  readonly "kind": "query" | "command" | "capability";
+  readonly "method": "get" | "post" | null;
+  readonly "path": string | null;
+  readonly "mcpTool": string | null;
+};
+
+export type SyntheticNavigationRead = {
+  readonly "data": {
+    readonly "version": string;
+    readonly "areas": readonly ({
+      readonly "area": "scheduling" | "clinical" | "financial" | "communications" | "imaging" | "administration" | "migration";
+      readonly "label": string;
+      readonly "capabilities": readonly ({
+        readonly "key": string;
+        readonly "label": string;
+        readonly "entry": SyntheticNavigationOperation;
+        readonly "operations": readonly (SyntheticNavigationOperation)[];
+      })[];
+    })[];
+  };
+  readonly [k: string]: unknown;
+};
+
+export type SyntheticOperationId = string;
+
+export type SyntheticPreferenceCommandResult = {
+  readonly "data": { readonly [k: string]: unknown };
+  readonly "version": number;
+  readonly "correlationId": string;
+  readonly "replayed": boolean;
+  readonly [k: string]: unknown;
+};
+
+export type SyntheticReadComponent = {
+  readonly "status": "ok" | "restricted" | "unavailable";
+  readonly "owner": string;
+  readonly "freshness"?: SyntheticReadFreshness;
+  readonly "requiredAction"?: string;
+  readonly "requiredScope"?: string;
+  readonly "reason"?: "producer_not_deployed" | "producer_failed" | "record_missing";
+  readonly "data"?: unknown;
+  readonly [k: string]: unknown;
+};
+
+export type SyntheticReadFreshness = {
+  readonly "asOf": string;
+  readonly "state": "current" | "stale";
+  readonly "basis": string;
+};
+
+export type SyntheticRecentPatientClearResult = SyntheticPreferenceCommandResult;
+
+export type SyntheticRecentPatientCommandResult = SyntheticPreferenceCommandResult;
+
+export type SyntheticRecentPatientList = {
+  readonly "data": readonly ({
+    readonly "patientRef": SyntheticUuid;
+    readonly "openedAt": string;
+  })[];
+  readonly "retentionDays": 7;
+  readonly "envelope": SyntheticListEnvelope;
+};
+
+export type SyntheticRecentPatientRecord = {
+  readonly "patientRef": SyntheticUuid;
+};
 
 export type SyntheticRefusal = {
   readonly "code": "invalid_request" | "validation_failed" | "unauthenticated" | "forbidden" | "not_found" | "stale_version" | "idempotency_conflict" | "conflict" | "rate_limited" | "internal_error" | "service_unavailable" | "self_approval_denied" | "payload_mismatch" | "proposal_expired" | "policy_changed" | "approval_invalid";
@@ -7844,6 +8032,55 @@ export type SyntheticRefusal = {
   };
 };
 
+export type SyntheticSavedView = {
+  readonly "viewRef": SyntheticUuid;
+  readonly "name": SyntheticSavedViewName;
+  readonly "operation": SyntheticOperationId;
+  readonly "filters": { readonly [k: string]: unknown };
+  readonly "version": number;
+  readonly "updatedAt": string;
+};
+
+export type SyntheticSavedViewCommandResult = SyntheticPreferenceCommandResult;
+
+export type SyntheticSavedViewDeleteResult = SyntheticPreferenceCommandResult;
+
+export type SyntheticSavedViewList = {
+  readonly "data": readonly (SyntheticSavedView)[];
+  readonly "envelope": SyntheticListEnvelope;
+};
+
+export type SyntheticSavedViewName = string;
+
+export type SyntheticSavedViewSave = {
+  readonly "name": SyntheticSavedViewName;
+  readonly "operation": SyntheticOperationId;
+  readonly "filters": { readonly [k: string]: (string) | (number) | (boolean) | (readonly (string)[]) };
+};
+
+export type SyntheticScheduleView = {
+  readonly "location": { readonly [k: string]: unknown };
+  readonly "from": SyntheticLocalDate;
+  readonly "to": SyntheticLocalDate;
+  readonly "grain": "detailed" | "compact";
+  readonly "asOf": string;
+  readonly "appointments": readonly ({ readonly [k: string]: unknown })[];
+  readonly "appointmentsTruncated": boolean;
+  readonly "blocks": readonly ({ readonly [k: string]: unknown })[];
+  readonly "unavailableIntervals": readonly ({
+    readonly "reason": "closed" | "blocked" | "outside_availability";
+    readonly [k: string]: unknown;
+  })[];
+  readonly "counters": readonly ({ readonly [k: string]: unknown })[];
+  readonly "freshness": SyntheticReadFreshness;
+  readonly [k: string]: unknown;
+};
+
+export type SyntheticScheduleViewResult = {
+  readonly "data": SyntheticScheduleView;
+  readonly [k: string]: unknown;
+};
+
 export type SyntheticSyntheticTask = {
   readonly "taskRef": SyntheticTaskRef;
   readonly "label": SyntheticLabel;
@@ -7882,6 +8119,8 @@ export type SyntheticSyntheticTaskRelabel = {
 };
 
 export type SyntheticTaskRef = string;
+
+export type SyntheticUuid = string;
 
 export type SyntheticVersion = number;
 
@@ -7971,6 +8210,36 @@ export interface Operations {
     query: { readonly proposalRef: string; };
     body: undefined;
     result: AgentsActionProposalRead;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "admin.access.review": {
+    method: "GET";
+    path: "/v1/admin/access-review";
+    params: {  };
+    query: Record<string, never>;
+    body: undefined;
+    result: SyntheticAccessReview;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "admin.access.revoke": {
+    method: "POST";
+    path: "/v1/admin/access/revocations";
+    params: {  };
+    query: Record<string, never>;
+    body: SyntheticAccessRevoke;
+    result: SyntheticAccessRevokeResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "admin.audit.search": {
+    method: "GET";
+    path: "/v1/admin/audit";
+    params: {  };
+    query: { readonly source?: string; readonly actorRef?: string; readonly principal?: string; readonly operation?: string; readonly from?: string; readonly to?: string; readonly limit?: string; };
+    body: undefined;
+    result: SyntheticAuditSearchResult;
     successStatus: 200;
     idempotent: false;
   };
@@ -8191,6 +8460,36 @@ export interface Operations {
     query: { readonly limit?: string; readonly cursor?: string; };
     body: undefined;
     result: AgentsAiUseCaseList;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "analytics.measures.list": {
+    method: "GET";
+    path: "/v1/analytics/measures";
+    params: {  };
+    query: Record<string, never>;
+    body: undefined;
+    result: SyntheticMeasureCatalog;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "analytics.measures.read": {
+    method: "GET";
+    path: "/v1/analytics/measures/{measureKey}";
+    params: { readonly measureKey: string; };
+    query: { readonly locationRef?: string; readonly from?: string; readonly to?: string; readonly version?: string; };
+    body: undefined;
+    result: SyntheticMeasureRead;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "appointments.detail": {
+    method: "GET";
+    path: "/v1/appointments/{appointmentRef}/detail";
+    params: { readonly appointmentRef: string; };
+    query: Record<string, never>;
+    body: undefined;
+    result: SyntheticAppointmentDetailResult;
     successStatus: 200;
     idempotent: false;
   };
@@ -9564,6 +9863,16 @@ export interface Operations {
     successStatus: 200;
     idempotent: false;
   };
+  "huddle.read": {
+    method: "GET";
+    path: "/v1/huddle";
+    params: {  };
+    query: { readonly locationRef: string; readonly onDate?: string; readonly display?: string; };
+    body: undefined;
+    result: SyntheticHuddleRead;
+    successStatus: 200;
+    idempotent: false;
+  };
   "imaging.acquisitions.request": {
     method: "POST";
     path: "/v1/imaging/acquisitions";
@@ -10494,6 +10803,16 @@ export interface Operations {
     successStatus: 201;
     idempotent: true;
   };
+  "navigation.read": {
+    method: "GET";
+    path: "/v1/navigation";
+    params: {  };
+    query: Record<string, never>;
+    body: undefined;
+    result: SyntheticNavigationRead;
+    successStatus: 200;
+    idempotent: false;
+  };
   "operations.alerts.list": {
     method: "GET";
     path: "/v1/operations/alerts";
@@ -10863,6 +11182,96 @@ export interface Operations {
     result: MigrationPracticeExportVerification;
     successStatus: 200;
     idempotent: false;
+  };
+  "preferences.favourites.add": {
+    method: "POST";
+    path: "/v1/me/favourite-reports";
+    params: {  };
+    query: Record<string, never>;
+    body: SyntheticFavouriteReportChange;
+    result: SyntheticFavouriteReportCommandResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "preferences.favourites.list": {
+    method: "GET";
+    path: "/v1/me/favourite-reports";
+    params: {  };
+    query: Record<string, never>;
+    body: undefined;
+    result: SyntheticFavouriteReportList;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "preferences.favourites.remove": {
+    method: "POST";
+    path: "/v1/me/favourite-reports/remove";
+    params: {  };
+    query: Record<string, never>;
+    body: SyntheticFavouriteReportChange;
+    result: SyntheticFavouriteReportCommandResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "preferences.recentPatients.clear": {
+    method: "POST";
+    path: "/v1/me/recent-patients/clear";
+    params: {  };
+    query: Record<string, never>;
+    body: SyntheticEmptyCommand;
+    result: SyntheticRecentPatientClearResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "preferences.recentPatients.list": {
+    method: "GET";
+    path: "/v1/me/recent-patients";
+    params: {  };
+    query: Record<string, never>;
+    body: undefined;
+    result: SyntheticRecentPatientList;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "preferences.recentPatients.record": {
+    method: "POST";
+    path: "/v1/me/recent-patients";
+    params: {  };
+    query: Record<string, never>;
+    body: SyntheticRecentPatientRecord;
+    result: SyntheticRecentPatientCommandResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "preferences.savedViews.delete": {
+    method: "POST";
+    path: "/v1/me/saved-views/{viewRef}/delete";
+    params: { readonly viewRef: string; };
+    query: Record<string, never>;
+    body: SyntheticEmptyCommand;
+    result: SyntheticSavedViewDeleteResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "preferences.savedViews.list": {
+    method: "GET";
+    path: "/v1/me/saved-views";
+    params: {  };
+    query: Record<string, never>;
+    body: undefined;
+    result: SyntheticSavedViewList;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "preferences.savedViews.save": {
+    method: "POST";
+    path: "/v1/me/saved-views";
+    params: {  };
+    query: Record<string, never>;
+    body: SyntheticSavedViewSave;
+    result: SyntheticSavedViewCommandResult;
+    successStatus: 201;
+    idempotent: true;
   };
   "prescriptions.cancel": {
     method: "POST";
@@ -11234,6 +11643,16 @@ export interface Operations {
     successStatus: 201;
     idempotent: true;
   };
+  "schedule.view": {
+    method: "GET";
+    path: "/v1/schedule/view";
+    params: {  };
+    query: { readonly locationRef: string; readonly from: string; readonly to?: string; readonly grain?: string; };
+    body: undefined;
+    result: SyntheticScheduleViewResult;
+    successStatus: 200;
+    idempotent: false;
+  };
   "scheduling.appointments.book": {
     method: "POST";
     path: "/v1/scheduling/appointments";
@@ -11598,7 +12017,7 @@ export interface Operations {
     method: "GET";
     path: "/v1/scheduling/appointment-requests";
     params: {  };
-    query: { readonly limit?: string; readonly cursor?: string; };
+    query: { readonly state?: string; readonly locationRef?: string; readonly limit?: string; readonly cursor?: string; };
     body: undefined;
     result: SchedulingAppointmentRequestList;
     successStatus: 200;
@@ -12205,6 +12624,9 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "actions.proposals.list": { method: "GET", path: "/v1/actions/proposals", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "actions.proposals.prepare": { method: "POST", path: "/v1/actions/proposals", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "actions.proposals.read": { method: "GET", path: "/v1/actions/proposals/state", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "admin.access.review": { method: "GET", path: "/v1/admin/access-review", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "admin.access.revoke": { method: "POST", path: "/v1/admin/access/revocations", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "admin.audit.search": { method: "GET", path: "/v1/admin/audit", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "agents.audit.list": { method: "GET", path: "/v1/agents/audit", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "agents.budgets.read": { method: "GET", path: "/v1/agents/budgets", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "agents.consents.list": { method: "GET", path: "/v1/agents/consents", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
@@ -12227,6 +12649,9 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "ai.evaluations.run": { method: "POST", path: "/v1/ai/evaluations", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "ai.useCases.configure": { method: "POST", path: "/v1/ai/use-cases/configure", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "ai.useCases.list": { method: "GET", path: "/v1/ai/use-cases", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "analytics.measures.list": { method: "GET", path: "/v1/analytics/measures", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "analytics.measures.read": { method: "GET", path: "/v1/analytics/measures/{measureKey}", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "appointments.detail": { method: "GET", path: "/v1/appointments/{appointmentRef}/detail", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "billing.adjustments.decide": { method: "POST", path: "/v1/billing/adjustment-requests/{requestRef}/decision", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "billing.adjustments.post": { method: "POST", path: "/v1/billing/charges/{chargeRef}/adjustments", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "billing.balances.read": { method: "GET", path: "/v1/billing/patients/{patientRef}/balance", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
@@ -12364,6 +12789,7 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "communications.templates.define": { method: "POST", path: "/v1/communications/templates", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "communications.templates.withdraw": { method: "POST", path: "/v1/communications/templates/{templateRef}/withdraw", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "health.read": { method: "GET", path: "/healthz", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "huddle.read": { method: "GET", path: "/v1/huddle", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "imaging.acquisitions.request": { method: "POST", path: "/v1/imaging/acquisitions", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "imaging.acquisitions.resolve": { method: "POST", path: "/v1/imaging/acquisitions/{deferralRef}/resolve", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "imaging.annotations.create": { method: "POST", path: "/v1/imaging/objects/{objectRef}/annotations", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
@@ -12457,6 +12883,7 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "migration.reviewItems.resolve": { method: "POST", path: "/v1/migration/review-items/resolve", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "migration.signoffs.record": { method: "POST", path: "/v1/migration/signoffs", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "migration.sourceProfiles.register": { method: "POST", path: "/v1/migration/source-profiles", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "navigation.read": { method: "GET", path: "/v1/navigation", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "operations.alerts.list": { method: "GET", path: "/v1/operations/alerts", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "operations.backupVerifications.record": { method: "POST", path: "/v1/operations/backup-verifications", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "operations.operatorProfiles.record": { method: "POST", path: "/v1/operations/operator-profiles", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
@@ -12494,6 +12921,15 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "practice.export.download": { method: "POST", path: "/v1/practice/exports/package", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "practice.export.grant": { method: "POST", path: "/v1/practice/exports/grants", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "practice.export.verify": { method: "GET", path: "/v1/practice/exports/verification", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "preferences.favourites.add": { method: "POST", path: "/v1/me/favourite-reports", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "preferences.favourites.list": { method: "GET", path: "/v1/me/favourite-reports", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "preferences.favourites.remove": { method: "POST", path: "/v1/me/favourite-reports/remove", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "preferences.recentPatients.clear": { method: "POST", path: "/v1/me/recent-patients/clear", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "preferences.recentPatients.list": { method: "GET", path: "/v1/me/recent-patients", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "preferences.recentPatients.record": { method: "POST", path: "/v1/me/recent-patients", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "preferences.savedViews.delete": { method: "POST", path: "/v1/me/saved-views/{viewRef}/delete", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "preferences.savedViews.list": { method: "GET", path: "/v1/me/saved-views", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "preferences.savedViews.save": { method: "POST", path: "/v1/me/saved-views", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "prescriptions.cancel": { method: "POST", path: "/v1/prescriptions/cancel", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "prescriptions.drafts.create": { method: "POST", path: "/v1/prescriptions/drafts", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "prescriptions.submit": { method: "POST", path: "/v1/prescriptions/submit", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
@@ -12531,6 +12967,7 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "rcm.workflows.fireTimer": { method: "POST", path: "/v1/rcm/workflow-timers/{timerRef}/fire", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "rcm.workflows.read": { method: "GET", path: "/v1/rcm/workflows/{workflowRef}", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "rcm.workflows.start": { method: "POST", path: "/v1/rcm/workflows", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "schedule.view": { method: "GET", path: "/v1/schedule/view", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "scheduling.appointments.book": { method: "POST", path: "/v1/scheduling/appointments", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "scheduling.appointments.cancel": { method: "POST", path: "/v1/scheduling/appointments/{appointmentRef}/cancel", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "scheduling.appointments.read": { method: "GET", path: "/v1/scheduling/appointments/{appointmentRef}", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },

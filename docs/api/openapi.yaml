@@ -1090,6 +1090,16 @@ paths:
       description: >-
         Open and in-review requests by default, or one state; filters by location and patient. Location-restricted callers see only their locations. Requires scheduling.read.
       parameters:
+        - name: state
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/AppointmentRequestListQuery/properties/state'
+        - name: locationRef
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/AppointmentRequestListQuery/properties/locationRef'
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
       responses:
@@ -13672,6 +13682,608 @@ paths:
         '503':
           $ref: '#/components/responses/Refusal'
   # END generated: AGENT_OPS
+  # BEGIN: READ_OPS (A batch 3 read surfaces)
+  /v1/schedule/view:
+    get:
+      operationId: schedule.view
+      description: >-
+        A21 (OR-03, OR-09): one location and local date range (at most 14 days) in one call: booked
+        appointments with type, time, resources, request link and attendance state with allowed next
+        transitions; time blocks as single objects spanning their resources; unavailable intervals per
+        resource with reason (closed, blocked, outside_availability), distinct from free time; counters with
+        scope. grain=detailed adds per-appointment components (patient summary, coverage verification,
+        balance, planned procedures), each ok, restricted (caller may not see it) or unavailable (producer
+        missing) with its own freshness. Writes nothing.
+      parameters:
+        - name: locationRef
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/LocationRef'
+        - name: from
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/LocalDate'
+        - name: to
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/LocalDate'
+        - name: grain
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/ScheduleViewQuery'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/ScheduleViewResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/appointments/{appointmentRef}/detail:
+    get:
+      operationId: appointments.detail
+      description: >-
+        A21 (OR-10): one appointment with its patient summary (name, age, chart identifier; phone only with
+        communications read), coverage verification status and carrier, balance summary, planned procedures
+        with tooth and surfaces, attendance with next transitions, and a chart reference. Each component is
+        ok, restricted or unavailable with its own freshness. Writes nothing.
+      parameters:
+        - name: appointmentRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/Uuid'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/AppointmentDetailResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/navigation:
+    get:
+      operationId: navigation.read
+      description: >-
+        A24 (OR-14): the navigable capabilities of the operation catalog grouped by area (scheduling,
+        clinical, financial, communications, imaging, administration, migration), filtered by the live
+        permissions of the caller: a capability appears only when its entry operation is allowed and lists
+        only allowed operations. Navigation grants nothing; every operation still authorizes its own
+        resource.
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/NavigationRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/huddle:
+    get:
+      operationId: huddle.read
+      description: >-
+        A18 (PT-01): the daily huddle of one location (default the next local day; the zone is named):
+        appointments with readiness flags (forms, eligibility freshness, balance, lab cases, unsigned
+        notes), each with owner, freshness and its own outcome (restricted without the owner read scope,
+        unavailable when the producer is not published, never shown as checked). display=shared, and always
+        for a display principal, returns no patient identity, no appointment reference and no clinical or
+        financial detail.
+      parameters:
+        - name: locationRef
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/LocationRef'
+        - name: onDate
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/LocalDate'
+        - name: display
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/HuddleQuery'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/HuddleRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/admin/audit:
+    get:
+      operationId: admin.audit.search
+      description: >-
+        A17: search the committed-change audit, security attempts and sensitive reads of the tenant (source,
+        actorRef, principal, operation, from, to; newest first; at most 200). principal=service selects
+        agent activity. Read only, human only, audit.read; the search itself is recorded as a sensitive
+        read.
+      parameters:
+        - name: source
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/AuditSearchQuery'
+        - name: actorRef
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/Uuid'
+        - name: principal
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/AuditSearchQuery'
+        - name: operation
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/OperationId'
+        - name: from
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/AuditSearchQuery'
+        - name: to
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/AuditSearchQuery'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/AuditSearchQuery'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/AuditSearchResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/admin/access-review:
+    get:
+      operationId: admin.access.review
+      description: >-
+        A17: access review of the tenant: staff memberships (human and service principals) with scopes,
+        locations, grant and revocation instants and last activity; portal principals and imaging devices
+        with state. Each entry names the command that revokes it. Human only, access.manage.
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/AccessReview'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/admin/access/revocations:
+    post:
+      operationId: admin.access.revoke
+      description: >-
+        A17: revoke one staff membership (human or service principal) of the tenant with a reason code.
+        Effective on the next REST request, MCP call or queued job of that principal (every call reloads the
+        membership). The caller cannot revoke itself (409). Portal principals and devices are revoked with
+        portal.principals.revoke and imaging.devices.revoke. Human only, access.manage.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/AccessRevoke'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/AccessRevokeResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/analytics/measures:
+    get:
+      operationId: analytics.measures.list
+      description: >-
+        A16 (PT-06): the registered measure definitions: key, definition version, owner, plain definition
+        text, unit, date basis, filters, the read actions each requires and its small-cell suppression rule
+        (threshold 11 by default, pending approval).
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/MeasureCatalog'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/analytics/measures/{measureKey}:
+    get:
+      operationId: analytics.measures.read
+      description: >-
+        A16 (PT-06): one measure value with its definition version, as-of instant, date basis, applied
+        filters and freshness. A population from 1 to threshold-1 is suppressed (no value, no population); a
+        zero denominator is undefined, never zero. Needs analytics.read and the measure owner read action
+        (financial measures: the B11 scopes).
+      parameters:
+        - name: measureKey
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/MeasureKey'
+        - name: locationRef
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/LocationRef'
+        - name: from
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/LocalDate'
+        - name: to
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/LocalDate'
+        - name: version
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/MeasureQuery'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/MeasureRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/me/saved-views:
+    get:
+      operationId: preferences.savedViews.list
+      description: >-
+        A22 (OR-12): the saved list and report views of the caller (filters only, never another user's),
+        with the list envelope.
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/SavedViewList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    post:
+      operationId: preferences.savedViews.save
+      description: >-
+        A22 (OR-12): save (or replace by name) a view of a registered list operation. Filters only: an
+        identifying filter (name, birth date, phone) or a cursor is refused, and a name may hold letters,
+        spaces, dots, dashes and underscores only, so no patient identity is stored.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/SavedViewSave'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/SavedViewCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/me/saved-views/{viewRef}/delete:
+    post:
+      operationId: preferences.savedViews.delete
+      description: >-
+        A22 (OR-12): delete one of the caller's saved views (another user's view is 404).
+      parameters:
+        - name: viewRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/Uuid'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/EmptyCommand'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/SavedViewDeleteResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/me/favourite-reports:
+    get:
+      operationId: preferences.favourites.list
+      description: >-
+        A22 (OR-12): the favourite reports (catalog read operations) of the caller, with the list envelope.
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/FavouriteReportList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    post:
+      operationId: preferences.favourites.add
+      description: >-
+        A22 (OR-12): mark a catalog read operation as a favourite report of the caller.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/FavouriteReportChange'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/FavouriteReportCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/me/favourite-reports/remove:
+    post:
+      operationId: preferences.favourites.remove
+      description: >-
+        A22 (OR-12): remove a favourite report of the caller.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/FavouriteReportChange'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/FavouriteReportCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/me/recent-patients:
+    get:
+      operationId: preferences.recentPatients.list
+      description: >-
+        A22 (OR-12, OR-D5): the patients the caller opened in the last 7 days, references only, newest first
+        (at most 50). Expired entries are purged on every access and never returned; never shared across
+        users or tenants.
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/RecentPatientList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    post:
+      operationId: preferences.recentPatients.record
+      description: >-
+        A22 (OR-12): remember that the caller opened a patient (reference only; needs patients.read; another
+        tenant's patient is 404).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/RecentPatientRecord'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/RecentPatientCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/me/recent-patients/clear:
+    post:
+      operationId: preferences.recentPatients.clear
+      description: >-
+        A22 (OR-12): clear the recent-patient list of the caller.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/EmptyCommand'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/RecentPatientClearResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  # END: READ_OPS
 components:
   securitySchemes:
     bearer:

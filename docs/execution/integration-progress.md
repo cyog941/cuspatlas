@@ -248,3 +248,30 @@ Four CI failures after the M batch 2 and A20 merge.
 - Agent coverage: `agents-negative-harness.test.ts` has a new A3 block. An agent on MCP is refused all 12 administration and preference tools with `forbidden` / `principal_kind_denied`, never `consent_missing`. A consented read surface (`navigation_get`) is logged as `ok` in `agent_tool_calls`, so read-ops are metered. The forbidden matrix covers all 452 authorize operations (2655 cases). The A3 lists (`admin.audit.search`, `analytics.measures.list`, the three preference lists) are in `LIST_OPERATIONS`, and the vocabulary and list-conformance tests pass.
 - H3 meets A16: `analytics.read` is a new scope that service principals may hold, so it is now in the generated `AGENT_SCOPE_CEILING`. The first full CI run failed one test, `api-agent-identity` "the database refuses a non-delegable or human-only scope": the database ceiling did not match. Migration `20261203010000_agent_scope_ceiling_analytics.sql` replaces `agent_scope_ceiling()` with the same list plus `analytics.read`. The applied `20261203000000` is unchanged.
 - `corepack pnpm run ci`: exit 0, 175 files / 3356 tests passed (after the ceiling migration). Catalog: 453 operations.
+
+## 14. A batch 4 merge, A23 hardening, A19 close-out and the pre-UI hand-off (closing)
+
+Synthetic data only. Configured and tested; not approved, deployed, compliant or clinically validated.
+
+- **A14/A15 merge** (`origin/codex/a-api-4`, e009a49, merged as 2b0620e).
+  - Code conflicts kept both sides: `app.ts`, the route manifest, MCP `server.ts`, the execute-once codecs, the scope registry, the SHARED-CONTRACTS scope table, the MCP parity list and the `package.json` scripts.
+  - Generated artifacts took ours and were then regenerated: catalog, client and docs, plus the agents, read, billing, migration and automation OpenAPI.
+  - `webhooks.read` is admitted to service principals for the read-only webhook lists, so it was added to `agent_scope_ceiling()` (`20261206000000`).
+  - The forbidden matrix now asserts that no export operation and no webhook mutation admits a service principal (agent).
+  - ci: exit 0, 180 files / 3419 tests.
+- **A23 hardening after independent review** (1799577, migration `20261206100000`).
+  - The PHI policy flip now purges phi notes, and reads re-check the policy.
+  - Memory PHI screening is documented as a best-effort heuristic and has a DB backstop CHECK.
+  - One uniform `memory_value_refused`.
+  - Reach RLS limited to the sponsor or an `agents.manage` holder.
+  - The worker owner/consent recheck stops tasks with `policy_owner_inactive` or `consent_revoked`.
+  - New `agents.sponsors.offers.list`.
+  - Red 10/10, then green 10/10. The full ci found two catalog-procedure failures; after the fix, both files passed when re-run alone. Details are in the [API ledger](api-progress.md).
+- **A19** (90deb7a). The coverage, no-tier and hidden-operation checks are in `scripts/catalog/coverage.ts`, with generated [capability coverage](../api/capability-coverage.md) and [no-tier attestation](../api/no-tier-attestation.md).
+  - 25 of 27 rows covered, plus 2 dated P2 gaps.
+  - Attestation pass, with the injected check detected.
+  - No hidden operations.
+  - 455 of 488 operations have MCP.
+  - ci: exit 0, 182 files / 3439 tests.
+- **Hand-off:** [pre-UI backend handoff](backend-handoff.md) is the starting document for P4. Backend workstreams are complete on synthetic data, up to the stated blocked-on-discovery parts. What remains is the UI phase, which awaits the user's instruction, together with every pending human decision and discovery item listed in the hand-off.
+- Not pushed. GitHub CI has not run on these commits.

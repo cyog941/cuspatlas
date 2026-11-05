@@ -2,7 +2,7 @@
 
 An open-source dental practice platform being planned for US general dentistry.
 
-**Status: planning only. No application, clinical database, API, or UI has been built. Do not use this repository for patient care or upload patient information.**
+**Status: the backend foundation for P4 is built and tested on synthetic data only (see the [pre-UI backend handoff](docs/execution/backend-handoff.md)). It is not approved, deployed, compliant, clinically validated or production-ready. No UI has been built: UI design (P4) is the next phase and awaits the user's instruction. Do not use this repository for patient care or upload patient information.**
 
 CuspAtlas is a working name: a tooth's cusp + an atlas of practice operations. The name is provisional; an initial exact-name web/GitHub search found no competing project, but does not establish trademark or domain availability.
 

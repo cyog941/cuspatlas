@@ -1,6 +1,6 @@
 # Delivery roadmap
 
-This is a proposed sequence, not a delivery-date commitment. No product implementation has started.
+This is a proposed sequence, not a delivery-date commitment. Status, 2026-11-05: the backend foundation for P4 is built on synthetic data (configured and tested; not approved, deployed, compliant or clinically validated). See the [pre-UI backend handoff](execution/backend-handoff.md). UI design (P4) is the next phase and awaits the user's instruction.
 
 ## Planning sequence
 
@@ -12,7 +12,7 @@ The [practice coverage strategy](PRACTICE-COVERAGE-STRATEGY.md) adds a user-dire
 | P1: workflow and integration qualification | Pilot workflow inventory, device/partner matrix, licensed-data assessment, migration sample contract | Clinical, billing and reception representatives validate the supported workflow and exception inventory |
 | P2: domain and security contracts | Schema design, state machines, role matrix, API/MCP schemas, threat model, recovery plan | Cross-tenant and high-impact action cases have explicit expected outcomes |
 | P3: synthetic acceptance and operational design | Scenario packs, financial reconciliation oracle, import/restore criteria, operator ownership | Every P1 capability has a measurable acceptance case and an owner |
-| P4: UI/UX design — deferred | Workflow navigation, accessibility, interaction design, usability validation | Separate user instruction; no mockups or UI code before then |
+| P4: UI/UX design — next, awaiting user instruction | Workflow navigation, accessibility, interaction design, usability validation, built on the backend contracts in the [pre-UI handoff](execution/backend-handoff.md) | Separate user instruction; no mockups or UI code before then |
 
 User sequencing clarification, 2026-11-03: broad incumbent research is closed. UI remains deferred and is not required now or before separately authorized synthetic backend foundation work. P1/P2/P3 module-specific qualification continues only where needed for the affected task. Later UI/workflow validation may revise contracts; do not freeze clinical interactions or claim user-facing readiness before that review.
 

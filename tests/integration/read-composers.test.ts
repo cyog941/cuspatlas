@@ -341,6 +341,54 @@ describe('A batch 3 hardening: appointment detail', () => {
     }
   });
 
+  it('reads the patients of a view in one query, not one per patient', async () => {
+    const second = await createPatient(h, 'Batched');
+    h.ok(
+      await h.call('a1', 'POST', '/v1/scheduling/appointments', {
+        patientRef: second,
+        locationRef: loc.locationRef,
+        startsAt: `${DAY}T19:00:00.000Z`,
+        endsAt: `${DAY}T19:30:00.000Z`,
+        timeZone: 'America/New_York',
+        provider: { kind: 'provider', resourceRef: loc.provider },
+        operatory: { kind: 'operatory', resourceRef: loc.operatory },
+      }),
+      201,
+    );
+    const membership = createMembershipSource(db.app);
+    const runner = createTenantTransactionRunner(db.app);
+    let patientQueries = 0;
+    const reads = createReadSurfaceService({
+      authorize: createAuthorize(membership),
+      withTenantTransaction: (ctx, work) =>
+        runner(ctx, (tx) =>
+          work(
+            new Proxy(tx, {
+              get(target, key, receiver) {
+                if (key !== 'query') return Reflect.get(target, key, receiver);
+                return (sql: string, values?: unknown[]) => {
+                  if (/FROM cuspatlas\.patients\b/.test(sql)) patientQueries += 1;
+                  return target.query(sql as never, values as never);
+                };
+              },
+            }),
+          ),
+        ),
+      recording: { sink: createSecurityAttemptSink(db.sink), alert: () => undefined },
+    });
+    const ctx = {
+      tenantId: T_ALPHA,
+      actorId: USER_A4,
+      principal: 'human' as const,
+      sessionId: 'synthetic-session',
+      scopes: (await membership.load(USER_A4, T_ALPHA))?.scopes ?? [],
+      correlationId: '00000000-0000-4000-8000-0000000000c4',
+    };
+    const v = (await reads.readScheduleView(ctx, { locationRef: 'loc-north', from: DAY })) as { data: Json };
+    expect(new Set(v.data.appointments.map((a: Json) => a.patientRef)).size).toBeGreaterThanOrEqual(2);
+    expect(patientQueries).toBe(1);
+  });
+
   it('reports a missing patient row as unavailable, not restricted, when patients.read is held', async () => {
     const c = await db.admin.connect();
     try {

@@ -100,15 +100,22 @@ export function createReadComposers(base: ComposerBase, producers: ComposerProdu
     const coverage = new Map<string, Component<unknown>>();
     const balance = new Map<string, Component<unknown>>();
     const refs = [...new Set(appts.map((a) => a.patientRef))];
+    const firstOf = new Map<string, ScheduledAppointment>();
+    for (const a of appts) if (!firstOf.has(a.patientRef)) firstOf.set(a.patientRef, a);
+    // One patient query for the whole set (no per-patient round trip over up to 500 appointments).
+    const patientRows = new Map<string, Parameters<typeof toSummary>[0]>();
+    if (allowed.get('patient') && refs.length > 0) {
+      const { rows } = await tx.query<Parameters<typeof toSummary>[0] & { id: string }>(
+        `SELECT ${PATIENT_COLUMNS} FROM cuspatlas.patients WHERE id = ANY ($1::uuid[])`,
+        [refs],
+      );
+      for (const r of rows) patientRows.set(r.id, r);
+    }
     for (const ref of refs) {
-      const first = appts.find((a) => a.patientRef === ref) as ScheduledAppointment;
+      const first = firstOf.get(ref) as ScheduledAppointment;
       const serviceDate = first.localStart.slice(0, 10);
       if (allowed.get('patient')) {
-        const { rows } = await tx.query<Parameters<typeof toSummary>[0]>(
-          `SELECT ${PATIENT_COLUMNS} FROM cuspatlas.patients WHERE id = $1`,
-          [ref],
-        );
-        const row = rows[0];
+        const row = patientRows.get(ref);
         if (row) {
           const s = toSummary(row);
           const chart = row.identifiers.find((i) => i.type === 'chart_number');

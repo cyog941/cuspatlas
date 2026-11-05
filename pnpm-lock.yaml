@@ -75,9 +75,19 @@ importers:
       '@cuspatlas/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@cuspatlas/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@cuspatlas/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      pg:
+        specifier: 8.23.1
+        version: 8.23.1
+    devDependencies:
+      '@types/pg':
+        specifier: 8.23.1
+        version: 8.23.1
 
   packages/contracts:
     dependencies:

@@ -9,6 +9,11 @@
   },
   "dependencies": {
     "@cuspatlas/contracts": "workspace:*",
-    "@cuspatlas/domain": "workspace:*"
+    "@cuspatlas/db": "workspace:*",
+    "@cuspatlas/domain": "workspace:*",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1"
   }
 }

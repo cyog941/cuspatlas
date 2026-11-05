@@ -293,6 +293,7 @@ describe('C18 clinical export round trip', () => {
       'cuspatlas-imaging-export/1',
       CLINICAL_EXPORT_FORMAT,
       'cuspatlas-engagement-export/1',
+      'cuspatlas-billing-export/1',
     ]);
     const fresh = await openTestDatabase('integration_export_all');
     try {

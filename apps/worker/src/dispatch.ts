@@ -98,7 +98,20 @@ export interface WorkerDeps {
    * to an adapter. Without it such events are retried (and eventually dead-lettered).
    */
   readonly claimWorkflows?: ClaimWorkflowTimerConsumer;
+  /**
+   * Lease only events of these aggregate types (absent: every type). A deployment without a delivery
+   * adapter leases only the in-process aggregates it has a consumer for, so nothing is ever handed to
+   * an adapter that does not exist and nothing burns its attempts waiting for one.
+   */
+  readonly leaseAggregateTypes?: readonly string[];
 }
+
+/** Aggregates the worker settles in process (never handed to a delivery adapter). */
+export const IN_PROCESS_AGGREGATES = {
+  proposals: 'actionProposal',
+  procedures: 'clinicalRenderedProcedure',
+  claimWorkflows: 'rcmWorkflowTimer',
+} as const;
 
 export interface ClaimWorkflowTimerConsumer {
   fireWorkflowTimer(ctx: ActorContext, timerRef: string): Promise<unknown>;
@@ -576,7 +589,12 @@ export function createWorker(deps: WorkerDeps) {
         throw err;
       }
       return deps.withTenantTransaction(ctx, (tx) =>
-        leaseReady(tx, { limit: batchSize, leaseSeconds, quietSeconds: deliverTimeout }),
+        leaseReady(tx, {
+          limit: batchSize,
+          leaseSeconds,
+          quietSeconds: deliverTimeout,
+          ...(deps.leaseAggregateTypes ? { aggregateTypes: deps.leaseAggregateTypes } : {}),
+        }),
       );
     },
 

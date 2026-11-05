@@ -55,15 +55,15 @@ CUSPATLAS_MIGRATION_DATABASE_URL='postgres://<admin-user>@127.0.0.1:<port>/cuspa
 
 (PowerShell: set `$env:CUSPATLAS_MIGRATION_DATABASE_URL` first.) The migrator refuses any target whose database name does not contain `cuspatlas_synthetic` (`packages/db/src/migrate.ts`). This is deliberate: a mistyped or copied production URL cannot be migrated. Point it only at a throwaway local database you created; never at a hosted project.
 
-## Environment variables read by the API and MCP server
+## Environment variables read by the API, MCP server and worker
 
 Placeholders only. Never commit real values; `.env*` is gitignored.
 
 | Variable | Read by | Meaning |
 | --- | --- | --- |
-| `CUSPATLAS_ENV` | API, MCP | `synthetic-test`, `development` or `production`; anything else is refused. Integration tests set `synthetic-test`. |
-| `CUSPATLAS_DATABASE_URL` | API | runtime-role connection string (`postgres://<runtime-role>@127.0.0.1:5432/<db>`, password via `PGPASSWORD`) |
-| `CUSPATLAS_ATTEMPT_DATABASE_URL` | API | optional separate connection for security-attempt rows; defaults to the one above |
+| `CUSPATLAS_ENV` | API, MCP, worker | `synthetic-test`, `development` or `production`; anything else is refused. Integration tests set `synthetic-test`. |
+| `CUSPATLAS_DATABASE_URL` | API, worker | runtime-role connection string (`postgres://<runtime-role>@127.0.0.1:5432/<db>`, password via `PGPASSWORD`) |
+| `CUSPATLAS_ATTEMPT_DATABASE_URL` | API, worker | optional separate connection for security-attempt rows; defaults to the one above |
 | `CUSPATLAS_HOST` | API | listen address, default `127.0.0.1` |
 | `CUSPATLAS_PORT` | API | listen port, default `3000` |
 | `CUSPATLAS_JWT_ISSUER` | API (`apps/api/src/auth.ts`) | expected token issuer, e.g. `https://issuer.example.invalid` |
@@ -71,8 +71,40 @@ Placeholders only. Never commit real values; `.env*` is gitignored.
 | `CUSPATLAS_JWT_PUBLIC_KEY_PEM` | API, MCP | PEM public key used to verify tokens (public key only) |
 | `CUSPATLAS_MCP_AUDIENCE` | MCP (`apps/mcp/src/auth.ts`) | MCP resource identifier; required and must differ from `CUSPATLAS_JWT_AUDIENCE` |
 | `CUSPATLAS_MIGRATION_DATABASE_URL` | migrator | see above |
+| `CUSPATLAS_IDEMPOTENCY_DIGEST_KEY` | API, worker | base64, at least 32 bytes (`<base64-32-bytes>`): the keyed payload digest of idempotency records. Required outside `synthetic-test`; the test-only key is refused there. |
+| `CUSPATLAS_MATCH_KEY_PEPPER` | API, worker | base64 (`<base64-32-bytes>`): S4 match-key pepper (patient matching, E7 send-time contact verification). Required outside `synthetic-test`; the test-only pepper is refused there. |
+| `CUSPATLAS_IMAGING_TOKEN_SECRET` | API, worker | base64, at least 32 bytes (`<base64-32-bytes>`): I1 read-grant secret. Optional; without it outside `synthetic-test` imaging read grants are a typed 503. The test-only secret is refused outside `synthetic-test`. |
+| `CUSPATLAS_BRIDGE_SIGNING_KEY_PEM` | API, worker | Ed25519 PKCS8 private key PEM (`<ed25519-pkcs8-pem>`): I6 job-signing key. Optional; `synthetic-test` uses an ephemeral key, elsewhere bridge claims are a typed 503 without it. |
+| `CUSPATLAS_OBJECT_STORE_DIR` | API, worker | local synthetic object store root (`<absolute-scratch-dir>`); the local adapter is refused under `production`. The worker's imaging reconcile is disabled without it. |
+| `CUSPATLAS_WORKER_PRINCIPAL_ID` | worker | the worker's service principal (`<service-principal-uuid>`); its membership in each served tenant needs `outbox.deliver`, `billing.write`, `communications.deliver` and `admin.configure` for every consumer to run (a missing scope is a recorded denial, never a bypass). |
+| `CUSPATLAS_WORKER_TENANT_IDS` | worker | comma-separated tenant UUIDs the worker serves (`<tenant-uuid>,<tenant-uuid>`); there is no cross-tenant listing. |
+| `CUSPATLAS_MAINTENANCE_DATABASE_URL` | worker | optional privileged connection (a role that bypasses RLS) for the idempotency purge and the patient-reference observation prune; without it maintenance is disabled with a logged reason. |
+| `CUSPATLAS_WORKER_INTERVAL_MS` | worker | pause between ticks, default `5000` (100 to 3600000). |
+
+Audiences: the REST audience is `CUSPATLAS_JWT_AUDIENCE`; the MCP audience `CUSPATLAS_MCP_AUDIENCE` must differ from it, and the portal audience (configured in code by the API/MCP builders) must differ from both; the I6 bridge audience is the fixed `urn:cuspatlas:bridge:v1`. The worker verifies no tokens and needs none of them.
 
 The MCP server also refuses to start with the REST audience or a test issuer outside `synthetic-test`. Cursor signing (HMAC) uses a key generated per process, so cursors do not survive a restart or work across instances; this is a known limitation.
+
+## Worker (`corepack pnpm start:worker`)
+
+`apps/worker/src/main.ts` composes the worker from the environment (`composeWorker` in `apps/worker/src/compose.ts`) with the API's startup rules: `CUSPATLAS_ENV` must be known, secrets go through the same domain resolvers (test-only values and missing required secrets are refused outside `synthetic-test`), and every database name must carry the `cuspatlas_synthetic` marker. It then ticks until SIGINT/SIGTERM; the tick in progress completes before the pools close. Each tick, per served tenant and under the worker principal (authorized freshly by the domain):
+
+- F6 outbox: deferred proposal execution and C14 -> B procedure consumption (always on); CL-08 claim workflow timers (only with a clearinghouse); every other event to the delivery adapter (only with one). Without an adapter only the in-process aggregates are leased, so nothing waits on, or is handed to, an adapter that does not exist.
+- E7 outbound messages (only with a messaging provider).
+- `imaging.storage.reconcile` (only with `CUSPATLAS_OBJECT_STORE_DIR`): integrity sweep, abandoned ingress and staging, I7 bridge lease sweep, expired device nonces.
+- Maintenance (only with `CUSPATLAS_MAINTENANCE_DATABASE_URL`): expired idempotency records, finished patient-reference observations.
+
+No real delivery adapter, messaging provider, clearinghouse or payment processor exists (E-S1 and the B partner/processor choices are open). Fakes can be supplied only in-process by tests (`syntheticProviders`) and are refused outside `synthetic-test`; started from the command line the worker therefore logs `worker_consumer_disabled` with a reason for outbox delivery, outbound messages and claim workflow timers and never sends anywhere. Log lines are JSON with fixed codes only. Example (placeholders only):
+
+```sh
+CUSPATLAS_ENV=development \
+CUSPATLAS_DATABASE_URL='postgres://<runtime-role>@127.0.0.1:<port>/cuspatlas_synthetic_dev' \
+CUSPATLAS_IDEMPOTENCY_DIGEST_KEY='<base64-32-bytes>' CUSPATLAS_MATCH_KEY_PEPPER='<base64-32-bytes>' \
+CUSPATLAS_WORKER_PRINCIPAL_ID='<service-principal-uuid>' CUSPATLAS_WORKER_TENANT_IDS='<tenant-uuid>' \
+PGPASSWORD='<set-in-shell>' corepack pnpm start:worker
+```
+
+Tests boot the same composition in-process against the test database (`tests/integration/worker-main.test.ts`); no separate OS process is started.
 
 ## Privacy scan
 

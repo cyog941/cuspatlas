@@ -219,11 +219,17 @@ export function createDowntimeOperations(base: MigrationBase) {
           windowRef: string;
           entryKind: string;
           summary: string;
-          payload: Record<string, unknown>;
+          payload: { name: string; value: string }[];
           paperRef: string;
           capturedAt: string;
         }>(validateDowntimeLog, p);
-        const payload = JSON.stringify(p.payload);
+        // Closed field list on the wire (no open request maps); stored as one object per entry.
+        const fields: Record<string, string> = {};
+        for (const f of p.payload) {
+          if (Object.hasOwn(fields, f.name)) throw failed('duplicate_field');
+          fields[f.name] = f.value;
+        }
+        const payload = JSON.stringify(fields);
         if (Buffer.byteLength(payload, 'utf8') > DOWNTIME_PAYLOAD_MAX_BYTES)
           throw failed('payload_too_large');
         return deps.withTenantTransaction(ctx, (tx) =>

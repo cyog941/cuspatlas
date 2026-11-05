@@ -31,7 +31,11 @@ const entryBody = (windowRef: string, over: Record<string, unknown> = {}) => ({
   windowRef,
   entryKind: 'patient_registration',
   summary: 'Synthetic paper registration sheet transcribed after the outage',
-  payload: { givenName: 'Synthetic', familyName: 'Downtime', sheet: 'front-desk' },
+  payload: [
+    { name: 'givenName', value: 'Synthetic' },
+    { name: 'familyName', value: 'Downtime' },
+    { name: 'sheet', value: 'front-desk' },
+  ],
   paperRef: 'SHEET-0001',
   capturedAt: ago(60),
   ...over,

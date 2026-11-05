@@ -6053,7 +6053,10 @@ export type MigrationDowntimeLog = {
   readonly "windowRef": MigrationDowntimeWindowRef;
   readonly "entryKind": MigrationDowntimeEntryKind;
   readonly "summary": string;
-  readonly "payload": { readonly [k: string]: unknown };
+  readonly "payload": readonly ({
+    readonly "name": string;
+    readonly "value": string;
+  })[];
   readonly "paperRef": string;
   readonly "capturedAt": string;
 };

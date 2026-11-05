@@ -15572,8 +15572,34 @@
           },
           "payload": {
             "type": [
-              "object"
-            ]
+              "array"
+            ],
+            "maxItems": 64,
+            "minItems": 1,
+            "items": {
+              "type": [
+                "object"
+              ],
+              "closed": true,
+              "properties": {
+                "name": {
+                  "type": [
+                    "string"
+                  ],
+                  "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$"
+                },
+                "value": {
+                  "type": [
+                    "string"
+                  ],
+                  "maxLength": 1024
+                }
+              },
+              "required": [
+                "name",
+                "value"
+              ]
+            }
           },
           "summary": {
             "type": [

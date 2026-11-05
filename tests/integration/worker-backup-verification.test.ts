@@ -57,7 +57,7 @@ beforeAll(async () => {
   for (const t of [T_ALPHA, T_BETA]) {
     await s.db.admin.query(
       'INSERT INTO cuspatlas.memberships (tenant_id, principal_id, scopes) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
-      [t, W, ['outbox.deliver', 'migration.write']],
+      [t, W, ['outbox.deliver', 'migration.write', 'communications.deliver']],
     );
   }
   backupDir = mkdtempSync(join(tmpdir(), 'cuspatlas-worker-backup-'));

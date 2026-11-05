@@ -110,12 +110,19 @@ export const NON_DELEGABLE_SCOPES: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * Worker-only service scopes: granted to the worker's own service principal, never to an agent.
+ * `exports.build` (Closeout C) leases and completes bulk-PHI export builds.
+ */
+export const WORKER_ONLY_SCOPES: ReadonlySet<string> = new Set(['exports.build']);
+
+/**
  * The agent scope ceiling (A-D9 "recorded maximum scope set"): every registered scope that at least
- * one service-admitting operation uses (scopes.json `humanOnly: false`), minus the non-delegable set.
- * Generated from the operation catalog, so a new human-only operation never widens it.
+ * one service-admitting operation uses (scopes.json `humanOnly: false`), minus the non-delegable set
+ * and the worker-only set. Generated from the operation catalog, so a new human-only operation never
+ * widens it.
  */
 export const AGENT_SCOPE_CEILING: ReadonlySet<string> = new Set(
   (registry.scopes as readonly { name: string; humanOnly: boolean }[])
-    .filter((x) => !x.humanOnly && !NON_DELEGABLE_SCOPES.has(x.name))
+    .filter((x) => !x.humanOnly && !NON_DELEGABLE_SCOPES.has(x.name) && !WORKER_ONLY_SCOPES.has(x.name))
     .map((x) => x.name),
 );

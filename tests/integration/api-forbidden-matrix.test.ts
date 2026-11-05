@@ -177,7 +177,12 @@ describe('A7 forbidden-operation matrix', () => {
     );
     expect(automationAdmitted.map((o) => o.operation)).toStrictEqual([]);
     const build = catalog.find((o) => o.operation === 'exports.build');
-    expect(build).toMatchObject({ transports: ['worker'], principals: ['service'] });
+    expect(build).toMatchObject({
+      transports: ['worker'],
+      principals: ['service'],
+      scope: 'exports.build',
+      sensitivity: 'phiBulk',
+    });
     expect(build?.mcpTool).toBeUndefined();
     // An MCP caller can only be staff: no portal, device or pairing operation is a tool.
     expect(catalog.filter((o) => o.mcpTool && o.authorization !== 'authorize')).toStrictEqual([]);

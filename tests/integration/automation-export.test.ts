@@ -443,7 +443,7 @@ describe('A15 hardening: requester-bound delivery, re-authorization, linkage map
     );
     await s.db.admin.query(
       `UPDATE cuspatlas.export_requests SET state = 'building', artifact_format = NULL, package_digest = NULL,
-         created_at = now() - interval '2 hours' WHERE id = $1`,
+         build_attempt = 1, build_leased_until = now() - interval '2 hours' WHERE id = $1`,
       [stuck.exportRef],
     );
     const seen = await readAs('owner', stuck.exportRef);

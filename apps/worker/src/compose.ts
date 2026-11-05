@@ -60,7 +60,7 @@ import { createWebhookDispatcher } from './webhook-dispatch';
  * refused there too).
  *
  * Consumers, per configured tenant, under the worker's own service principal (authorized freshly by
- * the domain for every batch; the principal needs `outbox.deliver`, `billing.write`,
+ * the domain for every batch; the principal needs `outbox.deliver`, `exports.build`, `billing.write`,
  * `communications.deliver` and `admin.configure` for everything to run):
  * - F6 outbox: proposal execution and C14 -> B procedure consumption in process (always on); CL-08
  *   claim workflow timers in process (only with a clearinghouse port); every other event goes to the
@@ -71,7 +71,7 @@ import { createWebhookDispatcher } from './webhook-dispatch';
  *   human read, using each queue's reply-due policy; no read receipt is recorded.
  * - I imaging reconcile (`imaging.storage.reconcile`: integrity sweep, abandoned ingress and staging,
  *   bridge lease sweep and expired device nonces; only with an object store).
- * - Closeout C A15 export builds (`exports.build`, `outbox.deliver`; only with an object store and an
+ * - Closeout C A15 export builds (`exports.build`, its own worker scope; only with an object store and an
  *   imaging token secret): leased, fenced builds of requested exports, each as its requester's live
  *   membership, the package promoted under the imaging content lock.
  * - Maintenance on a privileged connection (only with `CUSPATLAS_MAINTENANCE_DATABASE_URL`): expired
@@ -471,7 +471,7 @@ export async function composeWorker(
   const buildExports = async (tenantId: string) => {
     if (!exportBuilder) return [];
     const r = await exportBuilder.runExportBuilds(
-      { ...serviceCtx(tenantId), scopes: ['outbox.deliver'] },
+      { ...serviceCtx(tenantId), scopes: ['exports.build'] },
       { operation: 'exports.build', idempotencyKey: randomUUID(), payload: {} },
     );
     return r.data.outcomes;

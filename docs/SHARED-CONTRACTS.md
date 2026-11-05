@@ -99,6 +99,8 @@ Registered by A batch 3 (2026-11-05, synthetic implementation; grants remain sub
 
 Registered by A23 (2026-11-05, synthetic implementation, pending approval): `agentWorkspace.read` (an agent reads its own sessions, memory, standing task policies, tasks and runs; a human reads them only as the agent sponsor or holding `agents.manage`; human or service) and `agentWorkspace.write` (an agent writes its own memory and schedules tasks under a live standing policy; agent principals only). Memory deletion, session end and task cancel take no scope (the authority is the sponsor, manager or own-agent relationship); standing policies and the tenant memory PHI policy use `agents.manage`.
 
+Registered by Closeout C review fixes (2026-11-05, synthetic implementation, pending approval): `exports.build` (service only, phiBulk: the worker export build job that leases, builds and completes A15 export requests, each build running as its requester's live membership). It is its own worker scope rather than a share of `outbox.deliver`, and it is never in the agent scope ceiling (`WORKER_ONLY_SCOPES` in packages/contracts/src/agents.ts; `cuspatlas.agent_scope_ceiling()` does not list it), so an agent can never hold it.
+
 ### Scope registry table
 
 The machine-readable registry rows (A-M2/A-S8, 2026-11-05). Generation reads **only** these rows: a scope is registered when it has a row, and `Human only` = `yes` is the authoritative human-only flag published in `scopes.json` (never inferred from the policy table). CI fails when a catalog operation using a human-only scope admits a service, portal or device principal, or when the catalog uses a scope without a row. The prose above records who registered each scope and why.
@@ -136,6 +138,7 @@ The machine-readable registry rows (A-M2/A-S8, 2026-11-05). Generation reads **o
 | `exports.create` | yes |
 | `exports.read` | yes |
 | `exports.admin` | yes |
+| `exports.build` | no |
 | `imaging.associate` | yes |
 | `imaging.delete` | yes |
 | `imaging.legalHold` | yes |

@@ -218,7 +218,7 @@ transport tables and are declarations, not independent proof.
 | `communications.templates.define` | E | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/communications/templates` | `communications_templates_define` | required | operational | active |
 | `communications.templates.withdraw` | E | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/communications/templates/{templateRef}/withdraw` | `communications_templates_withdraw` | required | operational | active |
 | `exports.administer` | A | capability | capability | `exports.admin` | human | - | - | - | none | phi | active |
-| `exports.build` | A | command | authorize | `outbox.deliver` | service | worker | - | - | none | phiBulk | active |
+| `exports.build` | A | command | authorize | `exports.build` | service | worker | - | - | none | phiBulk | active |
 | `exports.create` | A | command | authorize | `exports.create` | human | rest, mcp | POST `/v1/exports` | `exports_create` | required | phiBulk | active |
 | `exports.download` | A | command | authorize | `exports.create` | human | rest, mcp | POST `/v1/exports/package` | `exports_download` | required | phiBulk | active |
 | `exports.grant` | A | command | authorize | `exports.create` | human | rest, mcp | POST `/v1/exports/grants` | `exports_grant` | required | phi | active |

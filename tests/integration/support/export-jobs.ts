@@ -5,7 +5,7 @@ import type { ImagingStack } from './imaging-fixtures';
 /**
  * Closeout C: the A15 export build runs as a worker job. Tests drive it through the real worker
  * composition (`composeWorker`, export build stage only) over the stack's database and object store,
- * as a service principal holding only `outbox.deliver` in both synthetic tenants.
+ * as a service principal holding only `exports.build` in both synthetic tenants.
  */
 export const EXPORT_WORKER = '30000000-0000-4000-8000-0000000000d9';
 
@@ -21,7 +21,7 @@ async function compose(s: ImagingStack): Promise<ComposedWorker> {
     await s.db.admin.query(
       `INSERT INTO cuspatlas.memberships (tenant_id, principal_id, scopes) VALUES ($1, $2, $3)
        ON CONFLICT DO NOTHING`,
-      [tenant, EXPORT_WORKER, ['outbox.deliver']],
+      [tenant, EXPORT_WORKER, ['exports.build']],
     );
   return composeWorker(
     {

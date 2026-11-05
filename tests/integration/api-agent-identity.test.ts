@@ -448,7 +448,9 @@ describe('H3 agent credential and sponsor hardening', () => {
     expect(new Set(ceiling.rows.map((r) => r.scope))).toStrictEqual(new Set(AGENT_SCOPE_CEILING));
     const run = createTenantTransactionRunner(s.db.app);
     const ctx = ctxFor(T_ALPHA, M_HUMAN_ALL, 'human', ['agents.manage']);
-    for (const scope of ['agents.manage', 'clinical.sign', 'ai.review']) {
+    // Closeout C review: the worker-only export build scope is never delegable to an agent either.
+    expect(AGENT_SCOPE_CEILING.has('exports.build')).toBe(false);
+    for (const scope of ['agents.manage', 'clinical.sign', 'ai.review', 'exports.build']) {
       await expect(
         run(ctx, (tx) =>
           tx.query('SELECT cuspatlas.agent_create($1, $2, $3, $4)', [

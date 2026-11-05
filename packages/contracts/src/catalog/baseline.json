@@ -10168,7 +10168,7 @@
       "transports": [
         "worker"
       ],
-      "scope": "outbox.deliver",
+      "scope": "exports.build",
       "principals": [
         "service"
       ],

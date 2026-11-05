@@ -88,11 +88,18 @@ export interface ExportDeps {
   readonly maxPackageBytes?: number;
   /** Largest package returned inline by download (bytes); larger ones are refused, never truncated. */
   readonly maxInlineBytes?: number;
-  /** A request still building after this many seconds is failed as build_interrupted (crash recovery). */
+  /**
+   * Crash recovery (seconds, default 900): a request whose build was leased at least once and whose
+   * last lease (taken or renewed) is older than this, with that lease expired, is failed as
+   * build_interrupted. A request no worker has leased yet is never failed: it waits for a worker,
+   * however long the worker is down (there is no queue-age cap).
+   */
   readonly buildDeadlineSeconds?: number;
   /**
-   * Closeout C: the build job's lease (seconds, default the build deadline). A worker that holds a
-   * lease builds; another worker takes the request over only after the lease expired.
+   * Closeout C: the build job's lease (seconds, default 300, at most the deadline). The holder renews
+   * it while the build runs (heartbeat every third of the lease, fenced by its attempt), so a live
+   * build never loses it; another worker takes the request over only after the lease expired (the
+   * holder crashed or stalled).
    */
   readonly buildLeaseSeconds?: number;
   /**
@@ -103,7 +110,7 @@ export interface ExportDeps {
 }
 
 /** Closeout C: what one leased build did (fixed codes only). */
-export type ExportBuildOutcome = 'ready' | 'failed' | 'skipped' | 'lease_lost';
+export type ExportBuildOutcome = 'ready' | 'failed' | 'skipped' | 'lease_lost' | 'deferred';
 
 type Doc = ComposedDocument;
 type Row = Record<string, unknown>;
@@ -534,19 +541,21 @@ export function createExportOperations(base: AutomationBase, ex: ExportDeps | un
   const maxPackageBytes = ex?.maxPackageBytes ?? 256 * 1024 * 1024;
   const maxInlineBytes = ex?.maxInlineBytes ?? 64 * 1024 * 1024;
   const buildDeadlineSeconds = ex?.buildDeadlineSeconds ?? 900;
-  const buildLeaseSeconds = ex?.buildLeaseSeconds ?? buildDeadlineSeconds;
+  const buildLeaseSeconds = Math.min(ex?.buildLeaseSeconds ?? 300, buildDeadlineSeconds);
 
   /**
-   * Crash recovery: a request still building past the deadline, with no live build lease, is failed,
-   * never left stuck (a build in progress under a live lease is not interrupted).
+   * Crash recovery: a request whose build was leased at least once (`build_attempt > 0`), whose lease
+   * expired, and whose last lease (taken or renewed, `build_leased_until - lease`) is older than the
+   * deadline is failed, never left stuck. A request never leased waits for a worker, and a build under
+   * a live (heartbeat-renewed) lease is never interrupted.
    */
   const failStaleBuilds = async (tx: TenantTransaction, op: string) => {
     const { rows } = await tx.query<{ id: string; version: number }>(
       `UPDATE cuspatlas.export_requests SET state = 'failed', diagnostic = 'build_interrupted',
-         version = version + 1, completed_at = now()
-       WHERE state = 'building' AND created_at < now() - make_interval(secs => $1)
-         AND (build_leased_until IS NULL OR build_leased_until <= now()) RETURNING id, version`,
-      [buildDeadlineSeconds],
+         version = version + 1, completed_at = now(), build_leased_until = NULL
+       WHERE state = 'building' AND build_attempt > 0 AND build_leased_until IS NOT NULL
+         AND build_leased_until <= now() - make_interval(secs => $1) RETURNING id, version`,
+      [buildDeadlineSeconds - buildLeaseSeconds],
     );
     for (const r of rows)
       await recordCommand(
@@ -769,7 +778,50 @@ export function createExportOperations(base: AutomationBase, ex: ExportDeps | un
     };
   };
 
-  /** Leases one building request (the fencing attempt) and builds it as the requester. */
+  /**
+   * Renews the lease of attempt `fence` every third of the lease while a build runs (fenced: a renewal
+   * never extends a successor's lease and never touches a completed request). `stop()` ends the
+   * heartbeat and waits for a renewal in flight.
+   */
+  const heartbeat = (worker: ActorContext, ref: string, fence: number) => {
+    const every = (buildLeaseSeconds * 1000) / 3;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let inFlight: Promise<unknown> = Promise.resolve();
+    let stopped = false;
+    const tick = () => {
+      inFlight = deps
+        .withTenantTransaction(worker, (tx) =>
+          tx.query(
+            `UPDATE cuspatlas.export_requests SET build_leased_until = now() + make_interval(secs => $3)
+             WHERE id = $1 AND state = 'building' AND build_attempt = $2`,
+            [ref, fence, buildLeaseSeconds],
+          ),
+        )
+        .catch(() => undefined)
+        .finally(() => {
+          if (!stopped) timer = setTimeout(tick, every);
+        });
+    };
+    timer = setTimeout(tick, every);
+    return {
+      async stop() {
+        stopped = true;
+        if (timer) clearTimeout(timer);
+        await inFlight;
+      },
+    };
+  };
+
+  /** An idempotency reservation still in flight (an earlier attempt is still building): retry later. */
+  const inFlightConflict = (err: unknown) => isRefusalError(err) && err.code === 'conflict' && err.retryable;
+
+  /**
+   * Leases one building request (the fencing attempt, recorded by the worker as itself: audit
+   * `exports.build` on `exportBuildAttempt` with the attempt as its version) and builds it as the
+   * requester under a heartbeat-renewed lease. A practice build that meets the in-flight idempotency
+   * reservation of an earlier attempt is deferred (lease released, retried on a later pass), never
+   * failed: the earlier attempt's result replays once it commits.
+   */
   const buildOne = async (worker: ActorContext, ref: string): Promise<ExportBuildOutcome> => {
     const claimed = await deps.withTenantTransaction(worker, async (tx) => {
       const { rows } = await tx.query<RequestRow>(
@@ -779,22 +831,52 @@ export function createExportOperations(base: AutomationBase, ex: ExportDeps | un
          RETURNING *`,
         [ref, buildLeaseSeconds],
       );
-      return rows[0] ?? null;
+      const row = rows[0] ?? null;
+      if (row)
+        await recordCommand(
+          tx,
+          {
+            operation: 'exports.build',
+            resourceType: 'exportBuildAttempt',
+            resourceRef: row.id,
+            resourceVersion: row.build_attempt,
+          },
+          { changedFields: ['buildAttempt'] },
+        );
+      return row;
     });
     if (!claimed) return 'skipped';
-    const requester = await requesterContext(worker.tenantId, claimed.created_by);
-    let outcome: Built | { diagnostic: string };
-    if (!requester) outcome = { diagnostic: 'requester_inactive' };
-    else {
-      try {
-        // Fresh policy: the requester must still hold exports.create (and each module export).
-        await base.tenantWide(requester, 'exports.create', 'exports');
-        outcome = await build(requester, claimed);
-      } catch (err) {
-        outcome = { diagnostic: isRefusalError(err) ? err.code : 'build_failed' };
+    const fence = claimed.build_attempt;
+    const beat = heartbeat(worker, claimed.id, fence);
+    let outcome: Built | { diagnostic: string } | 'deferred';
+    let requester: ActorContext | null = null;
+    try {
+      requester = await requesterContext(worker.tenantId, claimed.created_by);
+      if (!requester) outcome = { diagnostic: 'requester_inactive' };
+      else {
+        try {
+          // Fresh policy: the requester must still hold exports.create (and each module export).
+          await base.tenantWide(requester, 'exports.create', 'exports');
+          outcome = await build(requester, claimed);
+        } catch (err) {
+          if (claimed.scope === 'practice' && inFlightConflict(err)) outcome = 'deferred';
+          else outcome = { diagnostic: isRefusalError(err) ? err.code : 'build_failed' };
+        }
       }
+    } finally {
+      await beat.stop();
     }
-    const done = await complete(requester ?? worker, claimed.id, claimed.build_attempt, outcome);
+    if (outcome === 'deferred') {
+      const released = await deps.withTenantTransaction(worker, (tx) =>
+        tx.query(
+          `UPDATE cuspatlas.export_requests SET build_leased_until = NULL
+           WHERE id = $1 AND state = 'building' AND build_attempt = $2`,
+          [claimed.id, fence],
+        ),
+      );
+      return released.rowCount === 1 ? 'deferred' : 'lease_lost';
+    }
+    const done = await complete(requester ?? worker, claimed.id, fence, outcome);
     if (!done) return 'lease_lost';
     return done.state === 'ready' ? 'ready' : 'failed';
   };

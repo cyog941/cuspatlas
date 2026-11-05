@@ -670,6 +670,22 @@
       "sensitivity": "phi"
     },
     {
+      "name": "exports.build",
+      "noun": "exports",
+      "verb": "build",
+      "principalClasses": [
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "exports.build"
+      ],
+      "sensitivity": "phiBulk"
+    },
+    {
       "name": "exports.create",
       "noun": "exports",
       "verb": "create",
@@ -995,11 +1011,10 @@
       ],
       "operations": [
         "agents.tasks.dispatch",
-        "exports.build",
         "outbox.deliver",
         "webhooks.deliveries.dispatch"
       ],
-      "sensitivity": "phiBulk"
+      "sensitivity": "operational"
     },
     {
       "name": "patients.merge",

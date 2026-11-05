@@ -15,7 +15,7 @@ docs/api/forbidden-matrix.md, proves the refusal). There is no grant API for sta
 memberships are administered outside the API, and the default role-to-scope grants remain an open
 human decision (A-D2). No default role grant is asserted here.
 
-61 staff scopes.
+62 staff scopes.
 
 | Scope | Principal kinds | Human only | Owners | Highest sensitivity | Operations |
 |---|---|---|---|---|---|
@@ -46,6 +46,7 @@ human decision (A-D2). No default role grant is asserted here.
 | `coverage.read` | human, service | no | B | phi | 3 |
 | `coverage.write` | human, service | no | B | phi | 3 |
 | `exports.admin` | human | yes | A | phi | 1 |
+| `exports.build` | service | no | A | phiBulk | 1 |
 | `exports.create` | human | yes | A | phiBulk | 4 |
 | `exports.read` | human | yes | A | phi | 2 |
 | `imaging.associate` | human | yes | I | phi | 3 |
@@ -60,7 +61,7 @@ human decision (A-D2). No default role grant is asserted here.
 | `migration.signoff` | human | yes | M | phi | 2 |
 | `migration.write` | human, service | no | M | phi | 14 |
 | `openClaims.read` | human, service | no | B | phi | 4 |
-| `outbox.deliver` | service | no | A, F | phiBulk | 4 |
+| `outbox.deliver` | service | no | A, F | operational | 3 |
 | `patients.merge` | human | yes | S | phi | 3 |
 | `patients.mergeReconcile` | human | yes | S | phi | 1 |
 | `patients.read` | human, service | no | E, S | phi | 12 |

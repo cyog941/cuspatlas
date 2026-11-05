@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync, utimesSync } from 'node:fs';
 import { join } from 'node:path';
-import type { ObjectStorePort } from '@cuspatlas/contracts';
+import { AGENT_SCOPE_CEILING, type ObjectStorePort, RefusalError } from '@cuspatlas/contracts';
 import {
   createMembershipSource,
   createSecurityAttemptSink,
@@ -10,6 +10,7 @@ import {
 import {
   createAuthorize,
   createAutomationService,
+  type ExportPracticePort,
   executeOnce,
   PRACTICE_EXPORT_DOCUMENTS,
   type PracticeExporters,
@@ -182,7 +183,19 @@ describe('Closeout C: export build as a worker job', () => {
     }
   });
 
-  it('only a service principal holding outbox.deliver runs the build job', async () => {
+  it('only a service principal holding exports.build runs the build job (outbox.deliver is not enough)', async () => {
+    expect(AGENT_SCOPE_CEILING.has('exports.build')).toBe(false);
+    const outboxOnly = '30000000-0000-4000-8000-0000000000da';
+    await s.db.admin.query(
+      `INSERT INTO cuspatlas.principals (id, kind, handle) VALUES ($1, 'service', 'svc-outbox-only')
+       ON CONFLICT DO NOTHING`,
+      [outboxOnly],
+    );
+    await s.db.admin.query(
+      `INSERT INTO cuspatlas.memberships (tenant_id, principal_id, scopes) VALUES ($1, $2, $3)
+       ON CONFLICT DO NOTHING`,
+      [T_ALPHA, outboxOnly, ['outbox.deliver']],
+    );
     const svc = createAutomationService({
       env: 'synthetic-test',
       authorize: createAuthorize(createMembershipSource(s.db.app)),
@@ -199,6 +212,207 @@ describe('Closeout C: export build as a worker job', () => {
     const env = { operation: 'exports.build', idempotencyKey: randomUUID(), payload: {} };
     const human = await actorFor(s.db, USER_A1, T_ALPHA);
     await expect(svc.runExportBuilds(human, env)).rejects.toMatchObject({ code: 'forbidden' });
+    const outbox = await actorFor(s.db, outboxOnly, T_ALPHA);
+    await expect(svc.runExportBuilds(outbox, { ...env, idempotencyKey: randomUUID() })).rejects.toMatchObject(
+      {
+        code: 'forbidden',
+      },
+    );
+  });
+
+  it('a request queued while no worker runs is never failed; it builds once a worker returns', async () => {
+    const ref = data<Req>(await s.command('owner', '/v1/exports', domainBody('scheduling'))).exportRef;
+    // The worker was down for two hours: the request was never leased (build_attempt = 0).
+    await s.db.admin.query(
+      `UPDATE cuspatlas.export_requests SET created_at = now() - interval '2 hours' WHERE id = $1`,
+      [ref],
+    );
+    expect((await read(ref)).state).toBe('building');
+    expect(await runExportBuilds(s)).toContainEqual({ exportRef: ref, outcome: 'ready' });
+    expect((await read(ref)).state).toBe('ready');
+    // The worker recorded the attempt as itself, with the attempt number as the record's version.
+    const attempts = await s.db.admin.query(
+      `SELECT resource_type, resource_version, actor_id, principal FROM cuspatlas.audit_events
+       WHERE resource_ref = $1 AND operation = 'exports.build' ORDER BY resource_version`,
+      [ref],
+    );
+    expect(attempts.rows).toStrictEqual([
+      {
+        resource_type: 'exportBuildAttempt',
+        resource_version: 1,
+        actor_id: EXPORT_WORKER,
+        principal: 'service',
+      },
+    ]);
+  });
+
+  it('a leased build whose lease expired past the deadline is failed as build_interrupted', async () => {
+    const ref = data<Req>(await s.command('owner', '/v1/exports', domainBody('imaging'))).exportRef;
+    await s.db.admin.query(
+      `UPDATE cuspatlas.export_requests SET build_attempt = 1, build_leased_until = now() - interval '2 hours'
+       WHERE id = $1`,
+      [ref],
+    );
+    expect(await read(ref)).toMatchObject({ state: 'failed', diagnostic: 'build_interrupted' });
+    // The fencing token never moves backwards, whoever writes it.
+    await expect(
+      s.db.admin.query('UPDATE cuspatlas.export_requests SET build_attempt = 0 WHERE id = $1', [ref]),
+    ).rejects.toMatchObject({ code: '42501' });
+  });
+
+  it('a long build keeps its lease: no takeover, no interruption, it completes', async () => {
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const doc = async () => ({
+      format: PRACTICE_EXPORT_DOCUMENTS[0]?.format as string,
+      exportedAt: new Date().toISOString(),
+      tables: Object.fromEntries((PRACTICE_EXPORT_DOCUMENTS[0]?.tables ?? []).map((t) => [t, []])),
+    });
+    const slow: PracticeExporters['scheduling'] = async () => {
+      await sleep(3500);
+      return doc();
+    };
+    const memberships = createMembershipSource(s.db.app);
+    const svc = createAutomationService({
+      env: 'synthetic-test',
+      authorize: createAuthorize(memberships),
+      withTenantTransaction: createTenantTransactionRunner(s.db.app),
+      recording: { sink: createSecurityAttemptSink(s.db.sink), alert: () => undefined },
+      execute: executeOnce,
+      exports: {
+        exporters: { scheduling: slow, imaging: doc, clinical: doc, engagement: doc, billing: doc },
+        objectStore: s.store,
+        tokenSecret: new Uint8Array(32).fill(7),
+        memberships,
+        buildLeaseSeconds: 1,
+        buildDeadlineSeconds: 2,
+      },
+    });
+    const owner = await actorFor(s.db, USER_A1, T_ALPHA);
+    const worker = await actorFor(s.db, EXPORT_WORKER, T_ALPHA);
+    const env = () => ({ operation: 'exports.build', idempotencyKey: randomUUID(), payload: {} });
+    const created = await svc.createExport(owner, {
+      operation: 'exports.create',
+      idempotencyKey: randomUUID(),
+      payload: domainBody('scheduling'),
+    });
+    const ref = created.data.exportRef;
+    // Clear every other building request so the passes below see only this one.
+    await s.db.admin.query(
+      `UPDATE cuspatlas.export_requests SET state = 'failed', diagnostic = 'test_cleared'
+       WHERE state = 'building' AND id <> $1`,
+      [ref],
+    );
+    const first = svc.runExportBuilds(worker, env());
+    // Well past the 1 s lease (and the 2 s deadline) while the build is still running.
+    await sleep(2600);
+    const second = await svc.runExportBuilds(worker, env());
+    expect(second.data.outcomes.filter((o) => o.exportRef === ref && o.outcome !== 'skipped')).toStrictEqual(
+      [],
+    );
+    expect((await svc.readExport(owner, { exportRef: ref })).data.state).toBe('building');
+    expect((await first).data.outcomes).toContainEqual({ exportRef: ref, outcome: 'ready' });
+    const { rows } = await s.db.admin.query(
+      'SELECT state, build_attempt FROM cuspatlas.export_requests WHERE id = $1',
+      [ref],
+    );
+    expect(rows[0]).toStrictEqual({ state: 'ready', build_attempt: 1 });
+  });
+
+  it('practice scope: a second attempt racing an in-flight first attempt is deferred, never failed', async () => {
+    const real = await s.command('owner', '/v1/practice/exports', { purpose: 'practiceExit' });
+    expect(real.status).toBe(201);
+    const result = real.json.data as {
+      exportRef: string;
+      format: string;
+      manifestDigest: string;
+      packageDigest: string;
+      byteLength: number;
+      documentCount: number;
+    };
+    let calls = 0;
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    const practice: ExportPracticePort = {
+      async create() {
+        calls += 1;
+        if (calls === 1) {
+          await gate;
+          return { data: result, version: 1, replayed: false } as never;
+        }
+        // The first attempt's idempotency reservation is still pending: retryable in-flight conflict.
+        if (calls === 2) throw new RefusalError({ code: 'conflict', retryable: true });
+        return { data: result, version: 1, replayed: true } as never;
+      },
+      grant: async () => ({ data: { token: 'unused' } }),
+      download: async () => ({ data: null }),
+    };
+    const memberships = createMembershipSource(s.db.app);
+    const svc = createAutomationService({
+      env: 'synthetic-test',
+      authorize: createAuthorize(memberships),
+      withTenantTransaction: createTenantTransactionRunner(s.db.app),
+      recording: { sink: createSecurityAttemptSink(s.db.sink), alert: () => undefined },
+      execute: executeOnce,
+      exports: {
+        exporters: {} as PracticeExporters,
+        practice,
+        objectStore: s.store,
+        tokenSecret: new Uint8Array(32).fill(7),
+        memberships,
+        buildLeaseSeconds: 60,
+      },
+    });
+    const owner = await actorFor(s.db, USER_A1, T_ALPHA);
+    const worker = await actorFor(s.db, EXPORT_WORKER, T_ALPHA);
+    const env = () => ({ operation: 'exports.build', idempotencyKey: randomUUID(), payload: {} });
+    const created = await svc.createExport(owner, {
+      operation: 'exports.create',
+      idempotencyKey: randomUUID(),
+      payload: { formatVersion: 'cuspatlas-export/1', purpose: 'verification', scope: 'practice' },
+    });
+    const ref = created.data.exportRef;
+    await s.db.admin.query(
+      `UPDATE cuspatlas.export_requests SET state = 'failed', diagnostic = 'test_cleared'
+       WHERE state = 'building' AND id <> $1`,
+      [ref],
+    );
+    const first = svc.runExportBuilds(worker, env());
+    for (let i = 0; i < 200 && calls < 1; i += 1) await new Promise((r) => setTimeout(r, 25));
+    expect(calls).toBe(1);
+    // The first attempt stalls past its lease; a second worker takes the request over.
+    await s.db.admin.query(
+      `UPDATE cuspatlas.export_requests SET build_leased_until = now() - interval '1 second' WHERE id = $1`,
+      [ref],
+    );
+    const second = await svc.runExportBuilds(worker, env());
+    expect(second.data.outcomes).toContainEqual({ exportRef: ref, outcome: 'deferred' });
+    const mid = await s.db.admin.query(
+      'SELECT state, diagnostic, build_attempt, build_leased_until FROM cuspatlas.export_requests WHERE id = $1',
+      [ref],
+    );
+    expect(mid.rows[0]).toStrictEqual({
+      state: 'building',
+      diagnostic: null,
+      build_attempt: 2,
+      build_leased_until: null,
+    });
+    release();
+    // The first attempt finishes but no longer holds the fence: it records nothing.
+    expect((await first).data.outcomes).toContainEqual({ exportRef: ref, outcome: 'lease_lost' });
+    // A later pass replays the committed practice export: ready, never a false failure.
+    const third = await svc.runExportBuilds(worker, env());
+    expect(third.data.outcomes).toContainEqual({ exportRef: ref, outcome: 'ready' });
+    const done = await s.db.admin.query(
+      'SELECT state, diagnostic, practice_export_id FROM cuspatlas.export_requests WHERE id = $1',
+      [ref],
+    );
+    expect(done.rows[0]).toStrictEqual({
+      state: 'ready',
+      diagnostic: null,
+      practice_export_id: result.exportRef,
+    });
   });
 
   it('the completion promotes under the content lock: the orphan-bytes sweep keeps the package bytes', async () => {

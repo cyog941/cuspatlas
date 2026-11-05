@@ -6531,7 +6531,7 @@
     "kind": "command",
     "authorization": "authorize",
     "action": "exports.build",
-    "scope": "outbox.deliver",
+    "scope": "exports.build",
     "principals": [
       "service"
     ],

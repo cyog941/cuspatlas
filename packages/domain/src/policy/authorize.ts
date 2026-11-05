@@ -713,7 +713,8 @@ export const ACTION_POLICIES = {
   'exports.administer': { scope: 'exports.admin', principals: ['human'] },
   // Closeout C: the export build job. Only the worker's service principal leases and completes builds;
   // each build runs as its requester's live membership (re-authorized for exports.create and modules).
-  'exports.build': { scope: 'outbox.deliver', principals: ['service'] },
+  // Its own worker scope (phiBulk; service only, never in the agent scope ceiling), not outbox.deliver.
+  'exports.build': { scope: 'exports.build', principals: ['service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

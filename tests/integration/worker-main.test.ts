@@ -67,7 +67,7 @@ beforeAll(async () => {
   );
   await s.db.admin.query(
     'INSERT INTO cuspatlas.memberships (tenant_id, principal_id, scopes) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
-    [T_ALPHA, W, ['outbox.deliver', 'billing.write', 'communications.deliver', 'admin.configure']],
+    [T_ALPHA, W, ['outbox.deliver', 'exports.build', 'billing.write', 'communications.deliver', 'admin.configure']],
   );
   ok(
     await s.command('owner', '/v1/scheduling/locations', {

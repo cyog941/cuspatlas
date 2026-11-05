@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import {
   type ActorContext,
   type AgentBudget,
@@ -35,6 +36,7 @@ const ENVELOPE_KEYS = new Set([
   'nextCursor',
   'ordering',
   'count',
+  'vocabularies',
 ]);
 
 export interface ConsentCommandData {
@@ -44,11 +46,50 @@ export interface ConsentCommandData {
   readonly expiresAt: string;
 }
 
+export interface BudgetMeasure {
+  records: number;
+  phiFields: number;
+}
+/** A budget warning on a command whose effect already happened (never a refusal of that effect). */
+export interface BudgetWarning {
+  readonly reason: 'budget_exceeded_after_effect' | 'budget_settlement_failed';
+  readonly limit?: { readonly name: string; readonly value: number };
+}
+
+/**
+ * H3: PHI weight of one scalar. Free text counts one field per 500 characters (at least one), so a
+ * single long text field cannot move a whole note under a small per-call field budget.
+ */
+export const fieldWeight = (v: unknown): number =>
+  typeof v === 'string' ? Math.max(1, Math.ceil(v.length / 500)) : 1;
+/** PHI weight of minimized `key: value` source text (one weighted field per line). */
+export const textWeight = (text: string): number =>
+  text
+    .split('\n')
+    .filter((l) => l.length > 0)
+    .reduce((n, l) => n + fieldWeight(l.slice(l.indexOf(':') + 1).trim()), 0);
+
+const METER = new AsyncLocalStorage<(m: BudgetMeasure) => Promise<void>>();
+/** Runs an admitted agent call with its budget meter (the MCP transport). */
+export const runWithBudgetMeter = <T>(charge: (m: BudgetMeasure) => Promise<void>, run: () => Promise<T>) =>
+  METER.run(charge, run);
+/**
+ * Charges content a handler is about to read or move on behalf of an admitted agent call, BEFORE the
+ * effect (e.g. AI source content before generation); refused with 429 over budget. A no-op outside an
+ * agent call (humans and REST have no agent budget).
+ */
+export async function chargeBudget(m: BudgetMeasure): Promise<void> {
+  const charge = METER.getStore();
+  if (charge) await charge(m);
+}
+
 export interface BudgetTicket {
   readonly consentRef: string;
   readonly deployment: string;
   readonly operation: string;
   readonly budget: AgentBudget;
+  /** Content already charged during this call (before its result was measured). */
+  readonly charged: BudgetMeasure;
 }
 
 interface ConsentRow extends Record<string, unknown> {
@@ -110,13 +151,15 @@ export function measureResult(operation: string, result: unknown): { records: nu
   if (Array.isArray(r.items)) records = r.items.length;
   else if (Array.isArray(r.data)) records = r.data.length;
   else if (r.data !== undefined && r.data !== null) records = 1;
+  // A bare object result (no data/items wrapper) is one record.
+  else if (Object.keys(r).some((k) => !ENVELOPE_KEYS.has(k))) records = 1;
   const sensitivity = CATALOG_INDEX.get(operation)?.sensitivity ?? 'phi';
   if (sensitivity !== 'phi' && sensitivity !== 'phiBulk') return { records, phiFields: 0 };
   let phiFields = 0;
   const walk = (v: unknown) => {
     if (Array.isArray(v)) for (const x of v) walk(x);
     else if (v !== null && typeof v === 'object') for (const x of Object.values(v)) walk(x);
-    else if (v !== null && v !== undefined) phiFields++;
+    else if (v !== null && v !== undefined) phiFields += fieldWeight(v);
   };
   for (const [k, v] of Object.entries(r)) if (!ENVELOPE_KEYS.has(k)) walk(v);
   return { records, phiFields };
@@ -402,7 +445,13 @@ export function createAgentGovernance(base: AgentBase) {
           )
         ).rows[0];
         if (!u) throw new Error('budget usage row missing');
-        const ticket: BudgetTicket = { consentRef: c.id, deployment, operation, budget };
+        const ticket: BudgetTicket = {
+          consentRef: c.id,
+          deployment,
+          operation,
+          budget,
+          charged: { records: 0, phiFields: 0 },
+        };
         if (u.expired) {
           await tx.query(
             `UPDATE cuspatlas.agent_budget_usage SET period_started_at = now(), calls = 1, records = 0, phi_fields = 0
@@ -414,6 +463,11 @@ export function createAgentGovernance(base: AgentBase) {
         const until = new Date(u.period_started_at.getTime() + c.period_seconds * 1000).toISOString();
         if (u.calls >= budget.callsPerPeriod)
           return { refusal: exhausted('callsPerPeriod', budget.callsPerPeriod, until), ticket };
+        // A spent period record or PHI budget refuses every further call (queries and commands alike).
+        if (u.records >= budget.recordsPerPeriod)
+          return { refusal: exhausted('recordsPerPeriod', budget.recordsPerPeriod, until), ticket };
+        if (u.phi_fields >= budget.phiFieldsPerPeriod)
+          return { refusal: exhausted('phiFieldsPerPeriod', budget.phiFieldsPerPeriod, until), ticket };
         await tx.query('UPDATE cuspatlas.agent_budget_usage SET calls = calls + 1 WHERE consent_ref = $1', [
           c.id,
         ]);
@@ -434,17 +488,10 @@ export function createAgentGovernance(base: AgentBase) {
     },
 
     /**
-     * Post-call accounting. Queries over a per-call or remaining per-period budget are refused (the
-     * result is never returned, never silently shortened); commands are counted and logged only.
+     * H3: charges content a handler is about to read or move (before its effect) against the per-call
+     * and per-period record and PHI budgets; over budget it is refused (429) and nothing is charged.
      */
-    async settleToolCall(
-      ctx: ActorContext,
-      ticket: BudgetTicket,
-      kind: 'query' | 'command',
-      result: unknown,
-      outcome: string,
-    ): Promise<void> {
-      const m = outcome === 'ok' ? measureResult(ticket.operation, result) : { records: 0, phiFields: 0 };
+    async chargeToolCall(ctx: ActorContext, ticket: BudgetTicket, m: BudgetMeasure): Promise<void> {
       const b = ticket.budget;
       const refusal = await deps.withTenantTransaction(ctx, async (tx) => {
         const u = (
@@ -454,32 +501,89 @@ export function createAgentGovernance(base: AgentBase) {
           )
         ).rows[0];
         if (!u) throw new Error('budget usage row missing');
-        let over: RefusalError | null = null;
-        if (kind === 'query' && outcome === 'ok') {
-          if (m.records > b.recordsPerCall) over = exhausted('recordsPerCall', b.recordsPerCall);
-          else if (m.phiFields > b.phiFieldsPerCall) over = exhausted('phiFieldsPerCall', b.phiFieldsPerCall);
-          else if (u.records + m.records > b.recordsPerPeriod)
-            over = exhausted('recordsPerPeriod', b.recordsPerPeriod);
-          else if (u.phi_fields + m.phiFields > b.phiFieldsPerPeriod) {
-            over = exhausted('phiFieldsPerPeriod', b.phiFieldsPerPeriod);
-          }
+        const over = overBudget(b, u, ticket.charged, m);
+        if (over) {
+          await logCall(tx, ctx, ticket, 'budget_exhausted', { records: 0, phiFields: 0 });
+          return over;
         }
-        if (over === null) {
-          await tx.query(
-            'UPDATE cuspatlas.agent_budget_usage SET records = records + $2, phi_fields = phi_fields + $3 WHERE consent_ref = $1',
-            [ticket.consentRef, m.records, m.phiFields],
-          );
-        }
-        await logCall(
-          tx,
-          ctx,
-          ticket,
-          over ? 'budget_exhausted' : outcome,
-          over ? { records: 0, phiFields: 0 } : m,
+        await tx.query(
+          'UPDATE cuspatlas.agent_budget_usage SET records = records + $2, phi_fields = phi_fields + $3 WHERE consent_ref = $1',
+          [ticket.consentRef, m.records, m.phiFields],
         );
-        return over;
+        ticket.charged.records += m.records;
+        ticket.charged.phiFields += m.phiFields;
+        return null;
       });
       if (refusal) await deny(ctx, ticket.operation, refusal);
     },
+
+    /**
+     * Post-call accounting of the result. A query over a per-call or remaining per-period budget is
+     * refused (the result is never returned, never silently shortened). A command's effect has already
+     * happened, so it is never refused here: it is counted (so the period budget refuses the next call)
+     * and answered with a budget warning; commands that move content charge it before the effect
+     * (`chargeBudget`).
+     */
+    async settleToolCall(
+      ctx: ActorContext,
+      ticket: BudgetTicket,
+      kind: 'query' | 'command',
+      result: unknown,
+      outcome: string,
+    ): Promise<BudgetWarning | null> {
+      const m = outcome === 'ok' ? measureResult(ticket.operation, result) : { records: 0, phiFields: 0 };
+      const b = ticket.budget;
+      const { refusal, warning } = await deps.withTenantTransaction(ctx, async (tx) => {
+        const u = (
+          await tx.query<{ records: number; phi_fields: number }>(
+            'SELECT records, phi_fields FROM cuspatlas.agent_budget_usage WHERE consent_ref = $1 FOR UPDATE',
+            [ticket.consentRef],
+          )
+        ).rows[0];
+        if (!u) throw new Error('budget usage row missing');
+        const over = outcome === 'ok' ? overBudget(b, u, ticket.charged, m) : null;
+        const total = {
+          records: ticket.charged.records + m.records,
+          phiFields: ticket.charged.phiFields + m.phiFields,
+        };
+        if (over && kind === 'query') {
+          await logCall(tx, ctx, ticket, 'budget_exhausted', ticket.charged);
+          return { refusal: over, warning: null };
+        }
+        await tx.query(
+          'UPDATE cuspatlas.agent_budget_usage SET records = records + $2, phi_fields = phi_fields + $3 WHERE consent_ref = $1',
+          [ticket.consentRef, m.records, m.phiFields],
+        );
+        await logCall(tx, ctx, ticket, outcome, total);
+        const detail = over?.detail as { limit?: { name: string; value: number } } | undefined;
+        return {
+          refusal: null,
+          warning: over
+            ? ({
+                reason: 'budget_exceeded_after_effect',
+                ...(detail?.limit ? { limit: detail.limit } : {}),
+              } as const)
+            : null,
+        };
+      });
+      if (refusal) await deny(ctx, ticket.operation, refusal);
+      return warning;
+    },
   };
+}
+
+/** The first record/PHI limit `m` would exceed on top of this call's charges and the period usage. */
+function overBudget(
+  b: AgentBudget,
+  u: { records: number; phi_fields: number },
+  charged: BudgetMeasure,
+  m: BudgetMeasure,
+): RefusalError | null {
+  if (charged.records + m.records > b.recordsPerCall) return exhausted('recordsPerCall', b.recordsPerCall);
+  if (charged.phiFields + m.phiFields > b.phiFieldsPerCall)
+    return exhausted('phiFieldsPerCall', b.phiFieldsPerCall);
+  if (u.records + m.records > b.recordsPerPeriod) return exhausted('recordsPerPeriod', b.recordsPerPeriod);
+  if (u.phi_fields + m.phiFields > b.phiFieldsPerPeriod)
+    return exhausted('phiFieldsPerPeriod', b.phiFieldsPerPeriod);
+  return null;
 }

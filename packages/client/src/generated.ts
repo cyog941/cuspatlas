@@ -414,7 +414,7 @@ export type AgentsAiUseCaseState = {
   readonly "registered": boolean;
   readonly "approval": "recommendedPendingApproval" | "approved" | "notApproved";
   readonly "enabled": boolean;
-  readonly "gate": "pass" | "fail" | "inconclusive" | "stale" | "none";
+  readonly "gate": "pass" | "fail" | "inconclusive" | "stale" | "ungated";
   readonly "modelRef": string;
   readonly "promptVersionRef": string;
   readonly "caseSetVersion": string;

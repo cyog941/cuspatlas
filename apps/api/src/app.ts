@@ -449,7 +449,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         owners: { patients, engagement, billing },
         ai: {
           model: resolveModelAdapter(deps.env, deps.aiModel),
-          readers: createAiSourceReaders({ clinical, engagement, billing }),
+          readers: createAiSourceReaders({ clinical, engagement, billing, patients }),
           owners: {
             createNoteDraft: (c, r, e) => clinical.createNoteDraft(c, r, e),
             postStaffMessage: (c, r, e) => engagement.postStaffMessage(c, r, e),

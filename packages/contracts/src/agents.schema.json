@@ -1445,7 +1445,7 @@
           "type": "boolean"
         },
         "gate": {
-          "enum": ["pass", "fail", "inconclusive", "stale", "none"]
+          "enum": ["pass", "fail", "inconclusive", "stale", "ungated"]
         },
         "modelRef": {
           "type": "string",

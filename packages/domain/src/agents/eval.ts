@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import {
   type ActorContext,
   type CommandEnvelope,
@@ -13,14 +14,23 @@ import {
   type AiUseCase,
   adapterNotConfigured,
   carriesContact,
-  looksLikeInjection,
+  draftFlags,
   type ModelAdapter,
   type ModelSource,
-  quoteSource,
-  redactContacts,
-  unsupportedReferences,
+  prepareModelInput,
 } from './ai-port';
 import { type AgentBase, checkEnvelope, conflict, validate } from './base';
+
+/**
+ * H3: the case-set version of record is derived from a digest of the cases themselves, so editing a
+ * case can never keep an old passing verdict current (the label alone is not trusted).
+ */
+export function caseSetVersionOf(useCase: AiUseCase): string {
+  const set = (AI_EVAL_CASE_SETS as Partial<Record<AiUseCase, EvalCaseSet>>)[useCase];
+  if (!set) return AI_USE_CASE_REGISTRY[useCase].caseSetVersion;
+  const digest = createHash('sha256').update(JSON.stringify(set.cases)).digest('hex').slice(0, 12);
+  return `${set.version}.${digest}`;
+}
 
 /**
  * A12 evaluation harness (A-S3 open: thresholds and reviewer authority are recommended-pending-
@@ -194,18 +204,13 @@ export async function runEvaluation(
   for (const c of set.cases) {
     const r = { caseRef: c.caseRef, class: c.class, passed: 0, failed: 0, unavailable: 0, outages: 0 };
     for (let i = 0; i < repetitions; i++) {
-      const sources = c.sources.map((x, n) => ({
-        kind: x.kind,
-        ref: `case-${c.caseRef}-${n}`,
-        text: x.text,
-      }));
-      const injection = sources.some((x) => looksLikeInjection(x.text));
-      const modelSources = sources.map((x) => ({ ...x, text: redactContacts(x.text) }));
+      // The pipeline's own preparation (no reimplementation): screening, redaction, opaque indexes.
+      const prepared = prepareModelInput(entry, c.sources);
       const res = await model.generate({
         useCase,
         promptVersionRef,
-        instructions: `${entry.instructions}\n${modelSources.map(quoteSource).join('\n')}`,
-        sources: modelSources,
+        instructions: prepared.instructions,
+        sources: prepared.modelSources,
       });
       if (res.kind === 'unavailable') {
         r.outages++;
@@ -214,9 +219,9 @@ export async function runEvaluation(
         continue;
       }
       const ok = c.expectations.every((e) => {
-        if (e === 'no_unsupported_reference')
-          return unsupportedReferences(res.text, modelSources).length === 0;
-        if (e === 'injection_flagged') return injection;
+        const flags = draftFlags(prepared, res.text);
+        if (e === 'no_unsupported_reference') return !flags.includes('unsupported_reference');
+        if (e === 'injection_flagged') return flags.includes('injection_suspected');
         if (e === 'no_contact_values') return !carriesContact(res.text);
         return false; // model_unavailable expected but the model answered
       });
@@ -284,16 +289,16 @@ export async function evaluationGate(
   tx: TenantTransaction,
   useCase: AiUseCase,
   modelRef: string,
-): Promise<'pass' | 'fail' | 'inconclusive' | 'stale' | 'none'> {
+): Promise<'pass' | 'fail' | 'inconclusive' | 'stale' | 'ungated'> {
   const entry = AI_USE_CASE_REGISTRY[useCase];
   const { rows } = await tx.query<{ verdict: 'pass' | 'fail' | 'inconclusive'; current: boolean }>(
     `SELECT verdict, (model_ref = $2 AND prompt_version_ref = $3 AND case_set_version = $4) AS current
      FROM cuspatlas.ai_evaluation_runs WHERE use_case = $1
      ORDER BY (model_ref = $2 AND prompt_version_ref = $3 AND case_set_version = $4) DESC, ran_at DESC, id DESC LIMIT 1`,
-    [useCase, modelRef, entry.promptVersionRef, entry.caseSetVersion],
+    [useCase, modelRef, entry.promptVersionRef, caseSetVersionOf(useCase)],
   );
   const r = rows[0];
-  if (!r) return 'none';
+  if (!r) return 'ungated';
   return r.current ? r.verdict : 'stale';
 }
 
@@ -329,7 +334,7 @@ export function createAiEvaluations(base: AgentBase, model: ModelAdapter | null)
               p.useCase,
               m.modelRef,
               prompt,
-              entry.caseSetVersion,
+              caseSetVersionOf(p.useCase),
               repetitions,
               out.verdict,
               JSON.stringify(out.metrics),

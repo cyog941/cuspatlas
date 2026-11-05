@@ -20,15 +20,15 @@ import {
   type AiSourceKind,
   type AiUseCase,
   adapterNotConfigured,
+  draftFlags,
   evaluateEgress,
-  looksLikeInjection,
   type ModelAdapter,
-  type ModelSource,
-  quoteSource,
-  redactContacts,
-  unsupportedReferences,
+  prepareModelInput,
+  summaryIdentifiers,
 } from './ai-port';
 import { type AgentBase, checkEnvelope, conflict, failed, notFound, stale, validate } from './base';
+import { caseSetVersionOf } from './eval';
+import { chargeBudget, textWeight } from './governance';
 
 /**
  * A11 draft-only AI pipeline. A draft is built only from records the caller may already read (each
@@ -44,7 +44,14 @@ import { type AgentBase, checkEnvelope, conflict, failed, notFound, stale, valid
 export const AI_DRAFT_RESOURCE = 'aiDraft';
 
 export interface AiSourceReaders {
-  read(kind: AiSourceKind, ctx: ActorContext, ref: string): Promise<{ version: number; text: string }>;
+  /** One source through its owner as the caller: version, minimized text, and the patients it names. */
+  read(
+    kind: AiSourceKind,
+    ctx: ActorContext,
+    ref: string,
+  ): Promise<{ version: number; text: string; patientRefs?: readonly string[] }>;
+  /** Name and birth-date strings of those patients (S4 summary, read as the caller) for redaction. */
+  identifiers?(ctx: ActorContext, patientRefs: readonly string[]): Promise<string[]>;
 }
 export interface AiOwners {
   createNoteDraft?(
@@ -67,8 +74,13 @@ export interface AiDeps {
     tx: TenantTransaction,
     useCase: AiUseCase,
     modelRef: string,
-  ) => Promise<'pass' | 'fail' | 'inconclusive' | 'stale' | 'none'>;
+  ) => Promise<'pass' | 'fail' | 'inconclusive' | 'stale' | 'ungated'>;
 }
+
+/** A source read refused with one of these codes means "not readable by this caller". */
+const HIDDEN_CODES = new Set<string>(['not_found', 'forbidden']);
+/** Drafts scanned per list request before visibility filtering (newest first). */
+const LIST_SCAN_CAP = 500;
 
 const SKIP_KEY = /(Ref|Id|Refs|Ids|Digest|digest|At|correlationId|version)$/;
 /** Minimizes a record read into `key: value` lines of short scalars; references and ids are dropped. */
@@ -91,6 +103,18 @@ export function minimize(data: unknown, max = 4000): string {
   return lines.join('\n').slice(0, max);
 }
 
+/** Patient references a source names (patientRef / subjectPatientRef keys), for identifier redaction. */
+function patientRefsOf(data: unknown): string[] {
+  const out = new Set<string>();
+  const walk = (v: unknown, key: string) => {
+    if (typeof v === 'string' && /^(patientRef|subjectPatientRef)$/.test(key)) out.add(v);
+    else if (Array.isArray(v)) for (const x of v) walk(x, key);
+    else if (v !== null && typeof v === 'object') for (const [k, x] of Object.entries(v)) walk(x, k);
+  };
+  walk(data, '');
+  return [...out];
+}
+
 /** Reads each AI source through its owning service as the caller (wired by the API and MCP builders). */
 export function createAiSourceReaders(s: {
   // biome-ignore lint/suspicious/noExplicitAny: owning services are structurally typed here.
@@ -102,13 +126,19 @@ export function createAiSourceReaders(s: {
   engagement?: { readStaffThread(ctx: ActorContext, ref: string): Promise<any> };
   // biome-ignore lint/suspicious/noExplicitAny: owning services are structurally typed here.
   billing?: { getClaim(ctx: ActorContext, ref: string): Promise<any> };
+  // biome-ignore lint/suspicious/noExplicitAny: owning services are structurally typed here.
+  patients?: { readPatient(ctx: ActorContext, ref: string): Promise<any> };
 }): AiSourceReaders {
   const of = (data: unknown) => {
     const inner = (data as { encounter?: unknown })?.encounter ?? data;
     const version = Number(
       (inner as { version?: unknown })?.version ?? (data as { version?: unknown })?.version ?? 0,
     );
-    return { version: Number.isInteger(version) ? version : 0, text: minimize(data) };
+    return {
+      version: Number.isInteger(version) ? version : 0,
+      text: minimize(data),
+      patientRefs: patientRefsOf(data),
+    };
   };
   const missing = () =>
     new RefusalError({
@@ -123,6 +153,15 @@ export function createAiSourceReaders(s: {
       if (kind === 'thread' && s.engagement) return of(await s.engagement.readStaffThread(ctx, ref));
       if (kind === 'claim' && s.billing) return of(await s.billing.getClaim(ctx, ref));
       throw missing();
+    },
+    async identifiers(ctx, patientRefs) {
+      const out: string[] = [];
+      for (const ref of patientRefs) {
+        // A patient the caller cannot read contributes nothing; the DOB-like patterns still apply.
+        const summary = await s.patients?.readPatient(ctx, ref).catch(() => null);
+        out.push(...summaryIdentifiers(summary));
+      }
+      return out;
     },
   };
 }
@@ -206,15 +245,53 @@ export function createAiPipeline(base: AgentBase, ai: AiDeps) {
     }
   }
 
-  /** Current source versions as the caller; false when any source changed or is no longer visible. */
-  async function fresh(ctx: ActorContext, r: DraftRow): Promise<boolean> {
-    if (!ai.readers) return false;
+  /**
+   * Authorizes the caller against EVERY source of a draft through the owning services (as the caller,
+   * location scope included). 'hidden' when any source is not readable by the caller (the draft is
+   * then one 404 and nothing is written); otherwise whether every source is still at its drafted
+   * version. Staleness is therefore only ever computed from versions an authorized reader can see.
+   */
+  async function view(
+    ctx: ActorContext,
+    r: DraftRow,
+    cache = new Map<string, Promise<{ version: number } | null>>(),
+  ): Promise<'hidden' | { fresh: boolean }> {
+    const readers = ai.readers;
+    if (!readers) return 'hidden';
+    let isFresh = true;
     for (const s of r.source_refs) {
-      const now = await ai.readers.read(s.kind, ctx, s.ref).catch(() => null);
-      if (!now || now.version !== s.version) return false;
+      const key = `${s.kind}:${s.ref}`;
+      let p = cache.get(key);
+      if (!p) {
+        p = readers.read(s.kind, ctx, s.ref).catch((err: unknown) => {
+          if (err instanceof RefusalError && HIDDEN_CODES.has(err.code)) return null;
+          throw err;
+        });
+        cache.set(key, p);
+      }
+      const now = await p;
+      if (!now) return 'hidden';
+      if (now.version !== s.version) isFresh = false;
     }
-    return true;
+    return { fresh: isFresh };
   }
+  /** Loads a draft the caller may see (agent: only its own; every source readable) or throws 404. */
+  async function visible(ctx: ActorContext, ref: string): Promise<{ row: DraftRow; fresh: boolean }> {
+    const row = await deps.withTenantTransaction(ctx, (tx) => load(tx, ref));
+    if (!row || (ctx.agent && row.created_by !== ctx.actorId)) throw notFound();
+    const v = await view(ctx, row);
+    if (v === 'hidden') throw notFound();
+    return { row, fresh: v.fresh };
+  }
+  const markStale = (ctx: ActorContext, id: string) =>
+    deps.withTenantTransaction(ctx, async (tx) => {
+      await tx.query(
+        `UPDATE cuspatlas.ai_drafts SET state = 'stale', version = version + 1
+         WHERE id = $1 AND state IN ('offered', 'flagged')`,
+        [id],
+      );
+      return load(tx, id);
+    });
 
   return {
     createAiDraft(ctx: ActorContext, envelope: CommandEnvelope<unknown>) {
@@ -238,7 +315,7 @@ export function createAiPipeline(base: AgentBase, ai: AiDeps) {
             detail: { reason: 'egress_refused' },
           });
         }
-        if (!ai.readers) adapterNotConfigured();
+        const readers = ai.readers ?? adapterNotConfigured();
         await deps.withTenantTransaction(ctx, (tx) => assertRunnable(tx, p.useCase));
         const kinds = p.sourceRefs.map((s) => s.kind);
         const required = kinds.filter((k) => k === entry.sources.required).length;
@@ -248,35 +325,43 @@ export function createAiPipeline(base: AgentBase, ai: AiDeps) {
         if (bad >= 0) throw failed('source_kind_not_allowed', `/sourceRefs/${bad}/kind`);
         if (required !== 1) throw failed('required_source_missing', '/sourceRefs');
         // Every source through its owner, as the caller: hidden and missing are one 404.
-        const sources: (ModelSource & { version: number })[] = [];
+        const sources: { kind: AiSourceKind; ref: string; text: string; version: number }[] = [];
+        const patientRefs = new Set<string>();
         for (const s of p.sourceRefs) {
-          const read = await (ai.readers as AiSourceReaders).read(s.kind, ctx, s.ref);
+          const read = await readers.read(s.kind, ctx, s.ref);
+          for (const r of read.patientRefs ?? []) patientRefs.add(r);
           sources.push({ kind: s.kind, ref: s.ref, text: read.text, version: read.version });
         }
-        const injection = sources.some((s) => looksLikeInjection(s.text));
-        // Minimized further before the model: contact values and links are redacted (A-D5).
-        const modelSources = sources.map((s) => ({ ...s, text: redactContacts(s.text) }));
-        const response = await model.generate({
-          useCase: p.useCase,
-          promptVersionRef: entry.promptVersionRef,
-          instructions: `${entry.instructions}\n${modelSources.map(quoteSource).join('\n')}`,
-          sources: modelSources,
+        // H3: an agent is charged, before generation, for every source record and its PHI fields.
+        await chargeBudget({
+          records: sources.length,
+          phiFields: sources.reduce((n, s) => n + textWeight(s.text), 0),
         });
-        if (response.kind === 'unavailable') {
-          // An availability failure, not a clinical event: nothing is persisted.
-          throw new RefusalError({
-            code: 'service_unavailable',
-            retryable: true,
-            detail: { reason: 'model_unavailable' },
-          });
-        }
-        const flags = [
-          ...(injection ? ['injection_suspected'] : []),
-          ...(unsupportedReferences(response.text, modelSources).length > 0 ? ['unsupported_reference'] : []),
-        ];
+        const identifiers = readers.identifiers ? await readers.identifiers(ctx, [...patientRefs]) : [];
+        // The one preparation path shared with the A12 harness: screening, contact and identifier
+        // redaction, opaque source indexes (no record refs reach the model), quoting as data.
+        const prepared = prepareModelInput(entry, sources, identifiers);
+        // Idempotency is claimed BEFORE the model is called: a replay never regenerates, and a
+        // concurrent duplicate waits on the reservation (retryable conflict) instead of generating.
         const r = await deps.withTenantTransaction(ctx, (tx) =>
           execute<{ draftRef: string }>(ctx, envelope, tx, async () => {
             await assertRunnable(tx, p.useCase);
+            const response = await model.generate({
+              useCase: p.useCase,
+              promptVersionRef: entry.promptVersionRef,
+              instructions: prepared.instructions,
+              sources: prepared.modelSources,
+            });
+            if (response.kind === 'unavailable') {
+              // An availability failure, not a clinical event: nothing is persisted (retryable, so the
+              // reservation is released with the transaction).
+              throw new RefusalError({
+                code: 'service_unavailable',
+                retryable: true,
+                detail: { reason: 'model_unavailable' },
+              });
+            }
+            const flags = draftFlags(prepared, response.text);
             const { rows } = await tx.query<{ id: string }>(
               `INSERT INTO cuspatlas.ai_drafts (tenant_id, use_case, state, text, model_ref, prompt_version_ref,
                  source_refs, flags, created_by)
@@ -313,23 +398,15 @@ export function createAiPipeline(base: AgentBase, ai: AiDeps) {
       return base.guarded(ctx, op, async () => {
         await base.authorize(ctx, op);
         validate<{ draftRef: string }>(validateAiDraftQuery, query);
-        const row = await deps.withTenantTransaction(ctx, (tx) => load(tx, query.draftRef));
-        if (!row || (ctx.agent && row.created_by !== ctx.actorId)) throw notFound();
+        // Every source is read through its owner as the caller first: a caller who cannot read one
+        // gets the same 404 as a missing draft, and nothing is written on its behalf.
+        const { row, fresh: sourcesFresh } = await visible(ctx, query.draftRef);
         const open = row.state === 'offered' || row.state === 'flagged';
-        const isFresh = open ? await fresh(ctx, row) : row.state !== 'stale';
-        if (open && !isFresh) {
-          // A draft whose sources changed is marked stale rather than silently re-offered.
-          const after = await deps.withTenantTransaction(ctx, async (tx) => {
-            await tx.query(
-              `UPDATE cuspatlas.ai_drafts SET state = 'stale', version = version + 1
-               WHERE id = $1 AND state IN ('offered', 'flagged')`,
-              [row.id],
-            );
-            return load(tx, row.id);
-          });
-          return present(after ?? row, false, new Date());
+        if (open && !sourcesFresh) {
+          // A draft whose sources changed (seen by an authorized reader) is marked stale.
+          return present((await markStale(ctx, row.id)) ?? row, false, new Date());
         }
-        return present(row, isFresh, new Date());
+        return present(row, open ? true : row.state !== 'stale', new Date());
       });
     },
 
@@ -346,16 +423,27 @@ export function createAiPipeline(base: AgentBase, ai: AiDeps) {
         const args = [query.useCase ?? null, query.state ?? null, mine];
         const where = `WHERE ($1::text IS NULL OR use_case = $1) AND ($2::text IS NULL OR state = $2)
           AND ($3::uuid IS NULL OR created_by = $3)`;
-        return deps.withTenantTransaction(ctx, async (tx) => {
-          const at = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
-          const total = Number(
-            (await tx.query<{ n: string }>(`SELECT count(*) AS n FROM cuspatlas.ai_drafts ${where}`, args))
-              .rows[0]?.n ?? 0,
-          );
-          const { rows } = await tx.query<DraftRow>(
-            `SELECT * FROM cuspatlas.ai_drafts ${where} ORDER BY created_at DESC, id DESC LIMIT $4 OFFSET $5`,
-            [...args, pg.limit, pg.offset],
-          );
+        const { at, candidates } = await deps.withTenantTransaction(ctx, async (tx) => ({
+          at: (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date(),
+          candidates: (
+            await tx.query<DraftRow>(
+              `SELECT * FROM cuspatlas.ai_drafts ${where} ORDER BY created_at DESC, id DESC LIMIT $4`,
+              [...args, LIST_SCAN_CAP],
+            )
+          ).rows,
+        }));
+        // Only drafts whose every source the caller can read through its owner are listed (a hidden
+        // one is simply absent); freshness comes from those reads and the list never writes.
+        const cache = new Map<string, Promise<{ version: number } | null>>();
+        const seen: { row: DraftRow; fresh: boolean }[] = [];
+        for (const row of candidates) {
+          const v = await view(ctx, row, cache);
+          if (v !== 'hidden') seen.push({ row, fresh: v.fresh });
+        }
+        const total = seen.length;
+        const pageRows = seen.slice(pg.offset, pg.offset + pg.limit);
+        {
+          const rows = pageRows;
           return {
             ...listEnvelope({
               asOf: at,
@@ -366,9 +454,11 @@ export function createAiPipeline(base: AgentBase, ai: AiDeps) {
               ordering: { key: 'createdAt', direction: 'desc', tieBreak: 'draftRef' },
               total,
             }),
-            items: rows.map((r) => present(r, r.state !== 'stale', at)),
+            items: rows.map(({ row: r, fresh: f }) =>
+              present(r, r.state === 'offered' || r.state === 'flagged' ? f : r.state !== 'stale', at),
+            ),
           };
-        });
+        }
       });
     },
 
@@ -383,19 +473,20 @@ export function createAiPipeline(base: AgentBase, ai: AiDeps) {
           validateAiDraftAccept,
           p,
         );
-        const row = await deps.withTenantTransaction(ctx, (tx) => load(tx, p.draftRef));
-        if (!row) throw notFound();
+        // A caller who cannot read every source gets one 404 and writes nothing (no stale transition).
+        const { row, fresh: sourcesFresh } = await visible(ctx, p.draftRef);
         if (row.version !== p.expectedVersion) throw stale(row.version);
         if (row.state !== 'offered' && row.state !== 'flagged') throw conflict(`draft_${row.state}`);
-        if (row.state === 'flagged' && p.editedText === undefined)
+        // A flagged draft is never accepted as generated: the reviewer must actually change the text.
+        if (
+          row.state === 'flagged' &&
+          (p.editedText === undefined || p.editedText.trim() === row.text.trim())
+        )
           throw conflict('flagged_draft_requires_edit');
-        if (!(await fresh(ctx, row))) {
-          await deps.withTenantTransaction(ctx, (tx) =>
-            tx.query(
-              `UPDATE cuspatlas.ai_drafts SET state = 'stale', version = version + 1 WHERE id = $1 AND state IN ('offered', 'flagged')`,
-              [row.id],
-            ),
-          );
+        // The use case must still be runnable (tenant switch, use-case switch, A12 gate) at acceptance.
+        await deps.withTenantTransaction(ctx, (tx) => assertRunnable(tx, row.use_case));
+        if (!sourcesFresh) {
+          await markStale(ctx, row.id);
           throw conflict('draft_stale');
         }
         // Claim the decision for this human (a concurrent decider gets a retryable conflict).
@@ -479,6 +570,8 @@ export function createAiPipeline(base: AgentBase, ai: AiDeps) {
         checkEnvelope(envelope, op);
         const p = envelope.payload;
         validate<{ draftRef: string; expectedVersion: number; reason: string }>(validateAiDraftReject, p);
+        // The reviewer must be able to read every source (else one 404, nothing written).
+        await visible(ctx, p.draftRef);
         return deps.withTenantTransaction(ctx, async (tx) => {
           const row = await load(tx, p.draftRef, true);
           if (!row) throw notFound();
@@ -525,10 +618,10 @@ export function createAiPipeline(base: AgentBase, ai: AiDeps) {
               registered: e.registered,
               approval: e.approval,
               enabled: tenantOn && settings.get(useCase) === true && e.approval !== 'notApproved',
-              gate: ai.gate ? await ai.gate(tx, useCase, ai.model?.modelRef ?? 'none') : ('none' as const),
+              gate: ai.gate ? await ai.gate(tx, useCase, ai.model?.modelRef ?? 'none') : ('ungated' as const),
               modelRef: ai.model?.modelRef ?? 'none',
               promptVersionRef: e.promptVersionRef,
-              caseSetVersion: e.caseSetVersion,
+              caseSetVersion: caseSetVersionOf(useCase),
             });
           }
           return {

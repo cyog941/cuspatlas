@@ -16,6 +16,7 @@ export type AiSourceKind = 'encounter' | 'note' | 'thread' | 'claim';
 
 export interface ModelSource {
   readonly kind: AiSourceKind;
+  /** Opaque per-draft source index (S1, S2...); never a record reference. */
   readonly ref: string;
   /** Minimized text of a record the caller may already read; data, never instructions. */
   readonly text: string;
@@ -123,7 +124,7 @@ export const looksLikeInjection = (text: string): boolean => INJECTION.some((r) 
 
 /** Marks the source delimiters inside a source so quoted data can never close its own envelope. */
 export const quoteSource = (s: ModelSource): string =>
-  `<<source kind=${s.kind} ref=${s.ref}>>\n${s.text.replace(/<</g, '‹‹').replace(/>>/g, '››')}\n<</source>>`;
+  `<<source kind=${s.kind} n=${s.ref}>>\n${s.text.replace(/<</g, '‹‹').replace(/>>/g, '››')}\n<</source>>`;
 
 const REFERENCE_TOKENS = [/#\d{1,2}\b/g, /\btooth\s+\d{1,2}\b/gi, /\b\d{4}-\d{2}-\d{2}\b/g, /\bD\d{4}\b/g];
 /** Fabrication check: every tooth, date or procedure code in the draft must appear in a source. */
@@ -136,6 +137,79 @@ export function unsupportedReferences(draft: string, sources: readonly ModelSour
   for (const re of REFERENCE_TOKENS)
     for (const m of draft.matchAll(re)) if (!corpus.includes(m[0].toLowerCase())) out.add(m[0]);
   return [...out];
+}
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const DOB_LIKE = [
+  /\b(?:dob|d\.o\.b\.?|date\s+of\s+birth|birth\s*date|born(?:\s+on)?)\b\s*[:=-]?\s*[^\n,;]{0,24}/gi,
+];
+/**
+ * Data minimization of identifiers before the model (A-D5): the patient's names and birth date (the
+ * S4 patient-summary fields of the patients the sources name, read through the patient owner as the
+ * caller) and DOB-like phrases are redacted. This is pattern-based minimization, not de-identification:
+ * other free-text identifiers can remain (docs/ai/evaluation.md).
+ */
+export function redactIdentifiers(text: string, identifiers: readonly string[]): string {
+  let out = DOB_LIKE.reduce((t, re) => t.replace(re, '[redacted]'), text);
+  const values = [...new Set(identifiers.filter((v) => v.trim().length >= 2))].sort(
+    (a, b) => b.length - a.length,
+  );
+  for (const v of values) out = out.replace(new RegExp(`\\b${escapeRe(v.trim())}\\b`, 'gi'), '[redacted]');
+  return out;
+}
+
+/** Name and birth-date strings of an S4 patient summary (legalName, preferredName, birthDate). */
+export function summaryIdentifiers(summary: unknown): string[] {
+  const out: string[] = [];
+  const s = (summary ?? {}) as Record<string, unknown>;
+  const walk = (v: unknown, key: string) => {
+    if (typeof v === 'string') {
+      if (!['state', 'reason', 'precision', 'kind'].includes(key)) out.push(v);
+    } else if (v !== null && typeof v === 'object') for (const [k, x] of Object.entries(v)) walk(x, k);
+  };
+  for (const k of ['legalName', 'preferredName', 'birthDate']) walk(s[k], k);
+  // A day-precision ISO birth date is also redacted in the common US form.
+  for (const d of [...out]) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d);
+    if (m) out.push(`${m[2]}/${m[3]}/${m[1]}`, `${Number(m[2])}/${Number(m[3])}/${m[1]}`);
+  }
+  return out;
+}
+
+export interface PreparedInput {
+  /** Sources as the model sees them: an opaque per-draft index (S1, S2...) instead of any record ref. */
+  readonly modelSources: readonly ModelSource[];
+  readonly instructions: string;
+  readonly injection: boolean;
+}
+/**
+ * The ONE preparation path for model input, shared by the pipeline and the A12 evaluation harness:
+ * injection screening of the source text, contact and identifier redaction, an opaque source index in
+ * place of record references, and quoting as data.
+ */
+export function prepareModelInput(
+  entry: UseCaseEntry,
+  sources: readonly { kind: AiSourceKind; text: string }[],
+  identifiers: readonly string[] = [],
+): PreparedInput {
+  const injection = sources.some((s) => looksLikeInjection(s.text));
+  const modelSources = sources.map((s, i) => ({
+    kind: s.kind,
+    ref: `S${i + 1}`,
+    text: redactIdentifiers(redactContacts(s.text), identifiers),
+  }));
+  return {
+    modelSources,
+    injection,
+    instructions: `${entry.instructions}\n${modelSources.map(quoteSource).join('\n')}`,
+  };
+}
+/** Review flags of a generated draft: hostile source or output text, unsupported references. */
+export function draftFlags(prepared: PreparedInput, output: string): string[] {
+  return [
+    ...(prepared.injection || looksLikeInjection(output) ? ['injection_suspected'] : []),
+    ...(unsupportedReferences(output, prepared.modelSources).length > 0 ? ['unsupported_reference'] : []),
+  ];
 }
 
 /**

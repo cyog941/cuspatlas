@@ -7,10 +7,12 @@ import {
 import {
   AI_EVAL_CASE_SETS,
   AI_USE_CASE_REGISTRY,
+  caseSetVersionOf,
   createAgentService,
   createAuthorize,
   createSyntheticModelAdapter,
   type ModelAdapter,
+  runEvaluation,
 } from '@cuspatlas/domain';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { type AgentStack, startAgentStack } from './support/agent-stack';
@@ -75,6 +77,25 @@ describe('A12 evaluation harness', () => {
     }
   });
 
+  it('the harness prepares input through the pipeline preparation; the case-set version digests the cases', async () => {
+    const seen: string[] = [];
+    const inner = createSyntheticModelAdapter();
+    const model: ModelAdapter = {
+      ...inner,
+      generate(req) {
+        seen.push(req.instructions);
+        return inner.generate(req);
+      },
+    };
+    await runEvaluation(model, 'clinicalNoteDraft', 'note-draft.1', 1);
+    expect(seen.length).toBeGreaterThan(0);
+    for (const i of seen) {
+      expect(i).not.toMatch(/ref=/);
+      expect(i).toMatch(/n=S1/);
+    }
+    expect(caseSetVersionOf('clinicalNoteDraft')).toMatch(/^note-draft-cases[.]1[.][0-9a-f]{12}$/);
+  });
+
   it('a passing run names the model, prompt version and case set and the red-team corpus is caught', async () => {
     const r = await run({ useCase: 'clinicalNoteDraft', repetitions: 3 });
     expect(r.status).toBe(201);
@@ -83,7 +104,7 @@ describe('A12 evaluation harness', () => {
     expect(d).toMatchObject({
       modelRef: 'synthetic-model.1',
       promptVersionRef: 'note-draft.1',
-      caseSetVersion: 'note-draft-cases.1',
+      caseSetVersion: caseSetVersionOf('clinicalNoteDraft'),
       repetitions: 3,
     });
     expect(d.metrics.faithfulness).toBe(1);

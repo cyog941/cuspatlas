@@ -36,6 +36,7 @@ import {
   type AttemptRecordingDeps,
   BILLING_POST_MERGE_PROBE,
   type BudgetTicket,
+  type BudgetWarning,
   CLINICAL_POST_MERGE_FACT_PROBES,
   type ClaimsPartnerPort,
   type CommandExecutor,
@@ -72,6 +73,7 @@ import {
   resolveMatchKeyPepper,
   resolveModelAdapter,
   runInListScope,
+  runWithBudgetMeter,
   type StagingMaintenance,
 } from '@cuspatlas/domain';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -488,7 +490,7 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     owners: { patients, engagement, billing },
     ai: {
       model: resolveModelAdapter(deps.env, deps.aiModel),
-      readers: createAiSourceReaders({ clinical, engagement, billing }),
+      readers: createAiSourceReaders({ clinical, engagement, billing, patients }),
       owners: {
         createNoteDraft: (c, r, e) => clinical.createNoteDraft(c, r, e),
         postStaffMessage: (c, r, e) => engagement.postStaffMessage(c, r, e),
@@ -527,6 +529,8 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
       return e ? [[t.name, deprecationNotice(e)] as const] : [];
     }),
   );
+  const withBudgetWarning = (meta: { _meta?: Record<string, unknown> }, w: BudgetWarning | null) =>
+    w ? { _meta: { ...(meta._meta ?? {}), budgetWarning: w } } : meta;
   const metaFor = (name: string) => {
     const n = notices.get(name);
     return n ? { _meta: { deprecation: n } } : {};
@@ -568,24 +572,31 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
       const listSpec = LIST_OPERATIONS[registered.tool.operationId];
       const asOf = new Date();
       const listScope = newListScope();
-      const ran = await runInListScope(listScope, async () =>
-        registered.tool.run(toolDeps, actor, args, valid, violations),
-      );
+      const run = () =>
+        runInListScope(listScope, async () => registered.tool.run(toolDeps, actor, args, valid, violations));
+      // H3: content a handler reads or moves for an agent is charged before its effect.
+      const live = ticket;
+      const ran = live
+        ? await runWithBudgetMeter((m) => agents.chargeToolCall(actor, live, m), run)
+        : await run();
       const result = attachVocabularyVersions(
         registered.tool.operationId,
         listSpec
           ? attachListEnvelope(listSpec, ran, { asOf, filters: args, locationRefs: listScope.locationRefs })
           : ran,
       );
+      let budgetWarning: BudgetWarning | null = null;
       if (ticket) {
         settled = true;
-        await agents.settleToolCall(
-          actor,
-          ticket,
-          registered.tool.readOnly ? 'query' : 'command',
-          result,
-          'ok',
-        );
+        if (registered.tool.readOnly) {
+          await agents.settleToolCall(actor, ticket, 'query', result, 'ok');
+        } else {
+          // H3: a command's effect has happened; a settlement failure (or a budget exceeded by its
+          // result) is a warning on the success, never a refusal of an effect that took place.
+          budgetWarning = await agents
+            .settleToolCall(actor, ticket, 'command', result, 'ok')
+            .catch((): BudgetWarning => ({ reason: 'budget_settlement_failed' }));
+        }
       }
       if (!valid) {
         // Defense in depth: an input rejected by the tool schema can never succeed.
@@ -600,7 +611,7 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
       return {
         content: [{ type: 'text' as const, text: JSON.stringify(result) }],
         structuredContent: result as Record<string, unknown>,
-        ...metaFor(name),
+        ...withBudgetWarning(metaFor(name), budgetWarning),
       };
     } catch (err) {
       const { body } = mapErrorToRefusal(err, actor.correlationId);

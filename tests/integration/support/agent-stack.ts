@@ -18,6 +18,8 @@ export const allScopes: string[] = buildScopeRegistry(catalog).scopes.map((x) =>
 export interface AgentCall {
   readonly isError: boolean;
   readonly body: Record<string, unknown>;
+  /** The tool result _meta (e.g. a budget warning on a command that took effect). */
+  readonly meta?: Record<string, unknown> | undefined;
 }
 
 export interface AgentHandle {
@@ -149,7 +151,11 @@ export async function startAgentStack(label: string): Promise<AgentStack> {
   const agentCall: AgentStack['agentCall'] = async (client, tool, args) => {
     try {
       const r = await client.callTool({ name: tool, arguments: args });
-      return { isError: r.isError === true, body: (r.structuredContent ?? {}) as Record<string, unknown> };
+      return {
+        isError: r.isError === true,
+        body: (r.structuredContent ?? {}) as Record<string, unknown>,
+        meta: r._meta as Record<string, unknown> | undefined,
+      };
     } catch (err) {
       const m = /\{.*\}/.exec(String((err as Error).message));
       return {

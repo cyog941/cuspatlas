@@ -4,9 +4,10 @@ import { vocabularyEntry as e, type ModuleVocabularies } from './types';
  * OR-02 agent and AI state vocabularies (owner A, workstream A batch 2: A8 agent principals, A9
  * consents, A10 proposals, A11 drafts, A12 evaluation runs and the use-case registry, A13 prescribing
  * envelope). Labels are synthetic operator-facing plain English pending workflow validation; no colour or
- * layout. Budgets carry no state code (counters only). The use-case `gate` (an evaluation verdict, or `stale`/
- * `none`) is a derived read field, not a stored state; it has no vocabulary because `none` is a reserved
- * filter sentinel. `sources` are DB CHECK columns or schema enums
+ * layout. Budgets carry no state code (counters only). The use-case `gate` (an evaluation verdict,
+ * `stale` or `ungated`) is a derived read field, not a stored state; H3 renamed its former `none` value
+ * (a reserved filter sentinel) to `ungated` so it carries a vocabulary (no stored row ever held it, so
+ * no data migration is needed). `sources` are DB CHECK columns or schema enums
  * (tests/integration/vocabularies.test.ts).
  */
 export const AGENTS_VOCABULARIES: ModuleVocabularies = {
@@ -62,6 +63,17 @@ export const AGENTS_VOCABULARIES: ModuleVocabularies = {
         e('pass', 'PASS', 'Passed', 'lifecycle', true),
         e('fail', 'FAIL', 'Failed', 'exception', true),
         e('inconclusive', 'INC', 'Inconclusive', 'exception', true),
+      ],
+    },
+    {
+      name: 'ai_use_case_gate',
+      sources: ['schema:agents:AiUseCaseState.gate'],
+      entries: [
+        e('pass', 'PASS', 'Evaluation passed', 'lifecycle', false),
+        e('fail', 'FAIL', 'Evaluation failed', 'exception', false),
+        e('inconclusive', 'INC', 'Evaluation inconclusive', 'exception', false),
+        e('stale', 'STL', 'Evaluated for another model, prompt or case set', 'exception', false),
+        e('ungated', 'UNG', 'Not yet evaluated', 'exception', false),
       ],
     },
     {

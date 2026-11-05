@@ -16,8 +16,23 @@ export {
 } from './ai';
 export * from './ai-port';
 export * from './codecs';
-export { AI_EVAL_CASE_SETS, AI_EVAL_THRESHOLDS, type EvalCase, evaluationGate, runEvaluation } from './eval';
-export { AGENT_CONSENT_RESOURCE, type BudgetTicket, measureResult } from './governance';
+export {
+  AI_EVAL_CASE_SETS,
+  AI_EVAL_THRESHOLDS,
+  caseSetVersionOf,
+  type EvalCase,
+  evaluationGate,
+  runEvaluation,
+} from './eval';
+export {
+  AGENT_CONSENT_RESOURCE,
+  type BudgetMeasure,
+  type BudgetTicket,
+  type BudgetWarning,
+  chargeBudget,
+  measureResult,
+  runWithBudgetMeter,
+} from './governance';
 export type {
   PrescriberIdentity,
   PrescriberVerification,

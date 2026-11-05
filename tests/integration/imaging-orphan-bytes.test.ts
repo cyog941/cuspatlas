@@ -106,7 +106,13 @@ describe('A5 orphan-bytes sweep', () => {
     expect(rec.rows[0].tenant_id).toBe(T_ALPHA);
     expect(rec.rows[0].actor_id).toBe(USER_A1);
     expect(rec.rows[0].dry_run).toBe(false);
-    expect(rec.rows[0].removed_digests).toContain(d);
+    // Closeout D3: the removal is recorded on its durable intent, committed before the bytes were removed.
+    expect(rec.rows[0].removed_digests).toStrictEqual([]);
+    const intent = await s.db.admin.query(
+      'SELECT state, sweep_id, completed_by FROM cuspatlas.imaging_orphan_removals WHERE digest_sha256 = $1',
+      [d],
+    );
+    expect(intent.rows).toStrictEqual([{ state: 'removed', sweep_id: out.sweepRef, completed_by: USER_A1 }]);
     expect(rec.rows[0].scanned_count).toBe(out.scanned);
     const audit = await s.db.admin.query(
       `SELECT actor_id, resource_type FROM cuspatlas.audit_events

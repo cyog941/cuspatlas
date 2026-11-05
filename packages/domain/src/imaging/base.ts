@@ -51,6 +51,8 @@ export interface StagingMaintenance {
   ): Promise<{ storageKey: string; digestSha256: string; modifiedAt: Date }[]>;
   /** A5: removes one content file only if it is still older than the window; whether it did. */
   removeContentIfOlderThan(tenantId: string, storageKey: string, olderThanMs: number): Promise<boolean>;
+  /** Closeout D3: the write time of one content file, or null when it does not exist. */
+  contentModifiedAt(tenantId: string, storageKey: string): Promise<Date | null>;
 }
 
 export interface ImagingDeps {

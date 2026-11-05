@@ -227,6 +227,7 @@ describe('runtime database role', () => {
       'imaging_mounts',
       'imaging_object_provenance',
       'imaging_objects',
+      'imaging_orphan_removals',
       'imaging_orphan_sweeps',
       'imaging_read_grants',
       'imaging_retention_policies',

@@ -5839,6 +5839,8 @@ export type ImagingStorageOrphanSweepResult = {
       readonly "contentLocked": number;
     };
     readonly "more": boolean;
+    readonly "pending": number;
+    readonly "resumed": number;
   };
   readonly "version": ImagingVersion;
   readonly "correlationId": string;

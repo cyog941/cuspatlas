@@ -12,7 +12,13 @@ import {
   createSecurityAttemptSink,
   createTenantTransactionRunner,
 } from '@cuspatlas/db';
-import { encodePng, type ImagingLimits, resolveBridgeSigningKey, syntheticRaster } from '@cuspatlas/domain';
+import {
+  encodePng,
+  type ImagingLimits,
+  resolveBridgeSigningKey,
+  type StagingMaintenance,
+  syntheticRaster,
+} from '@cuspatlas/domain';
 import { buildMcpServer, type McpServerHandle } from '@cuspatlas/mcp';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -194,6 +200,8 @@ export async function startImagingStack(
     seed?: boolean;
     /** Test-only: wraps the per-run store (for example to pause inside a port call). */
     wrapStore?: (store: ObjectStorePort) => ObjectStorePort;
+    /** Test-only (Closeout D3): wraps the maintenance port (for example to fail between removal steps). */
+    wrapMaintenance?: (m: StagingMaintenance) => StagingMaintenance;
     /** A14/A15: extra transport deps (webhook port, allowlist, resolver) passed to REST and MCP alike. */
     extraDeps?: Record<string, unknown>;
   } = {},
@@ -228,7 +236,11 @@ export async function startImagingStack(
       ? {}
       : { objectStore: opts.wrapStore ? opts.wrapStore(temp.store) : temp.store }),
     ...(opts.limits ? { imagingLimits: opts.limits } : {}),
-    ...(opts.withStore === false ? {} : { stagingMaintenance: createLocalStagingMaintenance(temp.root) }),
+    ...(opts.withStore === false
+      ? {}
+      : {
+          stagingMaintenance: (opts.wrapMaintenance ?? ((m) => m))(createLocalStagingMaintenance(temp.root)),
+        }),
     ...(opts.extraDeps ?? {}),
   };
   const app = await buildApp({

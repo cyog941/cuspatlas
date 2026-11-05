@@ -73,6 +73,8 @@ export const orphanSweepCodec: ReplayCodec<Record<string, unknown>> = {
       kept,
       orphans: _o,
       removed: _r,
+      pending: _p,
+      resumed: _s,
       ...rest
     } = data as Record<string, unknown> & {
       kept: Record<string, number>;
@@ -89,7 +91,7 @@ export const orphanSweepCodec: ReplayCodec<Record<string, unknown>> = {
       kept[k] = flat[keptKey(k)];
       delete flat[keptKey(k)];
     }
-    return { ...flat, orphans: [], removed: [], kept };
+    return { ...flat, orphans: [], removed: [], pending: 0, resumed: 0, kept };
   },
 };
 

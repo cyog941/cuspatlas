@@ -515,7 +515,18 @@
         "data": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["sweepRef", "dryRun", "graceHours", "scanned", "orphans", "removed", "kept", "more"],
+          "required": [
+            "sweepRef",
+            "dryRun",
+            "graceHours",
+            "scanned",
+            "orphans",
+            "removed",
+            "kept",
+            "more",
+            "pending",
+            "resumed"
+          ],
           "properties": {
             "sweepRef": {
               "$ref": "#/$defs/EntityRef"
@@ -546,7 +557,7 @@
               "items": {
                 "$ref": "#/$defs/Sha256"
               },
-              "description": "Digests whose bytes this run removed (always empty in a dry run)."
+              "description": "Digests whose bytes this run removed (always empty in a dry run). Closeout D3: read back from the removal intents, so it includes a digest whose bytes were already gone when its intent was finished."
             },
             "kept": {
               "type": "object",
@@ -588,6 +599,16 @@
             },
             "more": {
               "type": "boolean"
+            },
+            "pending": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Closeout D3: this run's committed removal intents not yet finished (a later real run or a same-key retry finishes them)."
+            },
+            "resumed": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Closeout D3: removal intents an earlier run left open that this run finished (removed, kept or reconciled as already absent)."
             }
           }
         },

@@ -385,6 +385,7 @@ export function createLocalStagingMaintenance(root: string): {
     limit: number,
   ): Promise<{ storageKey: string; digestSha256: string; modifiedAt: Date }[]>;
   removeContentIfOlderThan(tenantId: string, storageKey: string, olderThanMs: number): Promise<boolean>;
+  contentModifiedAt(tenantId: string, storageKey: string): Promise<Date | null>;
 } {
   const contentPath = (tenantId: string, storageKey: string) => {
     assertTenant(tenantId);
@@ -422,6 +423,14 @@ export function createLocalStagingMaintenance(root: string): {
       if (!st?.isFile() || Date.now() - st.mtimeMs <= olderThanMs) return false;
       await rm(abs, { force: true }).catch(fsFailure);
       return true;
+    },
+    /** Closeout D3: one content file's write time, or null when it does not exist. */
+    async contentModifiedAt(tenantId, storageKey) {
+      const st = await stat(contentPath(tenantId, storageKey)).catch((err: unknown) => {
+        if ((err as { code?: unknown }).code === 'ENOENT') return null;
+        throw new ObjectStoreError('unavailable');
+      });
+      return st?.isFile() ? st.mtime : null;
     },
     async listStagedOlderThan(tenantId, olderThanMs) {
       assertTenant(tenantId);

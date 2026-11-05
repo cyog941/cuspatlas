@@ -201,19 +201,22 @@ export function createIdentityOperations(base: MigrationBase) {
           if (!item.ids.includes(p.survivorRef) || !item.ids.includes(p.mergedRef))
             throw failed('not_in_group');
         });
-        // S6 checks its own scope (patients.merge), human principal and confirmation token.
-        const r = await deps.patients.mergePatients(ctx, {
-          operation: 'patients.merge',
-          idempotencyKey: envelope.idempotencyKey,
-          payload: {
-            survivorRef: p.survivorRef,
-            mergedRef: p.mergedRef,
-            confirmationToken: p.confirmationToken,
-            reasonCode: p.reasonCode,
+        // S6 checks its own scope (patients.merge), human principal and confirmation token. The change
+        // sequence is bumped inside the merge transaction (H2 M-3): a crash can never leave a merge
+        // without the bump that makes earlier reports and sign-offs stale.
+        const r = await deps.patients.mergePatients(
+          ctx,
+          {
+            operation: 'patients.merge',
+            idempotencyKey: envelope.idempotencyKey,
+            payload: {
+              survivorRef: p.survivorRef,
+              mergedRef: p.mergedRef,
+              confirmationToken: p.confirmationToken,
+              reasonCode: p.reasonCode,
+            },
           },
-        });
-        if (!r.replayed) {
-          await deps.withTenantTransaction(ctx, async (tx) => {
+          async (tx) => {
             const pkg = await loadPackage(tx, p.packageRef, 'FOR UPDATE');
             const version = await bumpChange(tx, pkg.id);
             await recordCommand(
@@ -226,8 +229,8 @@ export function createIdentityOperations(base: MigrationBase) {
               },
               { changedFields: ['identityMerge'] },
             );
-          });
-        }
+          },
+        );
         return r;
       });
     },

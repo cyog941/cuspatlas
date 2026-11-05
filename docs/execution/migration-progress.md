@@ -159,3 +159,8 @@ recommended-pending-approval). Tests in `tests/integration/migration-hardening.t
   the current change sequence and come from a human with a live `migration.signoff` membership.
   Runtime-role tests: forged item (no run, changed amount, other patient), forged cutover, skipped
   change sequence, forged digest and service signer all 42501. Red 2/3 failing; green 3/3.
+- M-3 merge and bump are atomic: S6 `mergePatients` takes an internal-only `within(tx)` callback run in
+  the merge transaction after the merge (never on a replay, never reachable from REST/MCP); the
+  migration merge bumps the change sequence and records its command there. Test: a simulated crash
+  at the bump rolls back the merge; the retry with the same key merges and bumps once; a further
+  replay bumps nothing. Red 1/1 failing (merge committed without bump); green 4/4.

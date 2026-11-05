@@ -201,3 +201,70 @@ describe('H2 M-2 database guards under the runtime role', () => {
     expect(await asApp(USER_A1, [sign(report.reportDigest)])).toBe('accepted');
   });
 });
+
+/** A package whose two source rows are one person decided `mergeAfterImport`, applied. */
+const appliedDuplicatePair = async (tag: string) => {
+  const pkg = await stage({
+    patients: `${HEAD.patients}${tag}1,Twin,Rory${tag},1966-06-06,5550600001,G1\n${tag}2,Twin,Rory${tag},1966-06-06,5550600002,G1\n`,
+  });
+  const group = (await openItems(pkg)).find((i) => i.category === 'identity') as Item;
+  h.ok(await resolve(pkg, group.itemRef, 'mergeAfterImport'));
+  h.ok(await apply(pkg));
+  const { rows } = await db.admin.query(
+    `SELECT a.patient_id FROM cuspatlas.migration_applied_records a
+     WHERE a.staged_record_id = ANY ($1::uuid[]) ORDER BY a.source_id`,
+    [group.stagedRefs],
+  );
+  const [survivor, merged] = rows.map((r) => r.patient_id as string) as [string, string];
+  const token = h
+    .ok<{ data: { candidateRef: string; confirmationToken: string }[] }>(
+      await h.call('a1', 'GET', `/v1/patients/${survivor}/duplicate-candidates`),
+    )
+    .data.find((c) => c.candidateRef === merged)?.confirmationToken as string;
+  return {
+    pkg,
+    survivor,
+    merged,
+    body: {
+      packageRef: pkg,
+      itemRef: group.itemRef,
+      survivorRef: survivor,
+      mergedRef: merged,
+      confirmationToken: token,
+      reasonCode: 'duplicate_registration',
+    },
+  };
+};
+const changeSeq = async (pkg: string) =>
+  (await db.admin.query('SELECT change_seq FROM cuspatlas.migration_packages WHERE id = $1', [pkg])).rows[0]
+    ?.change_seq as number;
+const mergedInto = async (patient: string) =>
+  (await db.admin.query('SELECT merged_into FROM cuspatlas.patients WHERE id = $1', [patient])).rows[0]
+    ?.merged_into as string | null;
+
+describe('H2 M-3 a merge and its change-sequence bump commit together', () => {
+  it('a crash before the bump leaves no merge; the retry merges and bumps once', async () => {
+    const m = await appliedDuplicatePair('MC');
+    const before = await changeSeq(m.pkg);
+    // Simulated crash: the package bump fails after S6 has done its work.
+    await db.admin.query(`CREATE FUNCTION cuspatlas.h2_crash() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN IF NEW.change_seq <> OLD.change_seq THEN RAISE EXCEPTION 'simulated crash'; END IF; RETURN NEW; END $$`);
+    await db.admin.query(
+      'CREATE TRIGGER h2_crash BEFORE UPDATE ON cuspatlas.migration_packages FOR EACH ROW EXECUTE FUNCTION cuspatlas.h2_crash()',
+    );
+    const key = '7d1e9b2a-3c4f-4a5b-8c6d-7e8f9a0b1c2d';
+    try {
+      const crashed = await h.call('a1', 'POST', '/v1/migration/identity/merges', m.body, key);
+      expect(crashed.statusCode).toBeGreaterThanOrEqual(500);
+    } finally {
+      await db.admin.query('DROP TRIGGER h2_crash ON cuspatlas.migration_packages');
+      await db.admin.query('DROP FUNCTION cuspatlas.h2_crash()');
+    }
+    expect([await mergedInto(m.merged), await changeSeq(m.pkg)]).toStrictEqual([null, before]);
+    h.ok(await h.call('a1', 'POST', '/v1/migration/identity/merges', m.body, key), 201);
+    expect([await mergedInto(m.merged), await changeSeq(m.pkg)]).toStrictEqual([m.survivor, before + 1]);
+    // A replay changes nothing further.
+    h.ok(await h.call('a1', 'POST', '/v1/migration/identity/merges', m.body, key), 201);
+    expect(await changeSeq(m.pkg)).toBe(before + 1);
+  });
+});

@@ -2,6 +2,31 @@
   "version": 2,
   "operations": [
     {
+      "operation": "appointments.detail",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "scheduling.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/appointments/{appointmentRef}/detail"
+      },
+      "mcpTool": "appointments_detail",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
       "operation": "billing.adjustments.decide",
       "transports": [
         "rest",
@@ -17373,6 +17398,31 @@
         "404",
         "409",
         "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "schedule.view",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "scheduling.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/schedule/view"
+      },
+      "mcpTool": "schedule_view",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
         "503"
       ]
     },

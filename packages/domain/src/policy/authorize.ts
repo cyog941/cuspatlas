@@ -20,6 +20,10 @@ export const ACTION_POLICIES = {
   // A20 / OR-02: state vocabularies (labels only, no tenant data) for any active staff member.
   'vocabularies.list': { scope: null, principals: ['human', 'service'] },
   'vocabularies.read': { scope: null, principals: ['human', 'service'] },
+  // A21 (OR-09/OR-10) read composers: the composite needs scheduling.read; every component is then
+  // authorized by its owning domain's own read action (restricted when denied).
+  'schedule.view': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  'appointments.detail': { scope: 'scheduling.read', principals: ['human', 'service'] },
   'syntheticTasks.read': { scope: 'syntheticTasks.read', principals: ['human', 'service'] },
   'syntheticTasks.create': { scope: 'syntheticTasks.write', principals: ['human', 'service'] },
   'syntheticTasks.relabel': { scope: 'syntheticTasks.write', principals: ['human', 'service'] },

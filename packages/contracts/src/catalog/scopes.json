@@ -852,9 +852,12 @@
       ],
       "humanOnly": false,
       "owners": [
+        "A",
         "S"
       ],
       "operations": [
+        "appointments.detail",
+        "schedule.view",
         "scheduling.appointments.read",
         "scheduling.attendance.list",
         "scheduling.attendance.visitStatus",

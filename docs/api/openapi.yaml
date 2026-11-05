@@ -12577,6 +12577,88 @@ paths:
         '503':
           $ref: '#/components/responses/Refusal'
   # END generated: MIGRATION_OPS
+  # BEGIN: READ_OPS (A batch 3 read surfaces)
+  /v1/schedule/view:
+    get:
+      operationId: schedule.view
+      description: >-
+        A21 (OR-03, OR-09): one location and local date range (at most 14 days) in one call: booked
+        appointments with type, time, resources, request link and attendance state with allowed next
+        transitions; time blocks as single objects spanning their resources; unavailable intervals per
+        resource with reason (closed, blocked, outside_availability), distinct from free time; counters with
+        scope. grain=detailed adds per-appointment components (patient summary, coverage verification,
+        balance, planned procedures), each ok, restricted (caller may not see it) or unavailable (producer
+        missing) with its own freshness. Writes nothing.
+      parameters:
+        - name: locationRef
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/LocationRef'
+        - name: from
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/LocalDate'
+        - name: to
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/LocalDate'
+        - name: grain
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/ScheduleViewQuery'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/ScheduleViewResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/appointments/{appointmentRef}/detail:
+    get:
+      operationId: appointments.detail
+      description: >-
+        A21 (OR-10): one appointment with its patient summary (name, age, chart identifier; phone only with
+        communications read), coverage verification status and carrier, balance summary, planned procedures
+        with tooth and surfaces, attendance with next transitions, and a chart reference. Each component is
+        ok, restricted or unavailable with its own freshness. Writes nothing.
+      parameters:
+        - name: appointmentRef
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/Uuid'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/AppointmentDetailResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  # END: READ_OPS
 components:
   securitySchemes:
     bearer:

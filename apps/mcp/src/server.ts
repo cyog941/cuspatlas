@@ -55,6 +55,7 @@ import {
   createMigrationService,
   createPatientService,
   createProposalService,
+  createReadSurfaceService,
   createSchedulingResourceService,
   createSyntheticPaymentProvider,
   createSyntheticTaskService,
@@ -89,6 +90,7 @@ import { IMAGING_TOOLS } from './tools/imaging-ops';
 import { MIGRATION_TOOLS } from './tools/migration-ops';
 import { PATIENT_TOOLS } from './tools/patients';
 import { PROPOSAL_TOOLS } from './tools/proposals';
+import { READ_OP_TOOLS } from './tools/read-ops';
 import { SCHEDULING_TOOLS } from './tools/scheduling';
 import { SCHEDULING_OP_TOOLS } from './tools/scheduling-ops';
 import {
@@ -201,6 +203,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   ...ENGAGEMENT_OP_TOOLS,
   ...IMAGING_TOOLS,
   ...MIGRATION_TOOLS,
+  ...READ_OP_TOOLS,
 ];
 
 /** Path parameters of the REST twin. A malformed one is a 404 there, decided by the domain. */
@@ -481,6 +484,7 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     engagement,
     imaging,
     migration,
+    reads: createReadSurfaceService({ authorize, withTenantTransaction: deps.tenantTransactions, recording }),
     authorize,
     recording,
   };

@@ -8,7 +8,7 @@
 
 export type Transport = 'rest' | 'mcp' | 'portal' | 'bridge' | 'worker';
 export type CatalogPrincipal = 'human' | 'service' | 'portal' | 'device';
-export type OwnerWorkstream = 'F' | 'S' | 'C' | 'B' | 'E' | 'I' | 'M';
+export type OwnerWorkstream = 'F' | 'A' | 'S' | 'C' | 'B' | 'E' | 'I' | 'M';
 
 /**
  * How the operation is authorized. `authorize`: the one staff policy table (ACTION_POLICIES) through

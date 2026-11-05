@@ -26,6 +26,7 @@ import {
   type MigrationService,
   type PatientService,
   type ProposalService,
+  type ReadSurfaceService,
   type SchedulingResourceService,
   type SyntheticTaskService,
   withAttemptRecording,
@@ -110,6 +111,8 @@ export interface ToolDeps {
   readonly imaging: ImagingService;
   /** Workstream M migration intake, import, reconciliation and sign-off. */
   readonly migration: MigrationService;
+  /** A batch 3 read surfaces (composers, preferences, navigation, analytics, administration, huddle). */
+  readonly reads: ReadSurfaceService;
   readonly authorize: Authorize;
   readonly recording: AttemptRecordingDeps;
 }

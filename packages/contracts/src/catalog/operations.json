@@ -1,5 +1,38 @@
 [
   {
+    "operation": "appointments.detail",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "appointments.detail",
+    "scope": "scheduling.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/appointments/{appointmentRef}/detail",
+      "successStatus": "200",
+      "successSchema": "AppointmentDetailResult"
+    },
+    "mcpTool": "appointments_detail",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
     "operation": "billing.adjustments.decide",
     "owner": "B",
     "kind": "command",
@@ -10279,6 +10312,39 @@
       "503"
     ],
     "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "schedule.view",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "schedule.view",
+    "scope": "scheduling.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/schedule/view",
+      "successStatus": "200",
+      "successSchema": "ScheduleViewResult"
+    },
+    "mcpTool": "schedule_view",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
     "sensitivity": "phi",
     "status": "active"
   },

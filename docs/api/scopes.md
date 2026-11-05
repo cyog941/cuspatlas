@@ -53,7 +53,7 @@ human decision (A-D2). No default role grant is asserted here.
 | `portal.manage` | human | no | E | phi | 3 |
 | `receivables.read` | human, service | no | B | phi | 5 |
 | `scheduling.override` | human | yes | S | phi | 1 |
-| `scheduling.read` | human, service | no | S | phi | 29 |
+| `scheduling.read` | human, service | no | A, S | phi | 31 |
 | `scheduling.write` | human, service | no | S | phi | 37 |
 | `syntheticTasks.approve` | human | yes | F | operational | 2 |
 | `syntheticTasks.read` | human, service | no | F | operational | 5 |

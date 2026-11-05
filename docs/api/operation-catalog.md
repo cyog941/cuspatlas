@@ -9,11 +9,12 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-404 operations.
+406 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
 | F | 14 | 12 | 10 | 0 | 0 | 1 |
+| A | 2 | 2 | 2 | 0 | 0 | 0 |
 | S | 92 | 90 | 90 | 0 | 0 | 0 |
 | C | 88 | 87 | 87 | 0 | 0 | 0 |
 | B | 66 | 66 | 66 | 0 | 0 | 0 |
@@ -23,6 +24,7 @@ transport tables and are declarations, not independent proof.
 
 | Operation | Owner | Kind | Authorization | Scope | Principals | Transports | REST | MCP tool | Idempotency | Sensitivity | Status |
 |---|---|---|---|---|---|---|---|---|---|---|---|
+| `appointments.detail` | A | query | authorize | `scheduling.read` | human, service | rest, mcp | GET `/v1/appointments/{appointmentRef}/detail` | `appointments_detail` | none | phi | active |
 | `billing.adjustments.decide` | B | command | authorize | `billing.correct` | human | rest, mcp | POST `/v1/billing/adjustment-requests/{requestRef}/decision` | `billing_adjustments_decide` | required | phi | active |
 | `billing.adjustments.post` | B | command | authorize | `billing.write` | human | rest, mcp | POST `/v1/billing/charges/{chargeRef}/adjustments` | `billing_adjustments_post` | required | phi | active |
 | `billing.balances.read` | B | query | authorize | `ledger.read` | human, service | rest, mcp | GET `/v1/billing/patients/{patientRef}/balance` | `billing_balances_get` | none | phi | active |
@@ -330,6 +332,7 @@ transport tables and are declarations, not independent proof.
 | `rcm.workflows.fireTimer` | B | command | authorize | `billing.write` | service | rest, mcp | POST `/v1/rcm/workflow-timers/{timerRef}/fire` | `rcm_workflows_fire_timer` | required | phi | active |
 | `rcm.workflows.read` | B | query | authorize | `openClaims.read` | human, service | rest, mcp | GET `/v1/rcm/workflows/{workflowRef}` | `rcm_workflows_get` | none | phi | active |
 | `rcm.workflows.start` | B | command | authorize | `billing.write` | human, service | rest, mcp | POST `/v1/rcm/workflows` | `rcm_workflows_start` | required | phi | active |
+| `schedule.view` | A | query | authorize | `scheduling.read` | human, service | rest, mcp | GET `/v1/schedule/view` | `schedule_view` | none | phi | active |
 | `scheduling.appointments.book` | S | command | authorize | `scheduling.write` | human, service | rest, mcp | POST `/v1/scheduling/appointments` | `scheduling_appointments_book` | required | phi | active |
 | `scheduling.appointments.cancel` | S | command | authorize | `scheduling.write` | human, service | rest, mcp | POST `/v1/scheduling/appointments/{appointmentRef}/cancel` | `scheduling_appointments_cancel` | required | phi | active |
 | `scheduling.appointments.override` | S | capability | capability | `scheduling.override` | human | - | - | - | none | phi | active |

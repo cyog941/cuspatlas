@@ -7268,6 +7268,20 @@ export type SchedulingWorkItemList = {
   };
 };
 
+export type SyntheticAppointmentDetail = {
+  readonly "patient": SyntheticReadComponent;
+  readonly "coverage": SyntheticReadComponent;
+  readonly "balance": SyntheticReadComponent;
+  readonly "plannedProcedures": SyntheticReadComponent;
+  readonly "freshness": SyntheticReadFreshness;
+  readonly [k: string]: unknown;
+};
+
+export type SyntheticAppointmentDetailResult = {
+  readonly "data": SyntheticAppointmentDetail;
+  readonly [k: string]: unknown;
+};
+
 export type SyntheticCursor = string;
 
 export type SyntheticLabel = string;
@@ -7300,7 +7314,26 @@ export type SyntheticListScope = {
   readonly "locationRefs"?: readonly (string)[];
 };
 
+export type SyntheticLocalDate = string;
+
 export type SyntheticLocationRef = string;
+
+export type SyntheticReadComponent = {
+  readonly "status": "ok" | "restricted" | "unavailable";
+  readonly "owner": string;
+  readonly "freshness"?: SyntheticReadFreshness;
+  readonly "requiredAction"?: string;
+  readonly "requiredScope"?: string;
+  readonly "reason"?: "producer_not_deployed" | "producer_failed";
+  readonly "data"?: unknown;
+  readonly [k: string]: unknown;
+};
+
+export type SyntheticReadFreshness = {
+  readonly "asOf": string;
+  readonly "state": "current" | "stale";
+  readonly "basis": string;
+};
 
 export type SyntheticRefusal = {
   readonly "code": "invalid_request" | "validation_failed" | "unauthenticated" | "forbidden" | "not_found" | "stale_version" | "idempotency_conflict" | "conflict" | "rate_limited" | "internal_error" | "service_unavailable" | "self_approval_denied" | "payload_mismatch" | "proposal_expired" | "policy_changed" | "approval_invalid";
@@ -7355,6 +7388,29 @@ export type SyntheticRefusal = {
   };
 };
 
+export type SyntheticScheduleView = {
+  readonly "location": { readonly [k: string]: unknown };
+  readonly "from": SyntheticLocalDate;
+  readonly "to": SyntheticLocalDate;
+  readonly "grain": "detailed" | "compact";
+  readonly "asOf": string;
+  readonly "appointments": readonly ({ readonly [k: string]: unknown })[];
+  readonly "appointmentsTruncated": boolean;
+  readonly "blocks": readonly ({ readonly [k: string]: unknown })[];
+  readonly "unavailableIntervals": readonly ({
+    readonly "reason": "closed" | "blocked" | "outside_availability";
+    readonly [k: string]: unknown;
+  })[];
+  readonly "counters": readonly ({ readonly [k: string]: unknown })[];
+  readonly "freshness": SyntheticReadFreshness;
+  readonly [k: string]: unknown;
+};
+
+export type SyntheticScheduleViewResult = {
+  readonly "data": SyntheticScheduleView;
+  readonly [k: string]: unknown;
+};
+
 export type SyntheticSyntheticTask = {
   readonly "taskRef": SyntheticTaskRef;
   readonly "label": SyntheticLabel;
@@ -7399,7 +7455,7 @@ export type SyntheticVersion = number;
 export type SyntheticVocabulary = {
   readonly "name": SyntheticVocabularyName;
   readonly "module": string;
-  readonly "owner": "F" | "S" | "C" | "B" | "E" | "I" | "M";
+  readonly "owner": "F" | "A" | "S" | "C" | "B" | "E" | "I" | "M";
   readonly "version": string;
   readonly "entries": readonly (SyntheticVocabularyEntry)[];
 };
@@ -7425,6 +7481,16 @@ export type SyntheticVocabularyRead = {
 
 /** Every REST operation of the catalog with its path parameters, body and success result types. */
 export interface Operations {
+  "appointments.detail": {
+    method: "GET";
+    path: "/v1/appointments/{appointmentRef}/detail";
+    params: { readonly appointmentRef: string; };
+    query: Record<string, never>;
+    body: undefined;
+    result: SyntheticAppointmentDetailResult;
+    successStatus: 200;
+    idempotent: false;
+  };
   "billing.adjustments.decide": {
     method: "POST";
     path: "/v1/billing/adjustment-requests/{requestRef}/decision";
@@ -10435,6 +10501,16 @@ export interface Operations {
     successStatus: 201;
     idempotent: true;
   };
+  "schedule.view": {
+    method: "GET";
+    path: "/v1/schedule/view";
+    params: {  };
+    query: { readonly locationRef: string; readonly from: string; readonly to?: string; readonly grain?: string; };
+    body: undefined;
+    result: SyntheticScheduleViewResult;
+    successStatus: 200;
+    idempotent: false;
+  };
   "scheduling.appointments.book": {
     method: "POST";
     path: "/v1/scheduling/appointments";
@@ -11400,6 +11476,7 @@ export interface OperationMeta {
 }
 
 export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
+  "appointments.detail": { method: "GET", path: "/v1/appointments/{appointmentRef}/detail", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "billing.adjustments.decide": { method: "POST", path: "/v1/billing/adjustment-requests/{requestRef}/decision", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "billing.adjustments.post": { method: "POST", path: "/v1/billing/charges/{chargeRef}/adjustments", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "billing.balances.read": { method: "GET", path: "/v1/billing/patients/{patientRef}/balance", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
@@ -11701,6 +11778,7 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "rcm.workflows.fireTimer": { method: "POST", path: "/v1/rcm/workflow-timers/{timerRef}/fire", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "rcm.workflows.read": { method: "GET", path: "/v1/rcm/workflows/{workflowRef}", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "rcm.workflows.start": { method: "POST", path: "/v1/rcm/workflows", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "schedule.view": { method: "GET", path: "/v1/schedule/view", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "scheduling.appointments.book": { method: "POST", path: "/v1/scheduling/appointments", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "scheduling.appointments.cancel": { method: "POST", path: "/v1/scheduling/appointments/{appointmentRef}/cancel", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "scheduling.appointments.read": { method: "GET", path: "/v1/scheduling/appointments/{appointmentRef}", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },

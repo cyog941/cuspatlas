@@ -414,6 +414,9 @@ const TOOL_NAMES = [
   'practice_export_grant',
   'practice_export_download',
   'practice_export_verify',
+  // A batch 3 read surfaces.
+  'schedule_view',
+  'appointments_detail',
 ].sort();
 
 let db: TestDatabase;

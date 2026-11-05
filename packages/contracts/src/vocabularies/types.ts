@@ -22,7 +22,7 @@ export interface VocabularyDefinition {
 /** One registry per owning module; `version` changes whenever any entry of the module changes. */
 export interface ModuleVocabularies {
   readonly module: string;
-  readonly owner: 'F' | 'S' | 'C' | 'B' | 'E' | 'I' | 'M';
+  readonly owner: 'F' | 'S' | 'C' | 'B' | 'E' | 'I' | 'M' | 'A';
   readonly version: string;
   readonly vocabularies: readonly VocabularyDefinition[];
 }

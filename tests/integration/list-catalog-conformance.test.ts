@@ -77,7 +77,7 @@ describe('A20 / OR-01 catalog-wide list envelope conformance', () => {
     for (const [op, spec] of Object.entries(LIST_OPERATIONS)) {
       expect(spec.ordering.key, op).toMatch(/^[A-Za-z.]{1,64}$/);
       expect(spec.ordering.tieBreak, op).toMatch(/^[A-Za-z.]{1,64}$/);
-      expect(spec.rows, op).toMatch(/^data(\.[A-Za-z]+)?$/);
+      expect(spec.rows, op).toMatch(/^(data(\.[A-Za-z]+)?|items)$/);
     }
   });
 
@@ -100,7 +100,13 @@ describe('A20 / OR-01 catalog-wide list envelope conformance', () => {
       const flattened = LIST_ENVELOPE_SCHEMA_DEFS.ListEnvelope.required.every(
         (k) => data?.required?.includes(k) && data.properties?.[k],
       );
-      if (!(top || nested || flattened))
+      // A2 agent/AI lists: the envelope fields sit at the response root beside `items` (rows: 'items').
+      const rootFlattened =
+        LIST_OPERATIONS[op.operation]?.rows === 'items' &&
+        [...LIST_ENVELOPE_SCHEMA_DEFS.ListEnvelope.required, 'items'].every(
+          (k) => s.def.required?.includes(k) && s.def.properties?.[k],
+        );
+      if (!(top || nested || flattened || rootFlattened))
         gaps.push(`${op.operation}: ${op.rest?.successSchema} has no envelope`);
     }
     expect(gaps).toEqual([]);

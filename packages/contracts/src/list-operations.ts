@@ -21,6 +21,7 @@ import { type ListEnvelope, type ListOrdering, listEnvelope } from './list-envel
  *   that counts matches before the page cut but is itself capped by the read (work-item lists), so it only
  *   raises `count.atLeast` when the page is truncated.
  * - `placement: 'existing'` marks a response whose domain read already builds the OR-01 envelope.
+ *   `rows: 'items'` (A2 agent/AI lists) means that envelope is flattened at the response root.
  */
 export interface ListOperationSpec {
   readonly rows: string;
@@ -37,6 +38,65 @@ export interface ListOperationSpec {
 }
 
 export const LIST_OPERATIONS: Readonly<Record<string, ListOperationSpec>> = {
+  // A2 (A8-A12) lists: the agent service builds the OR-01 envelope at the response root (`items` beside the
+  // envelope fields, no `data` wrapper), offset-cursor pages over tenant-wide rows (no location filter).
+  'actions.proposals.list': {
+    rows: 'items',
+    ordering: { key: 'createdAt', direction: 'desc', tieBreak: 'proposalRef' },
+    limit: { default: 25, max: 100 },
+    cursor: true,
+    scope: 'tenant',
+    placement: 'existing',
+  },
+  'agents.audit.list': {
+    rows: 'items',
+    ordering: { key: 'occurredAt', direction: 'asc', tieBreak: 'eventRef' },
+    limit: { default: 25, max: 100 },
+    cursor: true,
+    scope: 'tenant',
+    placement: 'existing',
+  },
+  'agents.consents.list': {
+    rows: 'items',
+    ordering: { key: 'grantedAt', direction: 'desc', tieBreak: 'consentRef' },
+    limit: { default: 25, max: 100 },
+    cursor: true,
+    scope: 'tenant',
+    placement: 'existing',
+  },
+  'agents.principals.list': {
+    rows: 'items',
+    ordering: { key: 'createdAt', direction: 'asc', tieBreak: 'agentRef' },
+    limit: { default: 25, max: 100 },
+    cursor: true,
+    scope: 'tenant',
+    placement: 'existing',
+  },
+  'ai.drafts.list': {
+    rows: 'items',
+    ordering: { key: 'createdAt', direction: 'desc', tieBreak: 'draftRef' },
+    limit: { default: 25, max: 100 },
+    cursor: true,
+    scope: 'tenant',
+    placement: 'existing',
+  },
+  'ai.evaluations.list': {
+    rows: 'items',
+    ordering: { key: 'ranAt', direction: 'desc', tieBreak: 'runRef' },
+    limit: { default: 25, max: 100 },
+    cursor: true,
+    scope: 'tenant',
+    placement: 'existing',
+  },
+  // The fixed use-case registry, returned whole (never truncated); `useCase` is unique.
+  'ai.useCases.list': {
+    rows: 'items',
+    ordering: { key: 'useCase', direction: 'asc', tieBreak: 'useCase' },
+    limit: { default: 25, max: 100 },
+    cursor: false,
+    scope: 'tenant',
+    placement: 'existing',
+  },
   'billing.ledger.list': {
     rows: 'data',
     ordering: { key: 'postedAt', direction: 'asc', tieBreak: 'entryRef' },

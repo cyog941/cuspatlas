@@ -7877,7 +7877,7 @@ export type SyntheticVersion = number;
 export type SyntheticVocabulary = {
   readonly "name": SyntheticVocabularyName;
   readonly "module": string;
-  readonly "owner": "F" | "S" | "C" | "B" | "E" | "I" | "M";
+  readonly "owner": "F" | "S" | "C" | "B" | "E" | "I" | "M" | "A";
   readonly "version": string;
   readonly "entries": readonly (SyntheticVocabularyEntry)[];
 };

@@ -295,7 +295,7 @@
           "pattern": "^[a-z]{1,32}$"
         },
         "owner": {
-          "enum": ["F", "S", "C", "B", "E", "I", "M"]
+          "enum": ["F", "S", "C", "B", "E", "I", "M", "A"]
         },
         "version": {
           "type": "string",

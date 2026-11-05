@@ -7337,6 +7337,22 @@ export type SyntheticFavouriteReportList = {
   readonly "envelope": SyntheticListEnvelope;
 };
 
+export type SyntheticHuddleRead = {
+  readonly "data": {
+    readonly "display": "staff" | "shared";
+    readonly "displayForced": boolean;
+    readonly "onDate": SyntheticLocalDate;
+    readonly "zone": string;
+    readonly "sections"?: readonly ({
+      readonly "status": "ok" | "restricted" | "unavailable";
+      readonly [k: string]: unknown;
+    })[];
+    readonly "appointments": readonly ({ readonly [k: string]: unknown })[];
+    readonly [k: string]: unknown;
+  };
+  readonly [k: string]: unknown;
+};
+
 export type SyntheticLabel = string;
 
 export type SyntheticListCount = ({
@@ -9075,6 +9091,16 @@ export interface Operations {
     query: Record<string, never>;
     body: undefined;
     result: unknown;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "huddle.read": {
+    method: "GET";
+    path: "/v1/huddle";
+    params: {  };
+    query: { readonly locationRef: string; readonly onDate?: string; readonly display?: string; };
+    body: undefined;
+    result: SyntheticHuddleRead;
     successStatus: 200;
     idempotent: false;
   };
@@ -11936,6 +11962,7 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "communications.templates.define": { method: "POST", path: "/v1/communications/templates", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "communications.templates.withdraw": { method: "POST", path: "/v1/communications/templates/{templateRef}/withdraw", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "health.read": { method: "GET", path: "/healthz", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "huddle.read": { method: "GET", path: "/v1/huddle", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "imaging.acquisitions.request": { method: "POST", path: "/v1/imaging/acquisitions", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "imaging.acquisitions.resolve": { method: "POST", path: "/v1/imaging/acquisitions/{deferralRef}/resolve", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "imaging.annotations.create": { method: "POST", path: "/v1/imaging/objects/{objectRef}/annotations", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },

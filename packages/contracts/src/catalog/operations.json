@@ -4874,6 +4874,39 @@
     "status": "active"
   },
   {
+    "operation": "huddle.read",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "huddle.read",
+    "scope": "scheduling.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/huddle",
+      "successStatus": "200",
+      "successSchema": "HuddleRead"
+    },
+    "mcpTool": "huddle_read",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
     "operation": "imaging.acquisitions.request",
     "owner": "I",
     "kind": "command",

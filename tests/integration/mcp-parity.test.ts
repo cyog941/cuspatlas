@@ -418,6 +418,7 @@ const TOOL_NAMES = [
   'schedule_view',
   'appointments_detail',
   'navigation_get',
+  'huddle_read',
   'admin_audit_search',
   'admin_access_review',
   'admin_access_revoke',

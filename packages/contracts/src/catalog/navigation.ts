@@ -56,6 +56,7 @@ export const NAVIGATION: readonly NavigationGroup[] = [
       ]),
       cap('patients', 'Patients', ['patients.search', 'patients.read', 'patients.create']),
       cap('requests', 'Appointment requests', ['scheduling.requests.list', 'scheduling.requests.read']),
+      cap('huddle', 'Daily huddle', ['huddle.read']),
       cap('floor', 'Floor', [
         'scheduling.floor.read',
         'scheduling.floor.providerRequests',

@@ -26,7 +26,7 @@ import {
   vocabularyLabel,
 } from '@cuspatlas/contracts';
 import { recordCommand } from '../events/record-command';
-import { type AuthorizationDecision, assertLocation } from '../policy/authorize';
+import { type AuthorizationDecision, assertLocation, DISPLAY_SCOPE } from '../policy/authorize';
 import { type AppointmentBase, assertVisibleLocation } from './appointment-base';
 import { attendanceSnapshotsOf, attendanceStateOf } from './attendance';
 import { loadAppointment } from './booking';
@@ -194,7 +194,10 @@ export function createFloorOperations(
         const decision = await base.authorize(ctx, op);
         assertValid<FloorQuery>(validateFloorQuery, query, SCHEDULING_PROPERTIES);
         assertLocation(decision.locationRefs, query.locationRef);
-        const projection = query.projection ?? 'standard';
+        // A18 closes the S21 seam: a shared-display principal always gets the anonymized projection.
+        const projection = ctx.scopes.includes(DISPLAY_SCOPE)
+          ? 'anonymized'
+          : (query.projection ?? 'standard');
         const canReadPatients = projection === 'standard' && (await base.can(ctx, 'patients.read'));
         return deps.withTenantTransaction(ctx, async (tx) => {
           const location = await loadLocation(tx, query.locationRef);

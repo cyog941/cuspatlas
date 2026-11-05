@@ -8000,6 +8000,31 @@
       "refusals": []
     },
     {
+      "operation": "huddle.read",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "scheduling.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/huddle"
+      },
+      "mcpTool": "huddle_read",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
       "operation": "imaging.acquisitions.request",
       "transports": [
         "rest",

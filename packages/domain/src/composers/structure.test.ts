@@ -13,7 +13,7 @@ const PUBLISHED_READS: Record<string, readonly string[]> = {
   '../clinical/read-surfaces': ['plannedProceduresFor', 'labCasesFor', 'unsignedNotesFor'],
   '../rcm/coverage': ['coverageSummariesFor'],
   '../patients/model': ['PATIENT_COLUMNS', 'toSummary'],
-  '../policy/authorize': ['assertLocation', 'ActionName', 'Authorize'],
+  '../policy/authorize': ['assertLocation', 'ActionName', 'Authorize', 'DISPLAY_SCOPE'],
   '../scheduling/schedule-view': [
     'appointmentFacts',
     'appointmentsInRange',
@@ -31,12 +31,22 @@ const PUBLISHED_READS: Record<string, readonly string[]> = {
 };
 const WRITE = /\b(INSERT\s+INTO|UPDATE\s+cuspatlas|DELETE\s+FROM|TRUNCATE|recordCommand|executeOnce)\b/i;
 
+/** The service and barrel assemble every read surface (A16, A17, A22 commands included); not composers. */
+const ASSEMBLY = new Set(['index.ts', 'service.ts']);
 const sources = (dir: string) =>
   readdirSync(dir)
-    .filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'))
+    .filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts') && !ASSEMBLY.has(f))
     .map((f) => ({ file: f, text: readFileSync(join(dir, f), 'utf8') }));
 
 describe('A21 composer structure', () => {
+  it('checks every composer file (only the assembly files are exempt)', () => {
+    expect(
+      sources(DIR)
+        .map((s) => s.file)
+        .sort(),
+    ).toEqual(['framework.ts', 'huddle.ts', 'read-composers.ts']);
+  });
+
   it('imports only published domain read functions', () => {
     for (const { file, text } of sources(DIR)) {
       for (const m of text.matchAll(/import\s+(?:type\s+)?\{([^}]*)\}\s+from\s+'([^']+)'/g)) {

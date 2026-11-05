@@ -12680,6 +12680,49 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/huddle:
+    get:
+      operationId: huddle.read
+      description: >-
+        A18 (PT-01): the daily huddle of one location (default the next local day; the zone is named):
+        appointments with readiness flags (forms, eligibility freshness, balance, lab cases, unsigned
+        notes), each with owner, freshness and its own outcome (restricted without the owner read scope,
+        unavailable when the producer is not published, never shown as checked). display=shared, and always
+        for a display principal, returns no patient identity, no appointment reference and no clinical or
+        financial detail.
+      parameters:
+        - name: locationRef
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/LocationRef'
+        - name: onDate
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/LocalDate'
+        - name: display
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/HuddleQuery'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/HuddleRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   /v1/admin/audit:
     get:
       operationId: admin.audit.search

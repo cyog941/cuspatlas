@@ -9,12 +9,12 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-421 operations.
+422 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
 | F | 14 | 12 | 10 | 0 | 0 | 1 |
-| A | 17 | 17 | 17 | 0 | 0 | 0 |
+| A | 18 | 18 | 18 | 0 | 0 | 0 |
 | S | 92 | 90 | 90 | 0 | 0 | 0 |
 | C | 88 | 87 | 87 | 0 | 0 | 0 |
 | B | 66 | 66 | 66 | 0 | 0 | 0 |
@@ -169,6 +169,7 @@ transport tables and are declarations, not independent proof.
 | `communications.templates.define` | E | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/communications/templates` | `communications_templates_define` | required | operational | active |
 | `communications.templates.withdraw` | E | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/communications/templates/{templateRef}/withdraw` | `communications_templates_withdraw` | required | operational | active |
 | `health.read` | F | query | public | - | human, service, portal, device | rest | GET `/healthz` | - | none | none | active |
+| `huddle.read` | A | query | authorize | `scheduling.read` | human, service | rest, mcp | GET `/v1/huddle` | `huddle_read` | none | phi | active |
 | `imaging.acquisitions.request` | I | command | authorize | `imaging.write` | human, service | rest, mcp | POST `/v1/imaging/acquisitions` | `imaging_acquisitions_request` | required | phi | active |
 | `imaging.acquisitions.resolve` | I | command | authorize | `imaging.write` | human | rest, mcp | POST `/v1/imaging/acquisitions/{deferralRef}/resolve` | `imaging_acquisitions_resolve` | required | phi | active |
 | `imaging.annotations.create` | I | command | authorize | `imaging.write` | human, service | rest, mcp | POST `/v1/imaging/objects/{objectRef}/annotations` | `imaging_annotations_create` | required | phi | active |

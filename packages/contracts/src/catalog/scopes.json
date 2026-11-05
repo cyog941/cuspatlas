@@ -908,6 +908,7 @@
       ],
       "operations": [
         "appointments.detail",
+        "huddle.read",
         "schedule.view",
         "scheduling.appointments.read",
         "scheduling.attendance.list",

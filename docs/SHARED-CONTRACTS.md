@@ -116,6 +116,7 @@ The machine-readable registry rows (A-M2/A-S8, 2026-11-05). Generation reads **o
 | `communications.write` | no |
 | `coverage.read` | no |
 | `coverage.write` | no |
+| `display.shared` | no |
 | `imaging.associate` | yes |
 | `imaging.delete` | yes |
 | `imaging.legalHold` | yes |

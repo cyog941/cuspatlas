@@ -76,6 +76,19 @@ export const READ_OPS: readonly ReadOp[] = [
   },
   {
     method: 'get',
+    path: '/v1/huddle',
+    operationId: 'huddle.read',
+    protected: true,
+    query: 'HuddleQuery',
+    success: { status: '200', schema: 'HuddleRead' },
+    refusals: READ_REFUSALS,
+    tool: 'huddle_read',
+    description:
+      'A18 (PT-01): the daily huddle of one location (default the next local day; the zone is named): appointments with readiness flags (forms, eligibility freshness, balance, lab cases, unsigned notes), each with owner, freshness and its own outcome (restricted without the owner read scope, unavailable when the producer is not published, never shown as checked). display=shared, and always for a display principal, returns no patient identity, no appointment reference and no clinical or financial detail.',
+    invoke: (svc, actor, i) => svc.readHuddle(actor, i.body),
+  },
+  {
+    method: 'get',
     path: '/v1/admin/audit',
     operationId: 'admin.audit.search',
     protected: true,

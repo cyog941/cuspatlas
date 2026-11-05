@@ -26,6 +26,8 @@ export const ACTION_POLICIES = {
   'appointments.detail': { scope: 'scheduling.read', principals: ['human', 'service'] },
   // A24 (OR-14): navigation from the catalog, filtered by the caller's live permissions.
   'navigation.read': { scope: null, principals: ['human', 'service'] },
+  // A18 (PT-01): the daily huddle projection; a display principal is forced to the shared projection.
+  'huddle.read': { scope: 'scheduling.read', principals: ['human', 'service'] },
   // A22 (OR-12): the caller's own preferences (RLS binds every row to tenant AND actor). Human only:
   // an agent keeps no recent-patient list. Recording a recent patient also needs patients.read.
   // A17 administration (human only; A-D2 grants pending): audit search over the tenant's audit,
@@ -647,6 +649,16 @@ function deny(reasonCode: SecurityReasonCode): never {
   throw new RefusalError({ code: 'forbidden', reasonCode });
 }
 
+/** A18: the only actions a shared-display principal may call (each forces its anonymized projection). */
+export const DISPLAY_SCOPE = 'display.shared';
+export const DISPLAY_ACTIONS: ReadonlySet<string> = new Set([
+  'huddle.read',
+  'scheduling.floor.read',
+  'session.read',
+  'vocabularies.list',
+  'vocabularies.read',
+]);
+
 /**
  * The membership part of the policy decision for one action (null = allowed), shared by `authorize`
  * and by reads that evaluate many actions against ONE live membership load (A24 navigation). Resource
@@ -662,6 +674,9 @@ export function membershipDenial(
   if (!m?.active) return 'membership_inactive';
   if (m.principal !== ctx.principal || !policy.principals.includes(m.principal))
     return 'principal_kind_denied';
+  // A18 / S21 shared-display rule: a membership holding display.shared is a display principal and may
+  // call only the anonymized display projections (the domain forces the projection for it).
+  if (m.scopes.includes(DISPLAY_SCOPE) && !DISPLAY_ACTIONS.has(action)) return 'principal_kind_denied';
   if (policy.scope !== null && !(m.scopes.includes(policy.scope) && ctx.scopes.includes(policy.scope)))
     return 'scope_missing';
   return null;

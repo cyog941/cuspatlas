@@ -1351,6 +1351,65 @@
     },
     "AccessRevokeResult": {
       "$ref": "#/$defs/PreferenceCommandResult"
+    },
+    "HuddleQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locationRef"],
+      "properties": {
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "onDate": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "display": {
+          "enum": ["staff", "shared"]
+        }
+      }
+    },
+    "HuddleRead": {
+      "type": "object",
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "required": ["location", "onDate", "zone", "display", "displayForced", "asOf", "appointments"],
+          "properties": {
+            "display": {
+              "enum": ["staff", "shared"]
+            },
+            "displayForced": {
+              "type": "boolean"
+            },
+            "onDate": {
+              "$ref": "#/$defs/LocalDate"
+            },
+            "zone": {
+              "type": "string"
+            },
+            "sections": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["key", "owner", "status"],
+                "properties": {
+                  "status": {
+                    "enum": ["ok", "restricted", "unavailable"]
+                  }
+                }
+              }
+            },
+            "appointments": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

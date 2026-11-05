@@ -6,6 +6,7 @@ import { createNavigationReads } from '../navigation/navigation';
 import { createPreferenceOperations } from '../preferences/preferences';
 import { createMeasureReads, type FinancialMeasuresPort } from '../reporting/measures';
 import { type ComposerDeps, createComposerBase } from './framework';
+import { createHuddleReads } from './huddle';
 import { type ComposerProducers, createReadComposers, DEFAULT_PRODUCERS } from './read-composers';
 
 /**
@@ -30,6 +31,7 @@ export function createReadSurfaceService(deps: ReadSurfaceDeps) {
   return {
     ...createReadComposers(base, { ...DEFAULT_PRODUCERS, ...deps.producers }),
     ...createNavigationReads(base, deps.memberships),
+    ...createHuddleReads(base),
     ...createPreferenceOperations(base, { execute: deps.execute ?? executeOnce }),
     ...createAdministrationOperations(base, { execute: deps.execute ?? executeOnce }),
     ...createMeasureReads(base, {

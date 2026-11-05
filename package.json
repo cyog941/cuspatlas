@@ -16,14 +16,16 @@
     "migrate": "tsx packages/db/src/migrate-cli.ts",
     "backup": "tsx packages/db/src/backup-cli.ts",
     "restore": "tsx packages/db/src/restore-cli.ts",
-    "contract:check": "tsx apps/api/src/contract-drift-cli.ts",
+    "contract:check": "tsx apps/api/src/contract-drift-cli.ts && tsx scripts/catalog/main.ts check",
     "openapi:billing": "tsx scripts/openapi-billing.ts",
     "start": "tsx apps/api/src/main.ts",
     "sbom": "node scripts/sbom.mjs",
     "scan:privacy": "node scripts/privacy-scan.mjs",
     "evidence": "node scripts/evidence.mjs",
     "evidence-verify": "node scripts/evidence-verify.mjs",
-    "ci": "tsc -p tsconfig.json && biome check . && tsx apps/api/src/contract-drift-cli.ts && node scripts/run-vitest.mjs --reporter=default --reporter=json --outputFile.json=node_modules/.cache/cuspatlas/vitest-raw.json && node scripts/test-summary.mjs node_modules/.cache/cuspatlas/vitest-raw.json artifacts/test-summary.json && node scripts/privacy-scan.mjs && node scripts/sbom.mjs && node scripts/evidence.mjs && node scripts/evidence-verify.mjs && node scripts/privacy-scan.mjs artifacts"
+    "ci": "tsc -p tsconfig.json && biome check . && tsx apps/api/src/contract-drift-cli.ts && tsx scripts/catalog/main.ts check && node scripts/run-vitest.mjs --reporter=default --reporter=json --outputFile.json=node_modules/.cache/cuspatlas/vitest-raw.json && node scripts/test-summary.mjs node_modules/.cache/cuspatlas/vitest-raw.json artifacts/test-summary.json && node scripts/privacy-scan.mjs && node scripts/sbom.mjs && node scripts/evidence.mjs && node scripts/evidence-verify.mjs && node scripts/privacy-scan.mjs artifacts",
+    "catalog:generate": "tsx scripts/catalog/main.ts generate",
+    "catalog:check": "tsx scripts/catalog/main.ts check"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.4",

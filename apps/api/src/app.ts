@@ -161,6 +161,13 @@ export function resolveRuntimeEnv(env: NodeJS.ProcessEnv): RuntimeEnvironment {
   return value as RuntimeEnvironment;
 }
 
+/** A4: the routes each built app registered (method and Fastify path), for the catalog check. */
+export interface RegisteredRoute {
+  readonly method: string;
+  readonly url: string;
+}
+export const REGISTERED_ROUTES = new WeakMap<FastifyInstance, readonly RegisteredRoute[]>();
+
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   if (!RUNTIME_ENVIRONMENTS.includes(deps.env)) {
     throw new Error('Unsupported runtime environment');
@@ -211,6 +218,13 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     onProtoPoisoning: 'error',
     onConstructorPoisoning: 'error',
     return503OnClosing: true,
+  });
+
+  // A4: every registered route, so the catalog check can prove each maps to one catalog entry.
+  const registered: RegisteredRoute[] = [];
+  REGISTERED_ROUTES.set(app, registered);
+  app.addHook('onRoute', (r) => {
+    for (const method of [r.method].flat()) if (method !== 'HEAD') registered.push({ method, url: r.url });
   });
 
   app.decorateRequest('actor', null);

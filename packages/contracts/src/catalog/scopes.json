@@ -42,6 +42,7 @@
         "intake.forms.retire",
         "messaging.replyPolicy.set",
         "messaging.threads.hold",
+        "migration.export",
         "operations.operatorProfiles.record",
         "practice.export.create",
         "practice.export.download",

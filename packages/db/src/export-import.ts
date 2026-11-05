@@ -11,6 +11,9 @@ import {
   IMAGING_EXPORT_FORMAT,
   IMAGING_EXPORT_TABLES,
   type ImagingExport,
+  MIGRATION_EXPORT_FORMAT,
+  MIGRATION_EXPORT_TABLES,
+  type MigrationExport,
   SCHEDULING_EXPORT_FORMAT,
   SCHEDULING_EXPORT_TABLES,
   type SchedulingExport,
@@ -45,6 +48,8 @@ const FORMATS: Readonly<Record<string, readonly string[]>> = {
   [CLINICAL_EXPORT_FORMAT]: CLINICAL_EXPORT_TABLES,
   [ENGAGEMENT_EXPORT_FORMAT]: ENGAGEMENT_EXPORT_TABLES,
   [BILLING_EXPORT_FORMAT]: BILLING_EXPORT_TABLES,
+  // M10: the migration workspace (after B, whose opening chain its rows complement).
+  [MIGRATION_EXPORT_FORMAT]: MIGRATION_EXPORT_TABLES,
 };
 export const IMPORT_ORDER: readonly string[] = [
   SCHEDULING_EXPORT_FORMAT,
@@ -52,13 +57,15 @@ export const IMPORT_ORDER: readonly string[] = [
   CLINICAL_EXPORT_FORMAT,
   ENGAGEMENT_EXPORT_FORMAT,
   BILLING_EXPORT_FORMAT,
+  MIGRATION_EXPORT_FORMAT,
 ];
 export type ExportDocument =
   | SchedulingExport
   | ImagingExport
   | ClinicalExport
   | EngagementExport
-  | BillingExport;
+  | BillingExport
+  | MigrationExport;
 
 export interface ImportOptions {
   /** Required with a C18 document: recomputes the note version digests (the domain's own function). */

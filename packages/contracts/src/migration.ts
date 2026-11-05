@@ -179,3 +179,33 @@ export const validateArchiveRetentionQuery = def('ArchiveRetentionQuery');
 export const validateOperatorProfileRecord = def('OperatorProfileRecord');
 export const validateBackupVerificationRecord = def('BackupVerificationRecord');
 export const validateOperationsEmptyQuery = def('OperationsEmptyQuery');
+
+/**
+ * M10 migration export: the migration workspace an audit needs (profiles, packages and staged records
+ * outside B's opening chain, review items, runs, applied records with provenance, reviewer
+ * assignments, reports, sign-offs, archive packages, entries and holds, operator profiles and backup
+ * verifications), in foreign-key order. B10 carries the opening chain; together they are complete.
+ * Not exported: practice exports and delivery grants (bytes and short-lived credentials).
+ */
+export const MIGRATION_EXPORT_FORMAT = 'cuspatlas-migration-export/1' as const;
+export const MIGRATION_EXPORT_TABLES = [
+  'migration_source_profiles',
+  'migration_packages',
+  'migration_staged_records',
+  'migration_review_items',
+  'migration_apply_runs',
+  'migration_applied_records',
+  'migration_reviewer_assignments',
+  'migration_reports',
+  'migration_signoffs',
+  'migration_archive_packages',
+  'migration_archive_entries',
+  'migration_archive_holds',
+  'ops_operator_profiles',
+  'ops_backup_verifications',
+] as const;
+export interface MigrationExport {
+  readonly format: typeof MIGRATION_EXPORT_FORMAT;
+  readonly exportedAt: string;
+  readonly tables: Readonly<Record<string, readonly Record<string, unknown>[]>>;
+}

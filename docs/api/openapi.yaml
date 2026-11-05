@@ -12306,6 +12306,32 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/migration/export:
+    get:
+      operationId: migration.export
+      description: >-
+        M10: versioned migration workspace export of the caller tenant (cuspatlas-migration-export/1):
+        profiles, packages and staged records outside the B10 opening chain, review items, runs, applied
+        records with provenance, reviewer assignments, reports, sign-offs, archive packages, entries and
+        holds, operator profiles and backup verifications, tenant column removed. Tenant-wide human
+        administrators only; sensitive-read logged.
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/MigrationExportRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   /v1/practice/exports:
     post:
       operationId: practice.export.create

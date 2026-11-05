@@ -9,7 +9,7 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-398 operations.
+399 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
@@ -19,7 +19,7 @@ transport tables and are declarations, not independent proof.
 | B | 64 | 64 | 64 | 0 | 0 | 0 |
 | E | 60 | 48 | 48 | 11 | 0 | 1 |
 | I | 54 | 47 | 44 | 0 | 6 | 0 |
-| M | 28 | 28 | 28 | 0 | 0 | 0 |
+| M | 29 | 29 | 29 | 0 | 0 | 0 |
 
 | Operation | Owner | Kind | Authorization | Scope | Principals | Transports | REST | MCP tool | Idempotency | Sensitivity | Status |
 |---|---|---|---|---|---|---|---|---|---|---|---|
@@ -242,6 +242,7 @@ transport tables and are declarations, not independent proof.
 | `migration.archive.retention.evaluate` | M | query | authorize | `migration.read` | human, service | rest, mcp | GET `/v1/migration/archives/retention` | `migration_archive_retention_evaluate` | none | phi | active |
 | `migration.archive.verify` | M | command | authorize | `migration.write` | human, service | rest, mcp | POST `/v1/migration/archives/verify` | `migration_archive_verify` | required | phi | active |
 | `migration.cutover.advance` | M | command | authorize | `migration.signoff` | human | rest, mcp | POST `/v1/migration/cutover/advance` | `migration_cutover_advance` | required | phi | active |
+| `migration.export` | M | query | authorize | `admin.configure` | human | rest, mcp | GET `/v1/migration/export` | `migration_export` | none | phiBulk | active |
 | `migration.identity.merge` | M | command | authorize | `migration.write` | human | rest, mcp | POST `/v1/migration/identity/merges` | `migration_identity_merge` | required | phi | active |
 | `migration.imports.apply` | M | command | authorize | `migration.write` | human, service | rest, mcp | POST `/v1/migration/imports/apply` | `migration_imports_apply` | required | phi | active |
 | `migration.imports.plan` | M | query | authorize | `migration.read` | human, service | rest, mcp | GET `/v1/migration/imports/plan` | `migration_imports_plan` | none | phi | active |

@@ -290,3 +290,55 @@ recommended-pending-approval). Tests in `tests/integration/migration-hardening.t
   owed by the platform). Runbook `docs/runbooks/escalation.md`; AS-06 extended. Pending: wiring the
   job into the worker tick (needs the operator's backup location, M-S3). Red 8/8 failing (exit 1);
   green 8/8.
+- M10 migration parity, negative matrix, export and release evidence
+  (`tests/integration/migration-negative-matrix.test.ts`): the parity matrix is derived from the
+  operation catalog (`operations.json`, owner `M`): every M operation must have its REST route
+  (same path), its MCP tool registered on the server and a negative-matrix row; a missing tool or
+  row fails (asserted with a synthetic gap). Negative matrix for the 15 batch 2 operations: revoked
+  membership (403 on REST; MCP refused at the transport), cross-tenant (404 for every reference, or
+  the caller tenant's own data with no alpha reference), downgraded (the op's own scope removed after
+  the token was issued: 403 on REST and MCP), each with no change to the alpha practice-export,
+  archive, operator, verification, audit or sensitive-read rows, and no caller tenant accepted (400).
+  The M2-M6 operations keep their rows in the shared negative harness. `migration.export`
+  (`cuspatlas-migration-export/1`, tenant-wide human administrator, sensitive-read logged): the
+  workspace complement of B's opening chain (profiles, packages, staged records outside the chain,
+  review items, runs, applied records with provenance, reviewer assignments, reports, sign-offs,
+  archive packages/entries/holds, operator profiles, backup verifications); `importExports` gains the
+  format (additive: FORMATS and IMPORT_ORDER entries); S, I, C, E, B and M re-import into a fresh
+  database and S, C, E, B and M re-export identically. Test written after the export endpoint
+  (deviation from test-first for that piece); first run 15/33 failing (MCP transport refusal not
+  handled by the matrix), green 33/33.
+
+## Workstream M handoff (2026-11-05)
+
+Built and tested on synthetic data (embedded test cluster only; nothing deployed):
+- M2-M6 (batch 1 and H2 hardening): source profiles, intake and staging, review queue, idempotent
+  dry-run/apply, identity reconciliation through S6, opening balances and credits through B1,
+  versioned reconciliation reports, two-reviewer sign-off, cutover readiness gate.
+- M1 practice export (easy exit) with completeness validator, private grant-based delivery and a
+  fresh-database round trip; format published in `docs/export-format.md`.
+- M7 read-only historical archive packages, patient-scoped reads, verification, legal holds and
+  retention with a database deletion guard.
+- M8 downtime runbook and a timed, reconciled restore drill with a machine-readable report (AS-06).
+- M9 operator profiles, backup verification job, readiness obligations and alert work items,
+  escalation runbook (AS-06).
+- M10 catalog-derived parity matrix, negative matrix for batch 2, migration workspace export with
+  round trip.
+
+Pending decisions (recommended values are recommended-pending-approval, never approved):
+- M-D1 cutover scope, M-D2 historical financial detail (opening balances plus archive), M-D3
+  archive access model (in-product read-only module, built), M-D4 write-freeze duration, M-D5
+  recovery objectives (RPO 900 s, RTO 14400 s engineering targets), M-D6 hosting model, M-D7
+  support tiers, M-D8 rollback after new work.
+- Archive retention period (ten years from registration) and disposal procedure; downtime-log
+  operations (`openDowntimeLog`/`recordManualEvent`/`reconcileManualEvents`) not built; wiring the
+  backup verification job into the worker tick; reversing an opening-credit allocation (from M-10);
+  an admin-facing reviewer assignment command (from M-5).
+
+Blocked on discovery: M-S1 (authorised incumbent export and rights: no real export has been
+received), M-S2 (lawful archive arrangement for history that will not export), M-S3 (named
+operator, hosting model and tested objectives). Every real-practice use of M waits on these.
+
+Honest status: planned, configured and tested on synthetic data. Not approved, not deployed, not
+compliant, not clinically validated; the drill timings describe the embedded test cluster only.
+Not a production-ready PMS.

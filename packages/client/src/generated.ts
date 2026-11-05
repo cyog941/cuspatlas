@@ -4701,6 +4701,14 @@ export type MigrationManifestEntity = {
   readonly "artifactDigest": MigrationDigest;
 };
 
+export type MigrationMigrationExportRead = {
+  readonly "data": {
+    readonly "format": "cuspatlas-migration-export/1";
+    readonly "exportedAt": string;
+    readonly "tables": { readonly [k: string]: readonly ({ readonly [k: string]: unknown })[] };
+  };
+};
+
 export type MigrationMinorUnits = number;
 
 export type MigrationMoney = {
@@ -8969,6 +8977,15 @@ export interface Operations {
     successStatus: 200;
     idempotent: true;
   };
+  "migration.export": {
+    method: "GET";
+    path: "/v1/migration/export";
+    params: {  };
+    body: undefined;
+    result: MigrationMigrationExportRead;
+    successStatus: 200;
+    idempotent: false;
+  };
   "migration.identity.merge": {
     method: "POST";
     path: "/v1/migration/identity/merges";
@@ -10775,6 +10792,7 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "migration.archive.retention.evaluate": { method: "GET", path: "/v1/migration/archives/retention", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "migration.archive.verify": { method: "POST", path: "/v1/migration/archives/verify", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "migration.cutover.advance": { method: "POST", path: "/v1/migration/cutover/advance", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "migration.export": { method: "GET", path: "/v1/migration/export", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "migration.identity.merge": { method: "POST", path: "/v1/migration/identity/merges", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "migration.imports.apply": { method: "POST", path: "/v1/migration/imports/apply", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "migration.imports.plan": { method: "GET", path: "/v1/migration/imports/plan", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },

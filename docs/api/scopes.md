@@ -19,7 +19,7 @@ human decision (A-D2). No default role grant is asserted here.
 
 | Scope | Principal kinds | Human only | Owners | Highest sensitivity | Operations |
 |---|---|---|---|---|---|
-| `admin.configure` | human, service | no | B, C, E, I, M, S | phiBulk | 40 |
+| `admin.configure` | human, service | no | B, C, E, I, M, S | phiBulk | 41 |
 | `billing.correct` | human | yes | B | phi | 12 |
 | `billing.write` | human, service | no | B | phi | 30 |
 | `clinical.oversight` | human | yes | C | phi | 1 |

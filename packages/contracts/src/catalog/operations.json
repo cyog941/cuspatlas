@@ -7350,6 +7350,38 @@
     "status": "active"
   },
   {
+    "operation": "migration.export",
+    "owner": "M",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "migration.export",
+    "scope": "admin.configure",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/migration/export",
+      "successStatus": "200",
+      "successSchema": "migration:MigrationExportRead"
+    },
+    "mcpTool": "migration_export",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phiBulk",
+    "status": "active"
+  },
+  {
     "operation": "migration.identity.merge",
     "owner": "M",
     "kind": "command",

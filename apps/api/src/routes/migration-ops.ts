@@ -348,6 +348,20 @@ export const MIGRATION_OPS: MigrationOp[] = [
       'M9: operator alerts as work items (practice manager queue, owed by the platform operator): one per unmet readiness obligation, with the evidence reference and the suggested next action.',
     invoke: (svc, actor, i) => svc.listOperationsAlerts(actor, i.body),
   },
+  // M10 migration export: the migration workspace for audit (B10 carries the opening chain).
+  {
+    method: 'get',
+    path: '/v1/migration/export',
+    operationId: 'migration.export',
+    protected: true,
+    query: 'OperationsEmptyQuery',
+    success: { status: '200', schema: M('MigrationExportRead') },
+    refusals: READ,
+    tool: 'migration_export',
+    description:
+      'M10: versioned migration workspace export of the caller tenant (cuspatlas-migration-export/1): profiles, packages and staged records outside the B10 opening chain, review items, runs, applied records with provenance, reviewer assignments, reports, sign-offs, archive packages, entries and holds, operator profiles and backup verifications, tenant column removed. Tenant-wide human administrators only; sensitive-read logged.',
+    invoke: (svc, actor, i) => data(svc.exportMigration(actor, i.body)),
+  },
   // M1 practice export (easy exit): one versioned package of the whole tenant, private delivery.
   {
     method: 'post',

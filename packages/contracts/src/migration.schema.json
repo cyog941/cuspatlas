@@ -1851,6 +1851,36 @@
           }
         }
       }
+    },
+    "MigrationExportRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["format", "exportedAt", "tables"],
+          "properties": {
+            "format": {
+              "enum": ["cuspatlas-migration-export/1"]
+            },
+            "exportedAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "tables": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

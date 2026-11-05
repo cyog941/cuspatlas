@@ -9727,6 +9727,22 @@
       }
     },
     {
+      "operation": "migration.export",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "admin.configure",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/migration/export"
+      },
+      "mcpTool": "migration_export"
+    },
+    {
       "operation": "migration.identity.merge",
       "transports": [
         "rest",

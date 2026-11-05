@@ -405,6 +405,7 @@ const TOOL_NAMES = [
   'operations_backup_verifications_record',
   'operations_readiness_assert',
   'operations_alerts_list',
+  'migration_export',
   'practice_export_create',
   'practice_export_grant',
   'practice_export_download',

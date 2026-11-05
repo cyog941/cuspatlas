@@ -543,6 +543,8 @@ export const ACTION_POLICIES = {
   'operations.backupVerifications.record': { scope: 'migration.write', principals: ['human', 'service'] },
   'operations.readiness.assert': { scope: 'migration.read', principals: ['human', 'service'] },
   'operations.alerts.list': { scope: 'migration.read', principals: ['human', 'service'] },
+  // M10 migration export (the audit workspace): a tenant-wide human administrator only, like B10.
+  'migration.export': { scope: 'admin.configure', principals: ['human'] },
   // M1 practice export (easy exit, MG-03): the whole tenant leaves in one versioned package. A tenant-wide
   // human administrator only (elevated, audited, sensitive-read logged); delivery through a short-lived
   // grant bound to the caller; each composed S/I/C/E/B export re-authorizes the same caller.

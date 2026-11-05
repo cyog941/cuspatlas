@@ -3,6 +3,7 @@ import { createArchiveOperations } from './archive';
 import { createMigrationBase, type MigrationDeps } from './base';
 import { createIdentityOperations } from './identity';
 import { createIntakeOperations } from './intake';
+import { createMigrationExportOperations } from './migration-export';
 import { createOpeningOperations, financialPlanner, postOpening } from './opening';
 import { createOperationsReadiness } from './operations';
 import { type ApplyHooks, createImportOperations } from './plan';
@@ -33,6 +34,7 @@ export function createMigrationService(deps: MigrationDeps) {
     ...createPracticeExportOperations(base),
     ...createArchiveOperations(base),
     ...createOperationsReadiness(base),
+    ...createMigrationExportOperations(base),
   };
 }
 

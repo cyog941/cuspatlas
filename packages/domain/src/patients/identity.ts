@@ -125,9 +125,14 @@ export function createIdentityCommands(s: PatientServiceContext) {
   }
 
   return {
+    /**
+     * `within` creates the patient in the caller's open tenant transaction (the migration apply creates
+     * patients and their applied rows atomically, H2 M-4); omitted, the create opens its own.
+     */
     createPatient(
       ctx: ActorContext,
       envelope: CommandEnvelope<unknown>,
+      within?: TenantTransaction,
     ): Promise<CommandResult<PatientSummary>> {
       return guarded(ctx, 'patients.create', async () => {
         const decision = await deps.authorize(ctx, 'patients.create', { tenantId: ctx.tenantId, id: 'new' });
@@ -138,7 +143,7 @@ export function createIdentityCommands(s: PatientServiceContext) {
         assertLocation(decision.locationRefs, payload.homeLocationRef ?? null);
         checkIdentityInput(payload);
         const record = recordFromCreate(payload);
-        return deps.withTenantTransaction(ctx, async (tx) =>
+        const work = async (tx: TenantTransaction) =>
           summaryOf(
             tx,
             await execute<Ack>(ctx, envelope, tx, async () => {
@@ -171,8 +176,8 @@ export function createIdentityCommands(s: PatientServiceContext) {
               );
               return { data: { ref: row.id, summary: toSummary(row) }, version: row.version };
             }),
-          ),
-        );
+          );
+        return within ? work(within) : deps.withTenantTransaction(ctx, work);
       });
     },
 

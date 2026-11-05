@@ -164,3 +164,10 @@ recommended-pending-approval). Tests in `tests/integration/migration-hardening.t
   migration merge bumps the change sequence and records its command there. Test: a simulated crash
   at the bump rolls back the merge; the retry with the same key merges and bumps once; a further
   replay bumps nothing. Red 1/1 failing (merge committed without bump); green 4/4.
+- M-4 no orphans, no stale links: `applyImport` is one transaction (package lock, plan-digest
+  re-check, S4 `createPatient` through its new internal `within` transaction parameter, applied rows,
+  apply-run row), so a refused or crashed run leaves no patient; a patient left by a pre-fix run is
+  adopted by its per-record `external_record` identifier. The plan follows a linked patient's
+  `merged_into` chain to the survivor (the digest changes, so a stale apply is refused), and the apply
+  locks each linked patient `FOR SHARE` against a concurrent merge. Red 2/3 failing (orphan left,
+  link to merged patient); the adoption test is regression coverage (passed before); green 7/7.

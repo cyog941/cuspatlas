@@ -1,5 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { type AppointmentHarness, openAppointmentHarness } from './support/appointment-fixtures';
+import {
+  type AppointmentHarness,
+  count,
+  mergePatients,
+  openAppointmentHarness,
+} from './support/appointment-fixtures';
 import { seedBillingScopes } from './support/billing-fixtures';
 import { openTestDatabase, type TestDatabase } from './support/db';
 import { SVC_A1, T_ALPHA, USER_A1 } from './support/fixtures';
@@ -266,5 +271,76 @@ describe('H2 M-3 a merge and its change-sequence bump commit together', () => {
     // A replay changes nothing further.
     h.ok(await h.call('a1', 'POST', '/v1/migration/identity/merges', m.body, key), 201);
     expect(await changeSeq(m.pkg)).toBe(before + 1);
+  });
+});
+
+const appliedPatient = async (pkg: string, source: string) =>
+  (
+    await db.admin.query(
+      `SELECT a.patient_id FROM cuspatlas.migration_applied_records a JOIN cuspatlas.migration_staged_records s
+       ON s.id = a.staged_record_id WHERE s.package_id = $1 AND s.source_id = $2`,
+      [pkg, source],
+    )
+  ).rows[0]?.patient_id as string | undefined;
+
+describe('H2 M-4 no orphan patient and no link to a merged patient', () => {
+  it('a run that fails after creating patients leaves none behind; the retry creates each once', async () => {
+    const pkg = await stage({
+      patients: `${HEAD.patients}O001,Orphan,Sage,1977-07-07,5550700001,G1\n`,
+    });
+    const patients = await count(db, 'patients');
+    await db.admin.query(`CREATE FUNCTION cuspatlas.h2_fail() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN RAISE EXCEPTION 'simulated crash'; END $$`);
+    await db.admin.query(
+      'CREATE TRIGGER h2_fail BEFORE INSERT ON cuspatlas.migration_applied_records FOR EACH ROW EXECUTE FUNCTION cuspatlas.h2_fail()',
+    );
+    try {
+      expect((await apply(pkg)).statusCode).toBeGreaterThanOrEqual(500);
+    } finally {
+      await db.admin.query('DROP TRIGGER h2_fail ON cuspatlas.migration_applied_records');
+      await db.admin.query('DROP FUNCTION cuspatlas.h2_fail()');
+    }
+    expect(await count(db, 'patients')).toBe(patients);
+    h.ok(await apply(pkg));
+    expect(await count(db, 'patients')).toBe(patients + 1);
+  });
+
+  it('adopts a patient an earlier run created for the same staged record', async () => {
+    const pkg = await stage({
+      patients: `${HEAD.patients}O002,Orphan,Tatum,1978-08-08,5550700002,G1\n`,
+    });
+    const staged = [...(await sourceOf(pkg))][0]?.[0] as string;
+    const left = h.ok<{ data: { patientRef: string } }>(
+      await h.call('a1', 'POST', '/v1/patients', {
+        legalName: { known: true, given: 'Tatum', family: 'Orphan' },
+        birthDate: { known: true, value: '1978-08-08', precision: 'day' },
+        identifiers: [{ type: 'external_record', issuer: 'cuspatlas-migration', value: staged }],
+      }),
+      201,
+    ).data.patientRef;
+    const patients = await count(db, 'patients');
+    h.ok(await apply(pkg));
+    expect([await count(db, 'patients'), await appliedPatient(pkg, 'O002')]).toStrictEqual([patients, left]);
+  });
+
+  it('a link decided before a merge follows the merged patient to its survivor', async () => {
+    const make = async () =>
+      h.ok<{ data: { patientRef: string } }>(
+        await h.call('a1', 'POST', '/v1/patients', {
+          legalName: { known: true, given: 'Quinn', family: 'Merge' },
+          birthDate: { known: true, value: '1955-05-05', precision: 'day' },
+        }),
+        201,
+      ).data.patientRef;
+    const survivor = await make();
+    const merged = await make();
+    const pkg = await stage({
+      patients: `${HEAD.patients}L001,Merge,Quinn,1955-05-05,5550700003,G1\n`,
+    });
+    const item = (await openItems(pkg)).find((i) => i.category === 'identity') as Item;
+    h.ok(await resolve(pkg, item.itemRef, 'sameAsExisting', merged));
+    await mergePatients(h, survivor, merged);
+    h.ok(await apply(pkg));
+    expect(await appliedPatient(pkg, 'L001')).toBe(survivor);
   });
 });

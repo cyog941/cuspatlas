@@ -8,7 +8,7 @@ Branch `codex/backend-integration` (worktree `src/cuspatlas-c1`); see [integrati
 
 ## What exists per workstream
 
-The operation counts come from `packages/contracts/src/catalog/operations.json` (catalog owner letter), 488 operations in total. Every operation is reachable over REST, and over MCP where it has a tool (455 of 488; see [capability coverage](../api/capability-coverage.md)), through one policy layer.
+The operation counts come from `packages/contracts/src/catalog/operations.json` (catalog owner letter), 507 operations in total after Closeout C. Every routed operation is reachable over REST, and over MCP where it has a tool (469 of 507; see [capability coverage](../api/capability-coverage.md)), through one policy layer.
 
 | Workstream | Tasks built (ledger) | Operations | Key read models for the UI |
 | --- | --- | --- | --- |
@@ -187,18 +187,21 @@ Sub-decisions held in the ledgers (all pending): billing M-1..M-12, P-1..P-7, ST
 - Every clinical semantic is recommended-pending-clinical-approval; no dentist has reviewed any of them.
 - Webhooks have no real network transport; a narrow window between the revoke recheck and the send remains.
 - The privacy scan and SBOM are partial controls; a green CI is not authorization to deploy or hold PHI.
-- Open integration items: no insurer portion in C12 estimates; E2 portal documents stay unavailable; A batch 2 responses have no `data` wrapper.
-- Not built: export build as a worker job.
+- Open integration items: A batch 2 responses have no `data` wrapper. (The C12 insurer portion and E2 portal documents were built in Closeout B; B4 statements reach the portal since Closeout C.)
 - Closeout A limits (tested on synthetic data only):
-  - The downtime-log and reviewer-assignment lists return at most 500 rows, with no cursor; a full page reports `truncated`.
   - Ending a downtime window does not require its entries to be resolved, and the log does not enforce a two-person rule for payments or notes.
   - Reply escalation has no per-queue enable flag; only each queue's reply-due threshold applies. The escalation target queue still needs practice confirmation.
   - Backup verification in the worker runs only when an operator configures `CUSPATLAS_BACKUP_LOCATION` and `CUSPATLAS_RESTORE_ADMIN_DATABASE_URL`. No operator location exists.
   - The orphan-bytes sweep is a human operation, not a scheduled job, and handles at most 200 candidates per run. Known residual risks:
-    - Exports do not take the content lock.
     - A removal followed by a transaction rollback leaves no record.
     - An ingest retried after the grace period finds its bytes gone.
-  - Ranged export downloads read and verify the whole package on each request; the object store has no ranged read. MCP downloads have no ranges.
+  - Export downloads (REST ranges and MCP chunks) read and verify the whole package on each request; the object store has no ranged read.
+- Closeout C limits (tested on synthetic data only):
+  - Statement portal releases: a statement goes only to its guarantor's portal (or a relationship holding `financial`) and shows every covered account's lines, including those of dependents. Whether that is acceptable for adult dependents is a billing and privacy decision that is still open. Superseding a released statement does not revoke the release; the portal marks it `superseded`. Nothing notifies the patient (E7 delivery is not built). The portal reads the JSON snapshot; no printable document is rendered.
+  - The MCP truncation descriptor is advertised in each read-only tool's `_meta` under `cuspatlas/truncation`. That key is a project extension, and no tool declares an `outputSchema`.
+  - MCP export chunks are base64 inside JSON, at most 1 MiB of package bytes per call.
+  - Export builds run only in the worker, and only with `CUSPATLAS_OBJECT_STORE_DIR` and an imaging token secret. Without a running worker, a request stays `building` and fails as `build_interrupted` after the 900-second deadline. The worker builds as the requester's live membership. This delegated execution still needs security review. A direct `practice.export.create` (M1) still builds inline.
+  - The downtime and reviewer cursors are keyset positions. A row inserted before the current position during a walk is not returned in that walk.
 - No retention period ships for messages or images, so nothing in those classes is deletable.
 - Agent memory PHI screening is a best-effort heuristic, not enforced default-deny (A23 hardening).
 

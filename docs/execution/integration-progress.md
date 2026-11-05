@@ -354,3 +354,29 @@ Remaining internally buildable backend gaps before the UI phase, on synthetic da
   - Fixes were committed in 1093a80. Second run: exit 0, 184 files / 3466 tests.
   - Catalog: 492 operations (488 + `imaging.objects.releaseToPortal`, `imaging.portalReleases.revoke`, `portal.documents.grantRead`, `portal.documents.content`).
   - Not pushed. GitHub CI has not run, so the Windows diagnostic output is still to be read.
+
+## Closeout C
+
+Branch `codex/backend-integration`, from c9ef80b. Synthetic data only. Not pushed.
+
+- **C1 B4 statements on the portal** (migration `20261207520000`). This reuses the E2 portal release fact with the item kind `billing_statement`. The database refuses a release that names anyone other than the statement's guarantor.
+  - Staff operations `billing.statements.releaseToPortal` (`POST /v1/billing/statements/{statementRef}/portal-releases`) and `billing.statementReleases.revoke` (`POST /v1/billing/statement-releases/{releaseRef}/revoke`). Both are human only, `billing.write`, idempotent and audited through `recordCommand`, with REST and MCP parity through `BILLING_OPS`.
+  - A release is refused when the statement is superseded, fails its integrity check, its guarantor was merged, or it is already live (409). A revocation happens once, and the row is kept.
+  - New portal view `statements` (relationship scope `financial`) and portal read `portal.statements.read`. The read returns the stored snapshot, verified against its digest, without entry, charge, payment or author references. Every path goes through E1 `requirePortalAccess`, so the guarantor and a financial proxy can read it, and anyone else gets 404. The imaging revoke now ignores statement releases.
+  - Red 4/4 (exit 1), then green 4/4 (`tests/integration/portal-statements.test.ts`). The B10 negative matrix covers both commands (cross-tenant, revoked and downgraded, on REST and MCP). The portal harness, MCP parity and portal-views registries were updated.
+- **C2 `resumeCursor` advertised.** Every read-only (truncatable) MCP tool now advertises an optional, agent-only `resumeCursor` input in `tools/list`. Its tool `_meta` also carries, under `cuspatlas/truncation`, the JSON Schema of `_meta.truncated`. The validated tool schema is unchanged.
+  - Red: the unit test failed with exit 1 (module missing). Green: 3/3 (`apps/mcp/src/truncation.test.ts`). The protocol test checks the wire listing for every tool.
+- **C3 cursor pages** for `operations.downtime.windows.list`, `operations.downtime.entries.list` and `migration.reviewers.list`. The cursors are signed keyset cursors from the shared `CUSPATLAS_CURSOR_KEY` ring, bound to tenant, listing and filters.
+  - Each list takes `limit` (1-500) and `cursor`, and returns `nextCursor`. The registry entry is now `cursor: true`, so `truncated` is true only while another page exists.
+  - Red 4/4 (exit 1), then green 4/4 (`tests/integration/closeout-list-cursors.test.ts`). The tests cover multi-page walks on REST and MCP, and tampered, foreign-listing, other-filter and other-tenant cursors (400 each).
+- **C4 MCP chunked export download.** `practice_export_download` and `exports_download` accept `chunkOffset` and an optional `chunkBytes` (at most 1 MiB). They return one base64 chunk with `totalLength`, the recorded `digestSha256` and `nextOffset`.
+  - Each chunk goes through the REST range's domain byte call: full policy checks, a `range`-marked sensitive read, and a check of the stored bytes against the digest.
+  - Red 8/8 (exit 1), then green 8/8. These are the new blocks in `export-chunked-download.test.ts`: parity with the REST range of each span, the 1 MiB cap, an offset past the end, tampered bytes, and cross-tenant, role, revoked-membership and expired-grant refusals.
+- **C5 export build as a worker job** (migration `20261207530000`). `exports.create` records the request and answers `building`; the caller polls `exports.read`.
+  - The new worker-only operation `exports.build` (service principal, `outbox.deliver`) leases building requests. `build_attempt` is the fencing token. Each request is built as the requester's live membership, re-authorized for `exports.create` and every module export. A revoked requester fails as `requester_inactive`, and the worker records that failure.
+  - Only the current attempt can complete a request. An expired lease is taken over once and never builds twice.
+  - The completion, and the M1 practice export, promote the package bytes under the imaging content lock, so the orphan-bytes sweep keeps them (this closes the A5 residual).
+  - Module access is also checked at request time. The worker composes the S, I, C, E, B and M1 exporters.
+  - Red 5/5 (exit 1), then green 5/5 (`tests/integration/export-build-jobs.test.ts`). The A15 and A8 suites now drive the build through the real worker composition (`tests/integration/support/export-jobs.ts`).
+- **Full-ci fixes.** The first full `ci` had 2 failures out of 3588. Both were allowlist registries: the A7 forbidden-operation matrix now admits the worker-only `exports.build`, and the B1 structural table list now admits `portal_document_releases`. Both files pass when re-run.
+- Catalog: 507 operations (503 + the two statement release commands, `portal.statements.read` and `exports.build`).

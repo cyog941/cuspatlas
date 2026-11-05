@@ -2,7 +2,14 @@ import { randomUUID } from 'node:crypto';
 import { createAuthorize } from '@cuspatlas/domain';
 import { composeWorker, createAgentTaskRunner } from '@cuspatlas/worker';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { type AgentHandle, type AgentStack, inDays, SPONSOR, startAgentStack } from './support/agent-stack';
+import {
+  type AgentHandle,
+  type AgentStack,
+  catalog,
+  inDays,
+  SPONSOR,
+  startAgentStack,
+} from './support/agent-stack';
 import { M_SERVICE_ALL, MCP_AUDIENCE } from './support/catalog-stack';
 import { T_ALPHA } from './support/fixtures';
 import { patientBody } from './support/patient-fixtures';
@@ -281,6 +288,15 @@ describe('A23 scoped memory', () => {
 });
 
 describe('A23 scheduled tasks', () => {
+  it('the dispatch action is the worker principal only, never an MCP or REST operation', () => {
+    const dispatch = catalog.find((o) => o.operation === 'agents.tasks.dispatch');
+    expect(dispatch).toMatchObject({
+      principals: ['service'],
+      transports: ['worker'],
+      scope: 'outbox.deliver',
+    });
+  });
+
   const runner = () =>
     createAgentTaskRunner({
       workerPrincipalId: M_SERVICE_ALL,

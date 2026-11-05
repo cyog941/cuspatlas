@@ -18,6 +18,13 @@ export const NULL_SCOPE_OPERATIONS: readonly string[] = [
   'preferences.recentPatients.clear',
   'vocabularies.list',
   'vocabularies.read',
+  // H3 3c / A23: the authority is a relationship (the offered sponsor, the agent sponsor or manager,
+  // or the agent itself), checked by the service; there is no scope to hold.
+  'agents.sponsors.accept',
+  'agents.sponsors.decline',
+  'agents.sessions.end',
+  'agents.memory.delete',
+  'agents.tasks.cancel',
 ];
 
 /**

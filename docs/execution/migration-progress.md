@@ -171,3 +171,11 @@ recommended-pending-approval). Tests in `tests/integration/migration-hardening.t
   `merged_into` chain to the survivor (the digest changes, so a stale apply is refused), and the apply
   locks each linked patient `FOR SHARE` against a concurrent merge. Red 2/3 failing (orphan left,
   link to merged patient); the adoption test is regression coverage (passed before); green 7/7.
+- M-5 reviewer list (`20261128510000_migration_reviewer_assignments.sql`): per-tenant
+  `migration_reviewer_assignments` (principal, `financialReviewer`/`operationsReviewer`, assigned by,
+  revocable). Decision recorded (recommended-pending-approval): the default reviewer set is any holder
+  of `migration.signoff` whom an administrator assigned to the role; the list is written only by the
+  administrator/operator provisioning path (runtime role: SELECT only, so no API caller can assign
+  itself); an admin-facing assignment command is an open item. `recordSignOff` refuses a role the
+  signer is not assigned (`409 reviewer_role_not_assigned`) and the sign-off trigger refuses it again
+  (42501). Red 1/1 failing; green 8/8; tenant-isolation lists the new table.

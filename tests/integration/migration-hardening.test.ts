@@ -7,7 +7,7 @@ import {
 } from './support/appointment-fixtures';
 import { seedBillingScopes } from './support/billing-fixtures';
 import { openTestDatabase, type TestDatabase } from './support/db';
-import { SVC_A1, T_ALPHA, USER_A1 } from './support/fixtures';
+import { SVC_A1, T_ALPHA, USER_A1, USER_A3 } from './support/fixtures';
 import {
   intakeBody,
   legacyPackage,
@@ -342,5 +342,42 @@ describe('H2 M-4 no orphan patient and no link to a merged patient', () => {
     await mergePatients(h, survivor, merged);
     h.ok(await apply(pkg));
     expect(await appliedPatient(pkg, 'L001')).toBe(survivor);
+  });
+});
+
+describe('H2 M-5 a sign-off role comes from the reviewer list', () => {
+  it('one person cannot claim a role an administrator did not assign them', async () => {
+    const report = h.ok<{ data: { reportRef: string; reportDigest: string } }>(
+      await h.call('a1', 'POST', '/v1/migration/reports', { packageRef: wedged }),
+    ).data;
+    const body = (role: string) => ({
+      packageRef: wedged,
+      reportRef: report.reportRef,
+      reportDigest: report.reportDigest,
+      role,
+      decision: 'rejected',
+    });
+    const claimed = await h.call('a3', 'POST', '/v1/migration/signoffs', body('financialReviewer'));
+    expect([claimed.statusCode, claimed.json().detail?.reason]).toStrictEqual([
+      409,
+      'reviewer_role_not_assigned',
+    ]);
+    const sign = (role: string): [string, unknown[]] => [
+      `INSERT INTO cuspatlas.migration_signoffs (tenant_id, package_id, report_id, report_digest, role, decision, signed_by)
+       VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, 'rejected', cuspatlas.current_actor_id())`,
+      [wedged, report.reportRef, report.reportDigest, role],
+    ];
+    expect(await asApp(USER_A3, [sign('financialReviewer')])).toBe('42501');
+    expect(await asApp(USER_A3, [sign('operationsReviewer')])).toBe('accepted');
+    // The runtime role cannot assign itself a role.
+    expect(
+      await asApp(USER_A3, [
+        [
+          `INSERT INTO cuspatlas.migration_reviewer_assignments (tenant_id, principal_id, role, assigned_by)
+           VALUES (cuspatlas.current_tenant_id(), cuspatlas.current_actor_id(), 'financialReviewer', cuspatlas.current_actor_id())`,
+          [],
+        ],
+      ]),
+    ).toBe('42501');
   });
 });

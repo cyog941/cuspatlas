@@ -225,6 +225,7 @@ describe('runtime database role', () => {
       'migration_packages',
       'migration_reports',
       'migration_review_items',
+      'migration_reviewer_assignments',
       'migration_signoffs',
       'migration_source_profiles',
       'migration_staged_records',

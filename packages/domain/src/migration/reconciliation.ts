@@ -313,6 +313,13 @@ export function createReconciliationOperations(base: MigrationBase, hooks: Apply
               throw conflict('stale_report_version');
             if (p.decision === 'approved' && current.body.blockingExceptions.length > 0)
               throw conflict('unresolved_exception');
+            // H2 M-5: the role comes from the tenant's administrator-assigned reviewer list.
+            const { rows: assigned } = await tx.query(
+              `SELECT 1 FROM cuspatlas.migration_reviewer_assignments
+               WHERE principal_id = cuspatlas.current_actor_id() AND role = $1 AND revoked_at IS NULL`,
+              [p.role],
+            );
+            if (assigned.length === 0) throw conflict('reviewer_role_not_assigned');
             const { rows: other } = await tx.query<{ role: string }>(
               'SELECT role FROM cuspatlas.migration_signoffs WHERE report_id = $1 AND signed_by = cuspatlas.current_actor_id()',
               [p.reportRef],

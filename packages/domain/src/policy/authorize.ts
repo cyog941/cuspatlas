@@ -527,6 +527,15 @@ export const ACTION_POLICIES = {
   'migration.reports.read': { scope: 'migration.read', principals: ['human', 'service'] },
   'migration.signoffs.record': { scope: 'migration.signoff', principals: ['human'] },
   'migration.cutover.advance': { scope: 'migration.signoff', principals: ['human'] },
+  // M7 historical archive packages (M-S2 blocks the real arrangement): registration, verification and
+  // holds are migration work by a person (verification also by the worker); reads are patient history
+  // (human only, also need patients.read) and sensitive-read logged.
+  'migration.archive.register': { scope: 'migration.write', principals: ['human'] },
+  'migration.archive.verify': { scope: 'migration.write', principals: ['human', 'service'] },
+  'migration.archive.references': { scope: 'migration.read', principals: ['human'] },
+  'migration.archive.read': { scope: 'migration.read', principals: ['human'] },
+  'migration.archive.holds.record': { scope: 'migration.write', principals: ['human'] },
+  'migration.archive.retention.evaluate': { scope: 'migration.read', principals: ['human', 'service'] },
   // M1 practice export (easy exit, MG-03): the whole tenant leaves in one versioned package. A tenant-wide
   // human administrator only (elevated, audited, sensitive-read logged); delivery through a short-lived
   // grant bound to the caller; each composed S/I/C/E/B export re-authorizes the same caller.

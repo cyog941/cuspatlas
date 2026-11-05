@@ -11987,6 +11987,205 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/migration/archives:
+    post:
+      operationId: migration.archive.register
+      description: >-
+        M7: register the archive references of one package (historical appointments and procedures, archived
+        future appointments) as a new read-only archive package version with per-entry digests. Never writes
+        a live clinical, scheduling or financial row; a prior version stays readable.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/migration.schema.json#/$defs/ArchiveRegister'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/ArchiveRegisterResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/migration/archives/verify:
+    post:
+      operationId: migration.archive.verify
+      description: >-
+        M7: recompute every entry digest of one archive package and record its state: verified, partial
+        (unreadable entries enumerated) or failed (not served).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/migration.schema.json#/$defs/ArchiveVerify'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/ArchiveVerifyResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/migration/archives/references:
+    get:
+      operationId: migration.archive.references
+      description: >-
+        M7: the read-only archive references of one patient across archive versions (an explicit empty list
+        when there are none). Sensitive-read logged.
+      parameters:
+        - name: patientRef
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/migration.schema.json#/$defs/PatientRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/ArchiveReferenceList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/migration/archives/entries:
+    get:
+      operationId: migration.archive.read
+      description: >-
+        M7: one archive entry (the source row as received) for its linked patient only; 409
+        archive_entry_unreadable or archive_unavailable instead of serving damaged content. Sensitive-read
+        logged.
+      parameters:
+        - name: entryRef
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/migration.schema.json#/$defs/Uuid'
+        - name: patientRef
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/migration.schema.json#/$defs/PatientRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/ArchiveEntry'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/migration/archives/holds:
+    post:
+      operationId: migration.archive.holds.record
+      description: >-
+        M7: place a legal hold on one archive package, or release an active hold once. A held package (or
+        one whose patient is under an I8 hold) is never deleted.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/migration.schema.json#/$defs/ArchiveHold'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/ArchiveHoldResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/migration/archives/retention:
+    get:
+      operationId: migration.archive.retention.evaluate
+      description: >-
+        M7: whether one archive package may be disposed of under the recommended-pending-approval retention
+        policy: never while held or inside the retention period (reasons listed).
+      parameters:
+        - name: archiveRef
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/migration.schema.json#/$defs/ArchiveRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/ArchiveRetention'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   /v1/practice/exports:
     post:
       operationId: practice.export.create

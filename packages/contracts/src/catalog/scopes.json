@@ -586,6 +586,9 @@
         "M"
       ],
       "operations": [
+        "migration.archive.read",
+        "migration.archive.references",
+        "migration.archive.retention.evaluate",
         "migration.imports.plan",
         "migration.openingItems.list",
         "migration.packages.read",
@@ -625,6 +628,9 @@
         "M"
       ],
       "operations": [
+        "migration.archive.holds.record",
+        "migration.archive.register",
+        "migration.archive.verify",
         "migration.identity.merge",
         "migration.imports.apply",
         "migration.packages.intake",

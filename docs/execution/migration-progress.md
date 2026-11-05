@@ -242,3 +242,19 @@ recommended-pending-approval). Tests in `tests/integration/migration-hardening.t
   sensitivity `phiBulk`. Round trip: the downloaded documents import into a fresh database and store
   through `importExports` + `importImagingBlobs` and re-export the same manifest. Format published in
   `docs/export-format.md`. Red 5/5 failing (exit 1); green 5/5.
+- M7 historical archive packages (`20261129010000_migration_archive.sql`): `migration.archive.register`
+  copies the M3 archive references of a package (historical appointments and procedures, archived
+  future appointments) into a new read-only archive package version (per-entry digest over entity,
+  source id, time precision, patient and the source row; package digest over the entries); nothing
+  is written to live S/C/B tables (asserted). `migration.archive.verify` (human or worker) records
+  `verified`, `partial` (unreadable entries enumerated) or `failed`. Reads: `migration.archive.references`
+  (one visible patient, explicit empty list) and `migration.archive.read` (one entry for its linked
+  patient only, else 404; damaged content `409 archive_entry_unreadable`, a failed package
+  `409 archive_unavailable`), human-only, also need `patients.read`, sensitive-read logged. A
+  re-registration is a new version; the prior one stays readable. Retention (recommended-pending-
+  approval `archive-retention.pending-approval.1`, ten years from registration) and legal holds:
+  `migration.archive.holds.record` (place, release once) and `migration.archive.retention.evaluate`
+  (reasons `legal_hold`, `retention_period`); an I8 patient hold (`imaging_legal_holds`) on an entry's
+  patient also holds the archive. A delete trigger refuses any deletion while held or retained, for
+  every role that fires triggers; the runtime role has no DELETE grant. Disposal itself is not an
+  operation (pending M-S2). Red 6/6 failing (exit 1); green 6/6.

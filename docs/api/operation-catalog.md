@@ -9,7 +9,7 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-388 operations.
+394 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
@@ -19,7 +19,7 @@ transport tables and are declarations, not independent proof.
 | B | 64 | 64 | 64 | 0 | 0 | 0 |
 | E | 60 | 48 | 48 | 11 | 0 | 1 |
 | I | 54 | 47 | 44 | 0 | 6 | 0 |
-| M | 18 | 18 | 18 | 0 | 0 | 0 |
+| M | 24 | 24 | 24 | 0 | 0 | 0 |
 
 | Operation | Owner | Kind | Authorization | Scope | Principals | Transports | REST | MCP tool | Idempotency | Sensitivity | Status |
 |---|---|---|---|---|---|---|---|---|---|---|---|
@@ -235,6 +235,12 @@ transport tables and are declarations, not independent proof.
 | `messaging.threads.open` | E | command | authorize | `messaging.write` | human | rest, mcp | POST `/v1/patients/{patientRef}/message-threads` | `messaging_threads_open` | required | phi | active |
 | `messaging.threads.read` | E | query | authorize | `messaging.read` | human | rest, mcp | GET `/v1/messaging/threads/{threadRef}` | `messaging_threads_get` | none | phi | active |
 | `messaging.threads.worklist` | E | query | authorize | `messaging.read` | human, service | rest, mcp | GET `/v1/messaging/threads/worklist` | `messaging_threads_worklist` | none | phi | active |
+| `migration.archive.holds.record` | M | command | authorize | `migration.write` | human | rest, mcp | POST `/v1/migration/archives/holds` | `migration_archive_holds_record` | required | phi | active |
+| `migration.archive.read` | M | query | authorize | `migration.read` | human | rest, mcp | GET `/v1/migration/archives/entries` | `migration_archive_read` | none | phi | active |
+| `migration.archive.references` | M | query | authorize | `migration.read` | human | rest, mcp | GET `/v1/migration/archives/references` | `migration_archive_references` | none | phi | active |
+| `migration.archive.register` | M | command | authorize | `migration.write` | human | rest, mcp | POST `/v1/migration/archives` | `migration_archive_register` | required | phi | active |
+| `migration.archive.retention.evaluate` | M | query | authorize | `migration.read` | human, service | rest, mcp | GET `/v1/migration/archives/retention` | `migration_archive_retention_evaluate` | none | phi | active |
+| `migration.archive.verify` | M | command | authorize | `migration.write` | human, service | rest, mcp | POST `/v1/migration/archives/verify` | `migration_archive_verify` | required | phi | active |
 | `migration.cutover.advance` | M | command | authorize | `migration.signoff` | human | rest, mcp | POST `/v1/migration/cutover/advance` | `migration_cutover_advance` | required | phi | active |
 | `migration.identity.merge` | M | command | authorize | `migration.write` | human | rest, mcp | POST `/v1/migration/identity/merges` | `migration_identity_merge` | required | phi | active |
 | `migration.imports.apply` | M | command | authorize | `migration.write` | human, service | rest, mcp | POST `/v1/migration/imports/apply` | `migration_imports_apply` | required | phi | active |

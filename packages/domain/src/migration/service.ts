@@ -1,4 +1,5 @@
 import { loadSettings } from '../billing/base';
+import { createArchiveOperations } from './archive';
 import { createMigrationBase, type MigrationDeps } from './base';
 import { createIdentityOperations } from './identity';
 import { createIntakeOperations } from './intake';
@@ -29,6 +30,7 @@ export function createMigrationService(deps: MigrationDeps) {
     ...createImportOperations(base, applyHooks),
     ...createReconciliationOperations(base, applyHooks),
     ...createPracticeExportOperations(base),
+    ...createArchiveOperations(base),
   };
 }
 

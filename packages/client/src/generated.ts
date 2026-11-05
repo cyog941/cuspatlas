@@ -4499,6 +4499,92 @@ export type ImagingTransform = ({
 
 export type ImagingVersion = number;
 
+export type MigrationArchiveEntry = {
+  readonly "data": {
+    readonly "entryRef": MigrationUuid;
+    readonly "archiveRef": MigrationArchiveRef;
+    readonly "archiveVersion": MigrationVersion;
+    readonly "entity": string;
+    readonly "sourceId": string | null;
+    readonly "timePrecision": "minute" | "day" | "month" | "year" | "unknown" | "none";
+    readonly "state": "verified" | "partial" | "failed";
+    readonly "readOnly": true;
+    readonly "content": { readonly [k: string]: string | null };
+  };
+};
+
+export type MigrationArchiveHold = {
+  readonly "archiveRef": MigrationArchiveRef;
+  readonly "action": "place" | "release";
+  readonly "holdRef"?: MigrationUuid;
+  readonly "reasonCode": MigrationReasonCode;
+};
+
+export type MigrationArchiveHoldResult = {
+  readonly "data": {
+    readonly "holdRef": MigrationUuid;
+    readonly "action": "place" | "release";
+  };
+  readonly "version": MigrationVersion;
+  readonly "correlationId": string;
+  readonly "replayed": boolean;
+};
+
+export type MigrationArchiveRef = MigrationUuid;
+
+export type MigrationArchiveReferenceList = {
+  readonly "data": readonly ({
+    readonly "entryRef": MigrationUuid;
+    readonly "archiveRef": MigrationArchiveRef;
+    readonly "archiveVersion": MigrationVersion;
+    readonly "entity": string;
+    readonly "sourceId": string | null;
+    readonly "timePrecision": "minute" | "day" | "month" | "year" | "unknown" | "none";
+    readonly "state": "verified" | "partial" | "failed";
+    readonly "readOnly": true;
+  })[];
+};
+
+export type MigrationArchiveRegister = {
+  readonly "packageRef": MigrationPackageRef;
+};
+
+export type MigrationArchiveRegisterResult = {
+  readonly "data": {
+    readonly "archiveRef": MigrationArchiveRef;
+    readonly "archiveVersion": MigrationVersion;
+    readonly "state": "verified" | "partial" | "failed";
+    readonly "entryCount": MigrationCount;
+    readonly "archiveDigest": MigrationDigest;
+  };
+  readonly "version": MigrationVersion;
+  readonly "correlationId": string;
+  readonly "replayed": boolean;
+};
+
+export type MigrationArchiveRetention = {
+  readonly "data": {
+    readonly "archiveRef": MigrationArchiveRef;
+    readonly "eligible": boolean;
+    readonly "reasons": readonly ("legal_hold" | "retention_period")[];
+    readonly "retainUntil": string;
+    readonly "policyVersion": string;
+  };
+};
+
+export type MigrationArchiveVerify = {
+  readonly "archiveRef": MigrationArchiveRef;
+};
+
+export type MigrationArchiveVerifyResult = {
+  readonly "data": {
+    readonly "archiveRef": MigrationArchiveRef;
+    readonly "state": "verified" | "partial" | "failed";
+    readonly "entryCount": MigrationCount;
+    readonly "unreadableEntries": readonly (MigrationUuid)[];
+  };
+};
+
 export type MigrationAuthorisation = {
   readonly "reference": string;
   readonly "practiceRef": MigrationPracticeRef;
@@ -8753,6 +8839,60 @@ export interface Operations {
     successStatus: 200;
     idempotent: false;
   };
+  "migration.archive.holds.record": {
+    method: "POST";
+    path: "/v1/migration/archives/holds";
+    params: {  };
+    body: MigrationArchiveHold;
+    result: MigrationArchiveHoldResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "migration.archive.read": {
+    method: "GET";
+    path: "/v1/migration/archives/entries";
+    params: {  };
+    body: undefined;
+    result: MigrationArchiveEntry;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "migration.archive.references": {
+    method: "GET";
+    path: "/v1/migration/archives/references";
+    params: {  };
+    body: undefined;
+    result: MigrationArchiveReferenceList;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "migration.archive.register": {
+    method: "POST";
+    path: "/v1/migration/archives";
+    params: {  };
+    body: MigrationArchiveRegister;
+    result: MigrationArchiveRegisterResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "migration.archive.retention.evaluate": {
+    method: "GET";
+    path: "/v1/migration/archives/retention";
+    params: {  };
+    body: undefined;
+    result: MigrationArchiveRetention;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "migration.archive.verify": {
+    method: "POST";
+    path: "/v1/migration/archives/verify";
+    params: {  };
+    body: MigrationArchiveVerify;
+    result: MigrationArchiveVerifyResult;
+    successStatus: 200;
+    idempotent: true;
+  };
   "migration.cutover.advance": {
     method: "POST";
     path: "/v1/migration/cutover/advance";
@@ -10525,6 +10665,12 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "messaging.threads.open": { method: "POST", path: "/v1/patients/{patientRef}/message-threads", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "messaging.threads.read": { method: "GET", path: "/v1/messaging/threads/{threadRef}", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "messaging.threads.worklist": { method: "GET", path: "/v1/messaging/threads/worklist", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "migration.archive.holds.record": { method: "POST", path: "/v1/migration/archives/holds", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "migration.archive.read": { method: "GET", path: "/v1/migration/archives/entries", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "migration.archive.references": { method: "GET", path: "/v1/migration/archives/references", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "migration.archive.register": { method: "POST", path: "/v1/migration/archives", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "migration.archive.retention.evaluate": { method: "GET", path: "/v1/migration/archives/retention", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "migration.archive.verify": { method: "POST", path: "/v1/migration/archives/verify", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "migration.cutover.advance": { method: "POST", path: "/v1/migration/cutover/advance", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "migration.identity.merge": { method: "POST", path: "/v1/migration/identity/merges", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "migration.imports.apply": { method: "POST", path: "/v1/migration/imports/apply", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },

@@ -7112,6 +7112,209 @@
     "status": "active"
   },
   {
+    "operation": "migration.archive.holds.record",
+    "owner": "M",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "migration.archive.holds.record",
+    "scope": "migration.write",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/migration/archives/holds",
+      "requestSchema": "migration:ArchiveHold",
+      "successStatus": "201",
+      "successSchema": "migration:ArchiveHoldResult"
+    },
+    "mcpTool": "migration_archive_holds_record",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "migration.archive.read",
+    "owner": "M",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "migration.archive.read",
+    "scope": "migration.read",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/migration/archives/entries",
+      "successStatus": "200",
+      "successSchema": "migration:ArchiveEntry"
+    },
+    "mcpTool": "migration_archive_read",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "migration.archive.references",
+    "owner": "M",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "migration.archive.references",
+    "scope": "migration.read",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/migration/archives/references",
+      "successStatus": "200",
+      "successSchema": "migration:ArchiveReferenceList"
+    },
+    "mcpTool": "migration_archive_references",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "migration.archive.register",
+    "owner": "M",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "migration.archive.register",
+    "scope": "migration.write",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/migration/archives",
+      "requestSchema": "migration:ArchiveRegister",
+      "successStatus": "201",
+      "successSchema": "migration:ArchiveRegisterResult"
+    },
+    "mcpTool": "migration_archive_register",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "migration.archive.retention.evaluate",
+    "owner": "M",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "migration.archive.retention.evaluate",
+    "scope": "migration.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/migration/archives/retention",
+      "successStatus": "200",
+      "successSchema": "migration:ArchiveRetention"
+    },
+    "mcpTool": "migration_archive_retention_evaluate",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "migration.archive.verify",
+    "owner": "M",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "migration.archive.verify",
+    "scope": "migration.write",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/migration/archives/verify",
+      "requestSchema": "migration:ArchiveVerify",
+      "successStatus": "200",
+      "successSchema": "migration:ArchiveVerifyResult"
+    },
+    "mcpTool": "migration_archive_verify",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
     "operation": "migration.cutover.advance",
     "owner": "M",
     "kind": "command",

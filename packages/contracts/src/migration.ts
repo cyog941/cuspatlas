@@ -166,3 +166,11 @@ export interface PracticeExportPackage {
   readonly manifest: PracticeExportManifest;
   readonly documents: readonly PracticeExportDocument[];
 }
+
+/** M7 historical archive packages (synthetic only; the real archive arrangement is blocked on M-S2). */
+export const validateArchiveRegister = def('ArchiveRegister');
+export const validateArchiveVerify = def('ArchiveVerify');
+export const validateArchiveReferencesQuery = def('ArchiveReferencesQuery');
+export const validateArchiveEntryQuery = def('ArchiveEntryQuery');
+export const validateArchiveHold = def('ArchiveHold');
+export const validateArchiveRetentionQuery = def('ArchiveRetentionQuery');

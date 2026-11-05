@@ -1289,6 +1289,325 @@
           }
         }
       }
+    },
+    "ArchiveRef": {
+      "$ref": "#/$defs/Uuid",
+      "description": "Opaque reference of one archive package version."
+    },
+    "ArchiveRegister": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["packageRef"],
+      "properties": {
+        "packageRef": {
+          "$ref": "#/$defs/PackageRef"
+        }
+      }
+    },
+    "ArchiveRegisterResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["archiveRef", "archiveVersion", "state", "entryCount", "archiveDigest"],
+          "properties": {
+            "archiveRef": {
+              "$ref": "#/$defs/ArchiveRef"
+            },
+            "archiveVersion": {
+              "$ref": "#/$defs/Version"
+            },
+            "state": {
+              "enum": ["verified", "partial", "failed"]
+            },
+            "entryCount": {
+              "$ref": "#/$defs/Count"
+            },
+            "archiveDigest": {
+              "$ref": "#/$defs/Digest"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ArchiveVerify": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["archiveRef"],
+      "properties": {
+        "archiveRef": {
+          "$ref": "#/$defs/ArchiveRef"
+        }
+      }
+    },
+    "ArchiveVerifyResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["archiveRef", "state", "entryCount", "unreadableEntries"],
+          "properties": {
+            "archiveRef": {
+              "$ref": "#/$defs/ArchiveRef"
+            },
+            "state": {
+              "enum": ["verified", "partial", "failed"]
+            },
+            "entryCount": {
+              "$ref": "#/$defs/Count"
+            },
+            "unreadableEntries": {
+              "type": "array",
+              "maxItems": 10000,
+              "items": {
+                "$ref": "#/$defs/Uuid"
+              }
+            }
+          }
+        }
+      }
+    },
+    "ArchiveReferencesQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["patientRef"],
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        }
+      }
+    },
+    "ArchiveReferenceList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "entryRef",
+              "archiveRef",
+              "archiveVersion",
+              "entity",
+              "sourceId",
+              "timePrecision",
+              "state",
+              "readOnly"
+            ],
+            "properties": {
+              "entryRef": {
+                "$ref": "#/$defs/Uuid"
+              },
+              "archiveRef": {
+                "$ref": "#/$defs/ArchiveRef"
+              },
+              "archiveVersion": {
+                "$ref": "#/$defs/Version"
+              },
+              "entity": {
+                "type": "string",
+                "maxLength": 41
+              },
+              "sourceId": {
+                "type": ["string", "null"],
+                "maxLength": 64
+              },
+              "timePrecision": {
+                "enum": ["minute", "day", "month", "year", "unknown", "none"]
+              },
+              "state": {
+                "enum": ["verified", "partial", "failed"]
+              },
+              "readOnly": {
+                "const": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "ArchiveEntryQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entryRef", "patientRef"],
+      "properties": {
+        "entryRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        }
+      }
+    },
+    "ArchiveEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "entryRef",
+            "archiveRef",
+            "archiveVersion",
+            "entity",
+            "sourceId",
+            "timePrecision",
+            "state",
+            "readOnly",
+            "content"
+          ],
+          "properties": {
+            "entryRef": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "archiveRef": {
+              "$ref": "#/$defs/ArchiveRef"
+            },
+            "archiveVersion": {
+              "$ref": "#/$defs/Version"
+            },
+            "entity": {
+              "type": "string",
+              "maxLength": 41
+            },
+            "sourceId": {
+              "type": ["string", "null"],
+              "maxLength": 64
+            },
+            "timePrecision": {
+              "enum": ["minute", "day", "month", "year", "unknown", "none"]
+            },
+            "state": {
+              "enum": ["verified", "partial", "failed"]
+            },
+            "readOnly": {
+              "const": true
+            },
+            "content": {
+              "type": "object",
+              "maxProperties": 256,
+              "additionalProperties": {
+                "type": ["string", "null"]
+              },
+              "description": "The source row as received (read-only historical record; never a live fact)."
+            }
+          }
+        }
+      }
+    },
+    "ArchiveHold": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["archiveRef", "action", "reasonCode"],
+      "properties": {
+        "archiveRef": {
+          "$ref": "#/$defs/ArchiveRef"
+        },
+        "action": {
+          "enum": ["place", "release"]
+        },
+        "holdRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "ArchiveHoldResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["holdRef", "action"],
+          "properties": {
+            "holdRef": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "action": {
+              "enum": ["place", "release"]
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ArchiveRetentionQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["archiveRef"],
+      "properties": {
+        "archiveRef": {
+          "$ref": "#/$defs/ArchiveRef"
+        }
+      }
+    },
+    "ArchiveRetention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["archiveRef", "eligible", "reasons", "retainUntil", "policyVersion"],
+          "properties": {
+            "archiveRef": {
+              "$ref": "#/$defs/ArchiveRef"
+            },
+            "eligible": {
+              "type": "boolean"
+            },
+            "reasons": {
+              "type": "array",
+              "maxItems": 4,
+              "items": {
+                "enum": ["legal_hold", "retention_period"]
+              }
+            },
+            "retainUntil": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "policyVersion": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        }
+      }
     }
   }
 }

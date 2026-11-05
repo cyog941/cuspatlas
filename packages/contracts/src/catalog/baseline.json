@@ -9518,6 +9518,175 @@
       "mcpTool": "messaging_threads_worklist"
     },
     {
+      "operation": "migration.archive.holds.record",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.write",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/migration/archives/holds"
+      },
+      "mcpTool": "migration_archive_holds_record",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "action": {
+            "enum": [
+              "\"place\"",
+              "\"release\""
+            ]
+          },
+          "archiveRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "holdRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "reasonCode": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z_]{1,64}$"
+          }
+        },
+        "closed": true,
+        "required": [
+          "action",
+          "archiveRef",
+          "reasonCode"
+        ]
+      }
+    },
+    {
+      "operation": "migration.archive.read",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.read",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/migration/archives/entries"
+      },
+      "mcpTool": "migration_archive_read"
+    },
+    {
+      "operation": "migration.archive.references",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.read",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/migration/archives/references"
+      },
+      "mcpTool": "migration_archive_references"
+    },
+    {
+      "operation": "migration.archive.register",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.write",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/migration/archives"
+      },
+      "mcpTool": "migration_archive_register",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "packageRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "closed": true,
+        "required": [
+          "packageRef"
+        ]
+      }
+    },
+    {
+      "operation": "migration.archive.retention.evaluate",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/migration/archives/retention"
+      },
+      "mcpTool": "migration_archive_retention_evaluate"
+    },
+    {
+      "operation": "migration.archive.verify",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.write",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/migration/archives/verify"
+      },
+      "mcpTool": "migration_archive_verify",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "archiveRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "closed": true,
+        "required": [
+          "archiveRef"
+        ]
+      }
+    },
+    {
       "operation": "migration.cutover.advance",
       "transports": [
         "rest",

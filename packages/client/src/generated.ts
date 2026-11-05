@@ -4893,6 +4893,24 @@ export type SchedulingAppointmentCommandResult = {
   readonly "replayed": boolean;
 };
 
+export type SchedulingAppointmentPatientReassign = {
+  readonly "expectedVersion": SchedulingVersion;
+  readonly "patientRef": SchedulingResourceRefId;
+  readonly "reasonCode": string;
+};
+
+export type SchedulingAppointmentPatientReassignResult = {
+  readonly "data": {
+    readonly "appointmentRef": SchedulingResourceRefId;
+    readonly "patientRef": SchedulingResourceRefId;
+    readonly "previousPatientRef": SchedulingResourceRefId;
+    readonly "reassignmentRef": SchedulingResourceRefId;
+  };
+  readonly "version": number;
+  readonly "correlationId": string;
+  readonly "replayed": boolean;
+};
+
 export type SchedulingAppointmentRead = {
   readonly "data": SchedulingAppointment;
 };
@@ -5072,7 +5090,7 @@ export type SchedulingAvailabilityRequirement = {
 export type SchedulingAvailabilitySearch = {
   readonly "locationRef": SchedulingLocationRef;
   readonly "from": SchedulingLocalDate;
-  readonly "to": SchedulingLocalDate;
+  readonly "to"?: SchedulingLocalDate;
   readonly "durationMinutes": number;
   readonly "bufferMinutes"?: number;
   readonly "slotMinutes"?: 5 | 10 | 15 | 20 | 30 | 60;
@@ -5081,6 +5099,10 @@ export type SchedulingAvailabilitySearch = {
   readonly "requirements": readonly (SchedulingAvailabilityRequirement)[];
   readonly "limit"?: number;
   readonly "cursor"?: SchedulingCursor;
+  readonly "weekdays"?: readonly (number)[];
+  readonly "timeWindows"?: readonly (SchedulingLocalTimeWindow)[];
+  readonly "preferredProviderRefs"?: readonly (SchedulingResourceRefId)[];
+  readonly "next"?: number;
 };
 
 export type SchedulingAvailabilitySearchResult = {
@@ -5098,6 +5120,11 @@ export type SchedulingAvailabilitySearchResult = {
       readonly "displayTimeZone": SchedulingTimeZone;
       readonly "appointmentTypeCode"?: string;
       readonly "policyRef": string;
+      readonly "maxWindowDays": number;
+      readonly "weekdays"?: readonly (number)[];
+      readonly "timeWindows"?: readonly (SchedulingLocalTimeWindow)[];
+      readonly "preferredProviderRefs"?: readonly (SchedulingResourceRefId)[];
+      readonly "next"?: number;
     };
     readonly "coverage": {
       readonly "notConsidered": readonly (string)[];
@@ -5107,6 +5134,7 @@ export type SchedulingAvailabilitySearchResult = {
       })[];
       readonly "statement": string;
     };
+    readonly "envelope": SchedulingListEnvelope;
   };
 };
 
@@ -5206,6 +5234,35 @@ export type SchedulingEntityRef = string;
 
 export type SchedulingEntryRef = string;
 
+export type SchedulingFloorView = {
+  readonly "data": {
+    readonly "locationRef": SchedulingLocationRef;
+    readonly "projection": "standard" | "anonymized";
+    readonly "operatories": readonly ({
+      readonly "operatoryRef": SchedulingResourceRefId;
+      readonly "label": string | null;
+      readonly "currentVisit": (SchedulingFloorVisit) | (null);
+    })[];
+    readonly "envelope": SchedulingListEnvelope;
+  };
+};
+
+export type SchedulingFloorVisit = {
+  readonly "appointmentRef"?: SchedulingResourceRefId;
+  readonly "attendanceState": string;
+  readonly "label": string;
+  readonly "since": (SchedulingInstant) | (null);
+  readonly "elapsedMinutes": (number) | (null);
+  readonly "nextActions": readonly (string)[];
+  readonly "patient": ({
+    readonly "patientRef": SchedulingResourceRefId;
+  }) | ("restricted" | "anonymized");
+  readonly "providerRequest": ({
+    readonly "requestRef": SchedulingResourceRefId;
+    readonly "state": "open" | "acknowledged";
+  }) | (null);
+};
+
 export type SchedulingHoldCommandResult = {
   readonly "data": {
     readonly "holdRef": SchedulingHoldRef;
@@ -5247,9 +5304,42 @@ export type SchedulingInstant = string;
 
 export type SchedulingIntentRef = string;
 
+export type SchedulingListCount = ({
+  readonly "exact": number;
+}) | ({
+  readonly "atLeast": number;
+});
+
+export type SchedulingListEnvelope = {
+  readonly "asOf": string;
+  readonly "appliedFilters": { readonly [k: string]: unknown };
+  readonly "scope": SchedulingListScope;
+  readonly "limit": number;
+  readonly "truncated": boolean;
+  readonly "nextCursor": string | null;
+  readonly "ordering": SchedulingListOrdering;
+  readonly "count": SchedulingListCount;
+};
+
+export type SchedulingListOrdering = {
+  readonly "key": string;
+  readonly "direction": "asc" | "desc";
+  readonly "tieBreak": string;
+};
+
+export type SchedulingListScope = {
+  readonly "kind": "tenant_wide" | "assigned_locations" | "location_set";
+  readonly "locationRefs"?: readonly (string)[];
+};
+
 export type SchedulingLocalDate = string;
 
 export type SchedulingLocalTime = string;
+
+export type SchedulingLocalTimeWindow = {
+  readonly "start": SchedulingLocalTime;
+  readonly "end": SchedulingLocalTime;
+};
 
 export type SchedulingLocation = {
   readonly "locationRef": SchedulingLocationRef;
@@ -5412,6 +5502,39 @@ export type SchedulingPreferredWindow = {
 
 export type SchedulingPreferredWindows = readonly (SchedulingPreferredWindow)[];
 
+export type SchedulingPresenceList = {
+  readonly "data": {
+    readonly "items": readonly ({
+      readonly "principalRef": string;
+      readonly "status": "available" | "busy" | "away";
+      readonly "operatoryRef": (SchedulingResourceRefId) | (null);
+      readonly "setAt": SchedulingInstant;
+      readonly "expiresAt": SchedulingInstant;
+    })[];
+    readonly "envelope": SchedulingListEnvelope;
+  };
+};
+
+export type SchedulingPresenceResult = {
+  readonly "data": {
+    readonly "principalRef": string;
+    readonly "status": "available" | "busy" | "away";
+    readonly "operatoryRef": (SchedulingResourceRefId) | (null);
+    readonly "setAt": SchedulingInstant;
+    readonly "expiresAt": SchedulingInstant;
+  };
+  readonly "version": number;
+  readonly "correlationId": string;
+  readonly "replayed": boolean;
+};
+
+export type SchedulingPresenceSet = {
+  readonly "locationRef": SchedulingLocationRef;
+  readonly "status": "available" | "busy" | "away";
+  readonly "operatoryRef"?: SchedulingResourceRefId;
+  readonly "expiresInMinutes"?: number;
+};
+
 export type SchedulingProducerRecordRef = string;
 
 export type SchedulingProvenanceRef = string;
@@ -5419,6 +5542,43 @@ export type SchedulingProvenanceRef = string;
 export type SchedulingProviderRef = {
   readonly "kind": "provider";
   readonly "resourceRef": SchedulingResourceRefId;
+};
+
+export type SchedulingProviderRequest = {
+  readonly "requestRef": SchedulingResourceRefId;
+  readonly "appointmentRef": SchedulingResourceRefId;
+  readonly "locationRef": SchedulingLocationRef;
+  readonly "state": "open" | "acknowledged" | "cleared";
+  readonly "reasonCode": string;
+  readonly "requestedAt": SchedulingInstant;
+  readonly "version": SchedulingVersion;
+};
+
+export type SchedulingProviderRequestAcknowledge = {
+  readonly "expectedVersion": SchedulingVersion;
+};
+
+export type SchedulingProviderRequestClear = {
+  readonly "expectedVersion": SchedulingVersion;
+  readonly "reasonCode": string;
+};
+
+export type SchedulingProviderRequestCreate = {
+  readonly "reasonCode": string;
+};
+
+export type SchedulingProviderRequestList = {
+  readonly "data": {
+    readonly "items": readonly (SchedulingProviderRequest)[];
+    readonly "envelope": SchedulingListEnvelope;
+  };
+};
+
+export type SchedulingProviderRequestResult = {
+  readonly "data": SchedulingProviderRequest;
+  readonly "version": number;
+  readonly "correlationId": string;
+  readonly "replayed": boolean;
 };
 
 export type SchedulingReasonCode = string;
@@ -5787,6 +5947,88 @@ export type SchedulingSeriesSkipped = {
   readonly "index": number;
   readonly "localDate": SchedulingLocalDate;
   readonly "reason": SchedulingReasonCode;
+};
+
+export type SchedulingStagingAdd = {
+  readonly "locationRef": SchedulingLocationRef;
+  readonly "appointmentRef"?: SchedulingResourceRefId;
+  readonly "requestRef"?: SchedulingResourceRefId;
+  readonly "reasonCode": string;
+};
+
+export type SchedulingStagingEntry = {
+  readonly "entryRef": SchedulingResourceRefId;
+  readonly "locationRef": SchedulingLocationRef;
+  readonly "subjectKind": "appointment" | "request";
+  readonly "subjectRef": SchedulingResourceRefId;
+  readonly "state": "staged" | "moved" | "removed";
+  readonly "reasonCode": string;
+  readonly "subjectStatus": string;
+  readonly "startsAt"?: (SchedulingInstant) | (null);
+  readonly "endsAt"?: (SchedulingInstant) | (null);
+  readonly "stagedAt": SchedulingInstant;
+  readonly "version": SchedulingVersion;
+};
+
+export type SchedulingStagingEntryResult = {
+  readonly "data": SchedulingStagingEntry;
+  readonly "version": number;
+  readonly "correlationId": string;
+  readonly "replayed": boolean;
+};
+
+export type SchedulingStagingList = {
+  readonly "data": {
+    readonly "locationRef": SchedulingLocationRef;
+    readonly "capacity": number;
+    readonly "items": readonly (SchedulingStagingEntry)[];
+    readonly "envelope": SchedulingListEnvelope;
+  };
+};
+
+export type SchedulingStagingMove = {
+  readonly "expectedVersion": SchedulingVersion;
+  readonly "startsAt": SchedulingInstant;
+  readonly "endsAt": SchedulingInstant;
+  readonly "timeZone": SchedulingTimeZone;
+  readonly "provider": SchedulingProviderRef;
+  readonly "operatory": (SchedulingOperatoryRef) | (null);
+  readonly "noOperatoryReason"?: SchedulingNoOperatoryReason;
+  readonly "resources"?: SchedulingAdditionalResources;
+  readonly "override"?: SchedulingBookingOverride;
+  readonly "reasonCode": SchedulingReasonCode;
+};
+
+export type SchedulingStagingMoveResult = {
+  readonly "data": {
+    readonly "entryRef": SchedulingResourceRefId;
+    readonly "state": "moved";
+    readonly "previousAppointmentRef": SchedulingResourceRefId;
+    readonly "appointmentRef": SchedulingResourceRefId;
+  };
+  readonly "version": number;
+  readonly "correlationId": string;
+  readonly "replayed": boolean;
+};
+
+export type SchedulingStagingRemove = {
+  readonly "expectedVersion": SchedulingVersion;
+  readonly "reasonCode": string;
+};
+
+export type SchedulingStagingSettings = {
+  readonly "locationRef": SchedulingLocationRef;
+  readonly "capacity": number;
+};
+
+export type SchedulingStagingSettingsResult = {
+  readonly "data": {
+    readonly "locationRef": SchedulingLocationRef;
+    readonly "capacity": number;
+  };
+  readonly "version": number;
+  readonly "correlationId": string;
+  readonly "replayed": boolean;
 };
 
 export type SchedulingStandingPolicyCommandResult = {
@@ -8691,6 +8933,15 @@ export interface Operations {
     successStatus: 200;
     idempotent: false;
   };
+  "scheduling.appointments.reassignPatient": {
+    method: "POST";
+    path: "/v1/scheduling/appointments/{appointmentRef}/reassign-patient";
+    params: { readonly appointmentRef: string; };
+    body: SchedulingAppointmentPatientReassign;
+    result: SchedulingAppointmentPatientReassignResult;
+    successStatus: 200;
+    idempotent: true;
+  };
   "scheduling.appointments.reschedule": {
     method: "POST";
     path: "/v1/scheduling/appointments/{appointmentRef}/reschedule";
@@ -8744,6 +8995,51 @@ export interface Operations {
     result: SchedulingSchedulingExport;
     successStatus: 200;
     idempotent: false;
+  };
+  "scheduling.floor.acknowledgeProviderRequest": {
+    method: "POST";
+    path: "/v1/scheduling/provider-requests/{requestRef}/acknowledge";
+    params: { readonly requestRef: string; };
+    body: SchedulingProviderRequestAcknowledge;
+    result: SchedulingProviderRequestResult;
+    successStatus: 200;
+    idempotent: true;
+  };
+  "scheduling.floor.clearProviderRequest": {
+    method: "POST";
+    path: "/v1/scheduling/provider-requests/{requestRef}/clear";
+    params: { readonly requestRef: string; };
+    body: SchedulingProviderRequestClear;
+    result: SchedulingProviderRequestResult;
+    successStatus: 200;
+    idempotent: true;
+  };
+  "scheduling.floor.providerRequests": {
+    method: "GET";
+    path: "/v1/scheduling/floor/provider-requests";
+    params: {  };
+    body: undefined;
+    result: SchedulingProviderRequestList;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "scheduling.floor.read": {
+    method: "GET";
+    path: "/v1/scheduling/floor";
+    params: {  };
+    body: undefined;
+    result: SchedulingFloorView;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "scheduling.floor.requestProvider": {
+    method: "POST";
+    path: "/v1/scheduling/appointments/{appointmentRef}/provider-requests";
+    params: { readonly appointmentRef: string; };
+    body: SchedulingProviderRequestCreate;
+    result: SchedulingProviderRequestResult;
+    successStatus: 201;
+    idempotent: true;
   };
   "scheduling.followUp.worklist": {
     method: "GET";
@@ -8825,6 +9121,24 @@ export interface Operations {
     result: SchedulingWorkItemList;
     successStatus: 200;
     idempotent: false;
+  };
+  "scheduling.presence.list": {
+    method: "GET";
+    path: "/v1/scheduling/presence";
+    params: {  };
+    body: undefined;
+    result: SchedulingPresenceList;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "scheduling.presence.set": {
+    method: "POST";
+    path: "/v1/scheduling/presence";
+    params: {  };
+    body: SchedulingPresenceSet;
+    result: SchedulingPresenceResult;
+    successStatus: 200;
+    idempotent: true;
   };
   "scheduling.recall.createTask": {
     method: "POST";
@@ -9068,6 +9382,51 @@ export interface Operations {
     result: SchedulingSeriesRead;
     successStatus: 200;
     idempotent: false;
+  };
+  "scheduling.staging.add": {
+    method: "POST";
+    path: "/v1/scheduling/staging/entries";
+    params: {  };
+    body: SchedulingStagingAdd;
+    result: SchedulingStagingEntryResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "scheduling.staging.configure": {
+    method: "POST";
+    path: "/v1/scheduling/staging/settings";
+    params: {  };
+    body: SchedulingStagingSettings;
+    result: SchedulingStagingSettingsResult;
+    successStatus: 200;
+    idempotent: true;
+  };
+  "scheduling.staging.list": {
+    method: "GET";
+    path: "/v1/scheduling/staging";
+    params: {  };
+    body: undefined;
+    result: SchedulingStagingList;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "scheduling.staging.move": {
+    method: "POST";
+    path: "/v1/scheduling/staging/entries/{entryRef}/move";
+    params: { readonly entryRef: string; };
+    body: SchedulingStagingMove;
+    result: SchedulingStagingMoveResult;
+    successStatus: 200;
+    idempotent: true;
+  };
+  "scheduling.staging.remove": {
+    method: "POST";
+    path: "/v1/scheduling/staging/entries/{entryRef}/remove";
+    params: { readonly entryRef: string; };
+    body: SchedulingStagingRemove;
+    result: SchedulingStagingEntryResult;
+    successStatus: 200;
+    idempotent: true;
   };
   "scheduling.standingPolicies.grant": {
     method: "POST";
@@ -9672,12 +10031,18 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "scheduling.appointments.book": { method: "POST", path: "/v1/scheduling/appointments", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "scheduling.appointments.cancel": { method: "POST", path: "/v1/scheduling/appointments/{appointmentRef}/cancel", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "scheduling.appointments.read": { method: "GET", path: "/v1/scheduling/appointments/{appointmentRef}", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "scheduling.appointments.reassignPatient": { method: "POST", path: "/v1/scheduling/appointments/{appointmentRef}/reassign-patient", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "scheduling.appointments.reschedule": { method: "POST", path: "/v1/scheduling/appointments/{appointmentRef}/reschedule", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "scheduling.attendance.list": { method: "GET", path: "/v1/scheduling/appointments/{appointmentRef}/attendance", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "scheduling.attendance.record": { method: "POST", path: "/v1/scheduling/appointments/{appointmentRef}/attendance", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "scheduling.attendance.visitStatus": { method: "GET", path: "/v1/scheduling/appointments/{appointmentRef}/visit-status", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "scheduling.availability.search": { method: "POST", path: "/v1/availability/search", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "scheduling.export": { method: "GET", path: "/v1/scheduling/export", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "scheduling.floor.acknowledgeProviderRequest": { method: "POST", path: "/v1/scheduling/provider-requests/{requestRef}/acknowledge", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "scheduling.floor.clearProviderRequest": { method: "POST", path: "/v1/scheduling/provider-requests/{requestRef}/clear", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "scheduling.floor.providerRequests": { method: "GET", path: "/v1/scheduling/floor/provider-requests", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "scheduling.floor.read": { method: "GET", path: "/v1/scheduling/floor", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "scheduling.floor.requestProvider": { method: "POST", path: "/v1/scheduling/appointments/{appointmentRef}/provider-requests", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "scheduling.followUp.worklist": { method: "GET", path: "/v1/scheduling/follow-up/worklist", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "scheduling.holds.create": { method: "POST", path: "/v1/scheduling/holds", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "scheduling.holds.reconcile": { method: "POST", path: "/v1/scheduling/holds/reconcile", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
@@ -9687,6 +10052,8 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "scheduling.locations.list": { method: "GET", path: "/v1/scheduling/locations", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "scheduling.notifications.read": { method: "GET", path: "/v1/scheduling/notifications/{intentRef}", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "scheduling.notifications.worklist": { method: "GET", path: "/v1/scheduling/notifications/worklist", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "scheduling.presence.list": { method: "GET", path: "/v1/scheduling/presence", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "scheduling.presence.set": { method: "POST", path: "/v1/scheduling/presence", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "scheduling.recall.createTask": { method: "POST", path: "/v1/scheduling/recall/tasks", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "scheduling.recall.definePolicy": { method: "POST", path: "/v1/scheduling/recall/policies", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "scheduling.recall.due": { method: "GET", path: "/v1/scheduling/recall/due", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
@@ -9714,6 +10081,11 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "scheduling.series.extend": { method: "POST", path: "/v1/scheduling/series/{seriesRef}/extend", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "scheduling.series.plan": { method: "POST", path: "/v1/scheduling/series/plan", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "scheduling.series.read": { method: "GET", path: "/v1/scheduling/series/{seriesRef}", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "scheduling.staging.add": { method: "POST", path: "/v1/scheduling/staging/entries", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "scheduling.staging.configure": { method: "POST", path: "/v1/scheduling/staging/settings", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "scheduling.staging.list": { method: "GET", path: "/v1/scheduling/staging", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "scheduling.staging.move": { method: "POST", path: "/v1/scheduling/staging/entries/{entryRef}/move", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "scheduling.staging.remove": { method: "POST", path: "/v1/scheduling/staging/entries/{entryRef}/remove", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "scheduling.standingPolicies.grant": { method: "POST", path: "/v1/scheduling/standing-policies", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "scheduling.standingPolicies.list": { method: "GET", path: "/v1/scheduling/standing-policies", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "scheduling.standingPolicies.revoke": { method: "POST", path: "/v1/scheduling/standing-policies/{policyRef}/revoke", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },

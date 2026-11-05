@@ -95,10 +95,10 @@ describe('E3 acceptance', () => {
       { operation: 'scheduling.requests.create', principal: 'portal', actor_id: adultP },
     ]);
     // No second appointment-request table exists (I8 deletion requests and B adjustment requests are
-    // imaging and billing records).
+    // imaging and billing records; S21 provider requests are internal floor facts).
     const tables = await db.admin.query(
       `SELECT table_name FROM information_schema.tables WHERE table_schema = 'cuspatlas' AND table_name ~ 'request'
-         AND table_name !~ '^(imaging|billing|rcm)_'
+         AND table_name !~ '^(imaging|billing|rcm|scheduling_provider)_'
        ORDER BY 1`,
     );
     expect(tables.rows.map((r) => r.table_name)).toStrictEqual([

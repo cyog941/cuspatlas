@@ -24,8 +24,8 @@ export type ListCount = { readonly exact: number } | { readonly atLeast: number 
 export interface ListEnvelope {
   /** Server instant the list was read. */
   readonly asOf: string;
-  /** Normalized filters, including defaults the server applied. */
-  readonly appliedFilters: Readonly<Record<string, string | number | boolean | null>>;
+  /** Normalized filters, including defaults the server applied (scalars or lists of them). */
+  readonly appliedFilters: Readonly<Record<string, unknown>>;
   readonly scope: ListScope;
   readonly limit: number;
   readonly truncated: boolean;
@@ -57,3 +57,72 @@ export function listEnvelope(e: {
     count: { exact: e.total },
   };
 }
+
+/**
+ * The single JSON Schema for the OR-01 envelope. Each contract schema file that returns a list
+ * carries these four `$defs` verbatim (a schema file is self-contained, so the definitions are
+ * copied, not referenced across files); `tests/integration/list-envelope-conformance.test.ts`
+ * fails when any copy differs from this one.
+ */
+export const LIST_ENVELOPE_SCHEMA_DEFS = {
+  ListScope: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['kind'],
+    description:
+      "OR-01 scope: tenant-wide, the caller's assigned locations, or an explicit location set (locationRefs present for the last two).",
+    properties: {
+      kind: { enum: ['tenant_wide', 'assigned_locations', 'location_set'] },
+      locationRefs: {
+        type: 'array',
+        maxItems: 200,
+        items: { type: 'string', pattern: '^[a-z0-9-]{1,64}$' },
+      },
+    },
+  },
+  ListOrdering: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['key', 'direction', 'tieBreak'],
+    properties: {
+      key: { type: 'string', pattern: '^[A-Za-z.]{1,64}$' },
+      direction: { enum: ['asc', 'desc'] },
+      tieBreak: { type: 'string', pattern: '^[A-Za-z.]{1,64}$' },
+    },
+  },
+  ListCount: {
+    oneOf: [
+      {
+        type: 'object',
+        additionalProperties: false,
+        required: ['exact'],
+        properties: { exact: { type: 'integer', minimum: 0 } },
+      },
+      {
+        type: 'object',
+        additionalProperties: false,
+        required: ['atLeast'],
+        properties: { atLeast: { type: 'integer', minimum: 0 } },
+      },
+    ],
+  },
+  ListEnvelope: {
+    type: 'object',
+    additionalProperties: false,
+    description: 'OR-01 list envelope, shared by every list and worklist response.',
+    required: ['asOf', 'appliedFilters', 'scope', 'limit', 'truncated', 'nextCursor', 'ordering', 'count'],
+    properties: {
+      asOf: { type: 'string', format: 'date-time', description: 'Server instant the list was read.' },
+      appliedFilters: {
+        type: 'object',
+        description: 'Normalized filters, including the defaults the server applied.',
+      },
+      scope: { $ref: '#/$defs/ListScope' },
+      limit: { type: 'integer', minimum: 1 },
+      truncated: { type: 'boolean' },
+      nextCursor: { type: ['string', 'null'] },
+      ordering: { $ref: '#/$defs/ListOrdering' },
+      count: { $ref: '#/$defs/ListCount' },
+    },
+  },
+} as const;

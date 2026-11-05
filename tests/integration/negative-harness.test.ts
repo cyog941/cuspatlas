@@ -468,6 +468,21 @@ export const COMMANDS: HarnessCommand[] = [
     }),
     mcpArgs: (f) => searchBody(f),
   },
+  // S18 (OR-04): the same search with every filter; a provider preference is a resolved reference.
+  {
+    operation: 'scheduling.availability.search',
+    tool: 'availability_search',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => ({
+      method: 'POST',
+      url: '/v1/availability/search',
+      body: filteredSearchBody(f),
+      keyed: false,
+      status: 200,
+    }),
+    mcpArgs: (f) => filteredSearchBody(f),
+  },
   // S8 appointment requests. Writes downgrade to a scheduling-read-only member; reads to a member
   // holding no scheduling scope.
   {
@@ -2524,6 +2539,31 @@ export const COMMANDS: HarnessCommand[] = [
   ...waitlistRows(),
   // S16 recall and the PT-03 follow-up worklist.
   ...recallRows(),
+  // S20 (OR-05) staging list.
+  ...stagingRows(),
+  // S21 (OR-06) floor view, provider requests and presence.
+  ...floorRows(),
+  // S22 (OR-11) reassigning an appointment's patient.
+  {
+    operation: 'scheduling.appointments.reassignPatient',
+    tool: 'scheduling_appointments_reassign_patient',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => ({
+      method: 'POST',
+      url: `/v1/scheduling/appointments/${f.alphaAppointment}/reassign-patient`,
+      body: { expectedVersion: 1, patientRef: f.alphaCounterparty, reasonCode: 'wrong_patient_booked' },
+      keyed: true,
+      status: 200,
+    }),
+    mcpArgs: (f) => ({
+      appointmentRef: f.alphaAppointment,
+      expectedVersion: 1,
+      patientRef: f.alphaCounterparty,
+      reasonCode: 'wrong_patient_booked',
+      idempotencyKey: randomUUID(),
+    }),
+  },
   // S17 minimal export: another tenant exports only its own records (which legitimately include the
   // marker its own harness create wrote; that alpha records never appear in a beta export is asserted
   // in scheduling-export.test.ts).
@@ -2991,6 +3031,186 @@ function waitlistRows(): HarnessCommand[] {
   ];
 }
 
+/** S21 rows. The alpha location, appointment and request are hidden from another tenant (404). */
+function floorRows(): HarnessCommand[] {
+  const get = (url: string): RestCall => ({ method: 'GET', url, keyed: false, status: 200 });
+  const post = (url: string, body: unknown, status = 200): RestCall => ({
+    method: 'POST',
+    url,
+    body,
+    keyed: true,
+    status,
+  });
+  const presence = (f: HarnessFixture) => ({
+    locationRef: f.alphaLocation,
+    status: 'busy',
+    expiresInMinutes: 30,
+  });
+  return [
+    {
+      operation: 'scheduling.floor.read',
+      tool: 'scheduling_floor_read',
+      crossTenant: 'not_found',
+      downgradedTo: 'noPatientScopes',
+      rest: (f) => get(`/v1/scheduling/floor?locationRef=${f.alphaLocation}`),
+      mcpArgs: (f) => ({ locationRef: f.alphaLocation }),
+    },
+    {
+      operation: 'scheduling.floor.providerRequests',
+      tool: 'scheduling_floor_provider_requests',
+      crossTenant: 'not_found',
+      downgradedTo: 'noPatientScopes',
+      rest: (f) => get(`/v1/scheduling/floor/provider-requests?locationRef=${f.alphaLocation}`),
+      mcpArgs: (f) => ({ locationRef: f.alphaLocation }),
+    },
+    {
+      operation: 'scheduling.floor.requestProvider',
+      tool: 'scheduling_floor_request_provider',
+      crossTenant: 'not_found',
+      downgradedTo: 'readOnly',
+      rest: (f) =>
+        post(
+          `/v1/scheduling/appointments/${f.alphaAppointment}/provider-requests`,
+          { reasonCode: 'exam_ready' },
+          201,
+        ),
+      mcpArgs: (f) => ({
+        appointmentRef: f.alphaAppointment,
+        reasonCode: 'exam_ready',
+        idempotencyKey: randomUUID(),
+      }),
+    },
+    {
+      operation: 'scheduling.floor.acknowledgeProviderRequest',
+      tool: 'scheduling_floor_acknowledge_provider_request',
+      crossTenant: 'not_found',
+      downgradedTo: 'readOnly',
+      rest: (f) =>
+        post(`/v1/scheduling/provider-requests/${f.alphaProviderRequest}/acknowledge`, {
+          expectedVersion: 1,
+        }),
+      mcpArgs: (f) => ({
+        requestRef: f.alphaProviderRequest,
+        expectedVersion: 1,
+        idempotencyKey: randomUUID(),
+      }),
+    },
+    {
+      operation: 'scheduling.floor.clearProviderRequest',
+      tool: 'scheduling_floor_clear_provider_request',
+      crossTenant: 'not_found',
+      downgradedTo: 'readOnly',
+      rest: (f) =>
+        post(`/v1/scheduling/provider-requests/${f.alphaProviderRequest}/clear`, {
+          expectedVersion: 1,
+          reasonCode: 'provider_arrived',
+        }),
+      mcpArgs: (f) => ({
+        requestRef: f.alphaProviderRequest,
+        expectedVersion: 1,
+        reasonCode: 'provider_arrived',
+        idempotencyKey: randomUUID(),
+      }),
+    },
+    {
+      operation: 'scheduling.presence.set',
+      tool: 'scheduling_presence_set',
+      crossTenant: 'not_found',
+      downgradedTo: 'readOnly',
+      rest: (f) => post('/v1/scheduling/presence', presence(f)),
+      mcpArgs: (f) => ({ ...presence(f), idempotencyKey: randomUUID() }),
+    },
+    {
+      operation: 'scheduling.presence.list',
+      tool: 'scheduling_presence_list',
+      crossTenant: 'not_found',
+      downgradedTo: 'noPatientScopes',
+      rest: (f) => get(`/v1/scheduling/presence?locationRef=${f.alphaLocation}`),
+      mcpArgs: (f) => ({ locationRef: f.alphaLocation }),
+    },
+  ];
+}
+
+/** S20 rows. The alpha location and entry are hidden from another tenant (404). */
+function stagingRows(): HarnessCommand[] {
+  const S = '/v1/scheduling/staging';
+  const slot = (f: HarnessFixture) => ({
+    expectedVersion: 1,
+    reasonCode: 'provider_out',
+    startsAt: '2030-03-04T14:00:00Z',
+    endsAt: '2030-03-04T15:00:00Z',
+    timeZone: 'America/New_York',
+    provider: { kind: 'provider', resourceRef: f.alphaProvider },
+    operatory: { kind: 'operatory', resourceRef: f.alphaResource },
+  });
+  const add = (f: HarnessFixture) => ({
+    locationRef: f.alphaLocation,
+    requestRef: f.alphaRequest,
+    reasonCode: 'provider_out',
+  });
+  const remove = { expectedVersion: 1, reasonCode: 'no_longer_needed' };
+  return [
+    {
+      operation: 'scheduling.staging.list',
+      tool: 'scheduling_staging_list',
+      crossTenant: 'not_found',
+      downgradedTo: 'noPatientScopes',
+      rest: (f) => ({ method: 'GET', url: `${S}?locationRef=${f.alphaLocation}`, keyed: false, status: 200 }),
+      mcpArgs: (f) => ({ locationRef: f.alphaLocation }),
+    },
+    {
+      operation: 'scheduling.staging.configure',
+      tool: 'scheduling_staging_configure',
+      crossTenant: 'not_found',
+      downgradedTo: 'readOnly',
+      rest: (f) => ({
+        method: 'POST',
+        url: `${S}/settings`,
+        body: { locationRef: f.alphaLocation, capacity: 5 },
+        keyed: true,
+        status: 200,
+      }),
+      mcpArgs: (f) => ({ locationRef: f.alphaLocation, capacity: 5, idempotencyKey: randomUUID() }),
+    },
+    {
+      operation: 'scheduling.staging.add',
+      tool: 'scheduling_staging_add',
+      crossTenant: 'not_found',
+      downgradedTo: 'readOnly',
+      rest: (f) => ({ method: 'POST', url: `${S}/entries`, body: add(f), keyed: true, status: 201 }),
+      mcpArgs: (f) => ({ ...add(f), idempotencyKey: randomUUID() }),
+    },
+    {
+      operation: 'scheduling.staging.remove',
+      tool: 'scheduling_staging_remove',
+      crossTenant: 'not_found',
+      downgradedTo: 'readOnly',
+      rest: (f) => ({
+        method: 'POST',
+        url: `${S}/entries/${f.alphaStagingEntry}/remove`,
+        body: remove,
+        keyed: true,
+        status: 200,
+      }),
+      mcpArgs: (f) => ({ entryRef: f.alphaStagingEntry, ...remove, idempotencyKey: randomUUID() }),
+    },
+    {
+      operation: 'scheduling.staging.move',
+      tool: 'scheduling_staging_move',
+      crossTenant: 'not_found',
+      downgradedTo: 'readOnly',
+      rest: (f) => ({
+        method: 'POST',
+        url: `${S}/entries/${f.alphaStagingEntry}/move`,
+        body: slot(f),
+        keyed: true,
+        status: 200,
+      }),
+      mcpArgs: (f) => ({ entryRef: f.alphaStagingEntry, ...slot(f), idempotencyKey: randomUUID() }),
+    },
+  ];
+}
+
 /** S16 rows. The due row names a category only alpha defines, so another tenant gets 404. */
 function recallRows(): HarnessCommand[] {
   const R = '/v1/scheduling/recall';
@@ -3123,6 +3343,18 @@ function blockBody(f: HarnessFixture) {
     resources: [{ kind: 'operatory', resourceRef: f.alphaResource }],
   };
 }
+function filteredSearchBody(f: HarnessFixture) {
+  const { to: _to, ...rest } = searchBody(f);
+  return {
+    ...rest,
+    requirements: [{ kind: 'provider' }],
+    preferredProviderRefs: [f.alphaProvider],
+    weekdays: [1, 2],
+    timeWindows: [{ start: '08:00', end: '12:00' }],
+    next: 3,
+  };
+}
+
 function searchBody(f: HarnessFixture) {
   return {
     locationRef: f.alphaLocation,
@@ -3587,7 +3819,22 @@ beforeAll(async () => {
     asOf: '2031-01-01T12:00:00Z',
   });
   expect(recallTask.statusCode).toBe(201);
+  // S20: one staged alpha appointment (it keeps its booking).
+  const stagingEntry = await owner('/v1/scheduling/staging/entries', {
+    locationRef: alphaLocation,
+    appointmentRef: appointment.json().data.appointmentRef,
+    reasonCode: 'harness_fixture',
+  });
+  expect(stagingEntry.statusCode).toBe(201);
+  // S21: one open provider request on the arrived recall visit.
+  const providerRequest = await owner(
+    `/v1/scheduling/appointments/${recallVisit.json().data.appointmentRef}/provider-requests`,
+    { reasonCode: 'harness_fixture' },
+  );
+  expect(providerRequest.statusCode).toBe(201);
   fixture = {
+    alphaProviderRequest: providerRequest.json().data.requestRef,
+    alphaStagingEntry: stagingEntry.json().data.entryRef,
     alphaPaymentPlan: paymentPlan.json().data.planRef,
     alphaCoverage: coverage.json().data.coverageRef,
     alphaStatement: statement.json().data.statementRef,
@@ -3823,6 +4070,11 @@ async function state(): Promise<string> {
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.scheduling_standing_policies'),
     await q(`SELECT count(*)::int AS n FROM cuspatlas.recall_policies WHERE tenant_id = '${T_ALPHA}'`),
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.recall_tasks'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.scheduling_staging_lists'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.scheduling_staging_entries'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.scheduling_provider_requests'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.scheduling_staff_presence'),
+    await q('SELECT count(*)::int AS n FROM cuspatlas.appointment_patient_reassignments'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.audit_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.outbox_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.command_idempotency'),

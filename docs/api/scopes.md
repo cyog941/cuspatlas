@@ -19,7 +19,7 @@ human decision (A-D2). No default role grant is asserted here.
 
 | Scope | Principal kinds | Human only | Owners | Highest sensitivity | Operations |
 |---|---|---|---|---|---|
-| `admin.configure` | human, service | no | B, C, E, I, S | phiBulk | 34 |
+| `admin.configure` | human, service | no | B, C, E, I, S | phiBulk | 35 |
 | `billing.correct` | human | yes | B | phi | 12 |
 | `billing.write` | human, service | no | B | phi | 30 |
 | `clinical.oversight` | human | yes | C | phi | 1 |
@@ -50,8 +50,8 @@ human decision (A-D2). No default role grant is asserted here.
 | `portal.manage` | human, service | no | E | phi | 3 |
 | `receivables.read` | human, service | no | B | phi | 4 |
 | `scheduling.override` | human | yes | S | phi | 1 |
-| `scheduling.read` | human, service | no | S | phi | 25 |
-| `scheduling.write` | human, service | no | S | phi | 29 |
+| `scheduling.read` | human, service | no | S | phi | 29 |
+| `scheduling.write` | human, service | no | S | phi | 37 |
 | `syntheticTasks.approve` | human | yes | F | operational | 2 |
 | `syntheticTasks.read` | human, service | no | F | operational | 5 |
 | `syntheticTasks.write` | human, service | no | F | operational | 2 |

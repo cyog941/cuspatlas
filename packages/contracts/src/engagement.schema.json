@@ -863,7 +863,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["kind"],
-      "description": "OR-01 scope: tenant-wide, the caller's assigned locations, or an explicit location set.",
+      "description": "OR-01 scope: tenant-wide, the caller's assigned locations, or an explicit location set (locationRefs present for the last two).",
       "properties": {
         "kind": {
           "enum": ["tenant_wide", "assigned_locations", "location_set"]
@@ -885,14 +885,14 @@
       "properties": {
         "key": {
           "type": "string",
-          "pattern": "^[A-Za-z]{1,64}$"
+          "pattern": "^[A-Za-z.]{1,64}$"
         },
         "direction": {
           "enum": ["asc", "desc"]
         },
         "tieBreak": {
           "type": "string",
-          "pattern": "^[A-Za-z]{1,64}$"
+          "pattern": "^[A-Za-z.]{1,64}$"
         }
       }
     },
@@ -971,18 +971,19 @@
           "properties": {
             "asOf": {
               "type": "string",
-              "format": "date-time"
+              "format": "date-time",
+              "description": "Server instant the list was read."
             },
             "appliedFilters": {
-              "type": "object"
+              "type": "object",
+              "description": "Normalized filters, including the defaults the server applied."
             },
             "scope": {
               "$ref": "#/$defs/ListScope"
             },
             "limit": {
               "type": "integer",
-              "minimum": 1,
-              "maximum": 100
+              "minimum": 1
             },
             "truncated": {
               "type": "boolean"
@@ -1215,6 +1216,51 @@
         "reasonCode": {
           "type": "string",
           "pattern": "^[a-z_]{1,64}$"
+        }
+      }
+    },
+    "ListEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "OR-01 list envelope, shared by every list and worklist response.",
+      "required": [
+        "asOf",
+        "appliedFilters",
+        "scope",
+        "limit",
+        "truncated",
+        "nextCursor",
+        "ordering",
+        "count"
+      ],
+      "properties": {
+        "asOf": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server instant the list was read."
+        },
+        "appliedFilters": {
+          "type": "object",
+          "description": "Normalized filters, including the defaults the server applied."
+        },
+        "scope": {
+          "$ref": "#/$defs/ListScope"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "nextCursor": {
+          "type": ["string", "null"]
+        },
+        "ordering": {
+          "$ref": "#/$defs/ListOrdering"
+        },
+        "count": {
+          "$ref": "#/$defs/ListCount"
         }
       }
     }

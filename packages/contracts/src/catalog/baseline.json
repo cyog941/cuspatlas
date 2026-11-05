@@ -13620,6 +13620,54 @@
       "mcpTool": "scheduling_appointments_get"
     },
     {
+      "operation": "scheduling.appointments.reassignPatient",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "scheduling.write",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/scheduling/appointments/{appointmentRef}/reassign-patient"
+      },
+      "mcpTool": "scheduling_appointments_reassign_patient",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "expectedVersion": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 2147483647,
+            "minimum": 1
+          },
+          "patientRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "reasonCode": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z_]{1,64}$"
+          }
+        },
+        "closed": true,
+        "required": [
+          "expectedVersion",
+          "patientRef",
+          "reasonCode"
+        ]
+      }
+    },
+    {
       "operation": "scheduling.appointments.reschedule",
       "transports": [
         "rest",
@@ -13986,6 +14034,25 @@
             ],
             "pattern": "^[a-z0-9-]{1,64}$"
           },
+          "next": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 20,
+            "minimum": 1
+          },
+          "preferredProviderRefs": {
+            "type": [
+              "array"
+            ],
+            "maxItems": 4,
+            "items": {
+              "type": [
+                "string"
+              ],
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          },
           "requirements": {
             "type": [
               "array"
@@ -14027,11 +14094,54 @@
               "60"
             ]
           },
+          "timeWindows": {
+            "type": [
+              "array"
+            ],
+            "maxItems": 4,
+            "items": {
+              "type": [
+                "object"
+              ],
+              "properties": {
+                "end": {
+                  "type": [
+                    "string"
+                  ],
+                  "pattern": "^(([01][0-9]|2[0-3]):[0-5][0-9]|24:00)$"
+                },
+                "start": {
+                  "type": [
+                    "string"
+                  ],
+                  "pattern": "^(([01][0-9]|2[0-3]):[0-5][0-9]|24:00)$"
+                }
+              },
+              "closed": true,
+              "required": [
+                "end",
+                "start"
+              ]
+            }
+          },
           "to": {
             "type": [
               "string"
             ],
             "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
+          },
+          "weekdays": {
+            "type": [
+              "array"
+            ],
+            "maxItems": 7,
+            "items": {
+              "type": [
+                "integer"
+              ],
+              "maximum": 7,
+              "minimum": 1
+            }
           }
         },
         "closed": true,
@@ -14040,8 +14150,7 @@
           "durationMinutes",
           "from",
           "locationRef",
-          "requirements",
-          "to"
+          "requirements"
         ]
       }
     },
@@ -14060,6 +14169,148 @@
         "path": "/v1/scheduling/export"
       },
       "mcpTool": "scheduling_export"
+    },
+    {
+      "operation": "scheduling.floor.acknowledgeProviderRequest",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "scheduling.write",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/scheduling/provider-requests/{requestRef}/acknowledge"
+      },
+      "mcpTool": "scheduling_floor_acknowledge_provider_request",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "expectedVersion": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 2147483647,
+            "minimum": 1
+          }
+        },
+        "closed": true,
+        "required": [
+          "expectedVersion"
+        ]
+      }
+    },
+    {
+      "operation": "scheduling.floor.clearProviderRequest",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "scheduling.write",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/scheduling/provider-requests/{requestRef}/clear"
+      },
+      "mcpTool": "scheduling_floor_clear_provider_request",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "expectedVersion": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 2147483647,
+            "minimum": 1
+          },
+          "reasonCode": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z_]{1,64}$"
+          }
+        },
+        "closed": true,
+        "required": [
+          "expectedVersion",
+          "reasonCode"
+        ]
+      }
+    },
+    {
+      "operation": "scheduling.floor.providerRequests",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "scheduling.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/scheduling/floor/provider-requests"
+      },
+      "mcpTool": "scheduling_floor_provider_requests"
+    },
+    {
+      "operation": "scheduling.floor.read",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "scheduling.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/scheduling/floor"
+      },
+      "mcpTool": "scheduling_floor_read"
+    },
+    {
+      "operation": "scheduling.floor.requestProvider",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "scheduling.write",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/scheduling/appointments/{appointmentRef}/provider-requests"
+      },
+      "mcpTool": "scheduling_floor_request_provider",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "reasonCode": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z_]{1,64}$"
+          }
+        },
+        "closed": true,
+        "required": [
+          "reasonCode"
+        ]
+      }
     },
     {
       "operation": "scheduling.followUp.worklist",
@@ -14367,6 +14618,77 @@
         "path": "/v1/scheduling/notifications/worklist"
       },
       "mcpTool": "scheduling_notifications_worklist"
+    },
+    {
+      "operation": "scheduling.presence.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "scheduling.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/scheduling/presence"
+      },
+      "mcpTool": "scheduling_presence_list"
+    },
+    {
+      "operation": "scheduling.presence.set",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "scheduling.write",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/scheduling/presence"
+      },
+      "mcpTool": "scheduling_presence_set",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "expiresInMinutes": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 720,
+            "minimum": 1
+          },
+          "locationRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z0-9-]{1,64}$"
+          },
+          "operatoryRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "status": {
+            "enum": [
+              "\"available\"",
+              "\"away\"",
+              "\"busy\""
+            ]
+          }
+        },
+        "closed": true,
+        "required": [
+          "locationRef",
+          "status"
+        ]
+      }
     },
     {
       "operation": "scheduling.recall.createTask",
@@ -15834,6 +16156,346 @@
         "path": "/v1/scheduling/series/{seriesRef}"
       },
       "mcpTool": "scheduling_series_get"
+    },
+    {
+      "operation": "scheduling.staging.add",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "scheduling.write",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/scheduling/staging/entries"
+      },
+      "mcpTool": "scheduling_staging_add",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "appointmentRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "locationRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z0-9-]{1,64}$"
+          },
+          "reasonCode": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z_]{1,64}$"
+          },
+          "requestRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "closed": true,
+        "required": [
+          "locationRef",
+          "reasonCode"
+        ]
+      }
+    },
+    {
+      "operation": "scheduling.staging.configure",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "admin.configure",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/scheduling/staging/settings"
+      },
+      "mcpTool": "scheduling_staging_configure",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "capacity": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 100,
+            "minimum": 1
+          },
+          "locationRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z0-9-]{1,64}$"
+          }
+        },
+        "closed": true,
+        "required": [
+          "capacity",
+          "locationRef"
+        ]
+      }
+    },
+    {
+      "operation": "scheduling.staging.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "scheduling.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/scheduling/staging"
+      },
+      "mcpTool": "scheduling_staging_list"
+    },
+    {
+      "operation": "scheduling.staging.move",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "scheduling.write",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/scheduling/staging/entries/{entryRef}/move"
+      },
+      "mcpTool": "scheduling_staging_move",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "endsAt": {
+            "type": [
+              "string"
+            ],
+            "maxLength": 40
+          },
+          "expectedVersion": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 2147483647,
+            "minimum": 1
+          },
+          "noOperatoryReason": {
+            "enum": [
+              "\"cancelled\"",
+              "\"no_show\"",
+              "\"not_yet_assigned\"",
+              "\"off_site\""
+            ]
+          },
+          "operatory": {
+            "anyOf": [
+              {
+                "type": [
+                  "object"
+                ],
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "\"operatory\""
+                    ]
+                  },
+                  "resourceRef": {
+                    "type": [
+                      "string"
+                    ],
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  }
+                },
+                "closed": true,
+                "required": [
+                  "kind",
+                  "resourceRef"
+                ]
+              },
+              {
+                "type": [
+                  "null"
+                ]
+              }
+            ]
+          },
+          "override": {
+            "type": [
+              "object"
+            ],
+            "properties": {
+              "code": {
+                "enum": [
+                  "\"emergency\"",
+                  "\"practice_policy\"",
+                  "\"provider_approved\""
+                ]
+              },
+              "reasonCode": {
+                "type": [
+                  "string"
+                ],
+                "pattern": "^[a-z_]{1,64}$"
+              }
+            },
+            "closed": true,
+            "required": [
+              "code",
+              "reasonCode"
+            ]
+          },
+          "provider": {
+            "type": [
+              "object"
+            ],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "\"provider\""
+                ]
+              },
+              "resourceRef": {
+                "type": [
+                  "string"
+                ],
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            "closed": true,
+            "required": [
+              "kind",
+              "resourceRef"
+            ]
+          },
+          "reasonCode": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z_]{1,64}$"
+          },
+          "resources": {
+            "type": [
+              "array"
+            ],
+            "maxItems": 6,
+            "items": {
+              "type": [
+                "object"
+              ],
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "\"equipment\"",
+                    "\"operatory\"",
+                    "\"provider\"",
+                    "\"staff\""
+                  ]
+                },
+                "resourceRef": {
+                  "type": [
+                    "string"
+                  ],
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                }
+              },
+              "closed": true,
+              "required": [
+                "kind",
+                "resourceRef"
+              ]
+            }
+          },
+          "startsAt": {
+            "type": [
+              "string"
+            ],
+            "maxLength": 40
+          },
+          "timeZone": {
+            "type": [
+              "string"
+            ],
+            "maxLength": 64,
+            "pattern": "^(UTC|[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+){1,2})$"
+          }
+        },
+        "closed": true,
+        "required": [
+          "endsAt",
+          "expectedVersion",
+          "operatory",
+          "provider",
+          "reasonCode",
+          "startsAt",
+          "timeZone"
+        ]
+      }
+    },
+    {
+      "operation": "scheduling.staging.remove",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "scheduling.write",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/scheduling/staging/entries/{entryRef}/remove"
+      },
+      "mcpTool": "scheduling_staging_remove",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "expectedVersion": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 2147483647,
+            "minimum": 1
+          },
+          "reasonCode": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z_]{1,64}$"
+          }
+        },
+        "closed": true,
+        "required": [
+          "expectedVersion",
+          "reasonCode"
+        ]
+      }
     },
     {
       "operation": "scheduling.standingPolicies.grant",

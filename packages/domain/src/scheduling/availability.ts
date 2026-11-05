@@ -5,6 +5,8 @@ import {
   type AvailabilitySearchResult,
   type AvailabilityWindow,
   assertValid,
+  type ListEnvelope,
+  RefusalError,
   type ResourceKind,
   SCHEDULING_PROPERTIES,
   type ResourceRef as SchedulingResourceRef,
@@ -27,8 +29,12 @@ import {
   minutesOf,
 } from './zoned-time';
 
-/** ADR 0009 S-S3-R3 (recommended-pending-approval). */
-export const AVAILABILITY_HORIZON_DAYS = 31;
+/**
+ * ADR 0009 S-S3-R3 as changed by OR-D6 (accepted 2026-11-04): the maximum search window is
+ * configurable (SchedulingDeps.availabilityMaxWindowDays) and defaults to 60 local days.
+ */
+export const AVAILABILITY_MAX_WINDOW_DAYS = 60;
+export const AVAILABILITY_MAX_WINDOW_LIMIT = 'availabilityMaxWindowDays';
 export const AVAILABILITY_POLICY_REF = 'adr-0009/s-s3-r2-r3';
 const DEFAULT_LIMIT = 25;
 const DEFAULT_SLOT = 15;
@@ -92,22 +98,47 @@ export async function searchAvailabilityIn(
   decision: AuthorizationDecision,
   query: AvailabilitySearch,
   cursors: SchedulingCursorCodec,
+  maxWindowDays: number = AVAILABILITY_MAX_WINDOW_DAYS,
 ): Promise<AvailabilitySearchResult> {
+  const asOf = new Date().toISOString();
   const slot = query.slotMinutes ?? DEFAULT_SLOT;
   const buffer = query.bufferMinutes ?? 0;
-  const limit = query.limit ?? DEFAULT_LIMIT;
+  // S18 next-N mode: the first N openings; no cursor (a bounded "next" question, not a page).
+  const limit = query.next ?? query.limit ?? DEFAULT_LIMIT;
   const location = await loadLocation(tx, query.locationRef);
 
   // Explicit resources are resolved first: another tenant's resource is 404, another location 403.
   const named = query.requirements.filter((r) => r.resourceRef !== undefined) as SchedulingResourceRef[];
   const namedRows = await resolveResourceRefs(tx, decision, named);
+  const preferred = (query.preferredProviderRefs ?? []).map((resourceRef) => ({
+    kind: 'provider' as const,
+    resourceRef,
+  }));
+  const preferredRows = await resolveResourceRefs(tx, decision, preferred);
 
   if (location.status !== 'active') throw failedAt('/locationRef', 'locationInactive');
   if (!isRealDate(query.from)) throw failedAt('/from', 'invalidDate');
-  if (!isRealDate(query.to)) throw failedAt('/to', 'invalidDate');
-  const days = daysInclusive(query.from, query.to);
+  if (query.to === undefined && query.next === undefined) throw failedAt('/to', 'required');
+  const to = query.to ?? addDays(query.from, maxWindowDays - 1);
+  if (!isRealDate(to)) throw failedAt('/to', 'invalidDate');
+  const days = daysInclusive(query.from, to);
   if (days < 1) throw failedAt('/to', 'rangeOrder');
-  if (days > AVAILABILITY_HORIZON_DAYS) throw failedAt('/to', 'beyondHorizon');
+  if (days > maxWindowDays) {
+    throw new RefusalError({
+      code: 'validation_failed',
+      detail: {
+        violations: [{ pointer: '/to', rule: 'beyondHorizon' }],
+        limit: { name: AVAILABILITY_MAX_WINDOW_LIMIT, value: maxWindowDays },
+      },
+    });
+  }
+  for (const w of query.timeWindows ?? []) {
+    if (minutesOf(w.start) >= minutesOf(w.end)) throw failedAt('/timeWindows', 'rangeOrder');
+  }
+  for (const [i, row] of preferredRows.entries()) {
+    if (row.location_id !== location.id) throw failedAt(`/preferredProviderRefs/${i}`, 'locationMismatch');
+    if (row.kind !== 'provider') throw failedAt(`/preferredProviderRefs/${i}`, 'kindMismatch');
+  }
   if (!isKnownTimeZone(query.displayTimeZone)) throw failedAt('/displayTimeZone', 'unknownTimeZone');
   const knownZone = await tx.query('SELECT 1 FROM pg_catalog.pg_timezone_names WHERE name = $1', [
     query.displayTimeZone,
@@ -149,7 +180,7 @@ export async function searchAvailabilityIn(
       `SELECT resource_id, to_char(effective_from, 'YYYY-MM-DD') AS effective_from, time_zone, weekly
        FROM cuspatlas.scheduling_availability_versions
        WHERE resource_id = ANY ($1::uuid[]) AND effective_from <= $2::date ORDER BY resource_id, effective_from`,
-      [allIds, query.to],
+      [allIds, to],
     )
   ).rows;
   const versionsOf = new Map<string, VersionRow[]>();
@@ -175,16 +206,22 @@ export async function searchAvailabilityIn(
     }
     return true;
   };
+  // S18 provider preference: preferred providers are tried first, in order; others still qualify.
+  const rank = (r: ResourceRow) => {
+    const i = query.preferredProviderRefs?.indexOf(r.id) ?? -1;
+    return i < 0 ? Number.MAX_SAFE_INTEGER : i;
+  };
   const candidates: ResourceRow[][] = query.requirements.map((req) => {
     const pool =
       req.resourceRef !== undefined
         ? [byId.get(req.resourceRef) as ResourceRow]
         : pooled.filter((r) => r.kind === req.kind);
-    return pool.filter(eligible);
+    const ordered = req.kind === 'provider' ? [...pool].sort((a, b) => rank(a) - rank(b)) : pool;
+    return ordered.filter(eligible);
   });
 
   const rangeStart = localToInstant(query.from, 0, location.time_zone);
-  const rangeEnd = localToInstant(addDays(query.to, 1), 0, location.time_zone);
+  const rangeEnd = localToInstant(addDays(to, 1), 0, location.time_zone);
   const constraints = {
     applied: [
       'availability_hours',
@@ -194,7 +231,16 @@ export async function searchAvailabilityIn(
       ...(buffer > 0 ? ['buffer_after'] : []),
       'not_before_now',
       ...(query.appointmentTypeCode ? ['appointment_type_recorded_only'] : []),
+      ...(query.weekdays ? ['weekdays'] : []),
+      ...(query.timeWindows ? ['time_windows'] : []),
+      ...(query.preferredProviderRefs ? ['provider_preference'] : []),
+      ...(query.next !== undefined ? ['next_openings'] : []),
     ],
+    maxWindowDays,
+    ...(query.weekdays ? { weekdays: [...query.weekdays] } : {}),
+    ...(query.timeWindows ? { timeWindows: query.timeWindows.map((w) => ({ ...w })) } : {}),
+    ...(query.preferredProviderRefs ? { preferredProviderRefs: [...query.preferredProviderRefs] } : {}),
+    ...(query.next !== undefined ? { next: query.next } : {}),
     durationMinutes: query.durationMinutes,
     bufferMinutes: buffer,
     slotMinutes: slot,
@@ -208,18 +254,26 @@ export async function searchAvailabilityIn(
     excludedResources: excluded.slice(0, 100),
     statement: STATEMENT,
   };
+  const { cursor: _cursor, ...filters } = query;
+  const appliedFilters = { ...filters, to, slotMinutes: slot, bufferMinutes: buffer, limit, maxWindowDays };
   const result = (
     outcome: AvailabilityOutcome,
     windows: AvailabilityWindow[],
     nextCursor: string | null,
-  ) => ({
-    outcome,
-    advisory: true as const,
-    windows,
-    nextCursor,
-    constraints,
-    coverage,
-  });
+    truncated = false,
+  ) => {
+    const envelope: ListEnvelope = {
+      asOf,
+      appliedFilters,
+      scope: { kind: 'location_set', locationRefs: [location.location_ref] },
+      limit,
+      truncated,
+      nextCursor,
+      ordering: { key: 'startsAt', direction: 'asc', tieBreak: 'resourceRefs' },
+      count: truncated ? { atLeast: windows.length } : { exact: windows.length },
+    };
+    return { outcome, advisory: true as const, windows, nextCursor, envelope, constraints, coverage };
+  };
 
   const failing = candidates.findIndex((c) => c.length === 0);
   if (failing >= 0) {
@@ -277,11 +331,19 @@ export async function searchAvailabilityIn(
   let more = false;
   outer: for (let i = 0; i < days; i += 1) {
     const date = addDays(query.from, i);
+    if (query.weekdays && !query.weekdays.includes(isoWeekday(date))) continue;
     const dayStart = localToInstant(date, 0, location.time_zone);
     const dayEnd = localToInstant(addDays(date, 1), 0, location.time_zone);
+    const allowed = query.timeWindows?.map(
+      (w): Interval => [
+        localToInstant(date, minutesOf(w.start), location.time_zone),
+        localToInstant(date, minutesOf(w.end), location.time_zone),
+      ],
+    );
     for (let t = dayStart; t < dayEnd; t += slot * MINUTE) {
       if (t < now || (after !== null && t <= after)) continue;
       const end = t + query.durationMinutes * MINUTE;
+      if (allowed && !covers(allowed, t, end)) continue;
       const needUntil = end + buffer * MINUTE;
       const chosen: ResourceRow[] = [];
       for (const pool of candidates) {
@@ -307,8 +369,10 @@ export async function searchAvailabilityIn(
   }
   const last = windows[windows.length - 1];
   const nextCursor =
-    more && last ? cursors.encode(ctx.tenantId, scope, String(Date.parse(last.startsAt))) : null;
-  return result(windows.length > 0 ? 'windows' : 'none_free', windows, nextCursor);
+    more && last && query.next === undefined
+      ? cursors.encode(ctx.tenantId, scope, String(Date.parse(last.startsAt)))
+      : null;
+  return result(windows.length > 0 ? 'windows' : 'none_free', windows, nextCursor, more);
 }
 
 /** Schema check for the search body, exported so the service applies it after authorization. */

@@ -9344,6 +9344,41 @@
     "status": "active"
   },
   {
+    "operation": "scheduling.appointments.reassignPatient",
+    "owner": "S",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "scheduling.appointments.reassignPatient",
+    "scope": "scheduling.write",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/scheduling/appointments/{appointmentRef}/reassign-patient",
+      "requestSchema": "scheduling:AppointmentPatientReassign",
+      "successStatus": "200",
+      "successSchema": "scheduling:AppointmentPatientReassignResult"
+    },
+    "mcpTool": "scheduling_appointments_reassign_patient",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
     "operation": "scheduling.appointments.reschedule",
     "owner": "S",
     "kind": "command",
@@ -9542,6 +9577,177 @@
     ],
     "idempotency": "none",
     "sensitivity": "phiBulk",
+    "status": "active"
+  },
+  {
+    "operation": "scheduling.floor.acknowledgeProviderRequest",
+    "owner": "S",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "scheduling.floor.acknowledgeProviderRequest",
+    "scope": "scheduling.write",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/scheduling/provider-requests/{requestRef}/acknowledge",
+      "requestSchema": "scheduling:ProviderRequestAcknowledge",
+      "successStatus": "200",
+      "successSchema": "scheduling:ProviderRequestResult"
+    },
+    "mcpTool": "scheduling_floor_acknowledge_provider_request",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "scheduling.floor.clearProviderRequest",
+    "owner": "S",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "scheduling.floor.clearProviderRequest",
+    "scope": "scheduling.write",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/scheduling/provider-requests/{requestRef}/clear",
+      "requestSchema": "scheduling:ProviderRequestClear",
+      "successStatus": "200",
+      "successSchema": "scheduling:ProviderRequestResult"
+    },
+    "mcpTool": "scheduling_floor_clear_provider_request",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "scheduling.floor.providerRequests",
+    "owner": "S",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "scheduling.floor.providerRequests",
+    "scope": "scheduling.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/scheduling/floor/provider-requests",
+      "successStatus": "200",
+      "successSchema": "scheduling:ProviderRequestList"
+    },
+    "mcpTool": "scheduling_floor_provider_requests",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "scheduling.floor.read",
+    "owner": "S",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "scheduling.floor.read",
+    "scope": "scheduling.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/scheduling/floor",
+      "successStatus": "200",
+      "successSchema": "scheduling:FloorView"
+    },
+    "mcpTool": "scheduling_floor_read",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "scheduling.floor.requestProvider",
+    "owner": "S",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "scheduling.floor.requestProvider",
+    "scope": "scheduling.write",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/scheduling/appointments/{appointmentRef}/provider-requests",
+      "requestSchema": "scheduling:ProviderRequestCreate",
+      "successStatus": "201",
+      "successSchema": "scheduling:ProviderRequestResult"
+    },
+    "mcpTool": "scheduling_floor_request_provider",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
     "status": "active"
   },
   {
@@ -9845,6 +10051,74 @@
       "503"
     ],
     "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "scheduling.presence.list",
+    "owner": "S",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "scheduling.presence.list",
+    "scope": "scheduling.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/scheduling/presence",
+      "successStatus": "200",
+      "successSchema": "scheduling:PresenceList"
+    },
+    "mcpTool": "scheduling_presence_list",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "scheduling.presence.set",
+    "owner": "S",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "scheduling.presence.set",
+    "scope": "scheduling.write",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/scheduling/presence",
+      "requestSchema": "scheduling:PresenceSet",
+      "successStatus": "200",
+      "successSchema": "scheduling:PresenceResult"
+    },
+    "mcpTool": "scheduling_presence_set",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
     "sensitivity": "phi",
     "status": "active"
   },
@@ -10765,6 +11039,183 @@
       "503"
     ],
     "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "scheduling.staging.add",
+    "owner": "S",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "scheduling.staging.add",
+    "scope": "scheduling.write",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/scheduling/staging/entries",
+      "requestSchema": "scheduling:StagingAdd",
+      "successStatus": "201",
+      "successSchema": "scheduling:StagingEntryResult"
+    },
+    "mcpTool": "scheduling_staging_add",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "scheduling.staging.configure",
+    "owner": "S",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "scheduling.staging.configure",
+    "scope": "admin.configure",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/scheduling/staging/settings",
+      "requestSchema": "scheduling:StagingSettings",
+      "successStatus": "200",
+      "successSchema": "scheduling:StagingSettingsResult"
+    },
+    "mcpTool": "scheduling_staging_configure",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "scheduling.staging.list",
+    "owner": "S",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "scheduling.staging.list",
+    "scope": "scheduling.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/scheduling/staging",
+      "successStatus": "200",
+      "successSchema": "scheduling:StagingList"
+    },
+    "mcpTool": "scheduling_staging_list",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "scheduling.staging.move",
+    "owner": "S",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "scheduling.staging.move",
+    "scope": "scheduling.write",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/scheduling/staging/entries/{entryRef}/move",
+      "requestSchema": "scheduling:StagingMove",
+      "successStatus": "200",
+      "successSchema": "scheduling:StagingMoveResult"
+    },
+    "mcpTool": "scheduling_staging_move",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "scheduling.staging.remove",
+    "owner": "S",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "scheduling.staging.remove",
+    "scope": "scheduling.write",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/scheduling/staging/entries/{entryRef}/remove",
+      "requestSchema": "scheduling:StagingRemove",
+      "successStatus": "200",
+      "successSchema": "scheduling:StagingEntryResult"
+    },
+    "mcpTool": "scheduling_staging_remove",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
     "sensitivity": "phi",
     "status": "active"
   },

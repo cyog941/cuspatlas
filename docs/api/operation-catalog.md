@@ -9,12 +9,12 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-357 operations.
+370 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
 | F | 12 | 10 | 8 | 0 | 0 | 1 |
-| S | 79 | 77 | 77 | 0 | 0 | 0 |
+| S | 92 | 90 | 90 | 0 | 0 | 0 |
 | C | 88 | 87 | 87 | 0 | 0 | 0 |
 | B | 64 | 64 | 64 | 0 | 0 | 0 |
 | E | 60 | 48 | 48 | 11 | 0 | 1 |
@@ -301,12 +301,18 @@ transport tables and are declarations, not independent proof.
 | `scheduling.appointments.cancel` | S | command | authorize | `scheduling.write` | human, service | rest, mcp | POST `/v1/scheduling/appointments/{appointmentRef}/cancel` | `scheduling_appointments_cancel` | required | phi | active |
 | `scheduling.appointments.override` | S | capability | capability | `scheduling.override` | human | - | - | - | none | phi | active |
 | `scheduling.appointments.read` | S | query | authorize | `scheduling.read` | human, service | rest, mcp | GET `/v1/scheduling/appointments/{appointmentRef}` | `scheduling_appointments_get` | none | phi | active |
+| `scheduling.appointments.reassignPatient` | S | command | authorize | `scheduling.write` | human | rest, mcp | POST `/v1/scheduling/appointments/{appointmentRef}/reassign-patient` | `scheduling_appointments_reassign_patient` | required | phi | active |
 | `scheduling.appointments.reschedule` | S | command | authorize | `scheduling.write` | human, service | rest, mcp | POST `/v1/scheduling/appointments/{appointmentRef}/reschedule` | `scheduling_appointments_reschedule` | required | phi | active |
 | `scheduling.attendance.list` | S | query | authorize | `scheduling.read` | human, service | rest, mcp | GET `/v1/scheduling/appointments/{appointmentRef}/attendance` | `scheduling_attendance_list` | none | phi | active |
 | `scheduling.attendance.record` | S | command | authorize | `scheduling.write` | human, service | rest, mcp | POST `/v1/scheduling/appointments/{appointmentRef}/attendance` | `scheduling_attendance_record` | required | phi | active |
 | `scheduling.attendance.visitStatus` | S | query | authorize | `scheduling.read` | human, service | rest, mcp | GET `/v1/scheduling/appointments/{appointmentRef}/visit-status` | `scheduling_attendance_visit_status` | none | phi | active |
 | `scheduling.availability.search` | S | query | authorize | `scheduling.read` | human, service | rest, mcp | POST `/v1/availability/search` | `availability_search` | none | phi | active |
 | `scheduling.export` | S | query | authorize | `admin.configure` | human | rest, mcp | GET `/v1/scheduling/export` | `scheduling_export` | none | phiBulk | active |
+| `scheduling.floor.acknowledgeProviderRequest` | S | command | authorize | `scheduling.write` | human | rest, mcp | POST `/v1/scheduling/provider-requests/{requestRef}/acknowledge` | `scheduling_floor_acknowledge_provider_request` | required | phi | active |
+| `scheduling.floor.clearProviderRequest` | S | command | authorize | `scheduling.write` | human | rest, mcp | POST `/v1/scheduling/provider-requests/{requestRef}/clear` | `scheduling_floor_clear_provider_request` | required | phi | active |
+| `scheduling.floor.providerRequests` | S | query | authorize | `scheduling.read` | human, service | rest, mcp | GET `/v1/scheduling/floor/provider-requests` | `scheduling_floor_provider_requests` | none | phi | active |
+| `scheduling.floor.read` | S | query | authorize | `scheduling.read` | human, service | rest, mcp | GET `/v1/scheduling/floor` | `scheduling_floor_read` | none | phi | active |
+| `scheduling.floor.requestProvider` | S | command | authorize | `scheduling.write` | human | rest, mcp | POST `/v1/scheduling/appointments/{appointmentRef}/provider-requests` | `scheduling_floor_request_provider` | required | phi | active |
 | `scheduling.followUp.worklist` | S | query | authorize | `scheduling.read` | human, service | rest, mcp | GET `/v1/scheduling/follow-up/worklist` | `scheduling_follow_up_worklist` | none | phi | active |
 | `scheduling.holds.create` | S | command | authorize | `scheduling.write` | human, service | rest, mcp | POST `/v1/scheduling/holds` | `scheduling_holds_create` | required | phi | active |
 | `scheduling.holds.reconcile` | S | command | authorize | `scheduling.write` | human, service | rest, mcp | POST `/v1/scheduling/holds/reconcile` | `scheduling_holds_reconcile` | required | phi | active |
@@ -316,6 +322,8 @@ transport tables and are declarations, not independent proof.
 | `scheduling.locations.list` | S | query | authorize | `scheduling.read` | human, service | rest, mcp | GET `/v1/scheduling/locations` | `scheduling_locations_list` | none | phi | active |
 | `scheduling.notifications.read` | S | query | authorize | `scheduling.read` | human, service | rest, mcp | GET `/v1/scheduling/notifications/{intentRef}` | `scheduling_notifications_get` | none | phi | active |
 | `scheduling.notifications.worklist` | S | query | authorize | `scheduling.read` | human, service | rest, mcp | GET `/v1/scheduling/notifications/worklist` | `scheduling_notifications_worklist` | none | phi | active |
+| `scheduling.presence.list` | S | query | authorize | `scheduling.read` | human, service | rest, mcp | GET `/v1/scheduling/presence` | `scheduling_presence_list` | none | phi | active |
+| `scheduling.presence.set` | S | command | authorize | `scheduling.write` | human | rest, mcp | POST `/v1/scheduling/presence` | `scheduling_presence_set` | required | phi | active |
 | `scheduling.recall.createTask` | S | command | authorize | `scheduling.write` | human, service | rest, mcp | POST `/v1/scheduling/recall/tasks` | `scheduling_recall_create_task` | required | phi | active |
 | `scheduling.recall.definePolicy` | S | command | authorize | `admin.configure` | human, service | rest, mcp | POST `/v1/scheduling/recall/policies` | `scheduling_recall_define_policy` | required | phi | active |
 | `scheduling.recall.due` | S | query | authorize | `scheduling.read` | human, service | rest, mcp | GET `/v1/scheduling/recall/due` | `scheduling_recall_due` | none | phi | active |
@@ -343,6 +351,11 @@ transport tables and are declarations, not independent proof.
 | `scheduling.series.extend` | S | command | authorize | `scheduling.write` | human, service | rest, mcp | POST `/v1/scheduling/series/{seriesRef}/extend` | `scheduling_series_extend` | required | phi | active |
 | `scheduling.series.plan` | S | query | authorize | `scheduling.read` | human, service | rest, mcp | POST `/v1/scheduling/series/plan` | `scheduling_series_plan` | none | phi | active |
 | `scheduling.series.read` | S | query | authorize | `scheduling.read` | human, service | rest, mcp | GET `/v1/scheduling/series/{seriesRef}` | `scheduling_series_get` | none | phi | active |
+| `scheduling.staging.add` | S | command | authorize | `scheduling.write` | human, service | rest, mcp | POST `/v1/scheduling/staging/entries` | `scheduling_staging_add` | required | phi | active |
+| `scheduling.staging.configure` | S | command | authorize | `admin.configure` | human, service | rest, mcp | POST `/v1/scheduling/staging/settings` | `scheduling_staging_configure` | required | phi | active |
+| `scheduling.staging.list` | S | query | authorize | `scheduling.read` | human, service | rest, mcp | GET `/v1/scheduling/staging` | `scheduling_staging_list` | none | phi | active |
+| `scheduling.staging.move` | S | command | authorize | `scheduling.write` | human, service | rest, mcp | POST `/v1/scheduling/staging/entries/{entryRef}/move` | `scheduling_staging_move` | required | phi | active |
+| `scheduling.staging.remove` | S | command | authorize | `scheduling.write` | human, service | rest, mcp | POST `/v1/scheduling/staging/entries/{entryRef}/remove` | `scheduling_staging_remove` | required | phi | active |
 | `scheduling.standingPolicies.grant` | S | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/scheduling/standing-policies` | `scheduling_standing_policies_grant` | required | phi | active |
 | `scheduling.standingPolicies.list` | S | query | authorize | `scheduling.read` | human, service | rest, mcp | GET `/v1/scheduling/standing-policies` | `scheduling_standing_policies_list` | none | phi | active |
 | `scheduling.standingPolicies.revoke` | S | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/scheduling/standing-policies/{policyRef}/revoke` | `scheduling_standing_policies_revoke` | required | phi | active |

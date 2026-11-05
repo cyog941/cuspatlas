@@ -1,5 +1,6 @@
 import type { ValidateFunction } from 'ajv/dist/2020.js';
 import type { Conflict, ResourceKind, ResourceRef } from './context';
+import type { ListEnvelope } from './list-envelope';
 import schema from './scheduling.schema.json' with { type: 'json' };
 import { collectPropertyNames, createAjv } from './validation';
 
@@ -132,10 +133,19 @@ export interface AvailabilityRequirement {
   readonly kind: ResourceKind;
   readonly resourceRef?: string;
 }
+export interface LocalTimeWindow {
+  readonly start: string;
+  readonly end: string;
+}
 export interface AvailabilitySearch {
   readonly locationRef: string;
   readonly from: string;
-  readonly to: string;
+  /** Required unless `next` is given (S18). */
+  readonly to?: string;
+  readonly weekdays?: readonly number[];
+  readonly timeWindows?: readonly LocalTimeWindow[];
+  readonly preferredProviderRefs?: readonly string[];
+  readonly next?: number;
   readonly durationMinutes: number;
   readonly bufferMinutes?: number;
   readonly slotMinutes?: 5 | 10 | 15 | 20 | 30 | 60;
@@ -164,8 +174,14 @@ export interface AvailabilitySearchResult {
   readonly advisory: true;
   readonly windows: readonly AvailabilityWindow[];
   readonly nextCursor: string | null;
+  readonly envelope: ListEnvelope;
   readonly constraints: {
     readonly applied: readonly string[];
+    readonly maxWindowDays: number;
+    readonly weekdays?: readonly number[];
+    readonly timeWindows?: readonly LocalTimeWindow[];
+    readonly preferredProviderRefs?: readonly string[];
+    readonly next?: number;
     readonly durationMinutes: number;
     readonly bufferMinutes: number;
     readonly slotMinutes: number;
@@ -933,6 +949,13 @@ export const SCHEDULING_EXPORT_TABLES = [
   'waitlist_offers',
   'recall_policies',
   'recall_tasks',
+  // S20 staging list, S21 floor view, S22 patient reassignment (after their appointment,
+  // request, location and resource parents).
+  'scheduling_staging_lists',
+  'scheduling_staging_entries',
+  'scheduling_provider_requests',
+  'scheduling_staff_presence',
+  'appointment_patient_reassignments',
 ] as const;
 export type SchedulingExportTable = (typeof SCHEDULING_EXPORT_TABLES)[number];
 export interface SchedulingExport {
@@ -940,3 +963,127 @@ export interface SchedulingExport {
   readonly exportedAt: string;
   readonly tables: Readonly<Record<string, readonly Record<string, unknown>[]>>;
 }
+
+/** S20 (OR-05): bounded per-location staging list for appointments being moved. */
+export type StagingEntryState = 'staged' | 'moved' | 'removed';
+export interface StagingSettings {
+  readonly locationRef: string;
+  readonly capacity: number;
+}
+export interface StagingAdd {
+  readonly locationRef: string;
+  readonly appointmentRef?: string;
+  readonly requestRef?: string;
+  readonly reasonCode: string;
+}
+export interface StagingRemove {
+  readonly expectedVersion: number;
+  readonly reasonCode: string;
+}
+export type StagingMove = AppointmentReschedule;
+export interface StagingEntry {
+  readonly entryRef: string;
+  readonly locationRef: string;
+  readonly subjectKind: 'appointment' | 'request';
+  readonly subjectRef: string;
+  readonly state: StagingEntryState;
+  readonly reasonCode: string;
+  readonly subjectStatus: string;
+  readonly startsAt?: string | null;
+  readonly endsAt?: string | null;
+  readonly stagedAt: string;
+  readonly version: number;
+}
+export interface StagingList {
+  readonly locationRef: string;
+  readonly capacity: number;
+  readonly items: readonly StagingEntry[];
+  readonly envelope: ListEnvelope;
+}
+export interface StagingMoveData {
+  readonly entryRef: string;
+  readonly state: 'moved';
+  readonly previousAppointmentRef: string;
+  readonly appointmentRef: string;
+}
+export const validateStagingListQuery = def('StagingListQuery');
+export const validateStagingSettings = def('StagingSettings');
+export const validateStagingAdd = def('StagingAdd');
+export const validateStagingRemove = def('StagingRemove');
+export const validateStagingMove = def('StagingMove');
+
+/** S21 (OR-06): floor view, provider request facts and staff presence. */
+export type FloorProjection = 'standard' | 'anonymized';
+export type ProviderRequestState = 'open' | 'acknowledged' | 'cleared';
+export type PresenceStatus = 'available' | 'busy' | 'away';
+export interface FloorQuery {
+  readonly locationRef: string;
+  readonly projection?: FloorProjection;
+}
+export interface ProviderRequestCreate {
+  readonly reasonCode: string;
+}
+export interface ProviderRequestAcknowledge {
+  readonly expectedVersion: number;
+}
+export interface ProviderRequestClear {
+  readonly expectedVersion: number;
+  readonly reasonCode: string;
+}
+export interface PresenceSet {
+  readonly locationRef: string;
+  readonly status: PresenceStatus;
+  readonly operatoryRef?: string;
+  readonly expiresInMinutes?: number;
+}
+export interface ProviderRequestRecord {
+  readonly requestRef: string;
+  readonly appointmentRef: string;
+  readonly locationRef: string;
+  readonly state: ProviderRequestState;
+  readonly reasonCode: string;
+  readonly requestedAt: string;
+  readonly version: number;
+}
+export interface FloorVisit {
+  readonly appointmentRef?: string;
+  readonly attendanceState: string;
+  readonly label: string;
+  readonly since: string | null;
+  readonly elapsedMinutes: number | null;
+  readonly nextActions: readonly string[];
+  readonly patient: { readonly patientRef: string } | 'restricted' | 'anonymized';
+  readonly providerRequest: { readonly requestRef: string; readonly state: 'open' | 'acknowledged' } | null;
+}
+export interface FloorView {
+  readonly locationRef: string;
+  readonly projection: FloorProjection;
+  readonly operatories: readonly {
+    readonly operatoryRef: string;
+    readonly label: string | null;
+    readonly currentVisit: FloorVisit | null;
+  }[];
+  readonly envelope: ListEnvelope;
+}
+export interface PresenceRecord {
+  readonly principalRef: string;
+  readonly status: PresenceStatus;
+  readonly operatoryRef: string | null;
+  readonly setAt: string;
+  readonly expiresAt: string;
+}
+export const validateFloorQuery = def('FloorQuery');
+export const validateProviderRequestCreate = def('ProviderRequestCreate');
+export const validateProviderRequestAcknowledge = def('ProviderRequestAcknowledge');
+export const validateProviderRequestClear = def('ProviderRequestClear');
+export const validateProviderRequestListQuery = def('ProviderRequestListQuery');
+export const validatePresenceSet = def('PresenceSet');
+export const validatePresenceListQuery = def('PresenceListQuery');
+
+/** S22 (OR-11): reassign an appointment's patient while no other fact references it. */
+export interface AppointmentPatientReassign {
+  readonly expectedVersion: number;
+  readonly patientRef: string;
+  readonly reasonCode: string;
+}
+export const validateAppointmentPatientReassign = def('AppointmentPatientReassign');

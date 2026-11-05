@@ -16,13 +16,23 @@
     "AvailabilitySearch": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["locationRef", "from", "to", "durationMinutes", "displayTimeZone", "requirements"],
-      "description": "S9 query. Range is local dates in the location's zone, inclusive, at most 31 days (ADR 0009 S-S3-R3).",
+      "required": ["locationRef", "from", "durationMinutes", "displayTimeZone", "requirements"],
+      "description": "S9/S18 query. Range is local dates in the location's zone, inclusive, at most the configured maximum window (default 60 days, OR-D6; ADR 0009 S-S3-R3). `to` may be omitted only in next-N mode.",
       "properties": {
-        "locationRef": { "$ref": "#/$defs/LocationRef" },
-        "from": { "$ref": "#/$defs/LocalDate" },
-        "to": { "$ref": "#/$defs/LocalDate" },
-        "durationMinutes": { "type": "integer", "minimum": 5, "maximum": 480 },
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "from": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "to": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "durationMinutes": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 480
+        },
         "bufferMinutes": {
           "type": "integer",
           "minimum": 0,
@@ -33,7 +43,9 @@
           "enum": [5, 10, 15, 20, 30, 60],
           "description": "Start granularity in real minutes from local midnight (default 15)."
         },
-        "displayTimeZone": { "$ref": "#/$defs/TimeZone" },
+        "displayTimeZone": {
+          "$ref": "#/$defs/TimeZone"
+        },
         "appointmentTypeCode": {
           "type": "string",
           "pattern": "^[a-z0-9_-]{1,40}$",
@@ -43,10 +55,55 @@
           "type": "array",
           "minItems": 1,
           "maxItems": 4,
-          "items": { "$ref": "#/$defs/AvailabilityRequirement" }
+          "items": {
+            "$ref": "#/$defs/AvailabilityRequirement"
+          }
         },
-        "limit": { "type": "integer", "minimum": 1, "maximum": 100 },
-        "cursor": { "$ref": "#/$defs/Cursor" }
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "cursor": {
+          "$ref": "#/$defs/Cursor"
+        },
+        "weekdays": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 7,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 7
+          },
+          "description": "S18: ISO weekdays (1 Monday .. 7 Sunday) a window may start on, in the location zone."
+        },
+        "timeWindows": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "items": {
+            "$ref": "#/$defs/LocalTimeWindow"
+          },
+          "description": "S18: local time-of-day windows (location zone) the whole appointment must fall inside."
+        },
+        "preferredProviderRefs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/ResourceRefId"
+          },
+          "description": "S18: providers tried first, in order, for a pooled provider requirement (others still qualify)."
+        },
+        "next": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20,
+          "description": "S18 next-N mode: the first N openings from `from`; `to` defaults to the end of the maximum window."
+        }
       }
     },
     "AvailabilityWindow": {
@@ -83,7 +140,7 @@
         "data": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["outcome", "advisory", "windows", "nextCursor", "constraints", "coverage"],
+          "required": ["outcome", "advisory", "windows", "nextCursor", "constraints", "coverage", "envelope"],
           "properties": {
             "outcome": {
               "enum": ["windows", "none_free", "no_availability_configured", "no_eligible_resource"]
@@ -95,9 +152,20 @@
             "windows": {
               "type": "array",
               "maxItems": 100,
-              "items": { "$ref": "#/$defs/AvailabilityWindow" }
+              "items": {
+                "$ref": "#/$defs/AvailabilityWindow"
+              }
             },
-            "nextCursor": { "anyOf": [{ "$ref": "#/$defs/Cursor" }, { "type": "null" }] },
+            "nextCursor": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Cursor"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "constraints": {
               "type": "object",
               "additionalProperties": false,
@@ -108,17 +176,68 @@
                 "slotMinutes",
                 "locationTimeZone",
                 "displayTimeZone",
-                "policyRef"
+                "policyRef",
+                "maxWindowDays"
               ],
               "properties": {
-                "applied": { "type": "array", "items": { "type": "string", "pattern": "^[a-z_]{1,40}$" } },
-                "durationMinutes": { "type": "integer" },
-                "bufferMinutes": { "type": "integer" },
-                "slotMinutes": { "type": "integer" },
-                "locationTimeZone": { "$ref": "#/$defs/TimeZone" },
-                "displayTimeZone": { "$ref": "#/$defs/TimeZone" },
-                "appointmentTypeCode": { "type": "string", "pattern": "^[a-z0-9_-]{1,40}$" },
-                "policyRef": { "type": "string", "pattern": "^[a-z0-9./-]{1,64}$" }
+                "applied": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[a-z_]{1,40}$"
+                  }
+                },
+                "durationMinutes": {
+                  "type": "integer"
+                },
+                "bufferMinutes": {
+                  "type": "integer"
+                },
+                "slotMinutes": {
+                  "type": "integer"
+                },
+                "locationTimeZone": {
+                  "$ref": "#/$defs/TimeZone"
+                },
+                "displayTimeZone": {
+                  "$ref": "#/$defs/TimeZone"
+                },
+                "appointmentTypeCode": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9_-]{1,40}$"
+                },
+                "policyRef": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9./-]{1,64}$"
+                },
+                "maxWindowDays": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "weekdays": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 7
+                  }
+                },
+                "timeWindows": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/LocalTimeWindow"
+                  }
+                },
+                "preferredProviderRefs": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/ResourceRefId"
+                  }
+                },
+                "next": {
+                  "type": "integer",
+                  "minimum": 1
+                }
               }
             },
             "coverage": {
@@ -128,7 +247,10 @@
               "properties": {
                 "notConsidered": {
                   "type": "array",
-                  "items": { "type": "string", "pattern": "^[a-z_]{1,40}$" }
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[a-z_]{1,40}$"
+                  }
                 },
                 "excludedResources": {
                   "type": "array",
@@ -138,13 +260,23 @@
                     "additionalProperties": false,
                     "required": ["resourceRef", "reason"],
                     "properties": {
-                      "resourceRef": { "$ref": "#/$defs/ResourceRef" },
-                      "reason": { "enum": ["inactive", "no_availability_configured"] }
+                      "resourceRef": {
+                        "$ref": "#/$defs/ResourceRef"
+                      },
+                      "reason": {
+                        "enum": ["inactive", "no_availability_configured"]
+                      }
                     }
                   }
                 },
-                "statement": { "type": "string", "maxLength": 300 }
+                "statement": {
+                  "type": "string",
+                  "maxLength": 300
+                }
               }
+            },
+            "envelope": {
+              "$ref": "#/$defs/ListEnvelope"
             }
           }
         }
@@ -4805,6 +4937,899 @@
               }
             }
           }
+        }
+      }
+    },
+    "LocalTimeWindow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end"],
+      "properties": {
+        "start": {
+          "$ref": "#/$defs/LocalTime"
+        },
+        "end": {
+          "$ref": "#/$defs/LocalTime"
+        }
+      }
+    },
+    "ListScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "description": "OR-01 scope: tenant-wide, the caller's assigned locations, or an explicit location set (locationRefs present for the last two).",
+      "properties": {
+        "kind": {
+          "enum": ["tenant_wide", "assigned_locations", "location_set"]
+        },
+        "locationRefs": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]{1,64}$"
+          }
+        }
+      }
+    },
+    "ListOrdering": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "direction", "tieBreak"],
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[A-Za-z.]{1,64}$"
+        },
+        "direction": {
+          "enum": ["asc", "desc"]
+        },
+        "tieBreak": {
+          "type": "string",
+          "pattern": "^[A-Za-z.]{1,64}$"
+        }
+      }
+    },
+    "ListCount": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["exact"],
+          "properties": {
+            "exact": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["atLeast"],
+          "properties": {
+            "atLeast": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      ]
+    },
+    "ListEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "OR-01 list envelope, shared by every list and worklist response.",
+      "required": [
+        "asOf",
+        "appliedFilters",
+        "scope",
+        "limit",
+        "truncated",
+        "nextCursor",
+        "ordering",
+        "count"
+      ],
+      "properties": {
+        "asOf": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server instant the list was read."
+        },
+        "appliedFilters": {
+          "type": "object",
+          "description": "Normalized filters, including the defaults the server applied."
+        },
+        "scope": {
+          "$ref": "#/$defs/ListScope"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "nextCursor": {
+          "type": ["string", "null"]
+        },
+        "ordering": {
+          "$ref": "#/$defs/ListOrdering"
+        },
+        "count": {
+          "$ref": "#/$defs/ListCount"
+        }
+      }
+    },
+    "StagingListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locationRef"],
+      "properties": {
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        }
+      },
+      "description": "S20 GET query: the staging list of one location."
+    },
+    "StagingSettings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locationRef", "capacity"],
+      "properties": {
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "capacity": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "description": "OR-D2: default 10 per location."
+        }
+      }
+    },
+    "StagingAdd": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locationRef", "reasonCode"],
+      "properties": {
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "appointmentRef": {
+          "$ref": "#/$defs/ResourceRefId"
+        },
+        "requestRef": {
+          "$ref": "#/$defs/ResourceRefId"
+        },
+        "reasonCode": {
+          "type": "string",
+          "pattern": "^[a-z_]{1,64}$"
+        }
+      },
+      "description": "S20: exactly one of appointmentRef (a booked appointment that keeps its slot) or requestRef."
+    },
+    "StagingRemove": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "reasonCode"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reasonCode": {
+          "type": "string",
+          "pattern": "^[a-z_]{1,64}$"
+        }
+      }
+    },
+    "StagingMove": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "S20: moves a staged appointment through the S10 reschedule in one transaction; expectedVersion is the staging entry version.",
+      "required": [
+        "expectedVersion",
+        "startsAt",
+        "endsAt",
+        "timeZone",
+        "provider",
+        "operatory",
+        "reasonCode"
+      ],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "startsAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "endsAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "timeZone": {
+          "$ref": "#/$defs/TimeZone"
+        },
+        "provider": {
+          "$ref": "#/$defs/ProviderRef"
+        },
+        "operatory": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OperatoryRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "noOperatoryReason": {
+          "$ref": "#/$defs/NoOperatoryReason"
+        },
+        "resources": {
+          "$ref": "#/$defs/AdditionalResources"
+        },
+        "override": {
+          "$ref": "#/$defs/BookingOverride"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "StagingEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entryRef",
+        "locationRef",
+        "subjectKind",
+        "subjectRef",
+        "state",
+        "reasonCode",
+        "subjectStatus",
+        "stagedAt",
+        "version"
+      ],
+      "properties": {
+        "entryRef": {
+          "$ref": "#/$defs/ResourceRefId"
+        },
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "subjectKind": {
+          "enum": ["appointment", "request"]
+        },
+        "subjectRef": {
+          "$ref": "#/$defs/ResourceRefId"
+        },
+        "state": {
+          "enum": ["staged", "moved", "removed"]
+        },
+        "reasonCode": {
+          "type": "string",
+          "pattern": "^[a-z_]{1,64}$"
+        },
+        "subjectStatus": {
+          "type": "string",
+          "pattern": "^[a-z_]{1,40}$",
+          "description": "Current appointment status or request state (read at list time, never copied)."
+        },
+        "startsAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "endsAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stagedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "StagingList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["locationRef", "capacity", "items", "envelope"],
+          "properties": {
+            "locationRef": {
+              "$ref": "#/$defs/LocationRef"
+            },
+            "capacity": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "items": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "$ref": "#/$defs/StagingEntry"
+              }
+            },
+            "envelope": {
+              "$ref": "#/$defs/ListEnvelope"
+            }
+          }
+        }
+      }
+    },
+    "StagingEntryResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/StagingEntry"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "StagingMoveResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["entryRef", "state", "previousAppointmentRef", "appointmentRef"],
+          "properties": {
+            "entryRef": {
+              "$ref": "#/$defs/ResourceRefId"
+            },
+            "state": {
+              "const": "moved"
+            },
+            "previousAppointmentRef": {
+              "$ref": "#/$defs/ResourceRefId"
+            },
+            "appointmentRef": {
+              "$ref": "#/$defs/ResourceRefId"
+            }
+          }
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "StagingSettingsResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["locationRef", "capacity"],
+          "properties": {
+            "locationRef": {
+              "$ref": "#/$defs/LocationRef"
+            },
+            "capacity": {
+              "type": "integer"
+            }
+          }
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "FloorQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locationRef"],
+      "properties": {
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "projection": {
+          "enum": ["standard", "anonymized"],
+          "description": "anonymized: the shared-display rule (OR-06, A18 seam): no patient or appointment identity."
+        }
+      }
+    },
+    "ProviderRequestCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasonCode"],
+      "properties": {
+        "reasonCode": {
+          "type": "string",
+          "pattern": "^[a-z_]{1,64}$"
+        }
+      }
+    },
+    "ProviderRequestAcknowledge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "ProviderRequestClear": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "reasonCode"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reasonCode": {
+          "type": "string",
+          "pattern": "^[a-z_]{1,64}$"
+        }
+      }
+    },
+    "ProviderRequestListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locationRef"],
+      "properties": {
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        }
+      }
+    },
+    "PresenceSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locationRef", "status"],
+      "properties": {
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "status": {
+          "enum": ["available", "busy", "away"]
+        },
+        "operatoryRef": {
+          "$ref": "#/$defs/ResourceRefId"
+        },
+        "expiresInMinutes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 720,
+          "description": "Default 240."
+        }
+      },
+      "description": "S21: the caller sets its own presence; there is no field naming another principal."
+    },
+    "PresenceListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locationRef"],
+      "properties": {
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        }
+      }
+    },
+    "ProviderRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requestRef",
+        "appointmentRef",
+        "locationRef",
+        "state",
+        "reasonCode",
+        "requestedAt",
+        "version"
+      ],
+      "properties": {
+        "requestRef": {
+          "$ref": "#/$defs/ResourceRefId"
+        },
+        "appointmentRef": {
+          "$ref": "#/$defs/ResourceRefId"
+        },
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "state": {
+          "enum": ["open", "acknowledged", "cleared"]
+        },
+        "reasonCode": {
+          "type": "string",
+          "pattern": "^[a-z_]{1,64}$"
+        },
+        "requestedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "ProviderRequestResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/ProviderRequest"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ProviderRequestList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["items", "envelope"],
+          "properties": {
+            "items": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "$ref": "#/$defs/ProviderRequest"
+              }
+            },
+            "envelope": {
+              "$ref": "#/$defs/ListEnvelope"
+            }
+          }
+        }
+      }
+    },
+    "FloorVisit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attendanceState",
+        "label",
+        "since",
+        "elapsedMinutes",
+        "nextActions",
+        "patient",
+        "providerRequest"
+      ],
+      "properties": {
+        "appointmentRef": {
+          "$ref": "#/$defs/ResourceRefId"
+        },
+        "attendanceState": {
+          "type": "string",
+          "pattern": "^[a-z_]{1,40}$"
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "since": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "elapsedMinutes": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "nextActions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z_]{1,40}$"
+          }
+        },
+        "patient": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["patientRef"],
+              "properties": {
+                "patientRef": {
+                  "$ref": "#/$defs/ResourceRefId"
+                }
+              }
+            },
+            {
+              "enum": ["restricted", "anonymized"]
+            }
+          ]
+        },
+        "providerRequest": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["requestRef", "state"],
+              "properties": {
+                "requestRef": {
+                  "$ref": "#/$defs/ResourceRefId"
+                },
+                "state": {
+                  "enum": ["open", "acknowledged"]
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "FloorView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["locationRef", "projection", "operatories", "envelope"],
+          "properties": {
+            "locationRef": {
+              "$ref": "#/$defs/LocationRef"
+            },
+            "projection": {
+              "enum": ["standard", "anonymized"]
+            },
+            "operatories": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["operatoryRef", "label", "currentVisit"],
+                "properties": {
+                  "operatoryRef": {
+                    "$ref": "#/$defs/ResourceRefId"
+                  },
+                  "label": {
+                    "type": ["string", "null"],
+                    "maxLength": 120
+                  },
+                  "currentVisit": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/FloorVisit"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "envelope": {
+              "$ref": "#/$defs/ListEnvelope"
+            }
+          }
+        }
+      }
+    },
+    "PresenceResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["principalRef", "status", "operatoryRef", "setAt", "expiresAt"],
+          "properties": {
+            "principalRef": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "status": {
+              "enum": ["available", "busy", "away"]
+            },
+            "operatoryRef": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ResourceRefId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "setAt": {
+              "$ref": "#/$defs/Instant"
+            },
+            "expiresAt": {
+              "$ref": "#/$defs/Instant"
+            }
+          }
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "PresenceList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["items", "envelope"],
+          "properties": {
+            "items": {
+              "type": "array",
+              "maxItems": 200,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["principalRef", "status", "operatoryRef", "setAt", "expiresAt"],
+                "properties": {
+                  "principalRef": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "status": {
+                    "enum": ["available", "busy", "away"]
+                  },
+                  "operatoryRef": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/ResourceRefId"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "setAt": {
+                    "$ref": "#/$defs/Instant"
+                  },
+                  "expiresAt": {
+                    "$ref": "#/$defs/Instant"
+                  }
+                }
+              }
+            },
+            "envelope": {
+              "$ref": "#/$defs/ListEnvelope"
+            }
+          }
+        }
+      }
+    },
+    "AppointmentPatientReassign": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "patientRef", "reasonCode"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "patientRef": {
+          "$ref": "#/$defs/ResourceRefId"
+        },
+        "reasonCode": {
+          "type": "string",
+          "pattern": "^[a-z_]{1,64}$"
+        }
+      },
+      "description": "S22 (OR-11): allowed only while no clinical, billing or attendance fact references the appointment; otherwise a typed conflict (clinical_facts_attached, charges_attached, attendance_recorded) with the visible blocking refs and the remediation operation."
+    },
+    "AppointmentPatientReassignResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["appointmentRef", "patientRef", "previousPatientRef", "reassignmentRef"],
+          "properties": {
+            "appointmentRef": {
+              "$ref": "#/$defs/ResourceRefId"
+            },
+            "patientRef": {
+              "$ref": "#/$defs/ResourceRefId"
+            },
+            "previousPatientRef": {
+              "$ref": "#/$defs/ResourceRefId"
+            },
+            "reassignmentRef": {
+              "$ref": "#/$defs/ResourceRefId"
+            }
+          }
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
         }
       }
     }

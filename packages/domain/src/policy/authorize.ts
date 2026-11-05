@@ -349,6 +349,22 @@ export const ACTION_POLICIES = {
   'scheduling.recall.resolveTask': { scope: 'scheduling.write', principals: ['human', 'service'] },
   // PT-03 (S part): the follow-up worklist of recall tasks and unbooked or lost-booking requests.
   'scheduling.followUp.worklist': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  // S20 (OR-05) staging list: capacity is practice configuration; staging and moving are scheduling acts.
+  'scheduling.staging.list': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  'scheduling.staging.configure': { scope: 'admin.configure', principals: ['human', 'service'] },
+  'scheduling.staging.add': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.staging.remove': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  'scheduling.staging.move': { scope: 'scheduling.write', principals: ['human', 'service'] },
+  // S21 (OR-06) floor view, provider requests (people only) and self-set staff presence (people only).
+  'scheduling.floor.read': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  'scheduling.floor.providerRequests': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  'scheduling.floor.requestProvider': { scope: 'scheduling.write', principals: ['human'] },
+  'scheduling.floor.acknowledgeProviderRequest': { scope: 'scheduling.write', principals: ['human'] },
+  'scheduling.floor.clearProviderRequest': { scope: 'scheduling.write', principals: ['human'] },
+  'scheduling.presence.set': { scope: 'scheduling.write', principals: ['human'] },
+  'scheduling.presence.list': { scope: 'scheduling.read', principals: ['human', 'service'] },
+  // S22 (OR-11) reassigning an appointment's patient: a person's correction, never automated.
+  'scheduling.appointments.reassignPatient': { scope: 'scheduling.write', principals: ['human'] },
   // S17 minimal scheduling export: a tenant-wide human administrator only (sensitive-read logged).
   'scheduling.export': { scope: 'admin.configure', principals: ['human'] },
   // E1 portal principals (staff side). Enrollment, verification and revocation manage portal access

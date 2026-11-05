@@ -100,6 +100,8 @@ export interface SchedulingDeps {
    * grantee can be validated, so a grant is refused.
    */
   readonly memberships?: MembershipSource;
+  /** S18/OR-D6: maximum availability search window in local days (default 60). */
+  readonly availabilityMaxWindowDays?: number;
 }
 
 /** Version of the reserved state-label vocabulary held by cuspatlas.scheduling_state_terms(). */
@@ -885,7 +887,7 @@ export function createSchedulingResourceService(deps: SchedulingDeps) {
         assertAvailabilitySearch(query);
         assertLocation(decision.locationRefs, query.locationRef);
         return deps.withTenantTransaction(ctx, (tx) =>
-          searchAvailabilityIn(tx, ctx, decision, query, cursors),
+          searchAvailabilityIn(tx, ctx, decision, query, cursors, deps.availabilityMaxWindowDays),
         );
       });
     },

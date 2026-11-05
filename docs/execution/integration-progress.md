@@ -144,3 +144,12 @@ No textual conflicts. `catalog:generate` against a-api-1's baseline refused thre
 ### 9.3 or-engagement (E10 needs-reply queue)
 
 No conflicts. Brings `packages/contracts/src/list-envelope.ts` (OR-01 `ListEnvelope`) and migration `20261127100000_needs_reply_queue.sql`. Catalog regenerated: 357 operations. Tests: needs-reply-queue, engagement-negative-harness, tenant-isolation, api-catalog/mcp-parity/forbidden/scopes/change-control, reply-due (231 passed).
+
+### 9.4 or-scheduling (S18, S20, S21, S22) and one OR-01 envelope
+
+No textual conflicts. Envelope unification:
+- TypeScript: the local `ListEnvelope` in `packages/contracts/src/scheduling.ts` is removed; S imports the shared one from `list-envelope.ts` (its `appliedFilters` widened to `Record<string, unknown>` because S filters include lists such as `weekdays`). The S scope kind `explicit_locations` became the shared `location_set` (domain availability/floor/staging and their tests).
+- JSON Schema: `LIST_ENVELOPE_SCHEMA_DEFS` in `list-envelope.ts` is the single source of the `ListEnvelope`, `ListScope`, `ListOrdering`, `ListCount` `$defs`; `engagement.schema.json` and `scheduling.schema.json` carry them verbatim (schema files are self-contained, so copied, not cross-file `$ref`). Merged choices: ordering key pattern `^[A-Za-z.]{1,64}$` (S uses dotted keys); `limit` minimum 1 without E10's output maximum 100; `asOf` date-time; `nextCursor` string or null; scope `locationRefs` at most 200 slugs. E10's `ThreadList.data` keeps the flattened envelope shape but its envelope properties equal the shared ones. `tests/integration/list-envelope-conformance.test.ts` fails on any copy that differs, any other schema defining its own, an S list not referring to `ListEnvelope`, or E10 drifting.
+- Export: the five new S tables (`scheduling_staging_lists`, `scheduling_staging_entries`, `scheduling_provider_requests`, `scheduling_staff_presence`, `appointment_patient_reassignments`) were appended to `SCHEDULING_EXPORT_TABLES` in FK order, so S17 and the five-way round trip cover them. The E10 tables (`messaging_reply_policies`, `thread_read_receipts`, `thread_reply_escalations`) are not in the E9 export: read receipts are readable only by their own principal under RLS, so an export would be partial; recorded as open.
+- Tenant isolation list already had every new table, alphabetical.
+- Catalog regenerated: 370 operations. Tests: 17 affected files, 842 passed.

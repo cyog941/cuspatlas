@@ -917,6 +917,8 @@ export function createBookingOperations(base: AppointmentBase) {
       appointmentRef: string,
       envelope: CommandEnvelope<unknown>,
       guard?: (tx: TenantTransaction, appointmentId: string, reasonCode: string) => Promise<void>,
+      /** S20: the staging move checks its own entry version inside the guard instead. */
+      opts: { readonly versionCheckedByGuard?: boolean } = {},
     ): Promise<CommandResult<BookingResult>> {
       const op = 'scheduling.appointments.reschedule';
       return base.recorded(ctx, op, async () => {
@@ -934,7 +936,7 @@ export function createBookingOperations(base: AppointmentBase) {
             tx,
             async () => {
               const prepared = await prepareWindow(tx, decision, location, p);
-              if (old.version !== p.expectedVersion) {
+              if (!opts.versionCheckedByGuard && old.version !== p.expectedVersion) {
                 throw new RefusalError({ code: 'stale_version', detail: { currentVersion: old.version } });
               }
               if (old.status !== 'booked') throw stateConflict('appointment_not_booked');

@@ -37,11 +37,12 @@ export type ImageRefResolution =
 /**
  * Seam to I3 (`imageRef` resolution). Runs inside the caller's tenant transaction, so it can answer for
  * the caller's tenant only; another tenant's imageRef must be `not_found`. A link is claimable only
- * while I3 yields a `current` imageRef. Not wired in this branch: the integrator connects I3 (see the
- * C15 seam in docs/execution/clinical-progress.md); until then every link command is refused typed.
+ * while I3 yields a `current` imageRef. Wired to I3 on the integration branch
+ * (`createImagingImageRefResolver`); a service built without a resolver refuses every link typed.
  */
 export interface ImageRefResolver {
-  resolve(tx: TenantTransaction, imageRef: string): Promise<ImageRefResolution>;
+  /** I3 requires the patient the consumer expects (`imageReference(tx, imageRef, expectedPatientRef)`). */
+  resolve(tx: TenantTransaction, imageRef: string, expectedPatientRef: string): Promise<ImageRefResolution>;
 }
 
 interface LinkRow extends Record<string, unknown> {
@@ -86,7 +87,7 @@ export function createImageLinkOperations(base: ClinicalBase) {
   };
   /** A current imageRef of this patient, or the typed refusal (missing and foreign are both 404). */
   const claimable = async (tx: TenantTransaction, imageRef: string, patientId: string) => {
-    const r = await resolver().resolve(tx, imageRef);
+    const r = await resolver().resolve(tx, imageRef, patientId);
     if (r.status === 'not_found') throw notFound();
     if (r.status === 'unavailable') {
       throw new RefusalError({
@@ -127,7 +128,9 @@ export function createImageLinkOperations(base: ClinicalBase) {
       : conflict('image_linked_elsewhere', { alternative: 'clinical.imageLinks.relink' });
   const view = async (tx: TenantTransaction, r: LinkRow): Promise<EncounterImageLink> => {
     let status: ImageResolutionStatus = 'resolver_unavailable';
-    const res = deps.imageRefResolver ? await deps.imageRefResolver.resolve(tx, r.image_ref) : null;
+    const res = deps.imageRefResolver
+      ? await deps.imageRefResolver.resolve(tx, r.image_ref, r.subject_patient_id)
+      : null;
     if (res !== null) {
       if (res.status === 'current')
         status = res.associationRef === r.association_ref ? 'current' : 'association_changed';

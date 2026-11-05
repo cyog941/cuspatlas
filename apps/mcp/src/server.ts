@@ -36,6 +36,8 @@ import {
   createClinicalVisitContextProducers,
   createDurableExecutor,
   createEngagementService,
+  createImagingAttachmentRefResolver,
+  createImagingImageRefResolver,
   createImagingService,
   createPatientService,
   createProposalService,
@@ -103,7 +105,7 @@ export interface McpServerDeps {
    * synthetic-test, where the test-only key is used. The test-only key is refused elsewhere.
    */
   readonly idempotencyDigestKey?: Uint8Array;
-  /** I's attachment reference read (another branch); without it message attachments are refused. */
+  /** E5: the I3 attachment check (absent: I3's consumer reference read, createImagingAttachmentRefResolver). */
   readonly attachmentRefs?: AttachmentRefResolver;
   /** Verifier whose audience is the MCP resource identifier (distinct from the REST audience). */
   readonly identity: IdentityVerifierConfig;
@@ -118,7 +120,7 @@ export interface McpServerDeps {
   readonly cursors?: CursorCodec;
   /** Proposal policy version (defaults to PROPOSAL_POLICY_VERSION); tests bump it. */
   readonly proposalPolicyVersion?: string;
-  /** C15: the I3 imageRef seam (absent: image link commands are refused typed). */
+  /** C15: the I3 imageRef seam (absent: I3's consumer reference read, createImagingImageRefResolver). */
   readonly imageRefResolver?: ImageRefResolver;
   readonly logger?: { readonly stream?: { write(line: string): void } };
   /** Browser origins allowed to call the endpoint. Default none: native MCP clients send no Origin. */
@@ -344,14 +346,16 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     recording,
     execute,
     ...(deps.cursors ? { cursors: deps.cursors } : {}),
-    ...(deps.imageRefResolver ? { imageRefResolver: deps.imageRefResolver } : {}),
+    // C15 -> I3 (integration): the consumer reference read, unless a test injects a double.
+    imageRefResolver: deps.imageRefResolver ?? createImagingImageRefResolver(),
   });
   const engagement = createEngagementService({
     patients,
     completedProcedures: readLatestCompletedProcedures,
     appointments,
     matchKeyPepper: resolveMatchKeyPepper(deps.env, deps.matchKeyPepper),
-    ...(deps.attachmentRefs ? { attachmentRefs: deps.attachmentRefs } : {}),
+    // E5 -> I3 (integration): attachments are checked against the message patient.
+    attachmentRefs: deps.attachmentRefs ?? createImagingAttachmentRefResolver(),
     authorize,
     withTenantTransaction: deps.tenantTransactions,
     recording,

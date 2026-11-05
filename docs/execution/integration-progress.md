@@ -15,7 +15,7 @@ Status values: not started, in progress, blocked with cause, verified (on synthe
 | 3. S-table relink guard | verified | step 3 commit | migration `20261125010000` |
 | 4. Keyed idempotency payload digest | verified | step 4 commit | migration `20261125020000` |
 | 5. Merge `codex/i-imaging-1` (4bf86c5) | verified | merge commit | 22 conflicted files; merge-registry mirror gains `imagingAssociation` (`20261125030000`) |
-| 6. I seams (C15 and E resolvers to I3, S+C+E+I import) | not started | | |
+| 6. I seams (C15 and E resolvers to I3, S+I+C+E import) | verified | step 6 commit | no migration |
 | 7. Merge `codex/b-billing-1` and B seams | not started | | |
 
 ## 1. Merge of codex/e-portal-1
@@ -42,7 +42,7 @@ Gate: see the commit message of the merge for the run counts.
 - E4 medical-history hand-off to C8 (wired). C8 exposes no proposal queue: history enters the record only as a clinician's own `clinical.history.recordChange` (structured items; free text cannot be mapped automatically without clinical judgment). The seam is therefore "record, then close": the clinician records the change with provenance `patient_reported` and `sourceRef` `intake-submission:<submission>`; `intake.reviews.resolve` with `apply` on a hand-off then names that version (`historyVersionRef` in the result, `applied_history_version_id` on the item, resolution `recorded_in_clinical_history`). Without such a version: 409 `clinical_history_not_recorded` with alternative `clinical.history.recordChange` (replaces E's `c8_not_deployed`); without `clinical.history.read`: 403. Nothing is copied from the submission; the proposal stays `{}`. Migration `20261125000000_integration_intake_history_handoff.sql`: column with composite FK to the C8 version, the E4 CHECK "a hand-off is never applied" relaxed to "applied only with a C8 version", and the review-item guard checks the version is a patient-reported version of the item's own patient recorded from the item's own submission. Worklist suggestion `record_in_clinical_history` (was `hold_for_c8`). Recommended-pending-clinical-approval. Tests: `portal-intake.test.ts` (refusal, wrong-source version, 403, apply, DB binding under the runtime role: 42501 for another submission's version, 23514 without a version; reject still available).
 - E6 recall enrollment over S16's completed-procedure basis (wired in the merge, tested here): `integration-seams.test.ts` (procedure-due patient enrolled, listed with the procedure as last event, other code `no_baseline`, 403 without `clinical.read` for enroll and list).
 - E2 portal `clinical_read` view (`documents`): kept `unavailable` (owner C15). C exposes no patient-facing projection: every C read is a staff sensitive read, and C15 stores opaque `imageRef`s whose documents live in I. Revisit in Phase 2 when I3 reference reads exist and a patient-facing document projection is specified.
-- E `AttachmentRefResolver`: kept as a port (fail closed) until I merges (Phase 2).
+- E `AttachmentRefResolver`: kept as a port (fail closed) until I merges (wired in step 6).
 - Test-only fix carried with this step: `clinical-procedures.test.ts` and `clinical-review-hardening-c12.test.ts` computed TODAY as the UTC date while the server checks the date of service in the location zone (America/New_York), so 21 C14 tests failed between 00:00 and 05:00 UTC; TODAY is now the New York date.
 
 ## 3. S-table relink guard
@@ -66,6 +66,13 @@ Conflicts (both sides kept): `PrincipalKind` is `human | service | portal | devi
 Merge registry: I added `imagingAssociation` (`imaging_match_decisions.subject_patient_id`) to `MERGE_RECORD_CLASSES` on a base without C's SQL mirror. Migration `20261125030000_integration_imaging_merge_registry.sql` restates `merge_class_table` and `merge_class_digest_exclude` with all 14 classes and adds the S6 observation trigger on the decision's patient (I keeps its own relink guard from `20261111050000`); the regression pin passes.
 
 Test fix: `portal-requests.test.ts` asserted every table whose name contains `request` is an appointment-request table; I8's `imaging_deletion_requests` is excluded by prefix.
+
+## 6. I seams
+
+- C15  and E5  are implemented over I3's consumer reference read  (now exported from the imaging module) in  and wired by default in the API and MCP builders (a test may still inject a double). C's port now passes the expected patient (the encounter's patient when linking, the link's patient when reading). Mapping: missing, malformed or other-tenant reference ->  (C) / not attachable (E); object not  ->  (); unassociated -> ; otherwise  with the decision as  (C compares the patient itself: ). E accepts an attachment only when  is true; an  is checked through its latest imageRef (none -> refused).
+- One import order S, I, C, E:  loads I9 documents (content key re-derived from the digest as in I's importer);  is a wrapper; bytes still go through .
+- Tests (, real I stack and object store): C15 links its own patient's current imageRef, 409  for another patient's, 404 for an unknown one; under a beta tenant transaction an alpha imageRef is  and not attachable by imageRef or objectRef; E5 staff thread attaches the patient's image by imageRef and objectRef and refuses another patient's; S17 + I9 + C18 + E9 exported, imported in reverse order plus blobs into a fresh database and store, all four exports identical, and the imported link resolves  through I3 in the target.
+- E2  view: still ; a patient-facing document projection needs a specification (which images a patient may see, grants) and is not invented here.
 
 ## Open items
 

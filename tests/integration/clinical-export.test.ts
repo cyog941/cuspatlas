@@ -283,11 +283,12 @@ describe('C18 clinical export round trip', () => {
     }
   });
 
-  it('S17 + C18 + E9 import in one call (any document order) in the S, C, E order and round-trip identically', {
+  it('S17 + C18 + E9 import in one call (any document order) in the platform order and round-trip identically', {
     timeout: 240_000,
   }, async () => {
     expect(IMPORT_ORDER).toStrictEqual([
       'cuspatlas-scheduling-export/1',
+      'cuspatlas-imaging-export/1',
       CLINICAL_EXPORT_FORMAT,
       'cuspatlas-engagement-export/1',
     ]);

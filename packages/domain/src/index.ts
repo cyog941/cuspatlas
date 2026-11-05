@@ -10,6 +10,7 @@ export * from './engagement';
 export * from './events/record-command';
 export * from './events/record-sensitive-read';
 export * from './imaging';
+export * from './integration/imaging-refs';
 export * from './integrations/adapter';
 export * from './patients';
 export * from './policy/authorize';

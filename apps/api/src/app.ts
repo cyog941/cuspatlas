@@ -20,6 +20,8 @@ import {
   createClinicalVisitContextProducers,
   createDurableExecutor,
   createEngagementService,
+  createImagingAttachmentRefResolver,
+  createImagingImageRefResolver,
   createImagingService,
   createPatientService,
   createProposalService,
@@ -95,9 +97,9 @@ export interface AppDeps {
    * synthetic-test, where the test-only key is used. The test-only key is refused elsewhere.
    */
   readonly idempotencyDigestKey?: Uint8Array;
-  /** C15: the I3 imageRef seam (absent: image link commands are refused typed). */
+  /** C15: the I3 imageRef seam (absent: I3's consumer reference read, createImagingImageRefResolver). */
   readonly imageRefResolver?: ImageRefResolver;
-  /** I's attachment reference read (another branch); without it message attachments are refused. */
+  /** E5: the I3 attachment check (absent: I3's consumer reference read, createImagingAttachmentRefResolver). */
   readonly attachmentRefs?: AttachmentRefResolver;
   /**
    * E1 portal transport: the same verifier key with the portal audience (distinct from the staff
@@ -287,7 +289,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         recording,
         execute,
         ...(deps.cursors ? { cursors: deps.cursors } : {}),
-        ...(deps.imageRefResolver ? { imageRefResolver: deps.imageRefResolver } : {}),
+        // C15 -> I3 (integration): the consumer reference read, unless a test injects a double.
+        imageRefResolver: deps.imageRefResolver ?? createImagingImageRefResolver(),
       });
       registerClinicalRoutes(app, { authenticator, clinical });
       registerClinicalRecordRoutes(app, { authenticator, clinical });
@@ -297,7 +300,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         completedProcedures: readLatestCompletedProcedures,
         appointments,
         matchKeyPepper: resolveMatchKeyPepper(deps.env, deps.matchKeyPepper),
-        ...(deps.attachmentRefs ? { attachmentRefs: deps.attachmentRefs } : {}),
+        // E5 -> I3 (integration): attachments are checked against the message patient.
+        attachmentRefs: deps.attachmentRefs ?? createImagingAttachmentRefResolver(),
         authorize,
         withTenantTransaction: deps.tenantTransactions,
         recording,

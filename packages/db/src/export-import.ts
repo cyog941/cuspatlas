@@ -5,6 +5,9 @@ import {
   ENGAGEMENT_EXPORT_FORMAT,
   ENGAGEMENT_EXPORT_TABLES,
   type EngagementExport,
+  IMAGING_EXPORT_FORMAT,
+  IMAGING_EXPORT_TABLES,
+  type ImagingExport,
   SCHEDULING_EXPORT_FORMAT,
   SCHEDULING_EXPORT_TABLES,
   type SchedulingExport,
@@ -20,22 +23,25 @@ import { assertSyntheticDatabaseName } from './migrate';
 /**
  * The export formats the synthetic round-trip import knows, each with its tables in FK order, and the
  * one import order of the platform: S17 scheduling (patients, locations, resources, appointments),
- * then C18 clinical (which references S rows), then E9 engagement (which references S patients and
+ * then I9 imaging (objects and associations of S patients; bytes travel separately as blob bundles),
+ * then C18 clinical (which references S rows and names I imageRefs), then E9 engagement (which references S patients and
  * intents). S intents reference E suppression decisions, so S and E are not self-contained either;
  * every document of one call is loaded in one transaction and every foreign key is validated after
  * all of them are loaded, so cross-document references resolve regardless of the cycle.
  */
 const FORMATS: Readonly<Record<string, readonly string[]>> = {
   [SCHEDULING_EXPORT_FORMAT]: SCHEDULING_EXPORT_TABLES,
+  [IMAGING_EXPORT_FORMAT]: IMAGING_EXPORT_TABLES,
   [CLINICAL_EXPORT_FORMAT]: CLINICAL_EXPORT_TABLES,
   [ENGAGEMENT_EXPORT_FORMAT]: ENGAGEMENT_EXPORT_TABLES,
 };
 export const IMPORT_ORDER: readonly string[] = [
   SCHEDULING_EXPORT_FORMAT,
+  IMAGING_EXPORT_FORMAT,
   CLINICAL_EXPORT_FORMAT,
   ENGAGEMENT_EXPORT_FORMAT,
 ];
-export type ExportDocument = SchedulingExport | ClinicalExport | EngagementExport;
+export type ExportDocument = SchedulingExport | ImagingExport | ClinicalExport | EngagementExport;
 
 export interface ImportOptions {
   /** Required with a C18 document: recomputes the note version digests (the domain's own function). */
@@ -103,12 +109,12 @@ async function assertForeignKeys(
 }
 
 /**
- * Re-imports export documents (S17 scheduling, C18 clinical, E9 engagement) into a synthetic database
+ * Re-imports export documents (S17 scheduling, I9 imaging, C18 clinical, E9 engagement) into a synthetic database
  * for one tenant, preserving every identifier. Privileged (superuser) and synthetic-only: it refuses an
  * unknown format, an unknown table, a repeated document and a database whose name is not synthetic.
  * The target must already hold the tenant and the principals and memberships the rows reference
- * (tenancy is A's, exported by none of these). Documents are loaded in the platform import order
- * (S, C, E) whatever order they are given in, table by table in each export's foreign-key order,
+ * (tenancy is A's, exported by none of these); I9 bytes are imported separately by
+ * `importImagingBlobs`. Documents are loaded in the platform import order (S, I, C, E) whatever order they are given in, table by table in each export's foreign-key order,
  * inside one transaction with `session_replication_role = replica` (self-references and
  * cross-document cycles do not depend on row order and append-only guards do not refire on historical
  * rows; check and exclusion constraints stay active). Because triggers and foreign keys are off while
@@ -177,7 +183,18 @@ export async function importExports(
           await client.query(
             `INSERT INTO cuspatlas.${table} OVERRIDING SYSTEM VALUE
              SELECT * FROM jsonb_populate_record(NULL::cuspatlas.${table}, $1::jsonb)`,
-            [JSON.stringify({ ...row, tenant_id: tenantId })],
+            [
+              JSON.stringify({
+                ...row,
+                tenant_id: tenantId,
+                // I9: the content key is re-derived (never carried by the export): tenant prefix plus digest.
+                ...(table === 'imaging_objects'
+                  ? {
+                      storage_key: `t/${tenantId}/sha256/${String(row.digest_sha256).slice(0, 2)}/${String(row.digest_sha256)}`,
+                    }
+                  : {}),
+              }),
+            ],
           );
         }
         counts[table] = list.length;

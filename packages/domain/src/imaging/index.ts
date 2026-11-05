@@ -1,3 +1,4 @@
+export { imageReference } from './association';
 export type { ImagingAlert, ImagingDeps, ImagingLimits, StagingMaintenance } from './base';
 export { bridgeBackoffSeconds } from './bridge';
 export {

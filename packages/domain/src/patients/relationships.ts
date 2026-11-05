@@ -61,7 +61,7 @@ export async function loadRelationship(
   return row;
 }
 
-/** Stateless rules for a new relationship (422 before any read). */
+/** Stateless rules for a new relationship (422 before any record is read), at the database clock `now`. */
 function checkCreate(
   subjectRef: string,
   p: RelationshipCreate,
@@ -107,8 +107,10 @@ export function createRelationshipCommands(s: PatientServiceContext) {
         const payload = envelope.payload;
         assertValid<RelationshipCreate>(validateRelationshipCreate, payload, PATIENT_PROPERTIES);
         if (!validatePatientRef(patientRef)) throw notFound();
-        const window = checkCreate(patientRef, payload, Date.now());
         return deps.withTenantTransaction(ctx, async (tx) => {
+          // The default start and the "already ended" check use the database clock that evaluates
+          // the relationship (clock audit): an application instant ahead of it left a new grant pending.
+          const window = checkCreate(patientRef, payload, await dbNow(tx));
           // Lock both patients in id order (FOR UPDATE): serializes exclusivity checks for the subject,
           // and an A->B add never deadlocks with a concurrent B->A add. Another tenant's (or a missing)
           // counterparty is hidden exactly like a missing one and nothing is written.
@@ -328,5 +330,7 @@ export function createRelationshipCommands(s: PatientServiceContext) {
 /** The database clock at this statement (review hardening: one clock for age-of-majority checks). */
 async function dbNow(tx: TenantTransaction): Promise<number> {
   const { rows } = await tx.query<{ now: Date }>('SELECT clock_timestamp() AS now');
-  return (rows[0]?.now ?? new Date()).getTime();
+  const now = rows[0]?.now;
+  if (now === undefined) throw new Error('clock_timestamp() returned no row');
+  return now.getTime();
 }

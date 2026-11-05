@@ -11,7 +11,7 @@ import { buildMcpServer, type McpServerHandle } from '@cuspatlas/mcp';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { openTestDatabase, type TestDatabase } from './support/db';
 import { ctxFor, seedTenancy, T_ALPHA, T_BETA, USER_A1, USER_B1 } from './support/fixtures';
 import { MARKER } from './support/marker';
@@ -489,6 +489,25 @@ describe('S5 rules from ADR 0003 (pending approval)', () => {
     const none = await patient('a1', 'Synthetic Stranger');
     expect((await readOnBehalf(minor, none)).json().detail).toStrictEqual({ reason: 'relationship_missing' });
   });
+});
+
+describe('S5 clock skew (clock audit)', () => {
+  // The default effectiveFrom was the application clock while access is evaluated at the database
+  // clock: with the host clock ahead, a relationship added a moment ago was still pending.
+  for (const skewMs of [5_000, -5_000]) {
+    it(`a relationship added without effectiveFrom is active at once (app clock ${skewMs > 0 ? 'ahead' : 'behind'} 5 s)`, async () => {
+      const minor = await patient('a1', 'Synthetic Minor Skew', MINOR_BIRTH);
+      const g = await patient('a1', 'Synthetic Guardian Skew');
+      vi.useFakeTimers({ toFake: ['Date'], now: Date.now() + skewMs });
+      try {
+        const res = await addRel(minor, { counterpartyRef: g, kind: 'guardian', scopes: ['demographics'] });
+        expect(res.statusCode).toBe(201);
+        expect((await access(minor, g)).json().data).toMatchObject({ scopes: ['demographics'] });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  }
 });
 
 describe('S5 failure and recovery', () => {

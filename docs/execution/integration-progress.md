@@ -305,3 +305,8 @@ Remaining internally buildable backend gaps before the UI phase, on synthetic da
   3. An `if: always()` step that prints all three files.
   - Locally on the Windows host, the script exits 0 (initdb OK, server ready).
   - The real cause on hosted runners will be visible in the next GitHub run. Nothing has been pushed, so it has **not been observed yet**.
+- **ci.**
+  - First full run: 6 failures. Five were registries that the new surfaces had to be added to: the portal harness rows, the portal `app.get` site count, the MCP tool list, and the RLS table list. The sixth was the known restore-drill race (`tuple concurrently updated`), which passed when re-run alone.
+  - Fixes were committed in 1093a80. Second run: exit 0, 184 files / 3466 tests.
+  - Catalog: 492 operations (488 + `imaging.objects.releaseToPortal`, `imaging.portalReleases.revoke`, `portal.documents.grantRead`, `portal.documents.content`).
+  - Not pushed. GitHub CI has not run, so the Windows diagnostic output is still to be read.

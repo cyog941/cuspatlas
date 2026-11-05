@@ -32,6 +32,7 @@ import {
   type AttachmentRefResolver,
   type AttemptRecordingDeps,
   BILLING_POST_MERGE_PROBE,
+  type BudgetTicket,
   CLINICAL_POST_MERGE_FACT_PROBES,
   type ClaimsPartnerPort,
   type CommandExecutor,
@@ -529,13 +530,29 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     const valid = registered.validate(args);
     const violations = valid ? [] : violationsOf(registered.validate.errors);
     let code = 'ok';
+    // A9: an agent needs a live consent for this deployment and operation, and one call is reserved
+    // against its budget before any handler (or argument check) runs.
+    let ticket: BudgetTicket | null = null;
+    let settled = false;
     try {
+      if (actor.agent)
+        ticket = await agents.admitToolCall(actor, deps.identity.audience, registered.tool.operationId);
       // Arguments are validated before any handler runs (the handler sees only valid input, except
       // for tools whose domain service performs the identical validation itself).
       if (!valid && registered.tool.onInvalid !== 'domain' && !onlyRefMalformed(registered, args)) {
         await refuseInvalid(toolDeps, actor, registered.tool, violations);
       }
       const result = await registered.tool.run(toolDeps, actor, args, valid, violations);
+      if (ticket) {
+        settled = true;
+        await agents.settleToolCall(
+          actor,
+          ticket,
+          registered.tool.readOnly ? 'query' : 'command',
+          result,
+          'ok',
+        );
+      }
       if (!valid) {
         // Defense in depth: an input rejected by the tool schema can never succeed.
         // Invariant for `onInvalid: 'domain'` tools (propose, approve, commit): their handler has
@@ -554,6 +571,9 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     } catch (err) {
       const { body } = mapErrorToRefusal(err, actor.correlationId);
       code = body.code;
+      if (ticket && !settled) {
+        await agents.settleToolCall(actor, ticket, 'command', null, body.code).catch(() => undefined);
+      }
       if (REFUSAL_HTTP_STATUS[body.code] >= 500)
         write({ level: 'error', msg: 'tool failed', ...safeErrorKind(err) });
       return { ...refusalResult(body), ...metaFor(name) };
@@ -609,6 +629,10 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
           resource: deps.identity.audience,
           authorization_servers: [deps.identity.issuer],
           bearer_methods_supported: ['header'],
+          // A9 (extension, pending A-S1): an agent principal needs a recorded per-deployment consent
+          // naming each tool, and every agent call is budgeted (429 rate_limited, budget_exhausted).
+          cuspatlas_agent_consent: 'required',
+          cuspatlas_agent_budgets: ['calls', 'records', 'phiFields'],
         },
         common,
       );

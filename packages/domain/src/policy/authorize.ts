@@ -565,6 +565,12 @@ export const ACTION_POLICIES = {
   'agents.principals.read': { scope: 'agents.read', principals: ['human', 'service'] },
   'agents.principals.list': { scope: 'agents.read', principals: ['human'] },
   'agents.audit.list': { scope: 'agents.read', principals: ['human'] },
+  // A9 consent and budgets (A-D3 open): consent is granted and revoked by a human holding
+  // agents.manage; the registry is a human read; an agent may read its own budget usage.
+  'agents.consents.record': { scope: 'agents.manage', principals: ['human'] },
+  'agents.consents.revoke': { scope: 'agents.manage', principals: ['human'] },
+  'agents.consents.list': { scope: 'agents.read', principals: ['human'] },
+  'agents.budgets.read': { scope: 'agents.read', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

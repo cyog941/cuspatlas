@@ -38,4 +38,6 @@ export const AGENT_REPLAY_CODECS: Record<string, ReplayCodec<any>> = {
   'agents.principals.revoke': AGENT,
   'agents.credentials.rotate': AGENT,
   'agents.sponsors.change': AGENT,
+  'agents.consents.record': flatCodec(['consentRef', 'agentRef', 'state', 'expiresAt']),
+  'agents.consents.revoke': flatCodec(['consentRef', 'agentRef', 'state', 'expiresAt']),
 };

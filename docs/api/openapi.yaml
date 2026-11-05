@@ -12786,6 +12786,147 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/agents/consents:
+    post:
+      operationId: agents.consents.record
+      description: >-
+        A9: record that the calling human consents to one agent calling the listed catalog operations on one
+        MCP deployment, within a call/record/PHI-field budget, until an expiry. Operations outside the agent
+        scope set or not callable by an agent are refused. Human only (agents.manage).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/agents.schema.json#/$defs/ConsentRecord'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/agents.schema.json#/$defs/ConsentCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: agents.consents.list
+      description: >-
+        A9: consent records, newest first (OR-01 list envelope). Human only.
+      parameters:
+        - name: agentRef
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/agents.schema.json#/$defs/AgentRef'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/agents.schema.json#/$defs/ConsentListQuery'
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/agents.schema.json#/$defs/Cursor'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/agents.schema.json#/$defs/ConsentList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/agents/consents/revoke:
+    post:
+      operationId: agents.consents.revoke
+      description: >-
+        A9: revoke a consent. The next tool call it covered is refused, including in an open session.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/agents.schema.json#/$defs/ConsentRevoke'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/agents.schema.json#/$defs/ConsentCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/agents/budgets:
+    get:
+      operationId: agents.budgets.read
+      description: >-
+        A9: live budget usage of one agent on one deployment in the current period. An agent can read only
+        its own.
+      parameters:
+        - name: agentRef
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/agents.schema.json#/$defs/AgentRef'
+        - name: deployment
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/agents.schema.json#/$defs/Deployment'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/agents.schema.json#/$defs/BudgetRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   # END generated: AGENT_OPS
 components:
   securitySchemes:

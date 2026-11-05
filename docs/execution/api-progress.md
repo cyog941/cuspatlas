@@ -180,3 +180,34 @@ Workstream A batch 2 (A8-A13) on synthetic data only. Framing, recorded before a
 - Not done: an agent credential presented after its principal record is gone cannot happen here
   (principals are never deleted); the authorization server that would mint agent tokens is out of
   scope (A-S1).
+
+### A9: MCP consent and per-call budgets
+
+- Red: `tests/integration/mcp-budgets.test.ts` 10 failed / 1 passed (exit 1); green 11/11 after.
+- The remote transport itself remains blocked on A-S1 (no revision or audience qualification is
+  claimed). What is implemented is the server-side consent and budget gate every MCP tool call of an
+  agent passes, on the existing stateless Streamable HTTP endpoint.
+- Consent (migration `20261201010000`): a human holding `agents.manage` records which agent may call
+  which catalog operations on which deployment (the MCP resource identifier, the token audience),
+  with a budget and an expiry no later than the agent's. An operation is consentable only if the
+  catalog lists it on MCP, admits a service principal and its scope is in the agent's scope set
+  (`consent_scope_exceeded`, `consent_operation_not_agent_callable`). Revocation is effective on the
+  next call of an open session.
+- Gate (apps/mcp/src/server.ts `callTool`): for an agent, before any argument check or handler, an
+  active unexpired consent for this deployment naming the tool's operation (else 403
+  `consent_missing`, recorded as a security attempt), then one call reserved atomically against the
+  period budget (else 429 `rate_limited` with `detail.reason = budget_exhausted`, the limit name and
+  the earliest retry time). After the handler, records and PHI scalar fields (operations whose
+  catalog sensitivity is phi/phiBulk) are counted: a query result over `recordsPerCall`,
+  `phiFieldsPerCall` or the remaining period budget is refused and never returned (not silently
+  shortened); a command is counted and logged only (it has already committed). A failed accounting
+  write aborts the call. Every admitted agent call (allowed or refused) is appended to
+  `agent_tool_calls`.
+- Ceilings (A-D3, pending approval): the schema maxima are the hard ceilings (calls 100000/period,
+  records 1000/call, PHI fields 100000/call, period 60 s to 24 h); a budget above them is refused at
+  recording (400). Humans and non-agent service principals are not subject to agent consent.
+- RFC 9728 metadata now states `cuspatlas_agent_consent: required` and the budgeted dimensions.
+- Operations (4): `agents.consents.record|revoke|list`, `agents.budgets.read` (an agent may read only
+  its own usage).
+- Not done (A-S1): truncation with a resume cursor and wall-clock budgets with unknown-outcome
+  recording are not implemented; the current rule refuses an oversized query result instead.

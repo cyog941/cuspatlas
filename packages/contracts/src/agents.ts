@@ -1,5 +1,7 @@
 import type { ValidateFunction } from 'ajv/dist/2020.js';
 import schema from './agents.schema.json' with { type: 'json' };
+import type { CatalogOperation } from './catalog/catalog';
+import operations from './catalog/operations.json' with { type: 'json' };
 import registry from './catalog/scopes.json' with { type: 'json' };
 import { collectPropertyNames, createAjv } from './validation';
 
@@ -29,7 +31,26 @@ export const validateAgentQuery = def('AgentQuery');
 export const validateAgentListQuery = def('AgentListQuery');
 export const validateAgentAuditQuery = def('AgentAuditQuery');
 
+export const validateAgentConsentRecord = def('ConsentRecord');
+export const validateAgentConsentRevoke = def('ConsentRevoke');
+export const validateAgentConsentListQuery = def('ConsentListQuery');
+export const validateAgentBudgetQuery = def('BudgetQuery');
+
 export type AgentState = 'active' | 'suspended' | 'revoked';
+
+/** The generated operation catalog by operation id (A9 consent checks, budget sensitivity). */
+export const CATALOG_INDEX: ReadonlyMap<string, CatalogOperation> = new Map(
+  (operations as unknown as CatalogOperation[]).map((o) => [o.operation, o]),
+);
+
+export interface AgentBudget {
+  readonly periodSeconds: number;
+  readonly callsPerPeriod: number;
+  readonly recordsPerPeriod: number;
+  readonly phiFieldsPerPeriod: number;
+  readonly recordsPerCall: number;
+  readonly phiFieldsPerCall: number;
+}
 
 /** A-D9 (open): maximum agent lifetime. Recommended 90 days, pending security review. */
 export const AGENT_MAX_LIFETIME_DAYS = 90;

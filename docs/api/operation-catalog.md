@@ -9,7 +9,7 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-408 operations.
+412 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
@@ -24,6 +24,10 @@ transport tables and are declarations, not independent proof.
 | Operation | Owner | Kind | Authorization | Scope | Principals | Transports | REST | MCP tool | Idempotency | Sensitivity | Status |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | `agents.audit.list` | A | query | authorize | `agents.read` | human | rest, mcp | GET `/v1/agents/audit` | `agents_audit_list` | none | phi | active |
+| `agents.budgets.read` | A | query | authorize | `agents.read` | human, service | rest, mcp | GET `/v1/agents/budgets` | `agents_budgets_get` | none | phi | active |
+| `agents.consents.list` | A | query | authorize | `agents.read` | human | rest, mcp | GET `/v1/agents/consents` | `agents_consents_list` | none | phi | active |
+| `agents.consents.record` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/consents` | `agents_consents_record` | required | phi | active |
+| `agents.consents.revoke` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/consents/revoke` | `agents_consents_revoke` | required | phi | active |
 | `agents.credentials.rotate` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/credentials/rotate` | `agents_credentials_rotate` | required | phi | active |
 | `agents.principals.create` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/principals` | `agents_principals_create` | required | phi | active |
 | `agents.principals.list` | A | query | authorize | `agents.read` | human | rest, mcp | GET `/v1/agents/principals` | `agents_principals_list` | none | phi | active |

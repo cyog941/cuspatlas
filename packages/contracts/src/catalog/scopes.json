@@ -75,6 +75,8 @@
         "A"
       ],
       "operations": [
+        "agents.consents.record",
+        "agents.consents.revoke",
         "agents.credentials.rotate",
         "agents.principals.create",
         "agents.principals.resume",
@@ -98,6 +100,8 @@
       ],
       "operations": [
         "agents.audit.list",
+        "agents.budgets.read",
+        "agents.consents.list",
         "agents.principals.list",
         "agents.principals.read"
       ],

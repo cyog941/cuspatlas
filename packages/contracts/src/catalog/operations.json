@@ -32,6 +32,141 @@
     "status": "active"
   },
   {
+    "operation": "agents.budgets.read",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "agents.budgets.read",
+    "scope": "agents.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/agents/budgets",
+      "successStatus": "200",
+      "successSchema": "agents:BudgetRead"
+    },
+    "mcpTool": "agents_budgets_get",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "agents.consents.list",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "agents.consents.list",
+    "scope": "agents.read",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/agents/consents",
+      "successStatus": "200",
+      "successSchema": "agents:ConsentList"
+    },
+    "mcpTool": "agents_consents_list",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "agents.consents.record",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "agents.consents.record",
+    "scope": "agents.manage",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/agents/consents",
+      "requestSchema": "agents:ConsentRecord",
+      "successStatus": "201",
+      "successSchema": "agents:ConsentCommandResult"
+    },
+    "mcpTool": "agents_consents_record",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "agents.consents.revoke",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "agents.consents.revoke",
+    "scope": "agents.manage",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/agents/consents/revoke",
+      "requestSchema": "agents:ConsentRevoke",
+      "successStatus": "200",
+      "successSchema": "agents:ConsentCommandResult"
+    },
+    "mcpTool": "agents_consents_revoke",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
     "operation": "agents.credentials.rotate",
     "owner": "A",
     "kind": "command",

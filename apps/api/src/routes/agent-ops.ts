@@ -141,6 +141,57 @@ export const AGENT_OPS: AgentOp[] = [
       'A8: the separate agent-audit stream of one agent (actor = the agent, sponsor = the sponsor of record at the time), OR-01 list envelope. Human only.',
     invoke: (svc, actor, i) => svc.listAgentAudit(actor, i.body),
   },
+  {
+    method: 'post',
+    path: '/v1/agents/consents',
+    operationId: 'agents.consents.record',
+    protected: true,
+    requestBody: A('ConsentRecord'),
+    success: { status: '201', schema: A('ConsentCommandResult') },
+    refusals: COMMAND,
+    tool: 'agents_consents_record',
+    description:
+      'A9: record that the calling human consents to one agent calling the listed catalog operations on one MCP deployment, within a call/record/PHI-field budget, until an expiry. Operations outside the agent scope set or not callable by an agent are refused. Human only (agents.manage).',
+    invoke: (svc, actor, i) => svc.recordConsent(actor, env('agents.consents.record', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/agents/consents/revoke',
+    operationId: 'agents.consents.revoke',
+    protected: true,
+    requestBody: A('ConsentRevoke'),
+    success: { status: '200', schema: A('ConsentCommandResult') },
+    refusals: COMMAND,
+    tool: 'agents_consents_revoke',
+    description:
+      'A9: revoke a consent. The next tool call it covered is refused, including in an open session.',
+    invoke: (svc, actor, i) => svc.revokeConsent(actor, env('agents.consents.revoke', i)),
+  },
+  {
+    method: 'get',
+    path: '/v1/agents/consents',
+    operationId: 'agents.consents.list',
+    protected: true,
+    query: 'ConsentListQuery',
+    success: { status: '200', schema: A('ConsentList') },
+    refusals: READ,
+    tool: 'agents_consents_list',
+    description: 'A9: consent records, newest first (OR-01 list envelope). Human only.',
+    invoke: (svc, actor, i) => svc.listConsents(actor, i.body),
+  },
+  {
+    method: 'get',
+    path: '/v1/agents/budgets',
+    operationId: 'agents.budgets.read',
+    protected: true,
+    query: 'BudgetQuery',
+    success: { status: '200', schema: A('BudgetRead') },
+    refusals: READ,
+    tool: 'agents_budgets_get',
+    description:
+      'A9: live budget usage of one agent on one deployment in the current period. An agent can read only its own.',
+    invoke: (svc, actor, i) => data(svc.readBudget(actor, i.body)),
+  },
 ];
 
 export const AGENT_OP_ROUTES = (): RouteContract[] =>

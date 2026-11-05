@@ -35,7 +35,23 @@ export interface AgentStack extends CatalogStack {
     body?: unknown,
     key?: string,
   ): Promise<{ status: number; body: Record<string, unknown> }>;
-  createAgent(scopes: readonly string[], purpose?: string, sponsor?: string): Promise<AgentHandle>;
+  /**
+   * Creates an agent and (unless `consent: false`) records an A9 consent on the test MCP deployment
+   * for every catalog MCP operation the agent's scope set can reach, with a generous budget.
+   */
+  createAgent(
+    scopes: readonly string[],
+    purpose?: string,
+    sponsor?: string,
+    opts?: { consent?: false },
+  ): Promise<AgentHandle>;
+  /** Records a consent as the sponsor; returns the HTTP outcome. */
+  consent(
+    a: AgentHandle,
+    operations: readonly string[],
+    budget?: Partial<Budget>,
+    opts?: { sponsor?: string; deployment?: string },
+  ): Promise<{ status: number; body: Record<string, unknown> }>;
   /** An MCP client holding the agent's credential (sid = credentialRef), connected once. */
   agentClient(agentRef: string, credentialRef: string): Promise<Client>;
   agentCall(client: Client, tool: string, args: Record<string, unknown>): Promise<AgentCall>;
@@ -44,6 +60,23 @@ export interface AgentStack extends CatalogStack {
 }
 
 const inDays = (d: number) => new Date(Date.now() + d * 86_400_000).toISOString();
+
+export interface Budget {
+  periodSeconds: number;
+  callsPerPeriod: number;
+  recordsPerPeriod: number;
+  phiFieldsPerPeriod: number;
+  recordsPerCall: number;
+  phiFieldsPerCall: number;
+}
+export const GENEROUS: Budget = {
+  periodSeconds: 3600,
+  callsPerPeriod: 10_000,
+  recordsPerPeriod: 100_000,
+  phiFieldsPerPeriod: 1_000_000,
+  recordsPerCall: 1000,
+  phiFieldsPerCall: 100_000,
+};
 
 export async function startAgentStack(label: string): Promise<AgentStack> {
   const s = await startCatalogStack(label, allScopes);
@@ -63,7 +96,15 @@ export async function startAgentStack(label: string): Promise<AgentStack> {
     });
     return { status: r.statusCode, body: r.body ? (JSON.parse(r.body) as Record<string, unknown>) : {} };
   };
-  const createAgent: AgentStack['createAgent'] = async (scopes, purpose, sponsor) => {
+  const consent: AgentStack['consent'] = (a, operations, budget, opts) =>
+    call(opts?.sponsor ?? 'humanAll', 'POST', '/v1/agents/consents', {
+      agentRef: a.agentRef,
+      deployment: opts?.deployment ?? MCP_AUDIENCE,
+      operations,
+      budget: { ...GENEROUS, ...budget },
+      expiresAt: inDays(20),
+    });
+  const createAgent: AgentStack['createAgent'] = async (scopes, purpose, sponsor, opts) => {
     const r = await call(sponsor ?? 'humanAll', 'POST', '/v1/agents/principals', {
       purpose: purpose ?? 'synthetic test agent',
       scopes,
@@ -71,11 +112,24 @@ export async function startAgentStack(label: string): Promise<AgentStack> {
     });
     if (r.status !== 201) throw new Error(`agent create failed ${r.status} ${JSON.stringify(r.body)}`);
     const d = r.body.data as Record<string, unknown>;
-    return {
+    const handle = {
       agentRef: d.agentRef as string,
       credentialRef: d.credentialRef as string,
       version: r.body.version as number,
     };
+    if (opts?.consent !== false) {
+      const ops = catalog
+        .filter(
+          (o) =>
+            o.transports.includes('mcp') &&
+            o.principals.includes('service') &&
+            (o.scope === null || scopes.includes(o.scope)),
+        )
+        .map((o) => o.operation);
+      const c = await consent(handle, ops, {}, { sponsor: sponsor ?? 'humanAll' });
+      if (c.status !== 201) throw new Error(`consent failed ${c.status} ${JSON.stringify(c.body)}`);
+    }
+    return handle;
   };
   const agentClient: AgentStack['agentClient'] = async (agentRef, credentialRef) => {
     const tok = await s.issuer.issue({
@@ -121,7 +175,7 @@ export async function startAgentStack(label: string): Promise<AgentStack> {
     for (const c of clients) await c.close().catch(() => undefined);
     await s.close();
   };
-  return { ...s, call, createAgent, agentClient, agentCall, agentTool, close };
+  return { ...s, call, createAgent, consent, agentClient, agentCall, agentTool, close };
 }
 
 export const SPONSOR = M_HUMAN_ALL;

@@ -67,11 +67,7 @@
       "type": "object",
       "additionalProperties": false,
       "description": "A8: a new agent principal. The sponsor is the calling human; the scope set may not include a human-only scope or a scope the sponsor lacks; the expiry is required and bounded (A-D9 open).",
-      "required": [
-        "purpose",
-        "scopes",
-        "expiresAt"
-      ],
+      "required": ["purpose", "scopes", "expiresAt"],
       "properties": {
         "purpose": {
           "$ref": "#/$defs/Purpose"
@@ -93,10 +89,7 @@
     "AgentTransition": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "agentRef",
-        "expectedVersion"
-      ],
+      "required": ["agentRef", "expectedVersion"],
       "properties": {
         "agentRef": {
           "$ref": "#/$defs/AgentRef"
@@ -112,11 +105,7 @@
     "AgentSponsorChange": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "agentRef",
-        "sponsorRef",
-        "expectedVersion"
-      ],
+      "required": ["agentRef", "sponsorRef", "expectedVersion"],
       "properties": {
         "agentRef": {
           "$ref": "#/$defs/AgentRef"
@@ -132,9 +121,7 @@
     "AgentQuery": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "agentRef"
-      ],
+      "required": ["agentRef"],
       "properties": {
         "agentRef": {
           "$ref": "#/$defs/AgentRef"
@@ -155,20 +142,14 @@
           "$ref": "#/$defs/Cursor"
         },
         "state": {
-          "enum": [
-            "active",
-            "suspended",
-            "revoked"
-          ]
+          "enum": ["active", "suspended", "revoked"]
         }
       }
     },
     "AgentAuditQuery": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "agentRef"
-      ],
+      "required": ["agentRef"],
       "properties": {
         "agentRef": {
           "$ref": "#/$defs/AgentRef"
@@ -186,21 +167,13 @@
     "AgentCommand": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "agentRef",
-        "state",
-        "expiresAt"
-      ],
+      "required": ["agentRef", "state", "expiresAt"],
       "properties": {
         "agentRef": {
           "$ref": "#/$defs/AgentRef"
         },
         "state": {
-          "enum": [
-            "active",
-            "suspended",
-            "revoked"
-          ]
+          "enum": ["active", "suspended", "revoked"]
         },
         "expiresAt": {
           "$ref": "#/$defs/Instant"
@@ -217,12 +190,7 @@
       "type": "object",
       "additionalProperties": false,
       "description": "A8 lifecycle result. The credential reference appears only on create and rotate.",
-      "required": [
-        "data",
-        "version",
-        "correlationId",
-        "replayed"
-      ],
+      "required": ["data", "version", "correlationId", "replayed"],
       "properties": {
         "data": {
           "$ref": "#/$defs/AgentCommand"
@@ -268,11 +236,7 @@
           }
         },
         "state": {
-          "enum": [
-            "active",
-            "suspended",
-            "revoked"
-          ]
+          "enum": ["active", "suspended", "revoked"]
         },
         "expiresAt": {
           "$ref": "#/$defs/Instant"
@@ -303,10 +267,7 @@
           "type": "object",
           "additionalProperties": false,
           "description": "describeAgentGrants: the scopes the agent can exercise right now (reads only while suspended; none when not live).",
-          "required": [
-            "effectiveScopes",
-            "live"
-          ],
+          "required": ["effectiveScopes", "live"],
           "properties": {
             "effectiveScopes": {
               "type": "array",
@@ -325,9 +286,7 @@
       "type": "object",
       "additionalProperties": false,
       "description": "A8: one agent principal with its live grants. Never carries the credential reference.",
-      "required": [
-        "data"
-      ],
+      "required": ["data"],
       "properties": {
         "data": {
           "$ref": "#/$defs/Agent"
@@ -368,10 +327,7 @@
           "type": "boolean"
         },
         "nextCursor": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "ordering": {
           "$ref": "#/$defs/ListOrdering"
@@ -466,10 +422,7 @@
           "type": "boolean"
         },
         "nextCursor": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "ordering": {
           "$ref": "#/$defs/ListOrdering"
@@ -539,13 +492,7 @@
       "type": "object",
       "additionalProperties": false,
       "description": "A9: a named human consents that one agent may call the listed operations (MCP tools) on one deployment, within a budget, until the expiry. Operations outside the agent scope set are refused.",
-      "required": [
-        "agentRef",
-        "deployment",
-        "operations",
-        "budget",
-        "expiresAt"
-      ],
+      "required": ["agentRef", "deployment", "operations", "budget", "expiresAt"],
       "properties": {
         "agentRef": {
           "$ref": "#/$defs/AgentRef"
@@ -573,10 +520,7 @@
     "ConsentRevoke": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "consentRef",
-        "expectedVersion"
-      ],
+      "required": ["consentRef", "expectedVersion"],
       "properties": {
         "consentRef": {
           "$ref": "#/$defs/Uuid"
@@ -607,12 +551,7 @@
     "ConsentCommand": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "consentRef",
-        "agentRef",
-        "state",
-        "expiresAt"
-      ],
+      "required": ["consentRef", "agentRef", "state", "expiresAt"],
       "properties": {
         "consentRef": {
           "$ref": "#/$defs/Uuid"
@@ -621,10 +560,7 @@
           "$ref": "#/$defs/AgentRef"
         },
         "state": {
-          "enum": [
-            "active",
-            "revoked"
-          ]
+          "enum": ["active", "revoked"]
         },
         "expiresAt": {
           "$ref": "#/$defs/Instant"
@@ -635,12 +571,7 @@
       "type": "object",
       "additionalProperties": false,
       "description": "A9 consent command result.",
-      "required": [
-        "data",
-        "version",
-        "correlationId",
-        "replayed"
-      ],
+      "required": ["data", "version", "correlationId", "replayed"],
       "properties": {
         "data": {
           "$ref": "#/$defs/ConsentCommand"
@@ -691,10 +622,7 @@
           "$ref": "#/$defs/Budget"
         },
         "state": {
-          "enum": [
-            "active",
-            "revoked"
-          ]
+          "enum": ["active", "revoked"]
         },
         "grantedBy": {
           "$ref": "#/$defs/PrincipalRef"
@@ -744,10 +672,7 @@
           "type": "boolean"
         },
         "nextCursor": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "ordering": {
           "$ref": "#/$defs/ListOrdering"
@@ -766,10 +691,7 @@
     "BudgetQuery": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "agentRef",
-        "deployment"
-      ],
+      "required": ["agentRef", "deployment"],
       "properties": {
         "agentRef": {
           "$ref": "#/$defs/AgentRef"
@@ -782,14 +704,7 @@
     "BudgetUsage": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "consentRef",
-        "periodStartedAt",
-        "calls",
-        "records",
-        "phiFields",
-        "budget"
-      ],
+      "required": ["consentRef", "periodStartedAt", "calls", "records", "phiFields", "budget"],
       "properties": {
         "consentRef": {
           "$ref": "#/$defs/Uuid"
@@ -828,9 +743,7 @@
       "type": "object",
       "additionalProperties": false,
       "description": "A9: the live budget usage of one agent on one deployment in the current period.",
-      "required": [
-        "data"
-      ],
+      "required": ["data"],
       "properties": {
         "data": {
           "$ref": "#/$defs/BudgetUsage"
@@ -849,10 +762,7 @@
       "type": "object",
       "additionalProperties": false,
       "description": "A10: prepare a proposal for an elevated (catalog approval: proposal) operation. Binds operation, payload digest, resource versions, policy version and an expiry.",
-      "required": [
-        "operation",
-        "payload"
-      ],
+      "required": ["operation", "payload"],
       "properties": {
         "operation": {
           "$ref": "#/$defs/ElevatedOperation"
@@ -866,11 +776,7 @@
     "ActionApprove": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "proposalRef",
-        "payloadDigest",
-        "expectedVersion"
-      ],
+      "required": ["proposalRef", "payloadDigest", "expectedVersion"],
       "properties": {
         "proposalRef": {
           "$ref": "#/$defs/Uuid"
@@ -886,10 +792,7 @@
     "ActionCommit": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "proposalRef",
-        "payloadDigest"
-      ],
+      "required": ["proposalRef", "payloadDigest"],
       "properties": {
         "proposalRef": {
           "$ref": "#/$defs/Uuid"
@@ -902,11 +805,7 @@
     "ActionAbandon": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "proposalRef",
-        "expectedVersion",
-        "reason"
-      ],
+      "required": ["proposalRef", "expectedVersion", "reason"],
       "properties": {
         "proposalRef": {
           "$ref": "#/$defs/Uuid"
@@ -922,9 +821,7 @@
     "ActionQuery": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "proposalRef"
-      ],
+      "required": ["proposalRef"],
       "properties": {
         "proposalRef": {
           "$ref": "#/$defs/Uuid"
@@ -945,14 +842,7 @@
           "$ref": "#/$defs/Cursor"
         },
         "state": {
-          "enum": [
-            "prepared",
-            "approved",
-            "committed",
-            "rejected",
-            "expired",
-            "abandoned"
-          ]
+          "enum": ["prepared", "approved", "committed", "rejected", "expired", "abandoned"]
         }
       }
     },
@@ -983,14 +873,7 @@
           "$ref": "#/$defs/ElevatedOperation"
         },
         "state": {
-          "enum": [
-            "prepared",
-            "approved",
-            "committed",
-            "rejected",
-            "expired",
-            "abandoned"
-          ]
+          "enum": ["prepared", "approved", "committed", "rejected", "expired", "abandoned"]
         },
         "payloadDigest": {
           "$ref": "#/$defs/Digest"
@@ -1006,10 +889,7 @@
           "$ref": "#/$defs/PrincipalRef"
         },
         "proposerKind": {
-          "enum": [
-            "human",
-            "service"
-          ]
+          "enum": ["human", "service"]
         },
         "sponsorRef": {
           "anyOf": [
@@ -1036,11 +916,7 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "kind",
-              "ref",
-              "version"
-            ],
+            "required": ["kind", "ref", "version"],
             "properties": {
               "kind": {
                 "type": "string",
@@ -1060,10 +936,7 @@
             {
               "type": "object",
               "additionalProperties": false,
-              "required": [
-                "kind",
-                "ref"
-              ],
+              "required": ["kind", "ref"],
               "properties": {
                 "kind": {
                   "type": "string",
@@ -1098,12 +971,7 @@
       "type": "object",
       "additionalProperties": false,
       "description": "A10 proposal step result.",
-      "required": [
-        "data",
-        "version",
-        "correlationId",
-        "replayed"
-      ],
+      "required": ["data", "version", "correlationId", "replayed"],
       "properties": {
         "data": {
           "$ref": "#/$defs/ActionProposal"
@@ -1123,9 +991,7 @@
       "type": "object",
       "additionalProperties": false,
       "description": "A10: one proposal of the tenant.",
-      "required": [
-        "data"
-      ],
+      "required": ["data"],
       "properties": {
         "data": {
           "$ref": "#/$defs/ActionProposal"
@@ -1166,10 +1032,7 @@
           "type": "boolean"
         },
         "nextCursor": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "ordering": {
           "$ref": "#/$defs/ListOrdering"
@@ -1186,27 +1049,15 @@
       }
     },
     "AiUseCase": {
-      "enum": [
-        "clinicalNoteDraft",
-        "patientMessageDraft",
-        "claimReadinessExplanation"
-      ]
+      "enum": ["clinicalNoteDraft", "patientMessageDraft", "claimReadinessExplanation"]
     },
     "AiSourceRef": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "kind",
-        "ref"
-      ],
+      "required": ["kind", "ref"],
       "properties": {
         "kind": {
-          "enum": [
-            "encounter",
-            "note",
-            "thread",
-            "claim"
-          ]
+          "enum": ["encounter", "note", "thread", "claim"]
         },
         "ref": {
           "$ref": "#/$defs/Uuid"
@@ -1217,10 +1068,7 @@
       "type": "object",
       "additionalProperties": false,
       "description": "A11: ask the (synthetic) model for a draft from records the caller may already read. Output is always a draft.",
-      "required": [
-        "useCase",
-        "sourceRefs"
-      ],
+      "required": ["useCase", "sourceRefs"],
       "properties": {
         "useCase": {
           "$ref": "#/$defs/AiUseCase"
@@ -1238,10 +1086,7 @@
     "AiDraftAccept": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "draftRef",
-        "expectedVersion"
-      ],
+      "required": ["draftRef", "expectedVersion"],
       "properties": {
         "draftRef": {
           "$ref": "#/$defs/Uuid"
@@ -1259,11 +1104,7 @@
     "AiDraftReject": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "draftRef",
-        "expectedVersion",
-        "reason"
-      ],
+      "required": ["draftRef", "expectedVersion", "reason"],
       "properties": {
         "draftRef": {
           "$ref": "#/$defs/Uuid"
@@ -1279,9 +1120,7 @@
     "AiDraftQuery": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "draftRef"
-      ],
+      "required": ["draftRef"],
       "properties": {
         "draftRef": {
           "$ref": "#/$defs/Uuid"
@@ -1305,13 +1144,7 @@
           "$ref": "#/$defs/AiUseCase"
         },
         "state": {
-          "enum": [
-            "offered",
-            "flagged",
-            "accepted",
-            "rejected",
-            "stale"
-          ]
+          "enum": ["offered", "flagged", "accepted", "rejected", "stale"]
         }
       }
     },
@@ -1342,19 +1175,10 @@
           "$ref": "#/$defs/AiUseCase"
         },
         "state": {
-          "enum": [
-            "offered",
-            "flagged",
-            "accepted",
-            "rejected",
-            "stale"
-          ]
+          "enum": ["offered", "flagged", "accepted", "rejected", "stale"]
         },
         "text": {
-          "type": [
-            "string",
-            "null"
-          ],
+          "type": ["string", "null"],
           "maxLength": 20000
         },
         "modelRef": {
@@ -1370,11 +1194,7 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "kind",
-              "ref",
-              "version"
-            ],
+            "required": ["kind", "ref", "version"],
             "properties": {
               "kind": {
                 "type": "string",
@@ -1393,10 +1213,7 @@
         "freshness": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "fresh",
-            "checkedAt"
-          ],
+          "required": ["fresh", "checkedAt"],
           "properties": {
             "fresh": {
               "type": "boolean"
@@ -1433,10 +1250,7 @@
             {
               "type": "object",
               "additionalProperties": false,
-              "required": [
-                "kind",
-                "ref"
-              ],
+              "required": ["kind", "ref"],
               "properties": {
                 "kind": {
                   "type": "string",
@@ -1460,32 +1274,20 @@
     "AiDraftCommand": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "draftRef",
-        "state"
-      ],
+      "required": ["draftRef", "state"],
       "properties": {
         "draftRef": {
           "$ref": "#/$defs/Uuid"
         },
         "state": {
-          "enum": [
-            "offered",
-            "flagged",
-            "accepted",
-            "rejected",
-            "stale"
-          ]
+          "enum": ["offered", "flagged", "accepted", "rejected", "stale"]
         },
         "acceptedAs": {
           "anyOf": [
             {
               "type": "object",
               "additionalProperties": false,
-              "required": [
-                "kind",
-                "ref"
-              ],
+              "required": ["kind", "ref"],
               "properties": {
                 "kind": {
                   "type": "string",
@@ -1507,12 +1309,7 @@
       "type": "object",
       "additionalProperties": false,
       "description": "A11 draft command result.",
-      "required": [
-        "data",
-        "version",
-        "correlationId",
-        "replayed"
-      ],
+      "required": ["data", "version", "correlationId", "replayed"],
       "properties": {
         "data": {
           "$ref": "#/$defs/AiDraftCommand"
@@ -1532,9 +1329,7 @@
       "type": "object",
       "additionalProperties": false,
       "description": "A11: one AI draft with its provenance and freshness.",
-      "required": [
-        "data"
-      ],
+      "required": ["data"],
       "properties": {
         "data": {
           "$ref": "#/$defs/AiDraft"
@@ -1575,10 +1370,7 @@
           "type": "boolean"
         },
         "nextCursor": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "ordering": {
           "$ref": "#/$defs/ListOrdering"
@@ -1597,10 +1389,7 @@
     "AiUseCaseConfigure": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "useCase",
-        "enabled"
-      ],
+      "required": ["useCase", "enabled"],
       "properties": {
         "useCase": {
           "$ref": "#/$defs/AiUseCase"
@@ -1646,23 +1435,13 @@
           "type": "boolean"
         },
         "approval": {
-          "enum": [
-            "recommendedPendingApproval",
-            "approved",
-            "notApproved"
-          ]
+          "enum": ["recommendedPendingApproval", "approved", "notApproved"]
         },
         "enabled": {
           "type": "boolean"
         },
         "gate": {
-          "enum": [
-            "pass",
-            "fail",
-            "inconclusive",
-            "stale",
-            "none"
-          ]
+          "enum": ["pass", "fail", "inconclusive", "stale", "none"]
         },
         "modelRef": {
           "type": "string",
@@ -1681,10 +1460,7 @@
     "AiUseCaseCommand": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "useCase",
-        "enabled"
-      ],
+      "required": ["useCase", "enabled"],
       "properties": {
         "useCase": {
           "$ref": "#/$defs/AiUseCase"
@@ -1698,12 +1474,7 @@
       "type": "object",
       "additionalProperties": false,
       "description": "A11 use-case switch result.",
-      "required": [
-        "data",
-        "version",
-        "correlationId",
-        "replayed"
-      ],
+      "required": ["data", "version", "correlationId", "replayed"],
       "properties": {
         "data": {
           "$ref": "#/$defs/AiUseCaseCommand"
@@ -1753,10 +1524,7 @@
           "type": "boolean"
         },
         "nextCursor": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "ordering": {
           "$ref": "#/$defs/ListOrdering"
@@ -1775,9 +1543,7 @@
     "AiEvaluationRun": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "useCase"
-      ],
+      "required": ["useCase"],
       "properties": {
         "useCase": {
           "$ref": "#/$defs/AiUseCase"
@@ -1851,11 +1617,7 @@
           "minimum": 1
         },
         "verdict": {
-          "enum": [
-            "pass",
-            "fail",
-            "inconclusive"
-          ]
+          "enum": ["pass", "fail", "inconclusive"]
         },
         "metrics": {
           "type": "object",
@@ -1882,12 +1644,7 @@
       "type": "object",
       "additionalProperties": false,
       "description": "A12 evaluation run (synthetic cases, fake model; never clinical validation).",
-      "required": [
-        "data",
-        "version",
-        "correlationId",
-        "replayed"
-      ],
+      "required": ["data", "version", "correlationId", "replayed"],
       "properties": {
         "data": {
           "$ref": "#/$defs/AiEvaluation"
@@ -1937,10 +1694,7 @@
           "type": "boolean"
         },
         "nextCursor": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "ordering": {
           "$ref": "#/$defs/ListOrdering"
@@ -1959,11 +1713,7 @@
     "Medication": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "name",
-        "strength",
-        "form"
-      ],
+      "required": ["name", "strength", "form"],
       "properties": {
         "name": {
           "type": "string",
@@ -1985,14 +1735,7 @@
     "PrescriptionDraftCreate": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "patientRef",
-        "medication",
-        "sig",
-        "quantity",
-        "refills",
-        "controlledSubstance"
-      ],
+      "required": ["patientRef", "medication", "sig", "quantity", "refills", "controlledSubstance"],
       "properties": {
         "patientRef": {
           "$ref": "#/$defs/Uuid"
@@ -2026,11 +1769,7 @@
     "PrescriptionSubmit": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "draftRef",
-        "proposalRef",
-        "expectedVersion"
-      ],
+      "required": ["draftRef", "proposalRef", "expectedVersion"],
       "properties": {
         "draftRef": {
           "$ref": "#/$defs/Uuid"
@@ -2046,11 +1785,7 @@
     "PrescriptionCancel": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "draftRef",
-        "expectedVersion",
-        "reason"
-      ],
+      "required": ["draftRef", "expectedVersion", "reason"],
       "properties": {
         "draftRef": {
           "$ref": "#/$defs/Uuid"
@@ -2066,21 +1801,13 @@
     "PrescriptionCommand": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "draftRef",
-        "state"
-      ],
+      "required": ["draftRef", "state"],
       "properties": {
         "draftRef": {
           "$ref": "#/$defs/Uuid"
         },
         "state": {
-          "enum": [
-            "draft",
-            "submitted",
-            "unknown",
-            "cancelled"
-          ]
+          "enum": ["draft", "submitted", "unknown", "cancelled"]
         }
       }
     },
@@ -2088,12 +1815,7 @@
       "type": "object",
       "additionalProperties": false,
       "description": "A13: the shape a qualified partner would return. No partner is qualified, so every prescribing operation refuses (503 service_unavailable, reason prescribing_not_available).",
-      "required": [
-        "data",
-        "version",
-        "correlationId",
-        "replayed"
-      ],
+      "required": ["data", "version", "correlationId", "replayed"],
       "properties": {
         "data": {
           "$ref": "#/$defs/PrescriptionCommand"
@@ -2112,17 +1834,11 @@
     "ListScope": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "kind"
-      ],
+      "required": ["kind"],
       "description": "OR-01 scope: tenant-wide, the caller's assigned locations, or an explicit location set (locationRefs present for the last two).",
       "properties": {
         "kind": {
-          "enum": [
-            "tenant_wide",
-            "assigned_locations",
-            "location_set"
-          ]
+          "enum": ["tenant_wide", "assigned_locations", "location_set"]
         },
         "locationRefs": {
           "type": "array",
@@ -2137,21 +1853,14 @@
     "ListOrdering": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "key",
-        "direction",
-        "tieBreak"
-      ],
+      "required": ["key", "direction", "tieBreak"],
       "properties": {
         "key": {
           "type": "string",
           "pattern": "^[A-Za-z.]{1,64}$"
         },
         "direction": {
-          "enum": [
-            "asc",
-            "desc"
-          ]
+          "enum": ["asc", "desc"]
         },
         "tieBreak": {
           "type": "string",
@@ -2164,9 +1873,7 @@
         {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "exact"
-          ],
+          "required": ["exact"],
           "properties": {
             "exact": {
               "type": "integer",
@@ -2177,9 +1884,7 @@
         {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "atLeast"
-          ],
+          "required": ["atLeast"],
           "properties": {
             "atLeast": {
               "type": "integer",
@@ -2224,10 +1929,7 @@
           "type": "boolean"
         },
         "nextCursor": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "ordering": {
           "$ref": "#/$defs/ListOrdering"

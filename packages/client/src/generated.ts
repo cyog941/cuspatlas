@@ -189,7 +189,83 @@ export type AgentsAgentTransition = {
   readonly "reason"?: AgentsReasonCode;
 };
 
+export type AgentsBudget = {
+  readonly "periodSeconds": number;
+  readonly "callsPerPeriod": number;
+  readonly "recordsPerPeriod": number;
+  readonly "phiFieldsPerPeriod": number;
+  readonly "recordsPerCall": number;
+  readonly "phiFieldsPerCall": number;
+};
+
+export type AgentsBudgetRead = {
+  readonly "data": AgentsBudgetUsage;
+};
+
+export type AgentsBudgetUsage = {
+  readonly "consentRef": AgentsUuid;
+  readonly "periodStartedAt": (AgentsInstant) | (null);
+  readonly "calls": number;
+  readonly "records": number;
+  readonly "phiFields": number;
+  readonly "budget": AgentsBudget;
+};
+
+export type AgentsConsent = {
+  readonly "consentRef": AgentsUuid;
+  readonly "agentRef": AgentsAgentRef;
+  readonly "deployment": AgentsDeployment;
+  readonly "operations": readonly (AgentsOperationName)[];
+  readonly "budget": AgentsBudget;
+  readonly "state": "active" | "revoked";
+  readonly "grantedBy": AgentsPrincipalRef;
+  readonly "grantedAt": AgentsInstant;
+  readonly "expiresAt": AgentsInstant;
+  readonly "version": AgentsVersion;
+};
+
+export type AgentsConsentCommand = {
+  readonly "consentRef": AgentsUuid;
+  readonly "agentRef": AgentsAgentRef;
+  readonly "state": "active" | "revoked";
+  readonly "expiresAt": AgentsInstant;
+};
+
+export type AgentsConsentCommandResult = {
+  readonly "data": AgentsConsentCommand;
+  readonly "version": AgentsVersion;
+  readonly "correlationId": AgentsUuid;
+  readonly "replayed": boolean;
+};
+
+export type AgentsConsentList = {
+  readonly "asOf": string;
+  readonly "appliedFilters": { readonly [k: string]: unknown };
+  readonly "scope": AgentsListScope;
+  readonly "limit": number;
+  readonly "truncated": boolean;
+  readonly "nextCursor": string | null;
+  readonly "ordering": AgentsListOrdering;
+  readonly "count": AgentsListCount;
+  readonly "items": readonly (AgentsConsent)[];
+};
+
+export type AgentsConsentRecord = {
+  readonly "agentRef": AgentsAgentRef;
+  readonly "deployment": AgentsDeployment;
+  readonly "operations": readonly (AgentsOperationName)[];
+  readonly "budget": AgentsBudget;
+  readonly "expiresAt": AgentsInstant;
+};
+
+export type AgentsConsentRevoke = {
+  readonly "consentRef": AgentsUuid;
+  readonly "expectedVersion": AgentsVersion;
+};
+
 export type AgentsCredentialRef = string;
+
+export type AgentsDeployment = string;
 
 export type AgentsInstant = string;
 
@@ -7169,6 +7245,42 @@ export interface Operations {
     successStatus: 200;
     idempotent: false;
   };
+  "agents.budgets.read": {
+    method: "GET";
+    path: "/v1/agents/budgets";
+    params: {  };
+    body: undefined;
+    result: AgentsBudgetRead;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "agents.consents.list": {
+    method: "GET";
+    path: "/v1/agents/consents";
+    params: {  };
+    body: undefined;
+    result: AgentsConsentList;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "agents.consents.record": {
+    method: "POST";
+    path: "/v1/agents/consents";
+    params: {  };
+    body: AgentsConsentRecord;
+    result: AgentsConsentCommandResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "agents.consents.revoke": {
+    method: "POST";
+    path: "/v1/agents/consents/revoke";
+    params: {  };
+    body: AgentsConsentRevoke;
+    result: AgentsConsentCommandResult;
+    successStatus: 200;
+    idempotent: true;
+  };
   "agents.credentials.rotate": {
     method: "POST";
     path: "/v1/agents/credentials/rotate";
@@ -10785,6 +10897,10 @@ export interface OperationMeta {
 
 export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "agents.audit.list": { method: "GET", path: "/v1/agents/audit", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "agents.budgets.read": { method: "GET", path: "/v1/agents/budgets", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "agents.consents.list": { method: "GET", path: "/v1/agents/consents", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "agents.consents.record": { method: "POST", path: "/v1/agents/consents", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "agents.consents.revoke": { method: "POST", path: "/v1/agents/consents/revoke", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "agents.credentials.rotate": { method: "POST", path: "/v1/agents/credentials/rotate", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "agents.principals.create": { method: "POST", path: "/v1/agents/principals", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "agents.principals.list": { method: "GET", path: "/v1/agents/principals", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },

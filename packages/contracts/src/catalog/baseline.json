@@ -18,6 +18,200 @@
       "mcpTool": "agents_audit_list"
     },
     {
+      "operation": "agents.budgets.read",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agents.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/agents/budgets"
+      },
+      "mcpTool": "agents_budgets_get"
+    },
+    {
+      "operation": "agents.consents.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agents.read",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/agents/consents"
+      },
+      "mcpTool": "agents_consents_list"
+    },
+    {
+      "operation": "agents.consents.record",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agents.manage",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/agents/consents"
+      },
+      "mcpTool": "agents_consents_record",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "agentRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "budget": {
+            "type": [
+              "object"
+            ],
+            "properties": {
+              "callsPerPeriod": {
+                "type": [
+                  "integer"
+                ],
+                "maximum": 100000,
+                "minimum": 1
+              },
+              "periodSeconds": {
+                "type": [
+                  "integer"
+                ],
+                "maximum": 86400,
+                "minimum": 60
+              },
+              "phiFieldsPerCall": {
+                "type": [
+                  "integer"
+                ],
+                "maximum": 100000,
+                "minimum": 0
+              },
+              "phiFieldsPerPeriod": {
+                "type": [
+                  "integer"
+                ],
+                "maximum": 10000000,
+                "minimum": 0
+              },
+              "recordsPerCall": {
+                "type": [
+                  "integer"
+                ],
+                "maximum": 1000,
+                "minimum": 0
+              },
+              "recordsPerPeriod": {
+                "type": [
+                  "integer"
+                ],
+                "maximum": 1000000,
+                "minimum": 0
+              }
+            },
+            "closed": true,
+            "required": [
+              "callsPerPeriod",
+              "periodSeconds",
+              "phiFieldsPerCall",
+              "phiFieldsPerPeriod",
+              "recordsPerCall",
+              "recordsPerPeriod"
+            ]
+          },
+          "deployment": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[A-Za-z0-9:._/-]{1,200}$"
+          },
+          "expiresAt": {
+            "type": [
+              "string"
+            ],
+            "maxLength": 40
+          },
+          "operations": {
+            "type": [
+              "array"
+            ],
+            "maxItems": 400,
+            "items": {
+              "type": [
+                "string"
+              ],
+              "maxLength": 128,
+              "pattern": "^[a-z][A-Za-z]{0,40}(\\.[a-z][A-Za-z]{0,40}){0,3}$"
+            }
+          }
+        },
+        "closed": true,
+        "required": [
+          "agentRef",
+          "budget",
+          "deployment",
+          "expiresAt",
+          "operations"
+        ]
+      }
+    },
+    {
+      "operation": "agents.consents.revoke",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "agents.manage",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/agents/consents/revoke"
+      },
+      "mcpTool": "agents_consents_revoke",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "consentRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "expectedVersion": {
+            "type": [
+              "integer"
+            ],
+            "maximum": 2147483647,
+            "minimum": 1
+          }
+        },
+        "closed": true,
+        "required": [
+          "consentRef",
+          "expectedVersion"
+        ]
+      }
+    },
+    {
       "operation": "agents.credentials.rotate",
       "transports": [
         "rest",

@@ -165,7 +165,8 @@
           "pattern": "^[0-9a-f]{16}$"
         },
         "previousSecretExpiresAt": {
-          "type": ["string", "null"]
+          "type": ["string", "null"],
+          "format": "date-time"
         },
         "version": {
           "$ref": "#/$defs/Version"
@@ -215,7 +216,8 @@
           "pattern": "^[0-9a-f]{16}$"
         },
         "previousSecretExpiresAt": {
-          "type": ["string", "null"]
+          "type": ["string", "null"],
+          "format": "date-time"
         },
         "version": {
           "$ref": "#/$defs/Version"
@@ -497,7 +499,8 @@
           "format": "date-time"
         },
         "deliveredAt": {
-          "type": ["string", "null"]
+          "type": ["string", "null"],
+          "format": "date-time"
         },
         "createdAt": {
           "type": "string",
@@ -716,7 +719,8 @@
           "format": "date-time"
         },
         "completedAt": {
-          "type": ["string", "null"]
+          "type": ["string", "null"],
+          "format": "date-time"
         }
       }
     },
@@ -912,7 +916,8 @@
               "format": "date-time"
             },
             "completedAt": {
-              "type": ["string", "null"]
+              "type": ["string", "null"],
+              "format": "date-time"
             },
             "manifest": {
               "type": ["object", "null"],

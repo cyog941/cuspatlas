@@ -381,3 +381,95 @@ describe('H2 M-5 a sign-off role comes from the reviewer list', () => {
     ).toBe('42501');
   });
 });
+
+describe('H2 M-6 an opening item is posted once at the database', () => {
+  /** An opening item with no entry yet (written with triggers off: the fixture, not the subject). */
+  const freshItem = async (source: string, asOf: string) => {
+    const harper = (await appliedPatient(wedged, 'H001')) as string;
+    const c = await db.admin.connect();
+    try {
+      await c.query(`SET session_replication_role = replica`);
+      const { rows } = await c.query(
+        `INSERT INTO cuspatlas.migration_opening_items (tenant_id, package_id, staged_record_id, kind, patient_id,
+           amount_minor, currency, as_of, as_of_precision, source_ref, created_by)
+         SELECT $1, s.package_id, s.id, 'balance', $2, 100, 'USD', $4::date, 'day', s.source_id, $5
+         FROM cuspatlas.migration_staged_records s WHERE s.package_id = $3 AND s.source_id = $6 RETURNING id`,
+        [T_ALPHA, harper, wedged, asOf, USER_A1, source],
+      );
+      return { item: rows[0]?.id as string, patient: harper };
+    } finally {
+      await c.query(`SET session_replication_role = origin`);
+      c.release();
+    }
+  };
+  const post = async (
+    c: import('pg').PoolClient,
+    f: { item: string; patient: string },
+    lines: [string, number][],
+  ) => {
+    const e = await c.query(
+      `INSERT INTO cuspatlas.billing_journal_entries (tenant_id, kind, currency, line_count, posted_by, correlation_id)
+       VALUES ($1, 'openingBalance', 'USD', $2, $3, gen_random_uuid()) RETURNING id`,
+      [T_ALPHA, lines.length, USER_A1],
+    );
+    let n = 0;
+    for (const [account, amount] of lines)
+      await c.query(
+        `INSERT INTO cuspatlas.billing_journal_lines (tenant_id, entry_id, line_no, account, amount_minor, currency,
+           patient_id, opening_item_id) VALUES ($1, $2, $3, $4, $5, 'USD', $6, $7)`,
+        [T_ALPHA, e.rows[0].id, ++n, account, amount, f.patient, f.item],
+      );
+  };
+  const code = (err: unknown) => (err as { code?: string }).code ?? 'error';
+
+  it('two concurrent forged postings of one item: exactly one commits', async () => {
+    const f = await freshItem('W2', '2026-01-01');
+    const pair: [string, number][] = [
+      ['opening_receivable', 100],
+      ['opening_equity', -100],
+    ];
+    const c1 = await db.admin.connect();
+    const c2 = await db.admin.connect();
+    try {
+      await c1.query('BEGIN');
+      await post(c1, f, pair);
+      await c2.query('BEGIN');
+      const second = post(c2, f, pair)
+        .then(() => c2.query('COMMIT'))
+        .then(
+          () => 'committed',
+          (err) => code(err),
+        );
+      await c1.query('COMMIT');
+      expect(await second).toBe('23505');
+    } finally {
+      await c2.query('ROLLBACK').catch(() => undefined);
+      c1.release();
+      c2.release();
+    }
+    const { rows } = await db.admin.query(
+      `SELECT count(DISTINCT entry_id)::int AS n FROM cuspatlas.billing_journal_lines WHERE opening_item_id = $1`,
+      [f.item],
+    );
+    expect(rows[0].n).toBe(1);
+  });
+
+  it('an entry of two equity lines cannot stand in for the posting', async () => {
+    const f = await freshItem('W4', '2026-01-02');
+    const c = await db.admin.connect();
+    try {
+      await c.query('BEGIN');
+      await post(c, f, [
+        ['opening_equity', 100],
+        ['opening_equity', -100],
+      ]);
+      await c.query('COMMIT');
+      expect('committed').toBe('refused');
+    } catch (err) {
+      await c.query('ROLLBACK');
+      expect(code(err)).toBe('23514');
+    } finally {
+      c.release();
+    }
+  });
+});

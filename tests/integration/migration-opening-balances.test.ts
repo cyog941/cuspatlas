@@ -233,8 +233,8 @@ describe('M5 opening facts', () => {
         c.release();
       }
     };
-    // The same opening item twice, and an opening kind on a payment account: both refused.
-    expect(await attempt(['opening_receivable', 'opening_equity'], line.opening_item_id)).toBe('23514');
+    // The same opening item twice (refused by the one-equity-line-per-item index, H2 M-6), and an opening kind on a payment account.
+    expect(await attempt(['opening_receivable', 'opening_equity'], line.opening_item_id)).toBe('23505');
     expect(await attempt(['unapplied_credit', 'opening_equity'], line.opening_item_id)).toBe('23514');
   });
 

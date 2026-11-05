@@ -179,3 +179,10 @@ recommended-pending-approval). Tests in `tests/integration/migration-hardening.t
   itself); an admin-facing assignment command is an open item. `recordSignOff` refuses a role the
   signer is not assigned (`409 reviewer_role_not_assigned`) and the sign-off trigger refuses it again
   (42501). Red 1/1 failing; green 8/8; tenant-isolation lists the new table.
+- M-6 opening entry once (`20261128520000_opening_entry_once.sql`): unique index on one
+  `opening_equity` line per opening item (only an opening entry touches equity, so one equity line is
+  one entry; an allocation of opening credit touches the credit side) and a BEFORE INSERT trigger
+  constraining the equity side (negative for a balance, positive for a credit, never an open claim).
+  Tests: two concurrent forged postings of one fresh item, exactly one commits (the other 23505 at
+  insert, previously 23514 only at commit); an entry of two equity lines is refused (previously
+  committed). The M5 repost test now sees 23505. Red 2/2 failing; green 10/10.

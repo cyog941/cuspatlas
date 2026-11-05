@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { type AppointmentHarness, openAppointmentHarness } from './support/appointment-fixtures';
 import { seedBillingScopes } from './support/billing-fixtures';
 import { openTestDatabase, type TestDatabase } from './support/db';
+import { SVC_A1, T_ALPHA, USER_A1 } from './support/fixtures';
 import {
   intakeBody,
   legacyPackage,
@@ -21,6 +22,8 @@ let db: TestDatabase;
 let h: AppointmentHarness;
 let profileRef: string;
 let existing: string;
+/** The M-1 package, fully applied. */
+let wedged: string;
 
 type Item = { itemRef: string; category: string; stagedRefs: string[] };
 const HEAD = {
@@ -111,6 +114,7 @@ describe('H2 M-1 the apply never wedges', () => {
       'W6:duplicate_opening',
       'W7:validation_failed',
     ]);
+    wedged = pkg;
     const r = await apply(pkg);
     expect(h.ok<{ data: { state: string } }>(r).data.state).toBe('complete');
     const { rows } = await db.admin.query(
@@ -127,5 +131,73 @@ describe('H2 M-1 the apply never wedges', () => {
     h.ok(await resolve(again, item?.itemRef as string, 'sameAsExisting', existing));
     expect((await plan(again)).exceptions.map((e) => e.code)).toStrictEqual(['duplicate_opening']);
     expect(h.ok<{ data: { state: string } }>(await apply(again)).data.state).toBe('complete');
+  });
+});
+
+/** One statement batch under the runtime role in tenant alpha; the SQLSTATE of a refusal. */
+const asApp = async (actor: string, steps: [string, unknown[]][]): Promise<string> => {
+  const c = await db.app.connect();
+  try {
+    await c.query('BEGIN');
+    await c.query(`SELECT set_config('cuspatlas.tenant_id', $1, true)`, [T_ALPHA]);
+    await c.query(`SELECT set_config('cuspatlas.actor_id', $1, true)`, [actor]);
+    for (const [sql, params] of steps) await c.query(sql, params);
+    await c.query('ROLLBACK');
+    return 'accepted';
+  } catch (err) {
+    await c.query('ROLLBACK');
+    return (err as { code?: string }).code ?? 'error';
+  } finally {
+    c.release();
+  }
+};
+
+describe('H2 M-2 database guards under the runtime role', () => {
+  const run: [string, unknown[]] = [
+    `INSERT INTO cuspatlas.migration_apply_runs (tenant_id, package_id, plan_digest, started_by)
+     VALUES (cuspatlas.current_tenant_id(), $1, repeat('a', 64), cuspatlas.current_actor_id())`,
+    [],
+  ];
+  const item = (stagedRef: string, patient: string, amount: string): [string, unknown[]] => [
+    `INSERT INTO cuspatlas.migration_opening_items (tenant_id, package_id, staged_record_id, kind, patient_id,
+       amount_minor, currency, as_of_precision, source_ref, created_by)
+     SELECT cuspatlas.current_tenant_id(), s.package_id, s.id, 'balance', $2, $3::bigint, 'USD', 'approximate',
+       s.source_id, cuspatlas.current_actor_id()
+     FROM cuspatlas.migration_staged_records s WHERE s.id = $1`,
+    [stagedRef, patient, amount],
+  ];
+
+  it('refuses a forged opening item: outside an apply run, a changed amount, another patient', async () => {
+    const ids = [...(await sourceOf(wedged))].find(([, src]) => src === 'W2')?.[0] as string;
+    const { rows } = await db.admin.query(
+      `SELECT a.patient_id FROM cuspatlas.migration_applied_records a JOIN cuspatlas.migration_staged_records s
+       ON s.id = a.staged_record_id WHERE s.package_id = $1 AND s.source_id = 'H001'`,
+      [wedged],
+    );
+    const harper = rows[0]?.patient_id as string;
+    const withRun = (step: [string, unknown[]]): [string, unknown[]][] => [[run[0], [wedged]], step];
+    expect(await asApp(USER_A1, [item(ids, harper, '100')])).toBe('42501');
+    expect(await asApp(USER_A1, withRun(item(ids, harper, '5000')))).toBe('42501');
+    expect(await asApp(USER_A1, withRun(item(ids, existing, '100')))).toBe('42501');
+  });
+
+  it('refuses a forged cutover, a skipped change sequence and a forged sign-off', async () => {
+    const report = h.ok<{ data: { reportRef: string; reportDigest: string } }>(
+      await h.call('a1', 'POST', '/v1/migration/reports', { packageRef: wedged }),
+    ).data;
+    const pkgSql = (set: string): [string, unknown[]] => [
+      `UPDATE cuspatlas.migration_packages SET ${set} WHERE id = $1`,
+      [wedged],
+    ];
+    expect(await asApp(USER_A1, [pkgSql(`cutover_state = 'readyForCutover'`)])).toBe('42501');
+    expect(await asApp(USER_A1, [pkgSql('change_seq = change_seq + 2')])).toBe('42501');
+    const sign = (digest: string): [string, unknown[]] => [
+      `INSERT INTO cuspatlas.migration_signoffs (tenant_id, package_id, report_id, report_digest, role, decision, signed_by)
+       VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, 'financialReviewer', 'approved', cuspatlas.current_actor_id())`,
+      [wedged, report.reportRef, digest],
+    ];
+    expect(await asApp(USER_A1, [sign('f'.repeat(64))])).toBe('42501');
+    expect(await asApp(SVC_A1, [sign(report.reportDigest)])).toBe('42501');
+    expect(await asApp(USER_A1, [sign(report.reportDigest)])).toBe('accepted');
   });
 });

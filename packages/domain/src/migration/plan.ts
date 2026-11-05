@@ -511,6 +511,13 @@ export function createImportOperations(base: MigrationBase, hooks: ApplyHooks) {
           const plan = await computePlan(tx, pkg, await hooks.currency(tx), hooks.financial);
           if (plan.digest !== p.expectedPlanDigest) throw conflict('plan_digest_changed');
           const before = await loadApplied(tx, pkg.id);
+          // The run row of this transaction: the database lets opening items be written only inside one.
+          if (picked.batch.some((e) => !before.has(e.staged.id)))
+            await tx.query(
+              `INSERT INTO cuspatlas.migration_apply_runs (tenant_id, package_id, plan_digest, started_by)
+               VALUES (cuspatlas.current_tenant_id(), $1, $2, cuspatlas.current_actor_id())`,
+              [pkg.id, plan.digest],
+            );
           const patientOf = new Map<string, string>();
           for (const e of plan.entries) {
             const a = before.get(e.staged.id);

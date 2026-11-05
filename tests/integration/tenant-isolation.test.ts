@@ -220,6 +220,7 @@ describe('runtime database role', () => {
       'message_threads',
       'messaging_reply_policies',
       'migration_applied_records',
+      'migration_apply_runs',
       'migration_opening_items',
       'migration_packages',
       'migration_reports',

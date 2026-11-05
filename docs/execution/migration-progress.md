@@ -149,3 +149,13 @@ recommended-pending-approval). Tests in `tests/integration/migration-hardening.t
   `coalesce(as_of, 1900-01-01)`) within the plan and against posted balances of other packages.
   Offenders are `excluded` (`validation_failed`; a key collision keeps the more precise
   `duplicate_opening`, both visible in the plan and report). Red: 1/1 failing (exit 1); green 1/1.
+- M-2 database guards (`20261128500000_migration_db_guards.sql`, all SECURITY INVOKER): an opening
+  item needs an apply-run row of the same transaction, package and actor (`migration_apply_runs`,
+  written by `applyImport`) and must repeat its staged record exactly (package, source id, currency,
+  validated amount and sign, accepted-negative review, applied patient); `cutover_state` changes only
+  by a change-sequence bump of one (reset to `reconciling`) or `reconciling -> readyForCutover` with
+  the latest report on the current change sequence, no blocking exception, no rejection and approvals
+  of both roles by two signers on that digest; a sign-off must repeat the latest report's digest on
+  the current change sequence and come from a human with a live `migration.signoff` membership.
+  Runtime-role tests: forged item (no run, changed amount, other patient), forged cutover, skipped
+  change sequence, forged digest and service signer all 42501. Red 2/3 failing; green 3/3.

@@ -6,7 +6,7 @@ import { MIGRATION_EXPORT_FORMAT } from '@cuspatlas/contracts';
 import { importExports } from '@cuspatlas/db';
 import { verifyImportedNoteDigests } from '@cuspatlas/domain';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { T_ALPHA, USER_A1 } from './support/fixtures';
+import { T_ALPHA, USER_A1, USER_A4 } from './support/fixtures';
 import { type ImagingStack, startImagingStack } from './support/imaging-fixtures';
 import { MIGRATION_HARNESS_ROWS } from './support/migration-harness';
 import { seedSyntheticPractice } from './support/practice-fixtures';
@@ -198,6 +198,28 @@ export const BATCH2_ROWS: Row[] = [
     crossTenant: 'own_tenant',
     call: () => get('/v1/operations/downtime/windows'),
   },
+  // Closeout A6: a cross-tenant administrator's assignment of an alpha member is refused (422) with no
+  // alpha state change; ending an alpha assignment is hidden (404).
+  {
+    operation: 'migration.reviewers.assign',
+    crossTenant: 'own_tenant',
+    call: () => post('/v1/migration/reviewers', { principalRef: USER_A4, role: 'financialReviewer' }),
+  },
+  {
+    operation: 'migration.reviewers.unassign',
+    crossTenant: 'not_found',
+    call: (x) =>
+      post('/v1/migration/reviewers/unassign', {
+        assignmentRef: x.reviewerAssignment as string,
+        expectedVersion: 1,
+        reasonCode: 'role_change',
+      }),
+  },
+  {
+    operation: 'migration.reviewers.list',
+    crossTenant: 'own_tenant',
+    call: () => get('/v1/migration/reviewers'),
+  },
   { operation: 'migration.export', crossTenant: 'own_tenant', call: () => get('/v1/migration/export') },
 ];
 
@@ -227,6 +249,7 @@ const STATE_TABLES = [
   'ops_backup_verifications',
   'ops_downtime_windows',
   'ops_downtime_entries',
+  'migration_reviewer_assignments',
   'audit_events',
   'sensitive_read_events',
 ];
@@ -298,6 +321,13 @@ beforeAll(async () => {
       capturedAt: f.downtimeCaptured,
     }),
   ).entryRef;
+  // Closeout A6: one live reviewer assignment made by the administrator.
+  f.reviewerAssignment = data<{ assignmentRef: string }>(
+    await s.command('owner', '/v1/migration/reviewers', {
+      principalRef: USER_A4,
+      role: 'operationsReviewer',
+    }),
+  ).assignmentRef;
 }, 300_000);
 
 afterAll(async () => {

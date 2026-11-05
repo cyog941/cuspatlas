@@ -153,6 +153,11 @@
     "packageRef",
     "state"
   ],
+  "migration.reviewers.list": [
+    "principalRef",
+    "role",
+    "state"
+  ],
   "operations.alerts.list": [],
   "operations.downtime.entries.list": [
     "entryKind",

@@ -399,6 +399,14 @@ export const LIST_OPERATIONS: Readonly<Record<string, ListOperationSpec>> = {
     cursor: false,
     scope: 'tenant',
   },
+  // Closeout A6: the tenant reviewer list (live and ended), capped at 500 rows without a cursor.
+  'migration.reviewers.list': {
+    rows: 'data',
+    ordering: { key: 'assignedAt', direction: 'asc', tieBreak: 'assignmentRef' },
+    limit: { default: 500, max: 500 },
+    cursor: false,
+    scope: 'tenant',
+  },
   'operations.alerts.list': {
     rows: 'data.items',
     // Fixed obligation evaluation order (operator, escalation, verification, SLA); one item per unmet obligation.

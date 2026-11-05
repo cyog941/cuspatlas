@@ -9,7 +9,7 @@ import { vocabularyEntry as e, type ModuleVocabularies } from './types';
 export const MIGRATION_VOCABULARIES: ModuleVocabularies = {
   module: 'migration',
   owner: 'M',
-  version: 'migration-state-labels.3',
+  version: 'migration-state-labels.4',
   vocabularies: [
     {
       name: 'migration_cutover',
@@ -52,6 +52,14 @@ export const MIGRATION_VOCABULARIES: ModuleVocabularies = {
         e('applied', 'APL', 'Applied through the owning command', 'lifecycle', true),
         e('rejected', 'REJ', 'Rejected', 'exception', true),
         e('superseded', 'SUP', 'Superseded by another entry', 'lifecycle', true),
+      ],
+    },
+    {
+      name: 'migration_reviewer_assignment',
+      sources: ['schema:migration:ReviewerAssignmentState'],
+      entries: [
+        e('active', 'ACT', 'May sign off in this role', 'lifecycle', false),
+        e('revoked', 'REV', 'Assignment ended', 'lifecycle', true),
       ],
     },
   ],

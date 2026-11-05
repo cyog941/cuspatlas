@@ -12668,6 +12668,119 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/migration/reviewers:
+    post:
+      operationId: migration.reviewers.assign
+      description: >-
+        H2 M-5: assign a live human member of the tenant to a migration sign-off role (financialReviewer or
+        operationsReviewer). Tenant-wide human administrators only (admin.configure); never the
+        administrator themself (409 self_assignment_refused); a service principal or a revoked, unknown or
+        other-tenant member is refused (422 reviewer_not_eligible); one live assignment per member and role
+        (409 already_assigned).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/migration.schema.json#/$defs/ReviewerAssign'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/ReviewerAssignmentResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: migration.reviewers.list
+      description: >-
+        H2 M-5: the tenant migration reviewer list, live and ended assignments, oldest first (at most 500),
+        filtered by role, member and state, with who assigned and who ended each one.
+      parameters:
+        - name: role
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/migration.schema.json#/$defs/ReviewerRole'
+        - name: principalRef
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/migration.schema.json#/$defs/Uuid'
+        - name: state
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/migration.schema.json#/$defs/ReviewerAssignmentState'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/ReviewerAssignmentList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/migration/reviewers/unassign:
+    post:
+      operationId: migration.reviewers.unassign
+      description: >-
+        H2 M-5: end a live reviewer assignment at its expected version with a reason code (409
+        stale_version; 409 assignment_not_active once ended). The assignment is kept as revoked (when, by
+        whom, why), never deleted; the member can no longer sign off in that role. Tenant-wide human
+        administrators only (admin.configure).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/migration.schema.json#/$defs/ReviewerUnassign'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/ReviewerAssignmentResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   /v1/migration/export:
     get:
       operationId: migration.export

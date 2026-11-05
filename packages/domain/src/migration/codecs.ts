@@ -40,6 +40,8 @@ export const MIGRATION_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<any>>>
     'archiveDigest',
   ]),
   'migration.archive.holds.record': flat(['holdRef', 'action']),
+  'migration.reviewers.assign': flat(['assignmentRef', 'principalRef', 'role', 'state']),
+  'migration.reviewers.unassign': flat(['assignmentRef', 'principalRef', 'role', 'state']),
   'operations.operatorProfiles.record': flat(['profileRef', 'profileVersion']),
   'operations.backupVerifications.record': flat(['verificationRef', 'result']),
   'operations.downtime.start': flat(['windowRef', 'state', 'startedAt', 'endedAt']),

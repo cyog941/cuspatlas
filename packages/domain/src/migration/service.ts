@@ -10,6 +10,7 @@ import { createOperationsReadiness } from './operations';
 import { type ApplyHooks, createImportOperations } from './plan';
 import { createPracticeExportOperations } from './practice-export';
 import { createReconciliationOperations } from './reconciliation';
+import { createReviewerOperations } from './reviewers';
 
 /**
  * The migration service (workstream M: M2-M6). The only command/query layer for the migration
@@ -36,6 +37,7 @@ export function createMigrationService(deps: MigrationDeps) {
     ...createArchiveOperations(base),
     ...createOperationsReadiness(base),
     ...createDowntimeOperations(base),
+    ...createReviewerOperations(base),
     ...createMigrationExportOperations(base),
   };
 }

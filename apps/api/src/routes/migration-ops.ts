@@ -426,6 +426,46 @@ export const MIGRATION_OPS: MigrationOp[] = [
       'Downtime log (M8 runbook): downtime windows of the tenant, newest first (at most 500), with scope, state, bounds and the count of entries still pending review.',
     invoke: (svc, actor, i) => svc.listDowntimeWindows(actor, i.body),
   },
+  // Closeout A6 (H2 M-5): the administrator-facing reviewer list that the sign-off role check reads.
+  {
+    method: 'post',
+    path: '/v1/migration/reviewers',
+    operationId: 'migration.reviewers.assign',
+    protected: true,
+    requestBody: M('ReviewerAssign'),
+    success: { status: '201', schema: M('ReviewerAssignmentResult') },
+    refusals: COMMAND,
+    tool: 'migration_reviewers_assign',
+    description:
+      'H2 M-5: assign a live human member of the tenant to a migration sign-off role (financialReviewer or operationsReviewer). Tenant-wide human administrators only (admin.configure); never the administrator themself (409 self_assignment_refused); a service principal or a revoked, unknown or other-tenant member is refused (422 reviewer_not_eligible); one live assignment per member and role (409 already_assigned).',
+    invoke: (svc, actor, i) => svc.assignReviewer(actor, env('migration.reviewers.assign', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/migration/reviewers/unassign',
+    operationId: 'migration.reviewers.unassign',
+    protected: true,
+    requestBody: M('ReviewerUnassign'),
+    success: { status: '200', schema: M('ReviewerAssignmentResult') },
+    refusals: COMMAND,
+    tool: 'migration_reviewers_unassign',
+    description:
+      'H2 M-5: end a live reviewer assignment at its expected version with a reason code (409 stale_version; 409 assignment_not_active once ended). The assignment is kept as revoked (when, by whom, why), never deleted; the member can no longer sign off in that role. Tenant-wide human administrators only (admin.configure).',
+    invoke: (svc, actor, i) => svc.unassignReviewer(actor, env('migration.reviewers.unassign', i)),
+  },
+  {
+    method: 'get',
+    path: '/v1/migration/reviewers',
+    operationId: 'migration.reviewers.list',
+    protected: true,
+    query: 'ReviewerListQuery',
+    success: { status: '200', schema: M('ReviewerAssignmentList') },
+    refusals: READ,
+    tool: 'migration_reviewers_list',
+    description:
+      'H2 M-5: the tenant migration reviewer list, live and ended assignments, oldest first (at most 500), filtered by role, member and state, with who assigned and who ended each one.',
+    invoke: (svc, actor, i) => svc.listReviewers(actor, i.body),
+  },
   // M10 migration export: the migration workspace for audit (B10 carries the opening chain).
   {
     method: 'get',

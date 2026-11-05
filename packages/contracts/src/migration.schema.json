@@ -2362,6 +2362,158 @@
         }
       ]
     },
+    "ReviewerAssignmentRef": {
+      "$ref": "#/$defs/Uuid",
+      "description": "Opaque reference of one migration reviewer assignment (tenant from context)."
+    },
+    "ReviewerRole": {
+      "enum": ["financialReviewer", "operationsReviewer"]
+    },
+    "ReviewerAssignmentState": {
+      "enum": ["active", "revoked"],
+      "description": "Derived: revoked once the assignment was ended; an ended assignment is kept, never deleted."
+    },
+    "ReviewerAssign": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["principalRef", "role"],
+      "properties": {
+        "principalRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "role": {
+          "$ref": "#/$defs/ReviewerRole"
+        }
+      }
+    },
+    "ReviewerUnassign": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["assignmentRef", "expectedVersion", "reasonCode"],
+      "properties": {
+        "assignmentRef": {
+          "$ref": "#/$defs/ReviewerAssignmentRef"
+        },
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "ReviewerAssignmentResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["assignmentRef", "principalRef", "role", "state"],
+          "properties": {
+            "assignmentRef": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "principalRef": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "role": {
+              "$ref": "#/$defs/ReviewerRole"
+            },
+            "state": {
+              "$ref": "#/$defs/ReviewerAssignmentState"
+            }
+          }
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "correlationId": {
+          "type": "string"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ReviewerListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "role": {
+          "$ref": "#/$defs/ReviewerRole"
+        },
+        "principalRef": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "state": {
+          "$ref": "#/$defs/ReviewerAssignmentState"
+        }
+      }
+    },
+    "ReviewerAssignmentList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "envelope"],
+      "properties": {
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
+        "data": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "assignmentRef",
+              "principalRef",
+              "role",
+              "state",
+              "assignedByRef",
+              "assignedAt",
+              "revokedByRef",
+              "revokedAt",
+              "revocationReason",
+              "version"
+            ],
+            "properties": {
+              "assignmentRef": {
+                "$ref": "#/$defs/Uuid"
+              },
+              "principalRef": {
+                "$ref": "#/$defs/Uuid"
+              },
+              "role": {
+                "$ref": "#/$defs/ReviewerRole"
+              },
+              "state": {
+                "$ref": "#/$defs/ReviewerAssignmentState"
+              },
+              "assignedByRef": {
+                "$ref": "#/$defs/Uuid"
+              },
+              "assignedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "revokedByRef": {
+                "anyOf": [{ "$ref": "#/$defs/Uuid" }, { "type": "null" }]
+              },
+              "revokedAt": {
+                "anyOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }]
+              },
+              "revocationReason": {
+                "anyOf": [{ "$ref": "#/$defs/ReasonCode" }, { "type": "null" }]
+              },
+              "version": {
+                "$ref": "#/$defs/Version"
+              }
+            }
+          }
+        }
+      }
+    },
     "ListEnvelope": {
       "type": "object",
       "additionalProperties": false,

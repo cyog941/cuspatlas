@@ -23,7 +23,7 @@ human decision (A-D2). No default role grant is asserted here.
 | `actions.approve` | human | yes | A | phi | 2 |
 | `actions.prepare` | human, service | no | A | phi | 2 |
 | `actions.read` | human, service | no | A | phi | 2 |
-| `admin.configure` | human, service | no | A, B, C, E, I, M, S | phiBulk | 45 |
+| `admin.configure` | human, service | no | A, B, C, E, I, M, S | phiBulk | 47 |
 | `agentWorkspace.read` | human, service | no | A | phi | 7 |
 | `agentWorkspace.write` | service | no | A | phi | 2 |
 | `agents.manage` | human | yes | A | phi | 11 |
@@ -56,7 +56,7 @@ human decision (A-D2). No default role grant is asserted here.
 | `ledger.read` | human, service | no | B | phi | 5 |
 | `messaging.read` | human, service | no | E | phi | 4 |
 | `messaging.write` | human | yes | E | phi | 4 |
-| `migration.read` | human, service | no | M | phi | 13 |
+| `migration.read` | human, service | no | M | phi | 14 |
 | `migration.signoff` | human | yes | M | phi | 2 |
 | `migration.write` | human, service | no | M | phi | 14 |
 | `openClaims.read` | human, service | no | B | phi | 4 |

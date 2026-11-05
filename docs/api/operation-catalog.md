@@ -9,7 +9,7 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-496 operations.
+499 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
@@ -20,7 +20,7 @@ transport tables and are declarations, not independent proof.
 | B | 66 | 66 | 66 | 0 | 0 | 0 |
 | E | 61 | 48 | 48 | 11 | 0 | 2 |
 | I | 56 | 48 | 45 | 0 | 6 | 1 |
-| M | 35 | 35 | 35 | 0 | 0 | 0 |
+| M | 38 | 38 | 38 | 0 | 0 | 0 |
 
 | Operation | Owner | Kind | Authorization | Scope | Principals | Transports | REST | MCP tool | Idempotency | Sensitivity | Status |
 |---|---|---|---|---|---|---|---|---|---|---|---|
@@ -319,6 +319,9 @@ transport tables and are declarations, not independent proof.
 | `migration.reports.read` | M | query | authorize | `migration.read` | human, service | rest, mcp | GET `/v1/migration/reports/latest` | `migration_reports_read` | none | phi | active |
 | `migration.reviewItems.list` | M | query | authorize | `migration.read` | human, service | rest, mcp | GET `/v1/migration/review-items` | `migration_review_items_list` | none | phi | active |
 | `migration.reviewItems.resolve` | M | command | authorize | `migration.write` | human | rest, mcp | POST `/v1/migration/review-items/resolve` | `migration_review_items_resolve` | required | phi | active |
+| `migration.reviewers.assign` | M | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/migration/reviewers` | `migration_reviewers_assign` | required | operational | active |
+| `migration.reviewers.list` | M | query | authorize | `migration.read` | human, service | rest, mcp | GET `/v1/migration/reviewers` | `migration_reviewers_list` | none | phi | active |
+| `migration.reviewers.unassign` | M | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/migration/reviewers/unassign` | `migration_reviewers_unassign` | required | operational | active |
 | `migration.signoffs.record` | M | command | authorize | `migration.signoff` | human | rest, mcp | POST `/v1/migration/signoffs` | `migration_signoffs_record` | required | phi | active |
 | `migration.sourceProfiles.register` | M | command | authorize | `migration.write` | human | rest, mcp | POST `/v1/migration/source-profiles` | `migration_source_profiles_register` | required | phi | active |
 | `navigation.read` | A | query | authorize | - | human, service | rest, mcp | GET `/v1/navigation` | `navigation_get` | none | phi | active |

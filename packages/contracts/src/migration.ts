@@ -188,6 +188,26 @@ export const validateDowntimeEntryResolve = def('DowntimeEntryResolve');
 export const validateDowntimeWindowListQuery = def('DowntimeWindowListQuery');
 export const validateDowntimeEntryListQuery = def('DowntimeEntryListQuery');
 
+/** Closeout A6 (H2 M-5): administrator-facing migration reviewer assignments. */
+export type ReviewerRole = 'financialReviewer' | 'operationsReviewer';
+export interface ReviewerAssign {
+  readonly principalRef: string;
+  readonly role: ReviewerRole;
+}
+export interface ReviewerUnassign {
+  readonly assignmentRef: string;
+  readonly expectedVersion: number;
+  readonly reasonCode: string;
+}
+export interface ReviewerListQuery {
+  readonly role?: ReviewerRole;
+  readonly principalRef?: string;
+  readonly state?: 'active' | 'revoked';
+}
+export const validateReviewerAssign = def('ReviewerAssign');
+export const validateReviewerUnassign = def('ReviewerUnassign');
+export const validateReviewerListQuery = def('ReviewerListQuery');
+
 /**
  * M10 migration export: the migration workspace an audit needs (profiles, packages and staged records
  * outside B's opening chain, review items, runs, applied records with provenance, reviewer

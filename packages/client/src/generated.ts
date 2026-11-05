@@ -6503,6 +6503,51 @@ export type MigrationReviewItemResolveResult = {
   readonly "replayed": boolean;
 };
 
+export type MigrationReviewerAssign = {
+  readonly "principalRef": MigrationUuid;
+  readonly "role": MigrationReviewerRole;
+};
+
+export type MigrationReviewerAssignmentList = {
+  readonly "envelope": MigrationListEnvelope;
+  readonly "data": readonly ({
+    readonly "assignmentRef": MigrationUuid;
+    readonly "principalRef": MigrationUuid;
+    readonly "role": MigrationReviewerRole;
+    readonly "state": MigrationReviewerAssignmentState;
+    readonly "assignedByRef": MigrationUuid;
+    readonly "assignedAt": string;
+    readonly "revokedByRef": (MigrationUuid) | (null);
+    readonly "revokedAt": (string) | (null);
+    readonly "revocationReason": (MigrationReasonCode) | (null);
+    readonly "version": MigrationVersion;
+  })[];
+};
+
+export type MigrationReviewerAssignmentRef = MigrationUuid;
+
+export type MigrationReviewerAssignmentResult = {
+  readonly "data": {
+    readonly "assignmentRef": MigrationUuid;
+    readonly "principalRef": MigrationUuid;
+    readonly "role": MigrationReviewerRole;
+    readonly "state": MigrationReviewerAssignmentState;
+  };
+  readonly "version": MigrationVersion;
+  readonly "correlationId": string;
+  readonly "replayed": boolean;
+};
+
+export type MigrationReviewerAssignmentState = "active" | "revoked";
+
+export type MigrationReviewerRole = "financialReviewer" | "operationsReviewer";
+
+export type MigrationReviewerUnassign = {
+  readonly "assignmentRef": MigrationReviewerAssignmentRef;
+  readonly "expectedVersion": MigrationVersion;
+  readonly "reasonCode": MigrationReasonCode;
+};
+
 export type MigrationSignOffRecord = {
   readonly "packageRef": MigrationPackageRef;
   readonly "reportRef": MigrationUuid;
@@ -11759,6 +11804,36 @@ export interface Operations {
     successStatus: 200;
     idempotent: true;
   };
+  "migration.reviewers.assign": {
+    method: "POST";
+    path: "/v1/migration/reviewers";
+    params: {  };
+    query: Record<string, never>;
+    body: MigrationReviewerAssign;
+    result: MigrationReviewerAssignmentResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "migration.reviewers.list": {
+    method: "GET";
+    path: "/v1/migration/reviewers";
+    params: {  };
+    query: { readonly role?: string; readonly principalRef?: string; readonly state?: string; };
+    body: undefined;
+    result: MigrationReviewerAssignmentList;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "migration.reviewers.unassign": {
+    method: "POST";
+    path: "/v1/migration/reviewers/unassign";
+    params: {  };
+    query: Record<string, never>;
+    body: MigrationReviewerUnassign;
+    result: MigrationReviewerAssignmentResult;
+    successStatus: 200;
+    idempotent: true;
+  };
   "migration.signoffs.record": {
     method: "POST";
     path: "/v1/migration/signoffs";
@@ -14022,6 +14097,9 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "migration.reports.read": { method: "GET", path: "/v1/migration/reports/latest", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "migration.reviewItems.list": { method: "GET", path: "/v1/migration/review-items", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "migration.reviewItems.resolve": { method: "POST", path: "/v1/migration/review-items/resolve", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "migration.reviewers.assign": { method: "POST", path: "/v1/migration/reviewers", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "migration.reviewers.list": { method: "GET", path: "/v1/migration/reviewers", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "migration.reviewers.unassign": { method: "POST", path: "/v1/migration/reviewers/unassign", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "migration.signoffs.record": { method: "POST", path: "/v1/migration/signoffs", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "migration.sourceProfiles.register": { method: "POST", path: "/v1/migration/source-profiles", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "navigation.read": { method: "GET", path: "/v1/navigation", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },

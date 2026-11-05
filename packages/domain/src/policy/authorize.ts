@@ -569,6 +569,12 @@ export const ACTION_POLICIES = {
   'migration.reports.read': { scope: 'migration.read', principals: ['human', 'service'] },
   'migration.signoffs.record': { scope: 'migration.signoff', principals: ['human'] },
   'migration.cutover.advance': { scope: 'migration.signoff', principals: ['human'] },
+  // Closeout A6 (H2 M-5): the reviewer list is tenant-wide practice administration by a person
+  // (admin.configure; a location-restricted administrator is refused in the domain); reading it is
+  // migration work.
+  'migration.reviewers.assign': { scope: 'admin.configure', principals: ['human'] },
+  'migration.reviewers.unassign': { scope: 'admin.configure', principals: ['human'] },
+  'migration.reviewers.list': { scope: 'migration.read', principals: ['human', 'service'] },
   // M7 historical archive packages (M-S2 blocks the real arrangement): registration, verification and
   // holds are migration work by a person (verification also by the worker); reads are patient history
   // (human only, also need patients.read) and sensitive-read logged.

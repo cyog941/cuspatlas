@@ -15,6 +15,7 @@ import {
   assertRef,
   checkEnvelope,
   conflict,
+  failed,
   loadPackage,
   MIGRATION_PACKAGE_RESOURCE,
   type MigrationBase,
@@ -34,6 +35,18 @@ import { type ApplyHooks, computePlan, loadApplied, planView } from './plan';
  * exception. Reports and sign-offs are append-only. Recommended-pending-approval.
  */
 const ROLES = ['financialReviewer', 'operationsReviewer'] as const;
+const EXCLUDED_BALANCE = 'excluded_balance';
+
+/** Blocking exceptions other than excluded balances, and the excluded balances not in `acknowledged`. */
+function outstanding(body: ReportBody, acknowledged: readonly string[]) {
+  const ack = new Set(acknowledged.map((r) => `staged:${r}`));
+  return {
+    other: body.blockingExceptions.filter((b) => b.code !== EXCLUDED_BALANCE),
+    unacknowledged: body.blockingExceptions.filter(
+      (b) => b.code === EXCLUDED_BALANCE && !ack.has(b.subjectRef),
+    ),
+  };
+}
 
 export interface ReportBody {
   readonly packageRef: string;
@@ -130,6 +143,19 @@ async function computeReport(
         subjectRef: `staged:${e.staged.id}`,
         requiredAction: 'resolve_review_item',
       });
+  // H2 M-7: excluded money is never silently accepted; each excluded balance or credit blocks cutover
+  // until the financial reviewer acknowledges it by reference in an approval of this report digest.
+  for (const e of plan.entries) {
+    if (e.kind !== 'excluded' || !['ledger_balances', 'unapplied_credits'].includes(e.staged.entity))
+      continue;
+    const v = e.staged.payload.balance_minor ?? e.staged.payload.amount_minor ?? '';
+    if (/^-?[0-9]{1,15}$/.test(v) && BigInt(v) !== 0n)
+      blocking.push({
+        code: EXCLUDED_BALANCE,
+        subjectRef: `staged:${e.staged.id}`,
+        requiredAction: 'acknowledge_exclusion',
+      });
+  }
   const categories = new Map<string, number>();
   for (const e of plan.entries)
     if (e.kind !== 'action')
@@ -292,7 +318,11 @@ export function createReconciliationOperations(base: MigrationBase, hooks: Apply
           reportDigest: string;
           role: (typeof ROLES)[number];
           decision: 'approved' | 'rejected';
+          acknowledgedExclusions?: string[];
         }>(validateSignOffRecord, p);
+        const acknowledged = p.acknowledgedExclusions ?? [];
+        if (acknowledged.length > 0 && (p.role !== 'financialReviewer' || p.decision !== 'approved'))
+          throw failed('acknowledgement_needs_financial_approval');
         assertRef(p.reportRef);
         return deps.withTenantTransaction(ctx, async (tx) => {
           const pkg = await loadPackage(tx, p.packageRef, 'FOR UPDATE');
@@ -311,8 +341,17 @@ export function createReconciliationOperations(base: MigrationBase, hooks: Apply
               current.digest !== p.reportDigest
             )
               throw conflict('stale_report_version');
-            if (p.decision === 'approved' && current.body.blockingExceptions.length > 0)
-              throw conflict('unresolved_exception');
+            const excluded = new Set(
+              current.body.blockingExceptions
+                .filter((b) => b.code === EXCLUDED_BALANCE)
+                .map((b) => b.subjectRef),
+            );
+            if (acknowledged.some((r) => !excluded.has(`staged:${r}`)))
+              throw failed('not_an_excluded_balance');
+            const left = outstanding(current.body, acknowledged);
+            if (p.decision === 'approved' && left.other.length > 0) throw conflict('unresolved_exception');
+            if (p.decision === 'approved' && p.role === 'financialReviewer' && left.unacknowledged.length > 0)
+              throw conflict('unacknowledged_exclusion');
             // H2 M-5: the role comes from the tenant's administrator-assigned reviewer list.
             const { rows: assigned } = await tx.query(
               `SELECT 1 FROM cuspatlas.migration_reviewer_assignments
@@ -329,10 +368,11 @@ export function createReconciliationOperations(base: MigrationBase, hooks: Apply
                 other.some((o) => o.role === p.role) ? 'already_signed' : 'separate_reviewer_required',
               );
             const { rows } = await tx.query<{ id: string }>(
-              `INSERT INTO cuspatlas.migration_signoffs (tenant_id, package_id, report_id, report_digest, role, decision, signed_by)
-               VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, cuspatlas.current_actor_id())
+              `INSERT INTO cuspatlas.migration_signoffs (tenant_id, package_id, report_id, report_digest, role, decision,
+                 signed_by, acknowledged_exclusions)
+               VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, cuspatlas.current_actor_id(), $6::uuid[])
                ON CONFLICT (report_id, role) DO NOTHING RETURNING id`,
-              [pkg.id, p.reportRef, p.reportDigest, p.role, p.decision],
+              [pkg.id, p.reportRef, p.reportDigest, p.role, p.decision, acknowledged],
             );
             const id = rows[0]?.id;
             if (!id) throw conflict('already_signed');
@@ -370,12 +410,25 @@ export function createReconciliationOperations(base: MigrationBase, hooks: Apply
             const current = await computeReport(tx, pkg, hooks);
             if (!latest || latest.id !== p.reportRef || latest.digest !== current.digest)
               throw conflict('stale_report_version');
-            if (current.body.blockingExceptions.length > 0) throw conflict('unresolved_exception');
-            const { rows } = await tx.query<{ role: string; decision: string; signed_by: string }>(
-              'SELECT role, decision, signed_by FROM cuspatlas.migration_signoffs WHERE report_id = $1 AND report_digest = $2',
+            const { rows } = await tx.query<{
+              role: string;
+              decision: string;
+              signed_by: string;
+              acknowledged_exclusions: string[];
+            }>(
+              `SELECT role, decision, signed_by, acknowledged_exclusions FROM cuspatlas.migration_signoffs
+               WHERE report_id = $1 AND report_digest = $2`,
               [latest.id, latest.digest],
             );
             const approved = rows.filter((r) => r.decision === 'approved');
+            const left = outstanding(
+              current.body,
+              approved
+                .filter((r) => r.role === 'financialReviewer')
+                .flatMap((r) => r.acknowledged_exclusions),
+            );
+            if (left.other.length > 0) throw conflict('unresolved_exception');
+            if (left.unacknowledged.length > 0) throw conflict('unacknowledged_exclusion');
             if (rows.some((r) => r.decision === 'rejected')) throw conflict('sign_off_rejected');
             if (
               !ROLES.every((role) => approved.some((r) => r.role === role)) ||

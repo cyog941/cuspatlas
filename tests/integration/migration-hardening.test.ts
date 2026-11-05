@@ -473,3 +473,52 @@ describe('H2 M-6 an opening item is posted once at the database', () => {
     }
   });
 });
+
+describe('H2 M-7 excluded money blocks cutover until acknowledged', () => {
+  it('each excluded balance must be acknowledged by the financial reviewer on the report digest', async () => {
+    const pkg = await stage({
+      patients: `${HEAD.patients}X001,Excluded,Uma,1983-03-03,5550800001,G8\n`,
+      ledger_balances: `${HEAD.ledger_balances}X1,G8,X001,100,USD,2026-10-31\nX2,G8,X001,999999999999999,USD,2026-09-30\n`,
+    });
+    h.ok(await apply(pkg));
+    const x2 = [...(await sourceOf(pkg))].find(([, s]) => s === 'X2')?.[0] as string;
+    const report = h.ok<{ data: { reportRef: string; reportDigest: string; blockingExceptions: number } }>(
+      await h.call('a1', 'POST', '/v1/migration/reports', { packageRef: pkg }),
+    ).data;
+    const read = h.ok<{ data: { report: { blockingExceptions: { code: string; subjectRef: string }[] } } }>(
+      await h.call('a1', 'GET', `/v1/migration/reports/latest?packageRef=${pkg}`),
+    ).data.report.blockingExceptions;
+    expect(read).toStrictEqual([
+      { code: 'excluded_balance', subjectRef: `staged:${x2}`, requiredAction: 'acknowledge_exclusion' },
+    ]);
+    const sign = (who: string, role: string, acknowledgedExclusions?: string[]) =>
+      h.call(who, 'POST', '/v1/migration/signoffs', {
+        packageRef: pkg,
+        reportRef: report.reportRef,
+        reportDigest: report.reportDigest,
+        role,
+        decision: 'approved',
+        ...(acknowledgedExclusions ? { acknowledgedExclusions } : {}),
+      });
+    const advance = () =>
+      h.call('a1', 'POST', '/v1/migration/cutover/advance', { packageRef: pkg, reportRef: report.reportRef });
+    const silent = await sign('a1', 'financialReviewer');
+    expect([silent.statusCode, silent.json().detail?.reason]).toStrictEqual([
+      409,
+      'unacknowledged_exclusion',
+    ]);
+    h.ok(await sign('a3', 'operationsReviewer'), 201);
+    const early = await advance();
+    expect([early.statusCode, early.json().detail?.reason]).toStrictEqual([409, 'unacknowledged_exclusion']);
+    h.ok(await sign('a1', 'financialReviewer', [x2]), 201);
+    const { rows } = await db.admin.query(
+      `SELECT acknowledged_exclusions::text[] AS a, report_digest FROM cuspatlas.migration_signoffs
+       WHERE report_id = $1 AND role = 'financialReviewer'`,
+      [report.reportRef],
+    );
+    expect(rows).toStrictEqual([{ a: [x2], report_digest: report.reportDigest }]);
+    expect(h.ok<{ data: { cutoverState: string } }>(await advance()).data.cutoverState).toBe(
+      'readyForCutover',
+    );
+  });
+});

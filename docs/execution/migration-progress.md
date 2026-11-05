@@ -186,3 +186,12 @@ recommended-pending-approval). Tests in `tests/integration/migration-hardening.t
   Tests: two concurrent forged postings of one fresh item, exactly one commits (the other 23505 at
   insert, previously 23514 only at commit); an entry of two equity lines is refused (previously
   committed). The M5 repost test now sees 23505. Red 2/2 failing; green 10/10.
+- M-7 excluded money (`20261128530000_migration_exclusion_acknowledgement.sql`): every excluded
+  `ledger_balances`/`unapplied_credits` row with a non-zero amount is a blocking `excluded_balance`
+  exception (`acknowledge_exclusion`). Decision: the acknowledgement is part of the financial
+  reviewer's approval (`acknowledgedExclusions`, optional in `SignOffRecord`, recorded as
+  `migration_signoffs.acknowledged_exclusions` on the append-only, digest-bound sign-off; only a
+  financial approval may carry it), rather than a new operation. Approval refuses
+  `unacknowledged_exclusion`; cutover (domain and the DB guard) accepts an `excluded_balance`
+  exception only when the approved financial sign-off of that digest names it. Catalog regenerated.
+  Red 1/1 failing; green 11/11.

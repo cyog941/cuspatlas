@@ -4773,6 +4773,7 @@ export type MigrationSignOffRecord = {
   readonly "reportDigest": MigrationDigest;
   readonly "role": "financialReviewer" | "operationsReviewer";
   readonly "decision": "approved" | "rejected";
+  readonly "acknowledgedExclusions"?: readonly (MigrationUuid)[];
 };
 
 export type MigrationSignOffResult = {

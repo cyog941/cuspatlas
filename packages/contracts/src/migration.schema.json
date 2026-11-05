@@ -937,6 +937,15 @@
         },
         "decision": {
           "enum": ["approved", "rejected"]
+        },
+        "acknowledgedExclusions": {
+          "description": "H2 M-7: the financial reviewer acknowledges each excluded balance of the report by its staged reference (subjectRef staged:<ref> of an excluded_balance exception).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Uuid"
+          },
+          "maxItems": 500,
+          "uniqueItems": true
         }
       }
     },

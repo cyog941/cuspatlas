@@ -9,12 +9,12 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-453 operations.
+455 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
 | F | 14 | 12 | 10 | 0 | 0 | 1 |
-| A | 49 | 49 | 49 | 0 | 0 | 0 |
+| A | 51 | 51 | 51 | 0 | 0 | 0 |
 | S | 92 | 90 | 90 | 0 | 0 | 0 |
 | C | 88 | 87 | 87 | 0 | 0 | 0 |
 | B | 66 | 66 | 66 | 0 | 0 | 0 |
@@ -45,7 +45,9 @@ transport tables and are declarations, not independent proof.
 | `agents.principals.resume` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/principals/resume` | `agents_principals_resume` | required | phi | active |
 | `agents.principals.revoke` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/principals/revoke` | `agents_principals_revoke` | required | phi | active |
 | `agents.principals.suspend` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/principals/suspend` | `agents_principals_suspend` | required | phi | active |
+| `agents.sponsors.accept` | A | command | authorize | - | human | rest, mcp | POST `/v1/agents/sponsors/accept` | `agents_sponsors_accept` | required | phi | active |
 | `agents.sponsors.change` | A | command | authorize | `agents.manage` | human | rest, mcp | POST `/v1/agents/sponsors/change` | `agents_sponsors_change` | required | phi | active |
+| `agents.sponsors.decline` | A | command | authorize | - | human | rest, mcp | POST `/v1/agents/sponsors/decline` | `agents_sponsors_decline` | required | phi | active |
 | `ai.drafts.accept` | A | command | authorize | `ai.review` | human | rest, mcp | POST `/v1/ai/drafts/accept` | `ai_drafts_accept` | required | phi | active |
 | `ai.drafts.create` | A | command | authorize | `ai.draft` | human, service | rest, mcp | POST `/v1/ai/drafts` | `ai_drafts_create` | required | phi | active |
 | `ai.drafts.list` | A | query | authorize | `ai.read` | human, service | rest, mcp | GET `/v1/ai/drafts` | `ai_drafts_list` | none | phi | active |

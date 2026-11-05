@@ -712,6 +712,41 @@
     "status": "active"
   },
   {
+    "operation": "agents.sponsors.accept",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "agents.sponsors.accept",
+    "scope": null,
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/agents/sponsors/accept",
+      "requestSchema": "agents:AgentSponsorDecision",
+      "successStatus": "200",
+      "successSchema": "agents:AgentCommandResult"
+    },
+    "mcpTool": "agents_sponsors_accept",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
     "operation": "agents.sponsors.change",
     "owner": "A",
     "kind": "command",
@@ -733,6 +768,41 @@
       "successSchema": "agents:AgentCommandResult"
     },
     "mcpTool": "agents_sponsors_change",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "agents.sponsors.decline",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "agents.sponsors.decline",
+    "scope": null,
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/agents/sponsors/decline",
+      "requestSchema": "agents:AgentSponsorDecision",
+      "successStatus": "200",
+      "successSchema": "agents:AgentCommandResult"
+    },
+    "mcpTool": "agents_sponsors_decline",
     "refusals": [
       "400",
       "401",

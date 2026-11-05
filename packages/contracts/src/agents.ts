@@ -27,6 +27,7 @@ export const validateAgentsRef = def('Uuid');
 export const validateAgentCreate = def('AgentCreate');
 export const validateAgentTransition = def('AgentTransition');
 export const validateAgentSponsorChange = def('AgentSponsorChange');
+export const validateAgentSponsorDecision = def('AgentSponsorDecision');
 export const validateAgentQuery = def('AgentQuery');
 export const validateAgentListQuery = def('AgentListQuery');
 export const validateAgentAuditQuery = def('AgentAuditQuery');

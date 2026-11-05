@@ -154,6 +154,11 @@ describe('A8 separated agent audit', () => {
       expectedVersion: a.version,
     });
     expect(changed.status).toBe(200);
+    // H3 3c: the named human accepts the offer before the sponsorship changes.
+    const accepted = await s.call(sponsor2, 'POST', '/v1/agents/sponsors/accept', {
+      offerRef: (changed.body.data as { offerRef: string }).offerRef,
+    });
+    expect(accepted.status).toBe(200);
     await s.agentTool(a, 'synthetic_tasks_create', create('after'));
     const { rows } = await s.db.admin.query<{ sponsor_ref: string }>(
       'SELECT sponsor_ref FROM cuspatlas.agent_audit_events WHERE agent_ref = $1 ORDER BY occurred_at',

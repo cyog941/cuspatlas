@@ -14,6 +14,7 @@ import {
   validateAgentListQuery,
   validateAgentQuery,
   validateAgentSponsorChange,
+  validateAgentSponsorDecision,
   validateAgentTransition,
 } from '@cuspatlas/contracts';
 import { recordCommand } from '../events/record-command';
@@ -39,6 +40,7 @@ import {
  * authority), so suspension, revocation and sponsor loss apply at the next call, queued work included.
  */
 export const AGENT_RESOURCE = 'agentPrincipal';
+export const SPONSOR_OFFER_RESOURCE = 'agentSponsorOffer';
 
 export interface AgentCommandData {
   readonly agentRef: string;
@@ -46,7 +48,11 @@ export interface AgentCommandData {
   readonly expiresAt: string;
   readonly credentialRef?: string;
   readonly sponsorRef?: string;
+  readonly offerRef?: string;
+  readonly offerState?: OfferState;
+  readonly offerExpiresAt?: string;
 }
+type OfferState = 'pending' | 'accepted' | 'declined' | 'superseded';
 
 interface AgentRow extends Record<string, unknown> {
   principal_id: string;
@@ -85,7 +91,7 @@ function present(r: AgentRow) {
   };
 }
 
-type TransitionAction = 'suspend' | 'resume' | 'revoke' | 'rotate' | 'sponsor';
+type TransitionAction = 'suspend' | 'resume' | 'revoke' | 'rotate';
 
 async function now(tx: TenantTransaction): Promise<Date> {
   return (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
@@ -120,10 +126,8 @@ export function createAgentPrincipals(base: AgentBase) {
         agentRef: string;
         expectedVersion: number;
         reason?: string;
-        sponsorRef?: string;
       };
-      if (action === 'sponsor') validate(validateAgentSponsorChange, p);
-      else validate(validateAgentTransition, p);
+      validate(validateAgentTransition, p);
       return deps.withTenantTransaction(ctx, (tx) =>
         execute<AgentCommandData>(ctx, envelope, tx, async () => {
           const credential = action === 'rotate' ? newCredential() : null;
@@ -131,14 +135,7 @@ export function createAgentPrincipals(base: AgentBase) {
           try {
             const { rows } = await tx.query<{ v: number }>(
               'SELECT cuspatlas.agent_transition($1, $2, $3, $4, $5, $6) AS v',
-              [
-                p.agentRef,
-                action,
-                p.expectedVersion,
-                credential,
-                p.sponsorRef ?? null,
-                p.reason ?? 'unspecified',
-              ],
+              [p.agentRef, action, p.expectedVersion, credential, null, p.reason ?? 'unspecified'],
             );
             version = rows[0]?.v as number;
           } catch (err) {
@@ -156,9 +153,7 @@ export function createAgentPrincipals(base: AgentBase) {
               resourceVersion: version,
             },
             {
-              changedFields: [
-                action === 'rotate' ? 'credential' : action === 'sponsor' ? 'sponsor' : 'state',
-              ],
+              changedFields: [action === 'rotate' ? 'credential' : 'state'],
             },
           );
           return {
@@ -167,10 +162,75 @@ export function createAgentPrincipals(base: AgentBase) {
               state: row.state,
               expiresAt: row.expires_at.toISOString(),
               ...(credential ? { credentialRef: credential } : {}),
-              ...(action === 'sponsor' ? { sponsorRef: row.sponsor_ref } : {}),
             },
             version,
           };
+        }),
+      );
+    });
+  }
+
+  /** The agent and offer after an offer command; audited on the agent resource. */
+  async function offerResult(
+    tx: TenantTransaction,
+    op: ActionName,
+    offerRef: string,
+  ): Promise<{ data: AgentCommandData; version: number }> {
+    const o = (
+      await tx.query<{ agent_ref: string; state: OfferState; expires_at: Date }>(
+        'SELECT agent_ref, state, expires_at FROM cuspatlas.agent_sponsor_offers WHERE id = $1',
+        [offerRef],
+      )
+    ).rows[0];
+    const row = o
+      ? (await tx.query<AgentRow>(`${SELECT_AGENT} WHERE a.principal_id = $1`, [o.agent_ref])).rows[0]
+      : undefined;
+    if (!o || !row) throw new Error('sponsor offer returned no row');
+    await recordCommand(
+      tx,
+      // The offer is its own audited resource: version 1 when offered, 2 when decided.
+      {
+        operation: op,
+        resourceType: SPONSOR_OFFER_RESOURCE,
+        resourceRef: offerRef,
+        resourceVersion: o.state === 'pending' ? 1 : 2,
+      },
+      { changedFields: o.state === 'accepted' ? ['sponsor', 'sponsorOffer'] : ['sponsorOffer'] },
+    );
+    return {
+      data: {
+        agentRef: row.principal_id,
+        state: row.state,
+        expiresAt: row.expires_at.toISOString(),
+        sponsorRef: row.sponsor_ref,
+        offerRef,
+        offerState: o.state,
+        offerExpiresAt: o.expires_at.toISOString(),
+      },
+      version: row.version,
+    };
+  }
+
+  /** H3 3c: only the offered human decides; the authority is the offer itself (no scope). */
+  function decide(
+    ctx: ActorContext,
+    envelope: CommandEnvelope<unknown>,
+    op: ActionName,
+    accept: boolean,
+  ): Promise<CommandResult<AgentCommandData>> {
+    return base.guarded(ctx, op, async () => {
+      await base.authorize(ctx, op);
+      checkEnvelope(envelope, op);
+      const p = envelope.payload;
+      validate<{ offerRef: string }>(validateAgentSponsorDecision, p);
+      return deps.withTenantTransaction(ctx, (tx) =>
+        execute<AgentCommandData>(ctx, envelope, tx, async () => {
+          try {
+            await tx.query('SELECT cuspatlas.agent_sponsor_decide($1, $2)', [p.offerRef, accept]);
+          } catch (err) {
+            throw mapTransitionError(err);
+          }
+          return offerResult(tx, op, p.offerRef);
         }),
       );
     });
@@ -240,8 +300,44 @@ export function createAgentPrincipals(base: AgentBase) {
       transition(ctx, e, 'agents.principals.revoke', 'revoke'),
     rotateAgentCredential: (ctx: ActorContext, e: CommandEnvelope<unknown>) =>
       transition(ctx, e, 'agents.credentials.rotate', 'rotate'),
-    changeAgentSponsor: (ctx: ActorContext, e: CommandEnvelope<unknown>) =>
-      transition(ctx, e, 'agents.sponsors.change', 'sponsor'),
+    /**
+     * H3 3c: a sponsor change is a pending offer (7 days) to the named human; the sponsor of record
+     * stays until that human accepts. The agent version does not change.
+     */
+    changeAgentSponsor(
+      ctx: ActorContext,
+      envelope: CommandEnvelope<unknown>,
+    ): Promise<CommandResult<AgentCommandData>> {
+      const op = 'agents.sponsors.change';
+      return base.guarded(ctx, op, async () => {
+        await base.authorize(ctx, op);
+        checkEnvelope(envelope, op);
+        const p = envelope.payload;
+        validate<{ agentRef: string; sponsorRef: string; expectedVersion: number }>(
+          validateAgentSponsorChange,
+          p,
+        );
+        return deps.withTenantTransaction(ctx, (tx) =>
+          execute<AgentCommandData>(ctx, envelope, tx, async () => {
+            let offerRef: string;
+            try {
+              const { rows } = await tx.query<{ id: string }>(
+                'SELECT cuspatlas.agent_sponsor_offer($1, $2, $3) AS id',
+                [p.agentRef, p.expectedVersion, p.sponsorRef],
+              );
+              offerRef = rows[0]?.id as string;
+            } catch (err) {
+              throw mapTransitionError(err);
+            }
+            return offerResult(tx, op, offerRef);
+          }),
+        );
+      });
+    },
+    acceptAgentSponsor: (ctx: ActorContext, e: CommandEnvelope<unknown>) =>
+      decide(ctx, e, 'agents.sponsors.accept', true),
+    declineAgentSponsor: (ctx: ActorContext, e: CommandEnvelope<unknown>) =>
+      decide(ctx, e, 'agents.sponsors.decline', false),
 
     /** readAgentPrincipal + describeAgentGrants. An agent may read only its own record. */
     readAgentPrincipal(ctx: ActorContext, query: unknown) {

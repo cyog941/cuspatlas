@@ -599,6 +599,9 @@ export const ACTION_POLICIES = {
   'agents.principals.revoke': { scope: 'agents.manage', principals: ['human'] },
   'agents.credentials.rotate': { scope: 'agents.manage', principals: ['human'] },
   'agents.sponsors.change': { scope: 'agents.manage', principals: ['human'] },
+  // H3 3c: the offered human accepts or declines (the authority is the offer, not a scope).
+  'agents.sponsors.accept': { scope: null, principals: ['human'] },
+  'agents.sponsors.decline': { scope: null, principals: ['human'] },
   'agents.principals.read': { scope: 'agents.read', principals: ['human', 'service'] },
   'agents.principals.list': { scope: 'agents.read', principals: ['human'] },
   'agents.audit.list': { scope: 'agents.read', principals: ['human'] },

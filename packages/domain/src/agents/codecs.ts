@@ -29,7 +29,10 @@ export function flatCodec<T extends Record<string, any>>(
 }
 
 // H3: the credential reference is returned once and never stored with the idempotency result.
-const AGENT = flatCodec(['agentRef', 'state', 'expiresAt'], ['sponsorRef']);
+const AGENT = flatCodec(
+  ['agentRef', 'state', 'expiresAt'],
+  ['sponsorRef', 'offerRef', 'offerState', 'offerExpiresAt'],
+);
 
 // biome-ignore lint/suspicious/noExplicitAny: codecs are heterogeneous per operation.
 export const AGENT_REPLAY_CODECS: Record<string, ReplayCodec<any>> = {
@@ -39,6 +42,8 @@ export const AGENT_REPLAY_CODECS: Record<string, ReplayCodec<any>> = {
   'agents.principals.revoke': AGENT,
   'agents.credentials.rotate': AGENT,
   'agents.sponsors.change': AGENT,
+  'agents.sponsors.accept': AGENT,
+  'agents.sponsors.decline': AGENT,
   'agents.consents.record': flatCodec(['consentRef', 'agentRef', 'state', 'expiresAt']),
   'agents.consents.revoke': flatCodec(['consentRef', 'agentRef', 'state', 'expiresAt']),
   'actions.proposals.prepare': flatCodec(['proposalRef']),

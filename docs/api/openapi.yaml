@@ -12803,8 +12803,9 @@ paths:
     post:
       operationId: agents.sponsors.change
       description: >-
-        A8: record a new sponsorship (a live human member holding every scope of the agent). Earlier agent
-        actions keep their sponsor of record.
+        A8 / H3 3c: offer the sponsorship to a live human member holding every scope of the agent. The offer
+        is pending (7 days) until that human accepts; the sponsor of record does not change before. A newer
+        offer supersedes a pending one. Earlier agent actions keep their sponsor of record.
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -12813,6 +12814,76 @@ paths:
           application/json:
             schema:
               $ref: '../../packages/contracts/src/agents.schema.json#/$defs/AgentSponsorChange'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/agents.schema.json#/$defs/AgentCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/agents/sponsors/accept:
+    post:
+      operationId: agents.sponsors.accept
+      description: >-
+        H3 3c: the offered human accepts a pending, unexpired sponsor offer and becomes the sponsor of
+        record (still holding every scope of the agent). Only the offered human sees the offer. Human only.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/agents.schema.json#/$defs/AgentSponsorDecision'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/agents.schema.json#/$defs/AgentCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/agents/sponsors/decline:
+    post:
+      operationId: agents.sponsors.decline
+      description: >-
+        H3 3c: the offered human declines a pending sponsor offer; the sponsor of record is unchanged. Human
+        only.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/agents.schema.json#/$defs/AgentSponsorDecision'
       responses:
         '200':
           description: Success.

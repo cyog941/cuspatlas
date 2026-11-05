@@ -971,6 +971,49 @@
       ]
     },
     {
+      "operation": "agents.sponsors.accept",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": null,
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/agents/sponsors/accept"
+      },
+      "mcpTool": "agents_sponsors_accept",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "offerRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "offerRef"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
       "operation": "agents.sponsors.change",
       "transports": [
         "rest",
@@ -1015,6 +1058,49 @@
           "agentRef",
           "expectedVersion",
           "sponsorRef"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "agents.sponsors.decline",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": null,
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/agents/sponsors/decline"
+      },
+      "mcpTool": "agents_sponsors_decline",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "offerRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "offerRef"
         ]
       },
       "idempotency": "required",

@@ -118,6 +118,17 @@
         }
       }
     },
+    "AgentSponsorDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "H3 3c: the offered human accepts or declines a pending sponsor offer.",
+      "required": ["offerRef"],
+      "properties": {
+        "offerRef": {
+          "$ref": "#/$defs/Uuid"
+        }
+      }
+    },
     "AgentQuery": {
       "type": "object",
       "additionalProperties": false,
@@ -183,6 +194,16 @@
         },
         "sponsorRef": {
           "$ref": "#/$defs/PrincipalRef"
+        },
+        "offerRef": {
+          "$ref": "#/$defs/Uuid",
+          "description": "H3 3c: the sponsor offer this command created or decided."
+        },
+        "offerState": {
+          "enum": ["pending", "accepted", "declined", "superseded"]
+        },
+        "offerExpiresAt": {
+          "$ref": "#/$defs/Instant"
         }
       }
     },

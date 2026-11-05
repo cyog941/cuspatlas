@@ -314,6 +314,8 @@ describe('H3 commit rechecks', () => {
       expectedVersion: a.version,
     });
     expect(moved.status).toBe(200);
+    const offerRef = (moved.body.data as { offerRef: string }).offerRef;
+    expect((await s.call(approver3, 'POST', '/v1/agents/sponsors/accept', { offerRef })).status).toBe(200);
     const r = await commit(approver, p);
     expect(r.status).toBe(409);
     expect(r.body.code).toBe('approval_invalid');

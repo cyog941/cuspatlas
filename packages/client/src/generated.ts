@@ -215,6 +215,9 @@ export type AgentsAgentCommand = {
   readonly "expiresAt": AgentsInstant;
   readonly "credentialRef"?: AgentsCredentialRef;
   readonly "sponsorRef"?: AgentsPrincipalRef;
+  readonly "offerRef"?: AgentsUuid;
+  readonly "offerState"?: "pending" | "accepted" | "declined" | "superseded";
+  readonly "offerExpiresAt"?: AgentsInstant;
 };
 
 export type AgentsAgentCommandResult = {
@@ -254,6 +257,10 @@ export type AgentsAgentSponsorChange = {
   readonly "agentRef": AgentsAgentRef;
   readonly "sponsorRef": AgentsPrincipalRef;
   readonly "expectedVersion": AgentsVersion;
+};
+
+export type AgentsAgentSponsorDecision = {
+  readonly "offerRef": AgentsUuid;
 };
 
 export type AgentsAgentTransition = {
@@ -8363,12 +8370,32 @@ export interface Operations {
     successStatus: 200;
     idempotent: true;
   };
+  "agents.sponsors.accept": {
+    method: "POST";
+    path: "/v1/agents/sponsors/accept";
+    params: {  };
+    query: Record<string, never>;
+    body: AgentsAgentSponsorDecision;
+    result: AgentsAgentCommandResult;
+    successStatus: 200;
+    idempotent: true;
+  };
   "agents.sponsors.change": {
     method: "POST";
     path: "/v1/agents/sponsors/change";
     params: {  };
     query: Record<string, never>;
     body: AgentsAgentSponsorChange;
+    result: AgentsAgentCommandResult;
+    successStatus: 200;
+    idempotent: true;
+  };
+  "agents.sponsors.decline": {
+    method: "POST";
+    path: "/v1/agents/sponsors/decline";
+    params: {  };
+    query: Record<string, never>;
+    body: AgentsAgentSponsorDecision;
     result: AgentsAgentCommandResult;
     successStatus: 200;
     idempotent: true;
@@ -12639,7 +12666,9 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "agents.principals.resume": { method: "POST", path: "/v1/agents/principals/resume", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "agents.principals.revoke": { method: "POST", path: "/v1/agents/principals/revoke", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "agents.principals.suspend": { method: "POST", path: "/v1/agents/principals/suspend", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "agents.sponsors.accept": { method: "POST", path: "/v1/agents/sponsors/accept", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "agents.sponsors.change": { method: "POST", path: "/v1/agents/sponsors/change", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "agents.sponsors.decline": { method: "POST", path: "/v1/agents/sponsors/decline", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "ai.drafts.accept": { method: "POST", path: "/v1/ai/drafts/accept", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "ai.drafts.create": { method: "POST", path: "/v1/ai/drafts", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "ai.drafts.list": { method: "GET", path: "/v1/ai/drafts", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },

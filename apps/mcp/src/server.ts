@@ -450,6 +450,18 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     execute,
     patients,
     matchKeyPepper: resolveMatchKeyPepper(deps.env, deps.matchKeyPepper),
+    // M1: the practice export composes the five domain exports as the same caller.
+    practiceExport: {
+      exporters: {
+        scheduling: (ctx) => appointments.exportScheduling(ctx),
+        imaging: (ctx) => imaging.exportImaging(ctx),
+        clinical: (ctx) => clinical.exportClinical(ctx),
+        engagement: (ctx) => engagement.exportEngagement(ctx, {}),
+        billing: (ctx) => billing.exportBilling(ctx),
+      },
+      ...(deps.objectStore ? { objectStore: deps.objectStore } : {}),
+      tokenSecret: resolveImagingTokenSecret(deps.env, deps.imagingTokenSecret),
+    },
   });
   const toolDeps: ToolDeps = {
     service,

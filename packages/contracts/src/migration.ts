@@ -125,3 +125,87 @@ export const validateIdentityMerge = def('IdentityMerge');
 export const validateProvenanceQuery = def('ProvenanceQuery');
 export const validateSignOffRecord = def('SignOffRecord');
 export const validateCutoverAdvance = def('CutoverAdvance');
+
+/** M1 practice export (synthetic only; M-S1 blocks a real incumbent export). */
+export const PRACTICE_EXPORT_FORMAT = 'cuspatlas-practice-export/1' as const;
+export const validatePracticeExportCreate = def('PracticeExportCreate');
+export const validatePracticeExportGrant = def('PracticeExportGrant');
+export const validatePracticeExportDownload = def('PracticeExportDownload');
+export const validatePracticeExportQuery = def('PracticeExportQuery');
+
+export interface PracticeExportDocumentSummary {
+  readonly format: string;
+  readonly digestSha256: string;
+  /** Table name -> row count of the document. */
+  readonly tables: Readonly<Record<string, number>>;
+}
+
+export interface PracticeExportManifest {
+  readonly format: typeof PRACTICE_EXPORT_FORMAT;
+  /** Tenant-free identifier of the export (no tenant identifier anywhere in the package). */
+  readonly exportRef: string;
+  readonly exportedAt: string;
+  readonly documents: readonly PracticeExportDocumentSummary[];
+  /** Content-addressed imaging bytes; they travel as I9 blob bundles, verified against these digests. */
+  readonly blobs: readonly { readonly digestSha256: string; readonly byteLength: number }[];
+  readonly terminology: {
+    readonly system: string;
+    readonly licensed: false;
+    readonly codeVersions: readonly string[];
+  };
+  readonly provenance: { readonly generator: string; readonly importOrder: readonly string[] };
+}
+
+export interface PracticeExportDocument {
+  readonly format: string;
+  readonly exportedAt: string;
+  readonly tables: Readonly<Record<string, readonly Record<string, unknown>[]>>;
+}
+
+export interface PracticeExportPackage {
+  readonly manifest: PracticeExportManifest;
+  readonly documents: readonly PracticeExportDocument[];
+}
+
+/** M7 historical archive packages (synthetic only; the real archive arrangement is blocked on M-S2). */
+export const validateArchiveRegister = def('ArchiveRegister');
+export const validateArchiveVerify = def('ArchiveVerify');
+export const validateArchiveReferencesQuery = def('ArchiveReferencesQuery');
+export const validateArchiveEntryQuery = def('ArchiveEntryQuery');
+export const validateArchiveHold = def('ArchiveHold');
+export const validateArchiveRetentionQuery = def('ArchiveRetentionQuery');
+
+/** M9 operator ownership, backup verification and readiness (named operator and objectives: M-S3). */
+export const validateOperatorProfileRecord = def('OperatorProfileRecord');
+export const validateBackupVerificationRecord = def('BackupVerificationRecord');
+export const validateOperationsEmptyQuery = def('OperationsEmptyQuery');
+
+/**
+ * M10 migration export: the migration workspace an audit needs (profiles, packages and staged records
+ * outside B's opening chain, review items, runs, applied records with provenance, reviewer
+ * assignments, reports, sign-offs, archive packages, entries and holds, operator profiles and backup
+ * verifications), in foreign-key order. B10 carries the opening chain; together they are complete.
+ * Not exported: practice exports and delivery grants (bytes and short-lived credentials).
+ */
+export const MIGRATION_EXPORT_FORMAT = 'cuspatlas-migration-export/1' as const;
+export const MIGRATION_EXPORT_TABLES = [
+  'migration_source_profiles',
+  'migration_packages',
+  'migration_staged_records',
+  'migration_review_items',
+  'migration_apply_runs',
+  'migration_applied_records',
+  'migration_reviewer_assignments',
+  'migration_reports',
+  'migration_signoffs',
+  'migration_archive_packages',
+  'migration_archive_entries',
+  'migration_archive_holds',
+  'ops_operator_profiles',
+  'ops_backup_verifications',
+] as const;
+export interface MigrationExport {
+  readonly format: typeof MIGRATION_EXPORT_FORMAT;
+  readonly exportedAt: string;
+  readonly tables: Readonly<Record<string, readonly Record<string, unknown>[]>>;
+}

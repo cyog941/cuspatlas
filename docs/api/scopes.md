@@ -19,7 +19,7 @@ human decision (A-D2). No default role grant is asserted here.
 
 | Scope | Principal kinds | Human only | Owners | Highest sensitivity | Operations |
 |---|---|---|---|---|---|
-| `admin.configure` | human, service | no | B, C, E, I, S | phiBulk | 36 |
+| `admin.configure` | human, service | no | B, C, E, I, M, S | phiBulk | 42 |
 | `billing.correct` | human | yes | B | phi | 12 |
 | `billing.write` | human, service | no | B | phi | 30 |
 | `clinical.oversight` | human | yes | C | phi | 1 |
@@ -40,9 +40,9 @@ human decision (A-D2). No default role grant is asserted here.
 | `ledger.read` | human, service | no | B | phi | 5 |
 | `messaging.read` | human, service | no | E | phi | 4 |
 | `messaging.write` | human | yes | E | phi | 4 |
-| `migration.read` | human, service | no | M | phi | 6 |
+| `migration.read` | human, service | no | M | phi | 11 |
 | `migration.signoff` | human | yes | M | phi | 2 |
-| `migration.write` | human, service | no | M | phi | 6 |
+| `migration.write` | human, service | no | M | phi | 10 |
 | `openClaims.read` | human, service | no | B | phi | 3 |
 | `outbox.deliver` | service | no | F | operational | 1 |
 | `patients.merge` | human | yes | S | phi | 3 |

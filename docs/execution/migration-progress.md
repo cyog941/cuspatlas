@@ -224,3 +224,124 @@ recommended-pending-approval). Tests in `tests/integration/migration-hardening.t
   import difference. The B1 structural test allows `migration_opening_items` as the seam table.
   Open item: reversing an opening-credit allocation is not wired (the reversal path copies payment
   dimensions only). Red 1/1 failing; green 14/14.
+
+## M batch 2 (M1, M7-M10; synthetic only; M-S1..M-S3 blocked-on-discovery)
+
+- M1 practice export contract (`20261129000000_practice_exports.sql`): `practice.export.create`
+  composes the S17, I9, C18, E9 and B10 exports (B with the opening chain) as the same caller into
+  one `cuspatlas-practice-export/1` package: manifest with per-document canonical digests, per-table
+  counts, blob digests, terminology refs (synthetic provisional, unlicensed), tenant-free
+  `exportRef`. Every table's count is checked against the live tenant before storing; a partial
+  export is refused (`409 export_incomplete`, tables named). Bytes are stored privately
+  (content-addressed object store); delivery is `practice.export.grant` (I1 grant tokens, at most
+  300 s, bound to caller and export, token never stored) and `practice.export.download` (sensitive
+  read). `practice.export.verify` re-checks stored bytes, the completeness validator and live drift
+  (`verified`/`drifted`/`failed`, entity named). `validatePracticeExport` (domain) refuses
+  `unknown_version`, `empty_manifest`, `missing_entity`, `count_mismatch`, `digest_mismatch`,
+  `tenant_mismatch`. Tenant-wide human administrators only (`admin.configure`), catalog owner `M`,
+  sensitivity `phiBulk`. Round trip: the downloaded documents import into a fresh database and store
+  through `importExports` + `importImagingBlobs` and re-export the same manifest. Format published in
+  `docs/export-format.md`. Red 5/5 failing (exit 1); green 5/5.
+- M7 historical archive packages (`20261129010000_migration_archive.sql`): `migration.archive.register`
+  copies the M3 archive references of a package (historical appointments and procedures, archived
+  future appointments) into a new read-only archive package version (per-entry digest over entity,
+  source id, time precision, patient and the source row; package digest over the entries); nothing
+  is written to live S/C/B tables (asserted). `migration.archive.verify` (human or worker) records
+  `verified`, `partial` (unreadable entries enumerated) or `failed`. Reads: `migration.archive.references`
+  (one visible patient, explicit empty list) and `migration.archive.read` (one entry for its linked
+  patient only, else 404; damaged content `409 archive_entry_unreadable`, a failed package
+  `409 archive_unavailable`), human-only, also need `patients.read`, sensitive-read logged. A
+  re-registration is a new version; the prior one stays readable. Retention (recommended-pending-
+  approval `archive-retention.pending-approval.1`, ten years from registration) and legal holds:
+  `migration.archive.holds.record` (place, release once) and `migration.archive.retention.evaluate`
+  (reasons `legal_hold`, `retention_period`); an I8 patient hold (`imaging_legal_holds`) on an entry's
+  patient also holds the archive. A delete trigger refuses any deletion while held or retained, for
+  every role that fires triggers; the runtime role has no DELETE grant. Disposal itself is not an
+  operation (pending M-S2). Red 6/6 failing (exit 1); green 6/6.
+- M8 downtime procedures and timed restore exercise: `docs/runbooks/downtime.md` (what staff do per
+  module, what is recorded on reconnect, paper records reconciled back as reviewed entries through
+  the ordinary operations with amendments/reversals, never silent overwrite; downtime-log
+  operations planned, not built). `runRestoreDrill` (`packages/db/src/restore-drill.ts`): F8 logical
+  backup plus object-store backup of the whole synthetic database, restore into a fresh isolated
+  target, per-tenant reconciliation of every tenant table (count and content digest), the journal
+  check on every restored entry, timing against `docs/deployment/recovery-objectives.json` (RPO 900 s,
+  RTO 14400 s, recommended-pending-approval, M-D5/M-S3) with any gap named; a damaged backup is a
+  failed drill (`incomplete_backup`), never a throw past the source. The restored stack verifies an
+  M1 export taken before the backup and denies another tenant. Report written to
+  `artifacts/restore-drill-report.json` and bound into the evidence manifest as control AS-06
+  (`docs/assurance/controls.json`). Measured on the embedded cluster: backup about 1 s, RTO about
+  4 s, 208 tenant tables reconciled. Drill finding fixed: the F8 restore of a tenant with migrated
+  opening items failed (H2 M-2 bind trigger requires an apply run in the restoring transaction);
+  `20261129020000_restore_opening_items.sql` honours a transaction-local restore flag only for a
+  role that bypasses RLS (runtime role still refused, tested). Red 2/2 failing (exit 1); green 3/3.
+- M9 operator ownership, backup verification, support and escalation
+  (`20261129030000_operations_readiness.sql`): `operations.operatorProfiles.record` (tenant-wide
+  human administrator) records a new versioned operator profile with placeholder names/contacts only
+  (`placeholder:<slug>`; real contact data refused 400), hosting model, required responsibilities
+  (`422 responsibility_missing`) and escalation paths (security incident must be always covered,
+  `422 weak_escalation`); prior versions retained. `verifyBackup` (db) checks the manifest and every
+  data-file digest, restores into an isolated sample database and drops it; `runBackupVerificationJob`
+  (worker) records the result through `operations.backupVerifications.record` as the service
+  principal; the server derives `verified` only with an isolated restore (`checksum_only`, `failed`
+  otherwise; a job that cannot run records `failed`). `operations.readiness.assert` lists every unmet
+  obligation (`missing_operator`, `weak_escalation`, `absent_verification`, `stale_verification`
+  (older than 24 h, recommended-pending-approval), `failed_verification`, `checksum_only_verification`,
+  `sla_not_demonstrated`); `operations.alerts.list` shows them as work items (practice manager queue,
+  owed by the platform). Runbook `docs/runbooks/escalation.md`; AS-06 extended. Pending: wiring the
+  job into the worker tick (needs the operator's backup location, M-S3). Red 8/8 failing (exit 1);
+  green 8/8.
+- M10 migration parity, negative matrix, export and release evidence
+  (`tests/integration/migration-negative-matrix.test.ts`): the parity matrix is derived from the
+  operation catalog (`operations.json`, owner `M`): every M operation must have its REST route
+  (same path), its MCP tool registered on the server and a negative-matrix row; a missing tool or
+  row fails (asserted with a synthetic gap). Negative matrix for the 15 batch 2 operations: revoked
+  membership (403 on REST; MCP refused at the transport), cross-tenant (404 for every reference, or
+  the caller tenant's own data with no alpha reference), downgraded (the op's own scope removed after
+  the token was issued: 403 on REST and MCP), each with no change to the alpha practice-export,
+  archive, operator, verification, audit or sensitive-read rows, and no caller tenant accepted (400).
+  The M2-M6 operations keep their rows in the shared negative harness. `migration.export`
+  (`cuspatlas-migration-export/1`, tenant-wide human administrator, sensitive-read logged): the
+  workspace complement of B's opening chain (profiles, packages, staged records outside the chain,
+  review items, runs, applied records with provenance, reviewer assignments, reports, sign-offs,
+  archive packages/entries/holds, operator profiles, backup verifications); `importExports` gains the
+  format (additive: FORMATS and IMPORT_ORDER entries); S, I, C, E, B and M re-import into a fresh
+  database and S, C, E, B and M re-export identically. Test written after the export endpoint
+  (deviation from test-first for that piece); first run 15/33 failing (MCP transport refusal not
+  handled by the matrix), green 33/33.
+
+## Workstream M handoff (2026-11-05)
+
+Built and tested on synthetic data (embedded test cluster only; nothing deployed):
+- M2-M6 (batch 1 and H2 hardening): source profiles, intake and staging, review queue, idempotent
+  dry-run/apply, identity reconciliation through S6, opening balances and credits through B1,
+  versioned reconciliation reports, two-reviewer sign-off, cutover readiness gate.
+- M1 practice export (easy exit) with completeness validator, private grant-based delivery and a
+  fresh-database round trip; format published in `docs/export-format.md`.
+- M7 read-only historical archive packages, patient-scoped reads, verification, legal holds and
+  retention with a database deletion guard.
+- M8 downtime runbook and a timed, reconciled restore drill with a machine-readable report (AS-06).
+- M9 operator profiles, backup verification job, readiness obligations and alert work items,
+  escalation runbook (AS-06).
+- M10 catalog-derived parity matrix, negative matrix for batch 2, migration workspace export with
+  round trip.
+
+Pending decisions (recommended values are recommended-pending-approval, never approved):
+- M-D1 cutover scope, M-D2 historical financial detail (opening balances plus archive), M-D3
+  archive access model (in-product read-only module, built), M-D4 write-freeze duration, M-D5
+  recovery objectives (RPO 900 s, RTO 14400 s engineering targets), M-D6 hosting model, M-D7
+  support tiers, M-D8 rollback after new work.
+- Archive retention period (ten years from registration) and disposal procedure; downtime-log
+  operations (`openDowntimeLog`/`recordManualEvent`/`reconcileManualEvents`) not built; wiring the
+  backup verification job into the worker tick; reversing an opening-credit allocation (from M-10);
+  an admin-facing reviewer assignment command (from M-5).
+
+Blocked on discovery: M-S1 (authorised incumbent export and rights: no real export has been
+received), M-S2 (lawful archive arrangement for history that will not export), M-S3 (named
+operator, hosting model and tested objectives). Every real-practice use of M waits on these.
+
+Honest status: planned, configured and tested on synthetic data. Not approved, not deployed, not
+compliant, not clinically validated; the drill timings describe the embedded test cluster only.
+Not a production-ready PMS.
+- Full-run fixes: `migration_archive_entries.patient_id` is a merge-excluded reference (an immutable
+  archive entry keeps the patient it was registered for; open item: resolve a survivor's references
+  through the merge chain), and the C18 import-order expectation names the migration export.

@@ -9,7 +9,7 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-385 operations.
+400 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
@@ -19,7 +19,7 @@ transport tables and are declarations, not independent proof.
 | B | 64 | 64 | 64 | 0 | 0 | 0 |
 | E | 60 | 48 | 48 | 11 | 0 | 1 |
 | I | 55 | 47 | 44 | 0 | 6 | 1 |
-| M | 14 | 14 | 14 | 0 | 0 | 0 |
+| M | 29 | 29 | 29 | 0 | 0 | 0 |
 
 | Operation | Owner | Kind | Authorization | Scope | Principals | Transports | REST | MCP tool | Idempotency | Sensitivity | Status |
 |---|---|---|---|---|---|---|---|---|---|---|---|
@@ -236,7 +236,14 @@ transport tables and are declarations, not independent proof.
 | `messaging.threads.open` | E | command | authorize | `messaging.write` | human | rest, mcp | POST `/v1/patients/{patientRef}/message-threads` | `messaging_threads_open` | required | phi | active |
 | `messaging.threads.read` | E | query | authorize | `messaging.read` | human | rest, mcp | GET `/v1/messaging/threads/{threadRef}` | `messaging_threads_get` | none | phi | active |
 | `messaging.threads.worklist` | E | query | authorize | `messaging.read` | human, service | rest, mcp | GET `/v1/messaging/threads/worklist` | `messaging_threads_worklist` | none | phi | active |
+| `migration.archive.holds.record` | M | command | authorize | `migration.write` | human | rest, mcp | POST `/v1/migration/archives/holds` | `migration_archive_holds_record` | required | phi | active |
+| `migration.archive.read` | M | query | authorize | `migration.read` | human | rest, mcp | GET `/v1/migration/archives/entries` | `migration_archive_read` | none | phi | active |
+| `migration.archive.references` | M | query | authorize | `migration.read` | human | rest, mcp | GET `/v1/migration/archives/references` | `migration_archive_references` | none | phi | active |
+| `migration.archive.register` | M | command | authorize | `migration.write` | human | rest, mcp | POST `/v1/migration/archives` | `migration_archive_register` | required | phi | active |
+| `migration.archive.retention.evaluate` | M | query | authorize | `migration.read` | human, service | rest, mcp | GET `/v1/migration/archives/retention` | `migration_archive_retention_evaluate` | none | phi | active |
+| `migration.archive.verify` | M | command | authorize | `migration.write` | human, service | rest, mcp | POST `/v1/migration/archives/verify` | `migration_archive_verify` | required | phi | active |
 | `migration.cutover.advance` | M | command | authorize | `migration.signoff` | human | rest, mcp | POST `/v1/migration/cutover/advance` | `migration_cutover_advance` | required | phi | active |
+| `migration.export` | M | query | authorize | `admin.configure` | human | rest, mcp | GET `/v1/migration/export` | `migration_export` | none | phiBulk | active |
 | `migration.identity.merge` | M | command | authorize | `migration.write` | human | rest, mcp | POST `/v1/migration/identity/merges` | `migration_identity_merge` | required | phi | active |
 | `migration.imports.apply` | M | command | authorize | `migration.write` | human, service | rest, mcp | POST `/v1/migration/imports/apply` | `migration_imports_apply` | required | phi | active |
 | `migration.imports.plan` | M | query | authorize | `migration.read` | human, service | rest, mcp | GET `/v1/migration/imports/plan` | `migration_imports_plan` | none | phi | active |
@@ -250,6 +257,10 @@ transport tables and are declarations, not independent proof.
 | `migration.reviewItems.resolve` | M | command | authorize | `migration.write` | human | rest, mcp | POST `/v1/migration/review-items/resolve` | `migration_review_items_resolve` | required | phi | active |
 | `migration.signoffs.record` | M | command | authorize | `migration.signoff` | human | rest, mcp | POST `/v1/migration/signoffs` | `migration_signoffs_record` | required | phi | active |
 | `migration.sourceProfiles.register` | M | command | authorize | `migration.write` | human | rest, mcp | POST `/v1/migration/source-profiles` | `migration_source_profiles_register` | required | phi | active |
+| `operations.alerts.list` | M | query | authorize | `migration.read` | human, service | rest, mcp | GET `/v1/operations/alerts` | `operations_alerts_list` | none | phi | active |
+| `operations.backupVerifications.record` | M | command | authorize | `migration.write` | human, service | rest, mcp | POST `/v1/operations/backup-verifications` | `operations_backup_verifications_record` | required | phi | active |
+| `operations.operatorProfiles.record` | M | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/operations/operator-profiles` | `operations_operator_profiles_record` | required | operational | active |
+| `operations.readiness.assert` | M | query | authorize | `migration.read` | human, service | rest, mcp | GET `/v1/operations/readiness` | `operations_readiness_assert` | none | phi | active |
 | `outbox.deliver` | F | command | authorize | `outbox.deliver` | service | worker | - | - | none | operational | active |
 | `patients.access.resolve` | S | query | authorize | `patients.read` | human, service | rest, mcp | GET `/v1/patients/{patientRef}/access` | `patients_resolve_access` | none | phi | active |
 | `patients.create` | S | command | authorize | `patients.write` | human, service | rest, mcp | POST `/v1/patients` | `patients_create` | required | phi | active |
@@ -281,6 +292,10 @@ transport tables and are declarations, not independent proof.
 | `portal.threads.read` | E | query | portal | - | portal | portal | GET `/portal/v1/patients/{patientRef}/message-threads/{threadRef}` | - | none | phi | active |
 | `portal.views.describe` | E | query | portal | - | portal | portal | GET `/portal/v1/views/{view}` | - | none | phi | active |
 | `portal.views.read` | E | query | portal | - | portal | portal | GET `/portal/v1/patients/{patientRef}/views/{view}` | - | none | phi | active |
+| `practice.export.create` | M | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/practice/exports` | `practice_export_create` | required | phiBulk | active |
+| `practice.export.download` | M | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/practice/exports/package` | `practice_export_download` | required | phiBulk | active |
+| `practice.export.grant` | M | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/practice/exports/grants` | `practice_export_grant` | required | phiBulk | active |
+| `practice.export.verify` | M | query | authorize | `admin.configure` | human | rest, mcp | GET `/v1/practice/exports/verification` | `practice_export_verify` | none | phiBulk | active |
 | `rcm.appeals.draft` | B | command | authorize | `billing.write` | human | rest, mcp | POST `/v1/rcm/claims/{claimRef}/appeals` | `rcm_appeals_draft` | required | phi | active |
 | `rcm.appeals.review` | B | command | authorize | `billing.correct` | human | rest, mcp | POST `/v1/rcm/appeals/{appealRef}/review` | `rcm_appeals_review` | required | phi | active |
 | `rcm.claims.attach` | B | command | authorize | `billing.write` | human, service | rest, mcp | POST `/v1/rcm/claims/{claimRef}/attachments` | `rcm_claims_attach` | required | phi | active |

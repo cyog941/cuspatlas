@@ -40,6 +40,8 @@ const OWNERS: Record<string, OwnerWorkstream> = {
   telephony: 'E',
   imaging: 'I',
   migration: 'M',
+  practice: 'M',
+  operations: 'M',
 };
 
 /**

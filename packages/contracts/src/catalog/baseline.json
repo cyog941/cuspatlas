@@ -11436,6 +11436,229 @@
       ]
     },
     {
+      "operation": "migration.archive.holds.record",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.write",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/migration/archives/holds"
+      },
+      "mcpTool": "migration_archive_holds_record",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "action": {
+            "enum": [
+              "\"place\"",
+              "\"release\""
+            ]
+          },
+          "archiveRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "holdRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "reasonCode": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z_]{1,64}$"
+          }
+        },
+        "required": [
+          "action",
+          "archiveRef",
+          "reasonCode"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "migration.archive.read",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.read",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/migration/archives/entries"
+      },
+      "mcpTool": "migration_archive_read",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
+      "operation": "migration.archive.references",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.read",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/migration/archives/references"
+      },
+      "mcpTool": "migration_archive_references",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
+      "operation": "migration.archive.register",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.write",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/migration/archives"
+      },
+      "mcpTool": "migration_archive_register",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "packageRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "packageRef"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "migration.archive.retention.evaluate",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/migration/archives/retention"
+      },
+      "mcpTool": "migration_archive_retention_evaluate",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
+      "operation": "migration.archive.verify",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.write",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/migration/archives/verify"
+      },
+      "mcpTool": "migration_archive_verify",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "archiveRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "archiveRef"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
       "operation": "migration.cutover.advance",
       "transports": [
         "rest",
@@ -11482,6 +11705,30 @@
         "404",
         "409",
         "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "migration.export",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "admin.configure",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/migration/export"
+      },
+      "mcpTool": "migration_export",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
         "503"
       ]
     },
@@ -12197,6 +12444,290 @@
         "404",
         "409",
         "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "operations.alerts.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/operations/alerts"
+      },
+      "mcpTool": "operations_alerts_list",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
+      "operation": "operations.backupVerifications.record",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.write",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/operations/backup-verifications"
+      },
+      "mcpTool": "operations_backup_verifications_record",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "backupDigest": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "failureCode": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[a-z_]{1,64}$"
+          },
+          "isolatedRestore": {
+            "enum": [
+              "\"failed\"",
+              "\"not_run\"",
+              "\"passed\""
+            ]
+          },
+          "manifestVerified": {
+            "type": [
+              "boolean"
+            ]
+          },
+          "restoreSeconds": {
+            "type": [
+              "number"
+            ],
+            "maximum": 2592000,
+            "minimum": 0
+          }
+        },
+        "required": [
+          "backupDigest",
+          "isolatedRestore",
+          "manifestVerified"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "operations.operatorProfiles.record",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "admin.configure",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/operations/operator-profiles"
+      },
+      "mcpTool": "operations_operator_profiles_record",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "escalation": {
+            "type": [
+              "array"
+            ],
+            "maxItems": 16,
+            "minItems": 1,
+            "items": {
+              "type": [
+                "object"
+              ],
+              "closed": true,
+              "properties": {
+                "coverage": {
+                  "enum": [
+                    "\"always\"",
+                    "\"business_hours\""
+                  ]
+                },
+                "expectedFirstResponseMinutes": {
+                  "type": [
+                    "integer"
+                  ],
+                  "maximum": 10080,
+                  "minimum": 1
+                },
+                "incidentClass": {
+                  "enum": [
+                    "\"data_integrity\"",
+                    "\"outage\"",
+                    "\"security_incident\"",
+                    "\"support\""
+                  ]
+                },
+                "responderClass": {
+                  "enum": [
+                    "\"maintainer\"",
+                    "\"operator\"",
+                    "\"practice\""
+                  ]
+                }
+              },
+              "required": [
+                "coverage",
+                "expectedFirstResponseMinutes",
+                "incidentClass",
+                "responderClass"
+              ]
+            }
+          },
+          "hostingModel": {
+            "enum": [
+              "\"contracted\"",
+              "\"managed\"",
+              "\"selfHosted\"",
+              "\"undecided\""
+            ]
+          },
+          "operatorRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^placeholder:[a-z0-9-]{1,48}$"
+          },
+          "responsibilities": {
+            "type": [
+              "array"
+            ],
+            "maxItems": 16,
+            "minItems": 1,
+            "items": {
+              "type": [
+                "object"
+              ],
+              "closed": true,
+              "properties": {
+                "contactRef": {
+                  "type": [
+                    "string"
+                  ],
+                  "pattern": "^placeholder:[a-z0-9-]{1,48}$"
+                },
+                "responsibility": {
+                  "enum": [
+                    "\"backup\"",
+                    "\"credential_rotation\"",
+                    "\"escalation\"",
+                    "\"restore_drill\"",
+                    "\"security_incident\"",
+                    "\"support\""
+                  ]
+                },
+                "roleName": {
+                  "type": [
+                    "string"
+                  ],
+                  "pattern": "^placeholder:[a-z0-9-]{1,48}$"
+                }
+              },
+              "required": [
+                "contactRef",
+                "responsibility",
+                "roleName"
+              ]
+            }
+          },
+          "supportClaim": {
+            "type": [
+              "object"
+            ],
+            "closed": true,
+            "properties": {
+              "rtoSeconds": {
+                "type": [
+                  "integer"
+                ],
+                "maximum": 2592000,
+                "minimum": 1
+              }
+            },
+            "required": [
+              "rtoSeconds"
+            ]
+          }
+        },
+        "required": [
+          "escalation",
+          "hostingModel",
+          "operatorRef",
+          "responsibilities"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "operations.readiness.assert",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "migration.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/operations/readiness"
+      },
+      "mcpTool": "operations_readiness_assert",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
         "503"
       ]
     },
@@ -14827,6 +15358,167 @@
         "method": "get",
         "path": "/portal/v1/patients/{patientRef}/views/{view}"
       },
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
+      "operation": "practice.export.create",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "admin.configure",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/practice/exports"
+      },
+      "mcpTool": "practice_export_create",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "purpose": {
+            "enum": [
+              "\"archiveCopy\"",
+              "\"practiceExit\"",
+              "\"verification\""
+            ]
+          }
+        },
+        "required": [
+          "purpose"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "practice.export.download",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "admin.configure",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/practice/exports/package"
+      },
+      "mcpTool": "practice_export_download",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "exportRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "token": {
+            "type": [
+              "string"
+            ],
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "exportRef",
+          "token"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "practice.export.grant",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "admin.configure",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/practice/exports/grants"
+      },
+      "mcpTool": "practice_export_grant",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "closed": true,
+        "properties": {
+          "exportRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "exportRef"
+        ]
+      },
+      "idempotency": "required",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "503"
+      ]
+    },
+    {
+      "operation": "practice.export.verify",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "admin.configure",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/practice/exports/verification"
+      },
+      "mcpTool": "practice_export_verify",
       "idempotency": "none",
       "refusals": [
         "400",

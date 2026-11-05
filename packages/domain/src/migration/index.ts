@@ -1,3 +1,4 @@
+export { PRACTICE_EXPORT_FORMAT } from '@cuspatlas/contracts';
 export {
   csvExportCell,
   csvExportRow,
@@ -8,4 +9,12 @@ export {
 } from './adapter';
 export type { MigrationDeps } from './base';
 export { MIGRATION_REPLAY_CODECS } from './codecs';
+export {
+  buildPracticeManifest,
+  documentDigest,
+  PRACTICE_EXPORT_DOCUMENTS,
+  type PracticeExportDeps,
+  type PracticeExporters,
+  validatePracticeExport,
+} from './practice-export';
 export { createMigrationService, type MigrationService } from './service';

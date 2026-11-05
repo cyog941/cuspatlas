@@ -15,6 +15,7 @@
         "C",
         "E",
         "I",
+        "M",
         "S"
       ],
       "operations": [
@@ -42,6 +43,12 @@
         "intake.forms.retire",
         "messaging.replyPolicy.set",
         "messaging.threads.hold",
+        "migration.export",
+        "operations.operatorProfiles.record",
+        "practice.export.create",
+        "practice.export.download",
+        "practice.export.grant",
+        "practice.export.verify",
         "scheduling.export",
         "scheduling.locations.changeTimeZone",
         "scheduling.locations.define",
@@ -582,12 +589,17 @@
         "M"
       ],
       "operations": [
+        "migration.archive.read",
+        "migration.archive.references",
+        "migration.archive.retention.evaluate",
         "migration.imports.plan",
         "migration.openingItems.list",
         "migration.packages.read",
         "migration.provenance.read",
         "migration.reports.read",
-        "migration.reviewItems.list"
+        "migration.reviewItems.list",
+        "operations.alerts.list",
+        "operations.readiness.assert"
       ],
       "sensitivity": "phi"
     },
@@ -621,12 +633,16 @@
         "M"
       ],
       "operations": [
+        "migration.archive.holds.record",
+        "migration.archive.register",
+        "migration.archive.verify",
         "migration.identity.merge",
         "migration.imports.apply",
         "migration.packages.intake",
         "migration.reports.build",
         "migration.reviewItems.resolve",
-        "migration.sourceProfiles.register"
+        "migration.sourceProfiles.register",
+        "operations.backupVerifications.record"
       ],
       "sensitivity": "phi"
     },

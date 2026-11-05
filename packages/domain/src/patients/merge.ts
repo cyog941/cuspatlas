@@ -298,6 +298,11 @@ export const MERGE_EXCLUDED_REFERENCES: readonly { table: string; column: string
     why: 'S22: the reassignment history keeps both identities it recorded (never relinked)',
   },
   {
+    table: 'migration_archive_entries',
+    column: 'patient_id',
+    why: 'M7: a read-only archive entry keeps the patient it was registered for (immutable; never relinked)',
+  },
+  {
     table: 'appointment_patient_reassignments',
     column: 'new_patient_id',
     why: 'S22: the reassignment history keeps both identities it recorded (never relinked)',

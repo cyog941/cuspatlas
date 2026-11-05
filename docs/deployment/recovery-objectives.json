@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "kind": "cuspatlas-recovery-objectives",
+  "status": "recommended-pending-approval",
+  "decision": "M-D5",
+  "settledBy": "M-S3 (signed operating agreement naming the operator, the hosting model and the tested objectives)",
+  "note": "Engineering targets only. The timed drill measures against them and states any gap; they are not a promise to a practice until M-S3 is settled and the drill passes on the agreed hosting.",
+  "rpoSeconds": 900,
+  "rtoSeconds": 14400,
+  "backupVerificationMaxAgeSeconds": 86400
+}

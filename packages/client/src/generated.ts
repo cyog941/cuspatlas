@@ -4566,9 +4566,113 @@ export type ImagingTransform = ({
 
 export type ImagingVersion = number;
 
+export type MigrationArchiveEntry = {
+  readonly "data": {
+    readonly "entryRef": MigrationUuid;
+    readonly "archiveRef": MigrationArchiveRef;
+    readonly "archiveVersion": MigrationVersion;
+    readonly "entity": string;
+    readonly "sourceId": string | null;
+    readonly "timePrecision": "minute" | "day" | "month" | "year" | "unknown" | "none";
+    readonly "state": "verified" | "partial" | "failed";
+    readonly "readOnly": true;
+    readonly "content": { readonly [k: string]: string | null };
+  };
+};
+
+export type MigrationArchiveHold = {
+  readonly "archiveRef": MigrationArchiveRef;
+  readonly "action": "place" | "release";
+  readonly "holdRef"?: MigrationUuid;
+  readonly "reasonCode": MigrationReasonCode;
+};
+
+export type MigrationArchiveHoldResult = {
+  readonly "data": {
+    readonly "holdRef": MigrationUuid;
+    readonly "action": "place" | "release";
+  };
+  readonly "version": MigrationVersion;
+  readonly "correlationId": string;
+  readonly "replayed": boolean;
+};
+
+export type MigrationArchiveRef = MigrationUuid;
+
+export type MigrationArchiveReferenceList = {
+  readonly "data": readonly ({
+    readonly "entryRef": MigrationUuid;
+    readonly "archiveRef": MigrationArchiveRef;
+    readonly "archiveVersion": MigrationVersion;
+    readonly "entity": string;
+    readonly "sourceId": string | null;
+    readonly "timePrecision": "minute" | "day" | "month" | "year" | "unknown" | "none";
+    readonly "state": "verified" | "partial" | "failed";
+    readonly "readOnly": true;
+  })[];
+};
+
+export type MigrationArchiveRegister = {
+  readonly "packageRef": MigrationPackageRef;
+};
+
+export type MigrationArchiveRegisterResult = {
+  readonly "data": {
+    readonly "archiveRef": MigrationArchiveRef;
+    readonly "archiveVersion": MigrationVersion;
+    readonly "state": "verified" | "partial" | "failed";
+    readonly "entryCount": MigrationCount;
+    readonly "archiveDigest": MigrationDigest;
+  };
+  readonly "version": MigrationVersion;
+  readonly "correlationId": string;
+  readonly "replayed": boolean;
+};
+
+export type MigrationArchiveRetention = {
+  readonly "data": {
+    readonly "archiveRef": MigrationArchiveRef;
+    readonly "eligible": boolean;
+    readonly "reasons": readonly ("legal_hold" | "retention_period")[];
+    readonly "retainUntil": string;
+    readonly "policyVersion": string;
+  };
+};
+
+export type MigrationArchiveVerify = {
+  readonly "archiveRef": MigrationArchiveRef;
+};
+
+export type MigrationArchiveVerifyResult = {
+  readonly "data": {
+    readonly "archiveRef": MigrationArchiveRef;
+    readonly "state": "verified" | "partial" | "failed";
+    readonly "entryCount": MigrationCount;
+    readonly "unreadableEntries": readonly (MigrationUuid)[];
+  };
+};
+
 export type MigrationAuthorisation = {
   readonly "reference": string;
   readonly "practiceRef": MigrationPracticeRef;
+};
+
+export type MigrationBackupVerificationRecord = {
+  readonly "backupDigest": MigrationDigest;
+  readonly "manifestVerified": boolean;
+  readonly "isolatedRestore": "passed" | "failed" | "not_run";
+  readonly "restoreSeconds"?: number;
+  readonly "failureCode"?: MigrationReasonCode;
+};
+
+export type MigrationBackupVerificationResult = {
+  readonly "data": {
+    readonly "verificationRef": MigrationUuid;
+    readonly "result": "verified" | "checksum_only" | "failed";
+  };
+  readonly "version": MigrationVersion;
+  readonly "correlationId": string;
+  readonly "replayed": boolean;
 };
 
 export type MigrationCount = number;
@@ -4593,6 +4697,8 @@ export type MigrationCutoverResult = {
 export type MigrationDigest = string;
 
 export type MigrationEntityName = string;
+
+export type MigrationExportRef = MigrationUuid;
 
 export type MigrationIdentityMerge = {
   readonly "packageRef": MigrationPackageRef;
@@ -4662,6 +4768,14 @@ export type MigrationManifestEntity = {
   readonly "artifactDigest": MigrationDigest;
 };
 
+export type MigrationMigrationExportRead = {
+  readonly "data": {
+    readonly "format": "cuspatlas-migration-export/1";
+    readonly "exportedAt": string;
+    readonly "tables": { readonly [k: string]: readonly ({ readonly [k: string]: unknown })[] };
+  };
+};
+
 export type MigrationMinorUnits = number;
 
 export type MigrationMoney = {
@@ -4699,6 +4813,44 @@ export type MigrationOpeningReconciliation = {
     readonly "totals": { readonly [k: string]: unknown };
     readonly [k: string]: unknown;
   };
+};
+
+export type MigrationOperationsAlertList = {
+  readonly "data": {
+    readonly "asOf": string;
+    readonly "coverage": { readonly [k: string]: unknown };
+    readonly "count": MigrationCount;
+    readonly "items": readonly ({ readonly [k: string]: unknown })[];
+  };
+};
+
+export type MigrationOperatorProfileRecord = {
+  readonly "operatorRef": MigrationPlaceholder;
+  readonly "hostingModel": "managed" | "selfHosted" | "contracted" | "undecided";
+  readonly "responsibilities": readonly ({
+    readonly "responsibility": "backup" | "restore_drill" | "security_incident" | "support" | "escalation" | "credential_rotation";
+    readonly "roleName": MigrationPlaceholder;
+    readonly "contactRef": MigrationPlaceholder;
+  })[];
+  readonly "escalation": readonly ({
+    readonly "incidentClass": "security_incident" | "outage" | "data_integrity" | "support";
+    readonly "responderClass": "operator" | "maintainer" | "practice";
+    readonly "coverage": "business_hours" | "always";
+    readonly "expectedFirstResponseMinutes": number;
+  })[];
+  readonly "supportClaim"?: {
+    readonly "rtoSeconds": number;
+  };
+};
+
+export type MigrationOperatorProfileResult = {
+  readonly "data": {
+    readonly "profileRef": MigrationUuid;
+    readonly "profileVersion": MigrationVersion;
+  };
+  readonly "version": MigrationVersion;
+  readonly "correlationId": string;
+  readonly "replayed": boolean;
 };
 
 export type MigrationPackageIntake = {
@@ -4745,6 +4897,79 @@ export type MigrationPackageState = {
 
 export type MigrationPatientRef = MigrationUuid;
 
+export type MigrationPlaceholder = string;
+
+export type MigrationPracticeExportCreate = {
+  readonly "purpose": "practiceExit" | "verification" | "archiveCopy";
+};
+
+export type MigrationPracticeExportDownload = {
+  readonly "exportRef": MigrationExportRef;
+  readonly "token": string;
+};
+
+export type MigrationPracticeExportGrant = {
+  readonly "exportRef": MigrationExportRef;
+};
+
+export type MigrationPracticeExportGrantResult = {
+  readonly "data": {
+    readonly "grantRef": MigrationUuid;
+    readonly "token": string;
+    readonly "expiresAt": string;
+  };
+};
+
+export type MigrationPracticeExportPackage = {
+  readonly "data": {
+    readonly "manifest": {
+      readonly "format": "cuspatlas-practice-export/1";
+      readonly "exportRef": MigrationExportRef;
+      readonly "exportedAt": string;
+      readonly "documents": readonly ({
+        readonly "format": string;
+        readonly "digestSha256": MigrationDigest;
+        readonly "tables": { readonly [k: string]: MigrationCount };
+      })[];
+      readonly "blobs": readonly ({
+        readonly "digestSha256": MigrationDigest;
+        readonly "byteLength": number;
+      })[];
+      readonly "terminology": { readonly [k: string]: unknown };
+      readonly "provenance": { readonly [k: string]: unknown };
+      readonly [k: string]: unknown;
+    };
+    readonly "documents": readonly ({ readonly [k: string]: unknown })[];
+  };
+};
+
+export type MigrationPracticeExportResult = {
+  readonly "data": {
+    readonly "exportRef": MigrationExportRef;
+    readonly "format": "cuspatlas-practice-export/1";
+    readonly "manifestDigest": MigrationDigest;
+    readonly "packageDigest": MigrationDigest;
+    readonly "byteLength": number;
+    readonly "documentCount": MigrationCount;
+    readonly "exportedAt": string;
+  };
+  readonly "version": MigrationVersion;
+  readonly "correlationId": string;
+  readonly "replayed": boolean;
+};
+
+export type MigrationPracticeExportVerification = {
+  readonly "data": {
+    readonly "exportRef": MigrationExportRef;
+    readonly "state": "verified" | "drifted" | "failed";
+    readonly "manifestDigest": MigrationDigest;
+    readonly "mismatches": readonly ({
+      readonly "entity": string;
+      readonly "reason": "count_mismatch" | "digest_mismatch" | "missing_entity";
+    })[];
+  };
+};
+
 export type MigrationPracticeRef = string;
 
 export type MigrationProfileRef = MigrationUuid;
@@ -4761,6 +4986,15 @@ export type MigrationProvenanceList = {
     readonly "appliedAt": string;
     readonly [k: string]: unknown;
   })[];
+};
+
+export type MigrationReadinessResult = {
+  readonly "data": {
+    readonly "ready": boolean;
+    readonly "unmetObligations": readonly ("missing_operator" | "weak_escalation" | "absent_verification" | "stale_verification" | "failed_verification" | "checksum_only_verification" | "sla_not_demonstrated")[];
+    readonly "evaluatedAt": string;
+    readonly "objectivesStatus": string;
+  };
 };
 
 export type MigrationReasonCode = string;
@@ -8956,6 +9190,66 @@ export interface Operations {
     successStatus: 200;
     idempotent: false;
   };
+  "migration.archive.holds.record": {
+    method: "POST";
+    path: "/v1/migration/archives/holds";
+    params: {  };
+    query: Record<string, never>;
+    body: MigrationArchiveHold;
+    result: MigrationArchiveHoldResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "migration.archive.read": {
+    method: "GET";
+    path: "/v1/migration/archives/entries";
+    params: {  };
+    query: { readonly entryRef: string; readonly patientRef: string; };
+    body: undefined;
+    result: MigrationArchiveEntry;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "migration.archive.references": {
+    method: "GET";
+    path: "/v1/migration/archives/references";
+    params: {  };
+    query: { readonly patientRef: string; };
+    body: undefined;
+    result: MigrationArchiveReferenceList;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "migration.archive.register": {
+    method: "POST";
+    path: "/v1/migration/archives";
+    params: {  };
+    query: Record<string, never>;
+    body: MigrationArchiveRegister;
+    result: MigrationArchiveRegisterResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "migration.archive.retention.evaluate": {
+    method: "GET";
+    path: "/v1/migration/archives/retention";
+    params: {  };
+    query: { readonly archiveRef: string; };
+    body: undefined;
+    result: MigrationArchiveRetention;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "migration.archive.verify": {
+    method: "POST";
+    path: "/v1/migration/archives/verify";
+    params: {  };
+    query: Record<string, never>;
+    body: MigrationArchiveVerify;
+    result: MigrationArchiveVerifyResult;
+    successStatus: 200;
+    idempotent: true;
+  };
   "migration.cutover.advance": {
     method: "POST";
     path: "/v1/migration/cutover/advance";
@@ -8965,6 +9259,16 @@ export interface Operations {
     result: MigrationCutoverResult;
     successStatus: 200;
     idempotent: true;
+  };
+  "migration.export": {
+    method: "GET";
+    path: "/v1/migration/export";
+    params: {  };
+    query: Record<string, never>;
+    body: undefined;
+    result: MigrationMigrationExportRead;
+    successStatus: 200;
+    idempotent: false;
   };
   "migration.identity.merge": {
     method: "POST";
@@ -9095,6 +9399,46 @@ export interface Operations {
     result: MigrationSourceProfileResult;
     successStatus: 201;
     idempotent: true;
+  };
+  "operations.alerts.list": {
+    method: "GET";
+    path: "/v1/operations/alerts";
+    params: {  };
+    query: Record<string, never>;
+    body: undefined;
+    result: MigrationOperationsAlertList;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "operations.backupVerifications.record": {
+    method: "POST";
+    path: "/v1/operations/backup-verifications";
+    params: {  };
+    query: Record<string, never>;
+    body: MigrationBackupVerificationRecord;
+    result: MigrationBackupVerificationResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "operations.operatorProfiles.record": {
+    method: "POST";
+    path: "/v1/operations/operator-profiles";
+    params: {  };
+    query: Record<string, never>;
+    body: MigrationOperatorProfileRecord;
+    result: MigrationOperatorProfileResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "operations.readiness.assert": {
+    method: "GET";
+    path: "/v1/operations/readiness";
+    params: {  };
+    query: Record<string, never>;
+    body: undefined;
+    result: MigrationReadinessResult;
+    successStatus: 200;
+    idempotent: false;
   };
   "patients.access.resolve": {
     method: "GET";
@@ -9383,6 +9727,46 @@ export interface Operations {
     query: Record<string, never>;
     body: undefined;
     result: EngagementEngagementRead;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "practice.export.create": {
+    method: "POST";
+    path: "/v1/practice/exports";
+    params: {  };
+    query: Record<string, never>;
+    body: MigrationPracticeExportCreate;
+    result: MigrationPracticeExportResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "practice.export.download": {
+    method: "POST";
+    path: "/v1/practice/exports/package";
+    params: {  };
+    query: Record<string, never>;
+    body: MigrationPracticeExportDownload;
+    result: MigrationPracticeExportPackage;
+    successStatus: 200;
+    idempotent: true;
+  };
+  "practice.export.grant": {
+    method: "POST";
+    path: "/v1/practice/exports/grants";
+    params: {  };
+    query: Record<string, never>;
+    body: MigrationPracticeExportGrant;
+    result: MigrationPracticeExportGrantResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "practice.export.verify": {
+    method: "GET";
+    path: "/v1/practice/exports/verification";
+    params: {  };
+    query: { readonly exportRef: string; };
+    body: undefined;
+    result: MigrationPracticeExportVerification;
     successStatus: 200;
     idempotent: false;
   };
@@ -10860,7 +11244,14 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "messaging.threads.open": { method: "POST", path: "/v1/patients/{patientRef}/message-threads", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "messaging.threads.read": { method: "GET", path: "/v1/messaging/threads/{threadRef}", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "messaging.threads.worklist": { method: "GET", path: "/v1/messaging/threads/worklist", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "migration.archive.holds.record": { method: "POST", path: "/v1/migration/archives/holds", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "migration.archive.read": { method: "GET", path: "/v1/migration/archives/entries", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "migration.archive.references": { method: "GET", path: "/v1/migration/archives/references", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "migration.archive.register": { method: "POST", path: "/v1/migration/archives", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "migration.archive.retention.evaluate": { method: "GET", path: "/v1/migration/archives/retention", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "migration.archive.verify": { method: "POST", path: "/v1/migration/archives/verify", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "migration.cutover.advance": { method: "POST", path: "/v1/migration/cutover/advance", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "migration.export": { method: "GET", path: "/v1/migration/export", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "migration.identity.merge": { method: "POST", path: "/v1/migration/identity/merges", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "migration.imports.apply": { method: "POST", path: "/v1/migration/imports/apply", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "migration.imports.plan": { method: "GET", path: "/v1/migration/imports/plan", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
@@ -10874,6 +11265,10 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "migration.reviewItems.resolve": { method: "POST", path: "/v1/migration/review-items/resolve", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "migration.signoffs.record": { method: "POST", path: "/v1/migration/signoffs", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "migration.sourceProfiles.register": { method: "POST", path: "/v1/migration/source-profiles", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "operations.alerts.list": { method: "GET", path: "/v1/operations/alerts", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "operations.backupVerifications.record": { method: "POST", path: "/v1/operations/backup-verifications", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "operations.operatorProfiles.record": { method: "POST", path: "/v1/operations/operator-profiles", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "operations.readiness.assert": { method: "GET", path: "/v1/operations/readiness", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "patients.access.resolve": { method: "GET", path: "/v1/patients/{patientRef}/access", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "patients.create": { method: "POST", path: "/v1/patients", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "patients.duplicates.find": { method: "GET", path: "/v1/patients/{patientRef}/duplicate-candidates", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
@@ -10903,6 +11298,10 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "portal.threads.read": { method: "GET", path: "/portal/v1/patients/{patientRef}/message-threads/{threadRef}", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "portal.views.describe": { method: "GET", path: "/portal/v1/views/{view}", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "portal.views.read": { method: "GET", path: "/portal/v1/patients/{patientRef}/views/{view}", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "practice.export.create": { method: "POST", path: "/v1/practice/exports", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "practice.export.download": { method: "POST", path: "/v1/practice/exports/package", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "practice.export.grant": { method: "POST", path: "/v1/practice/exports/grants", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "practice.export.verify": { method: "GET", path: "/v1/practice/exports/verification", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "rcm.appeals.draft": { method: "POST", path: "/v1/rcm/claims/{claimRef}/appeals", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "rcm.appeals.review": { method: "POST", path: "/v1/rcm/appeals/{appealRef}/review", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "rcm.claims.attach": { method: "POST", path: "/v1/rcm/claims/{claimRef}/attachments", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },

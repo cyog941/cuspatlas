@@ -119,6 +119,7 @@ import {
   violationsOf,
 } from './tools/synthetic-tasks';
 import { VOCABULARY_TOOLS } from './tools/vocabularies';
+import { advertisedTool, isTruncatable } from './truncation';
 
 export const MCP_PATH = '/mcp';
 export const METADATA_PATH = '/.well-known/oauth-protected-resource';
@@ -671,7 +672,8 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
         : {};
     // A resume cursor is a transport argument of agent queries only (never seen by a handler).
     const { resumeCursor, ...rest } = given;
-    const resumable = actor.agent !== undefined && registered.tool.readOnly && resumeCursor !== undefined;
+    const resumable =
+      actor.agent !== undefined && isTruncatable(registered.tool) && resumeCursor !== undefined;
     const args = resumable ? rest : given;
     const valid = registered.validate(args);
     const violations = valid ? [] : violationsOf(registered.validate.errors);
@@ -773,12 +775,14 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
       { capabilities: { tools: {} } },
     );
     server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: TOOLS.map((t) => ({
-        name: t.name,
-        description: notices.has(t.name) ? `${t.description} ${notices.get(t.name)?.notice}` : t.description,
-        inputSchema: t.inputSchema as never,
-        annotations: { readOnlyHint: t.readOnly, openWorldHint: false },
-      })),
+      // Closeout C: truncatable (read-only) tools advertise resumeCursor and the _meta.truncated schema.
+      tools: TOOLS.map((t) => {
+        const a = advertisedTool(
+          t,
+          notices.has(t.name) ? `${t.description} ${notices.get(t.name)?.notice}` : t.description,
+        );
+        return { ...a, inputSchema: a.inputSchema as never };
+      }),
     }));
     server.setRequestHandler(CallToolRequestSchema, (request) =>
       callTool(actor, request.params.name, request.params.arguments),

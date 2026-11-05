@@ -1140,6 +1140,14 @@ describe('protocol surface', () => {
       for (const t of tools) {
         expect(t.inputSchema.additionalProperties).toBe(false);
         expect(Object.keys(t.inputSchema.properties ?? {})).not.toContain('tenantId');
+        // Closeout C: every truncatable (read-only) tool advertises the A9 resume cursor and the
+        // _meta.truncated result schema over the wire; commands advertise neither.
+        const resumable = t.annotations?.readOnlyHint === true;
+        expect([t.name, 'resumeCursor' in (t.inputSchema.properties ?? {})]).toStrictEqual([
+          t.name,
+          resumable,
+        ]);
+        expect([t.name, t._meta?.['cuspatlas/truncation'] !== undefined]).toStrictEqual([t.name, resumable]);
       }
       expect(Object.keys(client.getServerCapabilities() ?? {})).toStrictEqual(['tools']);
       // No tool-name probing: an unknown tool is a protocol error that does not echo the name.

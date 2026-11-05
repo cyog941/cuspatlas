@@ -265,3 +265,61 @@ describe('A batch 3 hardening: audit and sensitive-read rows only through the de
     expect((await h.call('a1', 'GET', '/v1/admin/audit?source=committed_change')).statusCode).toBe(200);
   });
 });
+
+describe('A batch 3 hardening: administration nits', () => {
+  it('refuses a non RFC 3339 instant with 400, never a database error', async () => {
+    for (const v of ['1', '2030-02-30T00:00:00Z', 'March 7, 2030']) {
+      const r = await h.call('a1', 'GET', `${AUDIT}?from=${encodeURIComponent(v)}`);
+      expect([v, r.statusCode]).toEqual([v, 400]);
+    }
+    expect((await h.call('a1', 'GET', `${AUDIT}?from=2030-01-01T00:00:00Z`)).statusCode).toBe(200);
+  });
+
+  it('the access review is itself logged as a sensitive read', async () => {
+    const n = async () =>
+      (
+        await db.admin.query(
+          `SELECT count(*)::int AS n FROM cuspatlas.sensitive_read_events WHERE operation = 'admin.access.review'`,
+        )
+      ).rows[0].n as number;
+    const before = await n();
+    h.ok(await h.call('a1', 'GET', '/v1/admin/access-review'));
+    expect(await n()).toBe(before + 1);
+  });
+
+  it('two access managers revoking each other concurrently never leave the tenant without one', async () => {
+    await db.admin.query(
+      `UPDATE cuspatlas.memberships SET scopes = scopes || '{access.manage}'::text[], revoked_at = NULL
+       WHERE principal_id = $1 AND tenant_id = $2`,
+      [USER_A3, T_ALPHA],
+    );
+    // Only a1 and a3 hold access.manage among live alpha humans for this check.
+    await db.admin.query(
+      `UPDATE cuspatlas.memberships SET scopes = array_remove(scopes, 'access.manage')
+       WHERE tenant_id = $1 AND principal_id <> ALL ($2::uuid[])`,
+      [T_ALPHA, [USER_A1, USER_A3]],
+    );
+    for (let i = 0; i < 5; i++) {
+      const [x, y] = await Promise.all([
+        h.call('a1', 'POST', '/v1/admin/access/revocations', {
+          principalRef: USER_A3,
+          reasonCode: 'left_practice',
+        }),
+        h.call('a3', 'POST', '/v1/admin/access/revocations', {
+          principalRef: USER_A1,
+          reasonCode: 'left_practice',
+        }),
+      ]);
+      const live = await db.admin.query(
+        `SELECT count(*)::int AS n FROM cuspatlas.memberships m JOIN cuspatlas.principals p ON p.id = m.principal_id
+         WHERE m.tenant_id = $1 AND m.revoked_at IS NULL AND p.kind = 'human' AND 'access.manage' = ANY (m.scopes)`,
+        [T_ALPHA],
+      );
+      expect([x.statusCode === 201 && y.statusCode === 201, live.rows[0].n >= 1]).toEqual([false, true]);
+      await db.admin.query(
+        'UPDATE cuspatlas.memberships SET revoked_at = NULL WHERE principal_id = ANY ($1::uuid[]) AND tenant_id = $2',
+        [[USER_A1, USER_A3], T_ALPHA],
+      );
+    }
+  });
+});

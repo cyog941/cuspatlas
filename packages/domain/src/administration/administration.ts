@@ -37,6 +37,20 @@ interface AuditQuery {
   readonly limit?: string | number;
 }
 const validateAuditQuery = foundationDef('AuditSearchQuery');
+
+/**
+ * Strict RFC 3339 instant with a real calendar date and an explicit offset (what Postgres timestamptz
+ * accepts unambiguously): `Date.parse` alone accepts `1` or `March 7, 2030`, which Postgres rejects (500).
+ */
+const INSTANT =
+  /^(\d{4})-(\d{2})-(\d{2})T([01]\d|2[0-3]):[0-5]\d:[0-5]\d(\.\d{1,6})?(Z|[+-]([01]\d|2[0-3]):[0-5]\d)$/;
+export function isInstant(v: string): boolean {
+  const m = INSTANT.exec(v);
+  if (!m) return false;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const day = new Date(Date.UTC(y, mo - 1, d));
+  return day.getUTCFullYear() === y && day.getUTCMonth() === mo - 1 && day.getUTCDate() === d;
+}
 const validateRevoke = foundationDef('AccessRevoke');
 const failedAt = (pointer: string, rule: string) =>
   new RefusalError({ code: 'validation_failed', detail: { violations: [{ pointer, rule }] } });
@@ -56,8 +70,7 @@ export function createAdministrationOperations(base: ComposerBase, deps: { execu
         if (!sources.every((s) => (AUDIT_SOURCES as readonly string[]).includes(s)))
           throw failedAt('/source', 'enum');
         for (const k of ['from', 'to'] as const)
-          if (query[k] !== undefined && Number.isNaN(Date.parse(query[k] as string)))
-            throw failedAt(`/${k}`, 'instant');
+          if (query[k] !== undefined && !isInstant(query[k] as string)) throw failedAt(`/${k}`, 'instant');
         return tx(ctx, async (t) => {
           const { rows } = await t.query<{
             source: string;

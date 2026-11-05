@@ -319,6 +319,8 @@ export function createPreferenceOperations(base: ComposerBase, deps: PreferenceD
       const op = 'preferences.recentPatients.list';
       return base.guarded(ctx, op, async () => {
         await base.authorize(ctx, op);
+        // The list is patient references: only a caller who may read patients sees it.
+        await base.authorize(ctx, 'patients.read');
         return tx(ctx, async (t) => {
           await purge(t);
           const { rows } = await t.query<{ patient_id: string; opened_at: Date }>(

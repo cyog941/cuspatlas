@@ -7,7 +7,7 @@ import {
 } from './support/appointment-fixtures';
 import { openTestDatabase, type TestDatabase } from './support/db';
 import { patientBody } from './support/patient-fixtures';
-import { T_ALPHA, USER_A1, USER_A3 } from './support/fixtures';
+import { T_ALPHA, USER_A1, USER_A3, USER_A4 } from './support/fixtures';
 
 /**
  * A22 (OR-12, OR-D5 accepted): per-user saved views (filters only, no PHI in names), favourite reports
@@ -256,5 +256,15 @@ describe('A batch 3 hardening: saved views carry no identity and need the target
         [USER_A1, T_ALPHA, scopes],
       );
     }
+  });
+});
+
+describe('A batch 3 hardening: recent patients need patients.read', () => {
+  it('refuses the recent-patients list to a caller without patients.read', async () => {
+    await db.admin.query('UPDATE cuspatlas.memberships SET scopes = $2::text[] WHERE principal_id = $1', [
+      USER_A4,
+      ['scheduling.read'],
+    ]);
+    expect((await h.call('a4', 'GET', '/v1/me/recent-patients')).statusCode).toBe(403);
   });
 });

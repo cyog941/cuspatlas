@@ -9,6 +9,7 @@ export {
 } from './adapter';
 export type { MigrationDeps } from './base';
 export { MIGRATION_REPLAY_CODECS } from './codecs';
+export { BACKUP_VERIFICATION_MAX_AGE_SECONDS } from './operations';
 export {
   buildPracticeManifest,
   documentDigest,

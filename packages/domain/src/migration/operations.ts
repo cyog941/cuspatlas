@@ -204,6 +204,24 @@ export function createOperationsReadiness(base: MigrationBase) {
       });
     },
 
+    /**
+     * When the tenant's latest backup verification was recorded, and the database's now (the worker's
+     * due check; not a catalog operation). Authorized as the recording action: only the recorder
+     * schedules a verification.
+     */
+    lastBackupVerification(ctx: ActorContext): Promise<{ lastCheckedAt: Date | null; at: Date }> {
+      const op = 'operations.backupVerifications.record';
+      return base.guarded(ctx, op, async () => {
+        await base.authorize(ctx, op);
+        return deps.withTenantTransaction(ctx, async (tx) => {
+          const { rows } = await tx.query<{ last: Date | null; at: Date }>(
+            'SELECT max(checked_at) AS last, now() AS at FROM cuspatlas.ops_backup_verifications',
+          );
+          return { lastCheckedAt: rows[0]?.last ?? null, at: rows[0]?.at ?? new Date() };
+        });
+      });
+    },
+
     /** Every unmet operator obligation; ready only when none is unmet. */
     assertReadiness(ctx: ActorContext, query: unknown) {
       const op = 'operations.readiness.assert';

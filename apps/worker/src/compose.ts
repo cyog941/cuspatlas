@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { resolve } from 'node:path';
 import type { ActorContext } from '@cuspatlas/contracts';
 import {
   assertSyntheticDatabaseName,
@@ -8,6 +9,7 @@ import {
   createSecurityAttemptSink,
   createTenantTransactionRunner,
   purgeExpiredCommandIdempotency,
+  verifyBackup,
 } from '@cuspatlas/db';
 import {
   type AgentToolInvoker,
@@ -20,6 +22,8 @@ import {
   createDurableExecutor,
   createImagingAttachmentSource,
   createImagingService,
+  createMigrationService,
+  createPatientService,
   createProposalService,
   type DeliveryAdapter,
   type MessagingPort,
@@ -34,6 +38,12 @@ import {
 } from '@cuspatlas/domain';
 import pg from 'pg';
 import { type AgentTaskOutcome, createAgentTaskRunner } from './agent-tasks';
+import {
+  backupVerificationDue,
+  latestBackupDir,
+  resolveBackupVerificationConfig,
+  runBackupVerificationJob,
+} from './backup-verification';
 import { createWorker, type DispatchResult, IN_PROCESS_AGGREGATES } from './dispatch';
 import { createOutboundSender, type SendResult } from './outbound-sender';
 import { createWebhookDispatcher } from './webhook-dispatch';
@@ -58,6 +68,11 @@ import { createWebhookDispatcher } from './webhook-dispatch';
  *   idempotency records, finished patient-reference observations and expired agent memory (A23).
  * - A23 scheduled agent tasks (only with `agentTools`, the MCP deployment tool path): due tasks run as
  *   their agent through MCP consent, budgets and authorization, the standing policy rechecked.
+ * - M9 backup verification (only with `CUSPATLAS_BACKUP_LOCATION` and
+ *   `CUSPATLAS_RESTORE_ADMIN_DATABASE_URL`; needs `migration.write`): when a served tenant's last
+ *   recorded verification is older than the interval, the latest backup is verified once (digests and
+ *   an isolated sample restore) and recorded for every due tenant through
+ *   `operations.backupVerifications.record`; a verification that cannot run is recorded as failed.
  *
  * No real provider exists yet (E-S1, B partner and processor selection are open), so a provider can
  * only be supplied as a test fake (`syntheticProviders`), which is refused outside synthetic-test. A
@@ -96,10 +111,15 @@ export type WorkerConsumer =
   | 'claimWorkflowTimers'
   | 'imagingReconcile'
   | 'agentTasks'
+  | 'backupVerification'
   | 'maintenance';
 
 export type WorkerMainLogLine =
   | { readonly msg: 'worker_consumer_disabled'; readonly consumer: WorkerConsumer; readonly reason: string }
+  | {
+      readonly msg: 'backup_verification_disabled';
+      readonly reason: 'backup_location_not_configured' | 'restore_target_not_configured';
+    }
   | { readonly msg: 'worker_started'; readonly env: string; readonly tenants: number }
   | { readonly msg: 'worker_tick'; readonly outbox: number; readonly outbound: number }
   | { readonly msg: 'worker_stage_failed'; readonly stage: string; readonly kind: string }
@@ -129,6 +149,10 @@ export interface TickReport {
   readonly outbound: readonly { readonly messageRef: string; readonly result: SendResult }[];
   readonly imagingReconciled: number;
   readonly agentTasks: readonly AgentTaskOutcome[];
+  /** Recorded verifications this tick (empty: none due); null when the job is disabled. */
+  readonly backupVerification:
+    | readonly { readonly tenantId: string; readonly recorded: boolean; readonly result: string | null }[]
+    | null;
   readonly maintenance: {
     readonly idempotencyPurged: number;
     readonly observationsPruned: number;
@@ -151,6 +175,11 @@ export interface ComposedWorker {
   /** Closes the pools this composition opened. */
   close(): Promise<void>;
 }
+
+const MIGRATIONS_DIR = resolve(import.meta.dirname, '../../../supabase/migrations');
+// A routed REST/MCP operation the worker also calls (not a worker-only catalog entry, so the catalog
+// scanner's envelope-literal match must not claim it).
+const BACKUP_RECORD_OPERATION = 'operations.backupVerifications.record';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -216,6 +245,7 @@ export async function composeWorker(
     );
   }
   const log = opts.log ?? (() => undefined);
+  const backupConfig = resolveBackupVerificationConfig(env);
 
   // 2. Pools (synthetic databases only).
   let owned: pg.Pool[] = [];
@@ -352,6 +382,30 @@ export async function composeWorker(
       })
     : null;
   if (!agentTasks) disable('agentTasks', 'no MCP tool path is configured for scheduled agent tasks');
+  const backupVerifier = backupConfig.enabled
+    ? {
+        config: backupConfig,
+        operations: createMigrationService({
+          authorize,
+          withTenantTransaction,
+          recording,
+          execute,
+          matchKeyPepper,
+          // Never called by the worker; the migration service composes it (M patients through S only).
+          patients: createPatientService({
+            authorize,
+            withTenantTransaction,
+            recording,
+            execute,
+            matchKeyPepper,
+          }),
+        }),
+      }
+    : null;
+  if (!backupConfig.enabled) {
+    disabled.push({ consumer: 'backupVerification', reason: backupConfig.reason });
+    log({ msg: 'backup_verification_disabled', reason: backupConfig.reason });
+  }
   if (!pools.maintenance) {
     disable('maintenance', 'no maintenance connection is configured (CUSPATLAS_MAINTENANCE_DATABASE_URL)');
   }
@@ -373,6 +427,9 @@ export async function composeWorker(
       outbound: [] as { messageRef: string; result: SendResult }[],
       imagingReconciled: 0,
       agentTasks: [] as AgentTaskOutcome[],
+      backupVerification: (backupVerifier ? [] : null) as
+        | { tenantId: string; recorded: boolean; result: string | null }[]
+        | null,
       maintenance: null as TickReport['maintenance'],
       errors: [] as { stage: string; kind: string }[],
     };
@@ -420,6 +477,49 @@ export async function composeWorker(
           report.agentTasks.push(...(await agentTasks.runDue(tenantId)));
         });
       }
+    }
+    if (backupVerifier) {
+      await stage('backup_verification', async () => {
+        const { config, operations } = backupVerifier;
+        const ctx = (tenantId: string): ActorContext => ({
+          ...serviceCtx(tenantId),
+          scopes: ['migration.write'],
+        });
+        const due: string[] = [];
+        for (const tenantId of tenants) {
+          await stage('backup_verification_due', async () => {
+            const last = await operations.lastBackupVerification(ctx(tenantId));
+            if (backupVerificationDue(last.lastCheckedAt, last.at, config.intervalSeconds))
+              due.push(tenantId);
+          });
+        }
+        if (due.length === 0) return;
+        // One deployment-level verification per tick, recorded for every due tenant.
+        let verified: Promise<Awaited<ReturnType<typeof verifyBackup>>> | null = null;
+        const verify = () => {
+          verified ??= verifyBackup({
+            backupDir: latestBackupDir(config.location),
+            conn: config.restore,
+            migrationsDir: MIGRATIONS_DIR,
+            sampleTarget: `cuspatlas_synthetic_backup_verify_${Date.now().toString(36)}${randomUUID().slice(0, 8)}`,
+          });
+          return verified;
+        };
+        for (const tenantId of due) {
+          const out = await runBackupVerificationJob({
+            verify,
+            record: async (input) =>
+              (
+                await operations.recordBackupVerification(ctx(tenantId), {
+                  operation: BACKUP_RECORD_OPERATION,
+                  idempotencyKey: randomUUID(),
+                  payload: input,
+                })
+              ).data,
+          });
+          report.backupVerification?.push({ tenantId, ...out });
+        }
+      });
     }
     const maintenancePool = pools.maintenance;
     if (maintenancePool) {

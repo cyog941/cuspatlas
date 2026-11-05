@@ -170,6 +170,7 @@ describe('worker composition against the test database', () => {
     try {
       expect(w.disabled.map((d) => d.consumer).sort()).toStrictEqual([
         'agentTasks',
+        'backupVerification',
         'claimWorkflowTimers',
         'outboundMessages',
         'outboxDelivery',
@@ -341,8 +342,9 @@ describe('worker composition against the test database', () => {
       log: (l) => lines.push(l),
     });
     try {
-      // Only the A23 scheduled-task consumer (no MCP tool path in this composition).
-      expect(w.disabled.map((d) => d.consumer)).toStrictEqual(['agentTasks']);
+      // Only the A23 scheduled-task consumer (no MCP tool path in this composition) and M9 backup
+      // verification (no backup location; worker-backup-verification.test.ts covers it).
+      expect(w.disabled.map((d) => d.consumer)).toStrictEqual(['agentTasks', 'backupVerification']);
       const first = await w.tick();
       expect(first.errors).toStrictEqual([]);
       // B: the first tick consumed the procedure into a charge, so the claim can be prepared now.

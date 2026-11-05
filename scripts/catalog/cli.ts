@@ -14,6 +14,13 @@ import {
 } from './baseline';
 import { buildCatalog, ROOT, stableJson } from './build-catalog';
 import { openApiQueryParams, renderClient } from './client';
+import {
+  assertNoEntitlementGate,
+  describeCoverage,
+  parseCapabilityMatrix,
+  renderCoverageMd,
+  renderNoTierMd,
+} from './coverage';
 import { renderCatalogMd, renderScopesMd, renderSunsetMd } from './docs';
 import { buildScopeRegistry, registeredScopes } from './scopes';
 
@@ -50,6 +57,15 @@ export function generatedArtifacts(
     'docs/api/operation-catalog.md': renderCatalogMd(catalog),
     'docs/api/scopes.md': renderScopesMd(registry),
     'docs/api/sunset-register.md': renderSunsetMd(DEPRECATIONS),
+    // A19: capability coverage and the no-tier attestation (a FAIL attestation is still rendered).
+    'docs/api/capability-coverage.md': renderCoverageMd(
+      describeCoverage({
+        catalog,
+        matrix: parseCapabilityMatrix(readFileSync(resolve(ROOT, 'docs/CAPABILITIES.md'), 'utf8')),
+        scopes: registeredScopes(),
+      }),
+    ),
+    'docs/api/no-tier-attestation.md': renderNoTierMd(assertNoEntitlementGate({ catalog }), catalog.length),
   };
 }
 

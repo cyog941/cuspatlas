@@ -116,11 +116,15 @@ export function createHuddleReads(base: ComposerBase) {
           const read = Object.values(FLAGS)
             .filter((f) => allowed.get(f.key) && f.key !== 'forms')
             .map((f) => f.key);
-          if (appointments.length > 0 && allowed.get('patient'))
+          // Any returned patient-linked section (identity, eligibility, balance, labs, clinical) is a
+          // sensitive read, not only the identity section.
+          const seen = [...new Set(appointments.map((a) => a.patientRef))];
+          if (seen.length > 0 && read.length > 0)
             await recordSensitiveRead(tx, {
               operation: op,
               resourceType: 'patient',
-              resourceRefs: [...new Set(appointments.map((a) => a.patientRef))].slice(0, 100),
+              resourceRefs: seen.slice(0, 100),
+              ...(seen.length > 100 ? { totalCount: seen.length } : {}),
               // Which sections were read (clinical and financial), never their values.
               queryFields: read,
             });

@@ -219,7 +219,12 @@ export function createReadComposers(base: ComposerBase, producers: ComposerProdu
         ]),
       );
     }
-    if (allowed.get('patient') && refs.length > 0) {
+    // Any returned patient-linked component (identity, coverage, balance, planned procedures) is a
+    // sensitive read, not only the identity component.
+    const linked =
+      [patients, coverage, balance].some((m) => [...m.values()].some((c) => c.status === 'ok')) ||
+      [...procedures.values()].some((c) => c.status === 'ok');
+    if (linked && refs.length > 0) {
       await recordSensitiveRead(tx, {
         operation,
         resourceType: 'patient',

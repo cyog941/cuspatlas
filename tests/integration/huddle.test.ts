@@ -175,3 +175,32 @@ describe('A18 daily huddle', () => {
     expect((await h.call('a2', 'GET', HUDDLE)).statusCode).toBe(403);
   });
 });
+
+describe('A batch 3 hardening: huddle sensitive reads', () => {
+  it('logs a sensitive read when a balance section is returned without patients.read', async () => {
+    const scopes = (
+      await db.admin.query('SELECT scopes FROM cuspatlas.memberships WHERE principal_id = $1', [USER_A4])
+    ).rows[0].scopes as string[];
+    await db.admin.query('UPDATE cuspatlas.memberships SET scopes = $2::text[] WHERE principal_id = $1', [
+      USER_A4,
+      [...scopes.filter((s) => s !== 'patients.read'), 'ledger.read'],
+    ]);
+    try {
+      const n = async () =>
+        (
+          await db.admin.query(
+            `SELECT count(*)::int AS n FROM cuspatlas.sensitive_read_events WHERE operation = 'huddle.read'`,
+          )
+        ).rows[0].n as number;
+      const before = await n();
+      const a = h.ok<{ data: Json }>(await h.call('a4', 'GET', HUDDLE)).data.appointments[0];
+      expect([a.patient.status, a.balance.status]).toEqual(['restricted', 'ok']);
+      expect(await n()).toBe(before + 1);
+    } finally {
+      await db.admin.query('UPDATE cuspatlas.memberships SET scopes = $2::text[] WHERE principal_id = $1', [
+        USER_A4,
+        scopes,
+      ]);
+    }
+  });
+});

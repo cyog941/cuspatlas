@@ -300,6 +300,26 @@ describe('A21 appointment detail (OR-10)', () => {
 });
 
 describe('A batch 3 hardening: appointment detail', () => {
+  it('logs a sensitive read when only a billing component of the patient is returned', async () => {
+    await db.admin.query('UPDATE cuspatlas.memberships SET scopes = $2::text[] WHERE principal_id = $1', [
+      USER_A4,
+      ['scheduling.read', 'ledger.read'],
+    ]);
+    try {
+      const before = await count(db, 'sensitive_read_events');
+      const d = h.ok<{ data: Json }>(
+        await h.call('a4', 'GET', `/v1/appointments/${appointment}/detail`),
+      ).data;
+      expect([d.patient.status, d.balance.status]).toEqual(['restricted', 'ok']);
+      expect(await count(db, 'sensitive_read_events')).toBe(before + 1);
+    } finally {
+      await db.admin.query('UPDATE cuspatlas.memberships SET scopes = $2::text[] WHERE principal_id = $1', [
+        USER_A4,
+        ['scheduling.read', 'patients.read'],
+      ]);
+    }
+  });
+
   it('reports a missing patient row as unavailable, not restricted, when patients.read is held', async () => {
     const c = await db.admin.connect();
     try {

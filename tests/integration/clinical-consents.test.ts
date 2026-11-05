@@ -17,6 +17,7 @@ import {
 } from './support/appointment-fixtures';
 import { seedClinicalScopes } from './support/clinical-fixtures';
 import { openTestDatabase, type TestDatabase } from './support/db';
+import { seedPracticeFees } from './support/fee-fixtures';
 import { ctxFor, USER_A4 } from './support/fixtures';
 import { MARKER } from './support/marker';
 import { patientBody } from './support/patient-fixtures';
@@ -39,6 +40,8 @@ beforeAll(async () => {
   db = await openTestDatabase('clinical_consents');
   h = await openAppointmentHarness(db, { mcp: true });
   await seedClinicalScopes(db.admin);
+  // C12 -> B9: the supplied line fee must equal the server practice fee.
+  await seedPracticeFees(db, [['SYN-PROC-300', 5000]]);
   await db.admin.query(
     `INSERT INTO cuspatlas.clinical_consent_method_policies (tenant_id, method, witness_required)
      VALUES ($1, 'verbal_attested', true), ($1, 'in_person', false), ($1, 'paper', false), ($1, 'portal', false)

@@ -17,6 +17,7 @@ import {
 } from './support/appointment-fixtures';
 import { seedClinicalScopes } from './support/clinical-fixtures';
 import { openTestDatabase, type TestDatabase } from './support/db';
+import { seedPracticeFees } from './support/fee-fixtures';
 import { ctxFor } from './support/fixtures';
 import { MARKER } from './support/marker';
 
@@ -35,10 +36,20 @@ const DAY = 86_400_000;
 const fresh = () => new Date(Date.now() - DAY).toISOString();
 const old = () => new Date(Date.now() - 90 * DAY).toISOString();
 
+let feeVersion: string;
+
 beforeAll(async () => {
   db = await openTestDatabase('clinical_estimates');
   h = await openAppointmentHarness(db, { mcp: true });
   await seedClinicalScopes(db.admin);
+  // C12 -> B9: every line fee is the server's practice fee (synthetic schedule).
+  feeVersion = (
+    await seedPracticeFees(db, [
+      ['SYN-PROC-100', 10_000],
+      ['SYN-PROC-101', 10_000],
+      ['SYN-PROC-200', 25_000],
+    ])
+  ).versionRef;
 });
 
 afterAll(async () => {
@@ -119,8 +130,8 @@ const present = (estimateRef: string, body: Record<string, unknown> = {}, who = 
   h.call(who, 'POST', `${EST}/${estimateRef}/presentation`, body);
 const accept = (estimateRef: string, expectedRevision: number, extra: Record<string, unknown> = {}) =>
   h.call('a1', 'POST', `${EST}/${estimateRef}/acceptance`, { expectedRevision, scope: 'full', ...extra });
-const lines = (items: string[], minor = 10_000) =>
-  items.map((planItemRef) => ({ planItemRef, fee: USD(minor) }));
+// The fee is no longer caller-supplied: B9's practice fee is authoritative (a supplied fee is only a check).
+const lines = (items: string[], _minor?: number) => items.map((planItemRef) => ({ planItemRef }));
 async function read(estimateRef: string, who = 'a1') {
   const json = h.ok<{ data: Estimate }>(await h.call(who, 'GET', `${EST}/${estimateRef}`));
   expect(validateEstimateRead(json)).toBe(true);
@@ -218,10 +229,10 @@ describe('C12 acceptance cases', () => {
 
   it('3. unknown coverage presents a labelled unknown and never a guaranteed patient responsibility', async () => {
     const a = await plan('Synthetic Estimate Unknown');
-    const e = okE(await generate(a.versionRef, { lines: lines(a.items, 15_000) }));
+    const e = okE(await generate(a.versionRef, { lines: lines(a.items) }));
     expect([e.coverageStatus, e.grossAmount, e.patientResponsibility, e.notAGuarantee]).toStrictEqual([
       'unknown',
-      USD(30_000),
+      USD(20_000),
       { kind: 'unknown', label: 'coverage_unknown' },
       true,
     ]);
@@ -237,7 +248,7 @@ describe('C12 acceptance cases', () => {
     );
     expect([r.coverageStatus, r.patientResponsibility]).toStrictEqual([
       'entered',
-      { kind: 'range', low: USD(0), high: USD(30_000), basis: 'coverage_not_applied' },
+      { kind: 'range', low: USD(0), high: USD(20_000), basis: 'coverage_not_applied' },
     ]);
   });
 
@@ -257,10 +268,11 @@ describe('C12 acceptance cases', () => {
       422,
       'itemWithoutFeeScheduleRef',
     ]);
+    // A supplied fee is only a check against B9's fee: a different one is refused.
     const mixed = await generate(a.versionRef, {
       lines: [{ planItemRef: a.items[0], fee: { currency: 'EUR', minor: 1 } }, ...lines([])],
     });
-    expect(mixed.statusCode).toBe(201);
+    expect(refusal(mixed)).toStrictEqual([409, 'fee_mismatch']);
     const negative = await generate(a.versionRef, { lines: [{ planItemRef: a.items[0], fee: USD(-1) }] });
     expect([negative.statusCode, negative.json().detail?.violations?.[0]?.rule]).toStrictEqual([
       422,
@@ -287,17 +299,14 @@ describe('C12 acceptance cases', () => {
       await h.call('a1', 'GET', `${PLANS}/${a.planRef}`),
     );
     expect(p.data.versions[0]?.state).toBe('draft');
-    // Mixed currencies across lines are refused.
+    // Caller-supplied fees in other currencies are refused before any currency mix (B9 is authoritative).
     const mixed = await generate(a.versionRef, {
       lines: [
         { planItemRef: a.items[0], fee: USD(1) },
         { planItemRef: a.items[1], fee: { currency: 'EUR', minor: 1 } },
       ],
     });
-    expect([mixed.statusCode, mixed.json().detail?.violations?.[0]?.rule]).toStrictEqual([
-      422,
-      'mixedCurrency',
-    ]);
+    expect(refusal(mixed)).toStrictEqual([409, 'fee_mismatch']);
   });
 
   it('6. another tenant cannot estimate, read or accept; another patient’s plan item is refused', async () => {
@@ -380,10 +389,16 @@ describe('C12 failure and recovery cases', () => {
     const e = okE(
       await generate(a.versionRef, {
         lines: lines(a.items),
-        feeScheduleVersionRef: 'synthetic-fee-schedule-v1',
+        feeScheduleVersionRef: feeVersion,
       }),
     );
-    expect((await read(e.estimateRef)).feeScheduleVersionRef).toBe('synthetic-fee-schedule-v1');
+    // C12 -> B9: the version is the server-resolved B9 schedule version, not a caller label.
+    expect((await read(e.estimateRef)).feeScheduleVersionRef).toBe(feeVersion);
+    const pinned = await generate(a.versionRef, {
+      lines: lines(a.items),
+      feeScheduleVersionRef: 'synthetic-fee-schedule-v1',
+    });
+    expect(refusal(pinned)).toStrictEqual([409, 'fee_schedule_version_mismatch']);
   });
 });
 

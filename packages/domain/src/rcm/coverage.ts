@@ -258,6 +258,87 @@ const toEligibility = (e: EligibilityRow): EligibilityView => ({
  * status C12 estimates read is derived per service date. No estimate is constructed here, and no
  * eligibility result is ever presented as a payment guarantee (CL-01).
  */
+async function eligibilityOf(
+  tx: TenantTransaction,
+  coverageIds: readonly string[],
+  serviceDate: string | null,
+) {
+  // Review S3: a record is current for a service date only when it was checked for that date, on
+  // the coverage's latest version, and it is still inside its freshness window now.
+  const { rows } = await tx.query<EligibilityRow>(
+    `SELECT ${ELIGIBILITY_COLUMNS},
+       (e.service_date = $2::date
+         AND e.coverage_version = (SELECT max(v.coverage_version) FROM cuspatlas.rcm_coverage_versions v
+                                   WHERE v.coverage_id = e.coverage_id)
+         AND now() <= e.retrieved_at + make_interval(hours => e.freshness_hours)) AS current
+     FROM cuspatlas.rcm_eligibility_records e WHERE e.coverage_id = ANY ($1::uuid[])
+     ORDER BY e.retrieved_at, e.created_at, e.id LIMIT 1000`,
+    [[...coverageIds], serviceDate],
+  );
+  return rows;
+}
+
+/**
+ * B5 coverage summaries of a patient's merge set effective on a service date, in benefit order, each
+ * with the latest usable eligibility record, its freshness and the derived status (`entered`,
+ * `stale`, `inactive`, `unknown`). Runs in the caller's tenant transaction; no authorization or
+ * sensitive-read record of its own (`rcm.coverages.resolve` and the C12 estimate seam add theirs).
+ */
+export async function coverageSummariesFor(
+  tx: TenantTransaction,
+  patientIds: readonly string[],
+  serviceDate: string,
+): Promise<CoverageSummary[]> {
+  const { rows } = await tx.query<VersionRow & { payer_ref: string }>(
+    `SELECT ${VERSION_COLUMNS}, c.payer_ref FROM cuspatlas.rcm_coverages c
+     JOIN LATERAL (SELECT * FROM cuspatlas.rcm_coverage_versions x WHERE x.coverage_id = c.id
+                   ORDER BY x.coverage_version DESC LIMIT 1) v ON true
+     WHERE c.patient_id = ANY ($1::uuid[]) AND v.effective_from <= $2::date
+       AND (v.effective_until IS NULL OR v.effective_until >= $2::date)
+     ORDER BY v.benefit_rank, v.effective_from, c.created_at, c.id LIMIT 10`,
+    [patientIds, serviceDate],
+  );
+  const records = await eligibilityOf(
+    tx,
+    rows.map((r) => r.coverage_id),
+    serviceDate,
+  );
+  const coverages: CoverageSummary[] = rows.map((r) => {
+    const mine = records.filter((e) => e.coverage_id === r.coverage_id);
+    const usable = mine.filter((e) => e.state === 'verified' || e.state === 'unverified');
+    const best = usable[usable.length - 1];
+    const last = mine[mine.length - 1];
+    const v = toVersion(r);
+    return {
+      coverageRef: r.coverage_id,
+      coverageVersion: v.coverageVersion,
+      payerRef: r.payer_ref,
+      rank: v.rank,
+      subscriberRef: v.subscriberRef,
+      relationshipToSubscriber: v.relationshipToSubscriber,
+      feeScheduleRef: v.feeScheduleRef,
+      effectiveFrom: v.effectiveFrom,
+      effectiveUntil: v.effectiveUntil,
+      coverageStatus: !best
+        ? 'unknown'
+        : best.current !== true
+          ? 'stale'
+          : best.state === 'verified' &&
+              (best.benefits as { status?: { value?: string } }).status?.value === 'inactive'
+            ? 'inactive'
+            : 'entered',
+      eligibility: best
+        ? { ...toEligibility(best), freshness: best.current === true ? 'current' : 'stale' }
+        : null,
+      latestAttempt: last
+        ? { eligibilityRef: last.id, state: last.state, retrievedAt: last.retrieved_at.toISOString() }
+        : null,
+      paymentAssurance: 'none',
+    };
+  });
+  return coverages;
+}
+
 export function createCoverageOperations(
   base: BillingBase,
   port: EligibilityPort = createFakeEligibilityAdapter(),
@@ -335,26 +416,6 @@ export function createCoverageOperations(
         reasonCode,
       ],
     );
-  }
-
-  async function eligibilityOf(
-    tx: TenantTransaction,
-    coverageIds: readonly string[],
-    serviceDate: string | null,
-  ) {
-    // Review S3: a record is current for a service date only when it was checked for that date, on
-    // the coverage's latest version, and it is still inside its freshness window now.
-    const { rows } = await tx.query<EligibilityRow>(
-      `SELECT ${ELIGIBILITY_COLUMNS},
-         (e.service_date = $2::date
-           AND e.coverage_version = (SELECT max(v.coverage_version) FROM cuspatlas.rcm_coverage_versions v
-                                     WHERE v.coverage_id = e.coverage_id)
-           AND now() <= e.retrieved_at + make_interval(hours => e.freshness_hours)) AS current
-       FROM cuspatlas.rcm_eligibility_records e WHERE e.coverage_id = ANY ($1::uuid[])
-       ORDER BY e.retrieved_at, e.created_at, e.id LIMIT 1000`,
-      [[...coverageIds], serviceDate],
-    );
-    return rows;
   }
 
   return {
@@ -502,53 +563,7 @@ export function createCoverageOperations(
         return deps.withTenantTransaction(ctx, async (tx) => {
           const patient = await loadPatient(tx, patientRef);
           const set = await mergeSet(tx, patient.id);
-          const { rows } = await tx.query<VersionRow & { payer_ref: string }>(
-            `SELECT ${VERSION_COLUMNS}, c.payer_ref FROM cuspatlas.rcm_coverages c
-             JOIN LATERAL (SELECT * FROM cuspatlas.rcm_coverage_versions x WHERE x.coverage_id = c.id
-                           ORDER BY x.coverage_version DESC LIMIT 1) v ON true
-             WHERE c.patient_id = ANY ($1::uuid[]) AND v.effective_from <= $2::date
-               AND (v.effective_until IS NULL OR v.effective_until >= $2::date)
-             ORDER BY v.benefit_rank, v.effective_from, c.created_at, c.id LIMIT 10`,
-            [set.ids, query.serviceDate],
-          );
-          const records = await eligibilityOf(
-            tx,
-            rows.map((r) => r.coverage_id),
-            query.serviceDate,
-          );
-          const coverages: CoverageSummary[] = rows.map((r) => {
-            const mine = records.filter((e) => e.coverage_id === r.coverage_id);
-            const usable = mine.filter((e) => e.state === 'verified' || e.state === 'unverified');
-            const best = usable[usable.length - 1];
-            const last = mine[mine.length - 1];
-            const v = toVersion(r);
-            return {
-              coverageRef: r.coverage_id,
-              coverageVersion: v.coverageVersion,
-              payerRef: r.payer_ref,
-              rank: v.rank,
-              subscriberRef: v.subscriberRef,
-              relationshipToSubscriber: v.relationshipToSubscriber,
-              feeScheduleRef: v.feeScheduleRef,
-              effectiveFrom: v.effectiveFrom,
-              effectiveUntil: v.effectiveUntil,
-              coverageStatus: !best
-                ? 'unknown'
-                : best.current !== true
-                  ? 'stale'
-                  : best.state === 'verified' &&
-                      (best.benefits as { status?: { value?: string } }).status?.value === 'inactive'
-                    ? 'inactive'
-                    : 'entered',
-              eligibility: best
-                ? { ...toEligibility(best), freshness: best.current === true ? 'current' : 'stale' }
-                : null,
-              latestAttempt: last
-                ? { eligibilityRef: last.id, state: last.state, retrievedAt: last.retrieved_at.toISOString() }
-                : null,
-              paymentAssurance: 'none',
-            };
-          });
+          const coverages = await coverageSummariesFor(tx, set.ids, query.serviceDate);
           const { rows: at } = await tx.query<{ at: Date }>('SELECT now() AS at');
           await recordSensitiveRead(tx, {
             operation: op,

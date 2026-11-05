@@ -24,6 +24,7 @@ import {
 import { buildClinicalRecord } from './support/clinical-record-fixture';
 import { openTestDatabase, type TestDatabase } from './support/db';
 import { seedEngagementScopes } from './support/engagement-fixtures';
+import { seedPracticeFees } from './support/fee-fixtures';
 import { fakeImageResolver } from './support/image-ref-resolver';
 import { seedNoteScopes } from './support/note-fixtures';
 
@@ -50,6 +51,7 @@ beforeAll(async () => {
   source = await openTestDatabase('clinical_export_source');
   h = await openAppointmentHarness(source, { mcp: true, imageRefResolver: images });
   await seedClinicalScopes(source.admin);
+  await seedPracticeFees(source, [['SYN-PROC-X01', 12_000]]);
   await seedNoteScopes(source.admin);
   await seedEngagementScopes(source.admin);
   await seedPerioConfiguration(source.admin, T_ALPHA);

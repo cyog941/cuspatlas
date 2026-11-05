@@ -1302,8 +1302,8 @@
     },
     "CoverageStatus": {
       "type": "string",
-      "enum": ["entered", "unknown", "stale"],
-      "description": "Whether a coverage reference was entered and fresh, absent (unknown) or older than the tolerance (stale). Never an eligibility guarantee."
+      "enum": ["entered", "unknown", "stale", "inactive"],
+      "description": "Whether a coverage reference was entered and fresh, absent (unknown), older than the tolerance (stale), or verified inactive by B5 eligibility (inactive: no insurer portion is applied). Never an eligibility guarantee."
     },
     "CredentialRef": {
       "type": "string",
@@ -1928,6 +1928,9 @@
         "feeScheduleRef": {
           "$ref": "#/$defs/FeeScheduleRef"
         },
+        "feeScheduleVersionRef": {
+          "anyOf": [{ "$ref": "#/$defs/FeeScheduleRef" }, { "type": "null" }]
+        },
         "fee": {
           "$ref": "#/$defs/Money"
         }
@@ -1936,7 +1939,7 @@
     "EstimateLineInput": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["planItemRef", "fee"],
+      "required": ["planItemRef"],
       "properties": {
         "planItemRef": {
           "$ref": "#/$defs/PlanItemRef"
@@ -1945,7 +1948,7 @@
           "$ref": "#/$defs/Money"
         }
       },
-      "description": "A staff-entered per-item fee placeholder for an item that names a fee schedule reference (synthetic; no fee schedule data until B9)."
+      "description": "An item to price. The fee comes from the B9 practice fee schedule effective on the service date; an optional supplied fee is only a check and is refused when it differs (409 fee_mismatch)."
     },
     "EstimateList": {
       "type": "object",
@@ -3593,7 +3596,7 @@
               "$ref": "#/$defs/Money"
             },
             "basis": {
-              "const": "coverage_not_applied"
+              "enum": ["coverage_not_applied", "coverage_inactive"]
             }
           }
         }

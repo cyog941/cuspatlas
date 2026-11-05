@@ -11,6 +11,7 @@ import {
 } from './support/appointment-fixtures';
 import { seedClinicalScopes, seedDispositions } from './support/clinical-fixtures';
 import { openTestDatabase, type TestDatabase } from './support/db';
+import { seedPracticeFees } from './support/fee-fixtures';
 import { SVC_A1 } from './support/fixtures';
 
 /**
@@ -35,6 +36,12 @@ beforeAll(async () => {
   db = await openTestDatabase('clinical_review_hardening_c12');
   h = await openAppointmentHarness(db, { mcp: false });
   await seedClinicalScopes(db.admin);
+  // C12 -> B9: the line fees these tests supply must equal the server practice fee.
+  await seedPracticeFees(db, [
+    ['SYN-PROC-701', 10_000],
+    ['SYN-PROC-702', 10_000],
+    ['SYN-PROC-799', 5_000],
+  ]);
   await seedDispositions(db.admin, T_ALPHA, ['completed_as_planned']);
   await db.admin.query(
     `INSERT INTO cuspatlas.clinical_consent_method_policies (tenant_id, method, witness_required)
@@ -509,7 +516,8 @@ describe('MUST 5: acceptance needs a presented, still-complete estimate', () => 
     ).rows.map((r) => r.id as string);
     const fresh = h.ok<{ data: { estimateRef: string } }>(
       await generate(pl.versionRef, {
-        lines: items.map((planItemRef) => ({ planItemRef, fee: USD(5_000) })),
+        // C12 -> B9: each item is priced at its own server fee (701/702 at 10_000, 799 at 5_000).
+        lines: items.map((planItemRef) => ({ planItemRef })),
       }),
       201,
     ).data;

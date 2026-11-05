@@ -17,6 +17,7 @@ import {
 } from './support/appointment-fixtures';
 import { seedClinicalScopes } from './support/clinical-fixtures';
 import { openTestDatabase, type TestDatabase } from './support/db';
+import { seedPracticeFees } from './support/fee-fixtures';
 import { MARKER } from './support/marker';
 
 /**
@@ -34,6 +35,11 @@ beforeAll(async () => {
   db = await openTestDatabase('clinical_plans');
   h = await openAppointmentHarness(db, { mcp: true });
   await seedClinicalScopes(db.admin);
+  // C12 -> B9: estimates price every line from the server practice schedule (synthetic codes).
+  await seedPracticeFees(
+    db,
+    Array.from({ length: 30 }, (_, i) => [`SYN-PROC-0${String(i + 1).padStart(2, '0')}`, 1000] as const),
+  );
   loc = await seedLocation(h, 'loc-plans');
 });
 
@@ -221,7 +227,7 @@ async function accept(versionRef: string, expectedRevision: number) {
     [versionRef],
   );
   const estimate = await h.call('a1', 'POST', `${PLANS}/versions/${versionRef}/estimates`, {
-    lines: items.rows.map((r) => ({ planItemRef: r.id, fee: { currency: 'USD', minor: 1000 } })),
+    lines: items.rows.map((r) => ({ planItemRef: r.id })),
   });
   if (estimate.statusCode !== 201) throw estimate.json();
   const shown = await h.call(

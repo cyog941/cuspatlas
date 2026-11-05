@@ -9,6 +9,7 @@ import {
   type ClinicalDeps,
   createAppointmentService,
   createAuthorize,
+  createBillingEstimatePricing,
   createClinicalService,
   executeOnce,
   type SchedulingDeps,
@@ -37,6 +38,7 @@ export function domainClinical(db: TestDatabase, extra: Partial<ClinicalDeps> = 
     withTenantTransaction: createTenantTransactionRunner(db.app),
     recording: { sink: createSecurityAttemptSink(db.sink), alert: () => undefined },
     execute: executeOnce,
+    estimatePricing: createBillingEstimatePricing(),
     ...extra,
   });
 }

@@ -17,6 +17,7 @@ import {
   type CursorCodec,
   createAppointmentService,
   createAuthorize,
+  createBillingEstimatePricing,
   createBillingService,
   createClinicalService,
   createClinicalVisitContextProducers,
@@ -303,6 +304,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         ...(deps.cursors ? { cursors: deps.cursors } : {}),
         // C15 -> I3 (integration): the consumer reference read, unless a test injects a double.
         imageRefResolver: deps.imageRefResolver ?? createImagingImageRefResolver(),
+        // C12 -> B9/B5 (integration): server practice fees and coverage status for estimates.
+        estimatePricing: createBillingEstimatePricing(),
       });
       registerClinicalRoutes(app, { authenticator, clinical });
       registerClinicalRecordRoutes(app, { authenticator, clinical });

@@ -73,6 +73,19 @@ export function coverageStatusAt(
     : 'entered';
 }
 
+/**
+ * The coverage status of a stored estimate now. A status B5 decided at generation (`inactive`, or a
+ * `stale` eligibility record) stays; otherwise freshness of the entered sources is re-evaluated.
+ */
+export function coverageNowOf(
+  stored: CoverageStatus,
+  assumptions: readonly { readonly kind: string; readonly sourceAsOf: string | Date }[],
+  at: number,
+): CoverageStatus {
+  if (stored === 'inactive' || stored === 'stale') return stored;
+  return coverageStatusAt(assumptions, at);
+}
+
 /** C-D7: a labelled unknown or a bounded range; never a guaranteed patient-responsibility figure. */
 function responsibility(
   complete: boolean,
@@ -81,6 +94,8 @@ function responsibility(
 ): PatientResponsibility {
   if (!complete || gross === null) return { kind: 'not_available', label: 'estimate_incomplete' };
   if (status === 'unknown') return { kind: 'unknown', label: 'coverage_unknown' };
+  // B5 verified the coverage inactive: no insurer portion, the patient range is the gross alone.
+  if (status === 'inactive') return { kind: 'range', low: gross, high: gross, basis: 'coverage_inactive' };
   return {
     kind: 'range',
     low: { currency: gross.currency, minor: 0 },
@@ -123,10 +138,11 @@ async function project(tx: TenantTransaction, e: EstimateRow): Promise<Estimate>
   const { rows: lines } = await tx.query<{
     item_id: string;
     fee_schedule_ref: string;
+    fee_schedule_version_ref: string | null;
     fee_currency: string;
     fee_minor: string;
   }>(
-    `SELECT l.item_id, l.fee_schedule_ref, l.fee_currency, l.fee_minor::text AS fee_minor
+    `SELECT l.item_id, l.fee_schedule_ref, l.fee_schedule_version_ref, l.fee_currency, l.fee_minor::text AS fee_minor
      FROM cuspatlas.clinical_estimate_lines l
      JOIN cuspatlas.clinical_plan_items i ON i.id = l.item_id AND i.tenant_id = l.tenant_id
      WHERE l.estimate_id = $1 ORDER BY i.sequence, i.created_at, i.id`,
@@ -168,7 +184,8 @@ async function project(tx: TenantTransaction, e: EstimateRow): Promise<Estimate>
       : { currency: e.currency, minor: Number(e.gross_minor) };
   const presentation = pres[0];
   const acceptance = acc[0];
-  const coverageNow = coverageStatusAt(
+  const coverageNow = coverageNowOf(
+    e.coverage_status,
     assumptions.map((a) => ({ kind: a.kind, sourceAsOf: a.source_as_of })),
     Date.now(),
   );
@@ -186,6 +203,7 @@ async function project(tx: TenantTransaction, e: EstimateRow): Promise<Estimate>
     lines: lines.map((l) => ({
       planItemRef: l.item_id,
       feeScheduleRef: l.fee_schedule_ref,
+      feeScheduleVersionRef: l.fee_schedule_version_ref,
       fee: { currency: l.fee_currency, minor: Number(l.fee_minor) },
     })),
     itemsWithoutFee: missing,
@@ -312,8 +330,10 @@ export function createEstimateOperations(base: ClinicalBase) {
         checkEnvelope(envelope, op);
         const p = envelope.payload;
         assertValid<EstimateGenerate>(validateEstimateGenerate, p, CLINICAL_PROPERTIES);
+        const pricing = deps.estimatePricing;
+        if (!pricing) throw conflict('fee_source_unavailable');
         return deps.withTenantTransaction(ctx, async (tx) => {
-          await locateVersion(tx, planVersionRef);
+          const { patient } = await locateVersion(tx, planVersionRef);
           const r = await execute<Ack>(
             ctx,
             { ...envelope, payload: { planVersionRef, ...p } },
@@ -327,15 +347,31 @@ export function createEstimateOperations(base: ClinicalBase) {
               const { rows: items } = await tx.query<{
                 id: string;
                 fee_schedule_ref: string | null;
+                procedure_code_ref: string;
                 state: string;
               }>(
-                `SELECT i.id, i.fee_schedule_ref, (SELECT e.to_state FROM cuspatlas.clinical_plan_item_events e
+                `SELECT i.id, i.fee_schedule_ref, i.procedure_code_ref, (SELECT e.to_state FROM cuspatlas.clinical_plan_item_events e
                    WHERE e.item_id = i.id AND e.tenant_id = i.tenant_id ORDER BY e.sequence DESC LIMIT 1) AS state
                  FROM cuspatlas.clinical_plan_items i WHERE i.plan_version_id = $1`,
                 [planVersionRef],
               );
               const byId = new Map(items.map((i) => [i.id, i]));
+              // The service date is today at the plan version's encounter location (its IANA zone), else UTC;
+              // the location's practice schedule is preferred over the tenant-wide one (B9).
+              const { rows: at } = await tx.query<{ location_id: string | null; service_date: string }>(
+                `SELECT en.location_id,
+                   to_char((now() AT TIME ZONE coalesce(l.time_zone, 'UTC'))::date, 'YYYY-MM-DD') AS service_date
+                 FROM cuspatlas.clinical_plan_versions v
+                 LEFT JOIN cuspatlas.clinical_encounters en ON en.id = v.encounter_id AND en.tenant_id = v.tenant_id
+                 LEFT JOIN cuspatlas.scheduling_locations l ON l.id = en.location_id AND l.tenant_id = en.tenant_id
+                 WHERE v.id = $1`,
+                [planVersionRef],
+              );
+              const serviceDate = at[0]?.service_date ?? new Date().toISOString().slice(0, 10);
+              const locationId = at[0]?.location_id ?? null;
               const seen = new Set<string>();
+              const priced: { planItemRef: string; fee: Money; scheduleRef: string; versionRef: string }[] =
+                [];
               let currency: string | null = null;
               let gross = 0;
               for (const [n, line] of p.lines.entries()) {
@@ -347,17 +383,51 @@ export function createEstimateOperations(base: ClinicalBase) {
                 seen.add(item.id);
                 if (item.fee_schedule_ref === null)
                   throw failedAt(`/lines/${n}/planItemRef`, 'itemWithoutFeeScheduleRef');
-                if (line.fee.minor < 0) throw failedAt(`/lines/${n}/fee/minor`, 'negativeFee');
-                if (line.fee.minor > 10_000_000_000) throw failedAt(`/lines/${n}/fee/minor`, 'feeTooLarge');
-                if (currency !== null && line.fee.currency !== currency)
+                if (line.fee !== undefined && line.fee.minor < 0)
+                  throw failedAt(`/lines/${n}/fee/minor`, 'negativeFee');
+                if (line.fee !== undefined && line.fee.minor > 10_000_000_000)
+                  throw failedAt(`/lines/${n}/fee/minor`, 'feeTooLarge');
+                // B9 is authoritative: no configured fee leaves the item unpriced (never a guessed amount);
+                // a supplied fee is only a check and is refused when it differs from the server's.
+                const server = await pricing.practiceFee(tx, {
+                  procedureCodeRef: item.procedure_code_ref,
+                  serviceDate,
+                  locationId,
+                });
+                if (
+                  line.fee !== undefined &&
+                  (server === null ||
+                    server.fee.currency !== line.fee.currency ||
+                    server.fee.minor !== line.fee.minor)
+                ) {
+                  throw conflict('fee_mismatch', { blockingRefs: [{ kind: 'planItem', ref: item.id }] });
+                }
+                if (server === null) continue;
+                if (server.fee.minor > 10_000_000_000) throw failedAt(`/lines/${n}/fee/minor`, 'feeTooLarge');
+                if (currency !== null && server.fee.currency !== currency)
                   throw failedAt(`/lines/${n}/fee/currency`, 'mixedCurrency');
-                currency = line.fee.currency;
-                gross += line.fee.minor;
+                currency = server.fee.currency;
+                gross += server.fee.minor;
+                priced.push({ planItemRef: item.id, ...server });
               }
-              const missing = await itemsWithoutFee(tx, planVersionRef, [...seen]);
-              const complete = items.length > 0 && missing.length === 0 && seen.size > 0;
+              const missing = await itemsWithoutFee(
+                tx,
+                planVersionRef,
+                priced.map((l) => l.planItemRef),
+              );
+              const complete = items.length > 0 && missing.length === 0 && priced.length > 0;
+              const versions = [...new Set(priced.map((l) => l.versionRef))];
+              if (
+                p.feeScheduleVersionRef !== undefined &&
+                versions.some((v) => v !== p.feeScheduleVersionRef)
+              )
+                throw conflict('fee_schedule_version_mismatch');
               const assumptions: readonly EstimateAssumptionInput[] = p.assumptions ?? [];
-              const status = coverageStatusAt(assumptions, Date.now());
+              const fromSources = coverageStatusAt(assumptions, Date.now());
+              // B5 decides inactive or stale eligibility; entered coverage values stay caller-sourced.
+              const b5 = await pricing.coverage(tx, patient.id, serviceDate);
+              const status: CoverageStatus =
+                b5 === 'inactive' ? 'inactive' : b5 === 'stale' ? 'stale' : fromSources;
               const head = await currentOf(tx, planVersionRef);
               if ((head?.number ?? 0) >= MAX_ESTIMATES) throw failedAt('/', 'tooManyEstimates');
               const { rows } = await tx.query<{ id: string }>(
@@ -369,7 +439,7 @@ export function createEstimateOperations(base: ClinicalBase) {
                   planVersionRef,
                   (head?.number ?? 0) + 1,
                   head?.id ?? null,
-                  p.feeScheduleVersionRef ?? null,
+                  versions.length === 1 ? versions[0] : null,
                   complete ? currency : null,
                   complete ? gross : null,
                   complete,
@@ -378,16 +448,17 @@ export function createEstimateOperations(base: ClinicalBase) {
               );
               const id = rows[0]?.id;
               if (!id) throw new Error('insert returned no row');
-              for (const line of p.lines) {
+              for (const line of priced) {
                 await tx.query(
                   `INSERT INTO cuspatlas.clinical_estimate_lines (tenant_id, estimate_id, plan_version_id, item_id,
-                   fee_schedule_ref, fee_currency, fee_minor)
-                 VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6)`,
+                   fee_schedule_ref, fee_schedule_version_ref, fee_currency, fee_minor)
+                 VALUES (cuspatlas.current_tenant_id(), $1, $2, $3, $4, $5, $6, $7)`,
                   [
                     id,
                     planVersionRef,
                     line.planItemRef,
-                    byId.get(line.planItemRef)?.fee_schedule_ref,
+                    line.scheduleRef,
+                    line.versionRef,
                     line.fee.currency,
                     line.fee.minor,
                   ],
@@ -450,7 +521,8 @@ export function createEstimateOperations(base: ClinicalBase) {
               'SELECT kind, source_as_of FROM cuspatlas.clinical_estimate_assumptions WHERE estimate_id = $1',
               [e.id],
             );
-            const status = coverageStatusAt(
+            const status = coverageNowOf(
+              e.coverage_status,
               assumptions.map((a) => ({ kind: a.kind, sourceAsOf: a.source_as_of })),
               Date.now(),
             );
@@ -560,7 +632,8 @@ export function createEstimateOperations(base: ClinicalBase) {
               'SELECT kind, source_as_of FROM cuspatlas.clinical_estimate_assumptions WHERE estimate_id = $1',
               [e.id],
             );
-            const coverageNow = coverageStatusAt(
+            const coverageNow = coverageNowOf(
+              e.coverage_status,
               assumptions.map((a) => ({ kind: a.kind, sourceAsOf: a.source_as_of })),
               Date.now(),
             );

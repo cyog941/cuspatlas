@@ -13,12 +13,13 @@ import { createAjv } from './validation';
 // Money is the shared definition (money.ts), merged with workstream B.
 export type { Money };
 
-export type CoverageStatus = 'entered' | 'unknown' | 'stale';
+export type CoverageStatus = 'entered' | 'unknown' | 'stale' | 'inactive';
 export type EstimateAssumptionKind = 'coverage' | 'discount';
 
 export interface EstimateLineInput {
   readonly planItemRef: string;
-  readonly fee: Money;
+  /** Optional check only: the B9 practice fee is authoritative and a differing fee is refused (409). */
+  readonly fee?: Money;
 }
 export interface EstimateAssumptionInput {
   readonly kind: EstimateAssumptionKind;
@@ -50,7 +51,7 @@ export type PatientResponsibility =
       readonly kind: 'range';
       readonly low: Money;
       readonly high: Money;
-      readonly basis: 'coverage_not_applied';
+      readonly basis: 'coverage_not_applied' | 'coverage_inactive';
     };
 
 export interface EstimateConsentBinding {
@@ -81,6 +82,7 @@ export interface Estimate {
   readonly lines: readonly {
     readonly planItemRef: string;
     readonly feeScheduleRef: string;
+    readonly feeScheduleVersionRef?: string | null;
     readonly fee: Money;
   }[];
   readonly itemsWithoutFee: readonly string[];

@@ -10,6 +10,7 @@ import {
 import { seedClinicalScopes, seedPerioConfiguration } from './support/clinical-fixtures';
 import { buildClinicalRecord } from './support/clinical-record-fixture';
 import { openTestDatabase, type TestDatabase } from './support/db';
+import { seedPracticeFees } from './support/fee-fixtures';
 import { fakeImageResolver } from './support/image-ref-resolver';
 import { seedNoteScopes } from './support/note-fixtures';
 
@@ -30,6 +31,7 @@ beforeAll(async () => {
   db = await openTestDatabase('clinical_immutability');
   h = await openAppointmentHarness(db, { mcp: false, imageRefResolver: images });
   await seedClinicalScopes(db.admin);
+  await seedPracticeFees(db, [['SYN-PROC-X01', 12_000]]);
   await seedNoteScopes(db.admin);
   await seedPerioConfiguration(db.admin, T_ALPHA);
   await db.admin.query(

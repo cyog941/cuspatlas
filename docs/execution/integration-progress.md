@@ -17,7 +17,7 @@ Status values: not started, in progress, blocked with cause, verified (on synthe
 | 5. Merge `codex/i-imaging-1` (4bf86c5) | verified | merge commit | 22 conflicted files; merge-registry mirror gains `imagingAssociation` (`20261125030000`) |
 | 6. I seams (C15 and E resolvers to I3, S+I+C+E import) | verified | step 6 commit | no migration |
 | 7. Merge `codex/b-billing-1` (344256f) | verified | merge commit | 11 conflicted files |
-| 8. B seams (C12 fees and coverage, CL-04 to I3, five-way round trip) | not started | | |
+| 8. B seams (C12 fees and coverage, CL-04 to I3, five-way round trip) | in progress (C12 done) | | |
 
 ## 1. Merge of codex/e-portal-1
 
@@ -80,6 +80,16 @@ Test fix: `portal-requests.test.ts` asserted every table whose name contains `re
 Merged at 99d7da6 and completed to 344256f (B8/CL/B10 review fixes, migration 20261120140000) before committing; one merge commit. B already contained S and C up to 4fbde64. Conflicts (both sides kept): billing, clinical, engagement and imaging schema exports, contract-drift (billing ref prefix in the same ternary chain as clinical, engagement and imaging; B's generated-block check kept), API, contracts and db index exports (B's  and  beside the integration modules), MCP path parameters, replay codecs ( in ; B's service runs the keyed durable executor like every other), runtime-role table list, task records. B's  helper in  is the same New York date fix and was taken. : B's histogram diff is additions only (info line, generated  block, two component blocks); applied to the integration version; the drift check passes.
 
 Test fixes: `portal-requests.test.ts` also excludes `billing_`/`rcm_` tables from the appointment-request check; `clinical-parity.test.ts` (C's parser of the negative-harness COMMANDS table) now reads B's spread of `[operation, tool, ...]` tuples instead of refusing it.
+
+## 8. B seams
+
+### 8.1 C12 estimates -> B9 fees and B5 coverage
+
+- Port `ClinicalDeps.estimatePricing` (`packages/domain/src/clinical/estimate-pricing.ts`), implemented by `createBillingEstimatePricing()` in `packages/domain/src/integration/estimate-pricing.ts` over B9 `resolvePracticeFee` and B5 `coverageSummariesFor` (extracted from `rcm.coverages.resolve`, `eligibilityOf` moved to module level). Injected in the API and MCP builders and the domain test harness; absent, estimate generation is refused typed (`fee_source_unavailable`), never priced from client input.
+- Each line's fee is the B9 practice fee for the item's `procedure_code_ref` on the service date (today in the plan version's encounter location IANA zone, else UTC; location schedule before tenant-wide). Line `fee` is optional: a supplied fee that differs, or one for an item B9 does not price, is `409 fee_mismatch`. An item with no configured fee is left unpriced (`itemsWithoutFee`, estimate incomplete, no amount). Each line records `feeScheduleVersionRef`; the estimate header records the single version (null when lines span versions). A caller `feeScheduleVersionRef` is a pin: a different resolved version is `409 fee_schedule_version_mismatch`.
+- `CoverageStatus` gains `inactive` (contracts, `clinical.schema.json`, migration `20261125040000_integration_estimate_pricing.sql` replacing both unnamed CHECKs found by a DO block, plus the nullable line version column). B5 `inactive` gives range low = high = gross with basis `coverage_inactive` (no insurer portion); B5 `stale` gives `stale`; otherwise the entered sources decide as before. A B5-decided `inactive`/`stale` stays on read. `notAGuarantee` unchanged.
+- Tests: `tests/integration/integration-estimate-pricing.test.ts` (6: server fee and version, mismatch 409 writing nothing, missing fee incomplete, new fee version reprices and pin refused, inactive no insurer portion, stale). Red: 6 failed, exit 1; green: 6 passed. Existing C12 tests seed B9 through `tests/integration/support/fee-fixtures.ts` (`seedPracticeFees`) and assertions that relied on caller fees were updated (EUR/mixed caller fees now `409 fee_mismatch`). `corepack pnpm run ci` exit 0: 125 files, 2830 tests.
+- Not done: no insurer portion is computed from B5 benefits or B9 allowances (`resolveAllowance`); the estimate still shows a bounded range only.
 
 ## Open items
 

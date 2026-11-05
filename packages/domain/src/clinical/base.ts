@@ -13,6 +13,7 @@ import { executeOnce } from '../commands/execute-once';
 import type { CommandExecutor } from '../commands/executor';
 import { type CursorCodec, createCursorCodec } from '../cursor';
 import type { ActionName, AuthorizationDecision, Authorize } from '../policy/authorize';
+import type { EstimatePricing } from './estimate-pricing';
 import type { ImageRefResolver } from './image-links';
 
 /**
@@ -30,6 +31,8 @@ export interface ClinicalDeps {
   readonly cursors?: CursorCodec;
   /** C15: the I3 imageRef seam. Absent: image link commands are refused typed (not fabricated). */
   readonly imageRefResolver?: ImageRefResolver;
+  /** C12: the B9 practice fee and B5 coverage reads. Absent: estimates are refused typed (no client fee). */
+  readonly estimatePricing?: EstimatePricing;
 }
 
 export interface ClinicalBase {

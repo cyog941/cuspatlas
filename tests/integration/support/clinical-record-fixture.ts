@@ -110,7 +110,8 @@ export async function buildClinicalRecord(
   await post(`${PLANS}/items/${item}/state`, { expectedRevision: 3, state: 'accepted' }, 200);
   const est = (
     await post<{ estimateRef: string }>(`${PLANS}/versions/${v}/estimates`, {
-      lines: [{ planItemRef: item, fee: { currency: 'USD', minor: 12_000 } }],
+      // C12 -> B9: the fee is the server practice fee (callers seed SYN-PROC-X01).
+      lines: [{ planItemRef: item }],
     })
   ).estimateRef;
   await post(`/v1/clinical/estimates/${est}/presentation`, {}, 200);

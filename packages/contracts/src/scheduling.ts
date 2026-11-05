@@ -972,3 +972,52 @@ export interface SchedulingExport {
   readonly exportedAt: string;
   readonly tables: Readonly<Record<string, readonly Record<string, unknown>[]>>;
 }
+
+/** S20 (OR-05): bounded per-location staging list for appointments being moved. */
+export type StagingEntryState = 'staged' | 'moved' | 'removed';
+export interface StagingSettings {
+  readonly locationRef: string;
+  readonly capacity: number;
+}
+export interface StagingAdd {
+  readonly locationRef: string;
+  readonly appointmentRef?: string;
+  readonly requestRef?: string;
+  readonly reasonCode: string;
+}
+export interface StagingRemove {
+  readonly expectedVersion: number;
+  readonly reasonCode: string;
+}
+export type StagingMove = AppointmentReschedule;
+export interface StagingEntry {
+  readonly entryRef: string;
+  readonly locationRef: string;
+  readonly subjectKind: 'appointment' | 'request';
+  readonly subjectRef: string;
+  readonly state: StagingEntryState;
+  readonly reasonCode: string;
+  readonly subjectStatus: string;
+  readonly startsAt?: string | null;
+  readonly endsAt?: string | null;
+  readonly stagedAt: string;
+  readonly version: number;
+}
+export interface StagingList {
+  readonly locationRef: string;
+  readonly capacity: number;
+  readonly items: readonly StagingEntry[];
+  readonly envelope: ListEnvelope;
+}
+export interface StagingMoveData {
+  readonly entryRef: string;
+  readonly state: 'moved';
+  readonly previousAppointmentRef: string;
+  readonly appointmentRef: string;
+}
+export const validateStagingListQuery = def('StagingListQuery');
+export const validateStagingSettings = def('StagingSettings');
+export const validateStagingAdd = def('StagingAdd');
+export const validateStagingRemove = def('StagingRemove');
+export const validateStagingMove = def('StagingMove');
+

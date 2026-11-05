@@ -484,6 +484,72 @@ export const SCHEDULING_OPS: readonly SchedulingOp[] = [
       'Follow-up work items: open recall tasks, unbooked requests and requests whose booking was lost, each with reason, owner, due time and next action. Treatment, lab and referral follow-up are listed as not covered (C11, C16, C17).',
     invoke: (svc, actor, i) => data(svc.followUpWorklist(actor, i.body)),
   },
+  // S20 (OR-05) bounded staging list.
+  {
+    method: 'get',
+    path: '/v1/scheduling/staging',
+    operationId: 'scheduling.staging.list',
+    protected: true,
+    success: { status: '200', schema: S('StagingList') },
+    refusals: ['400', '401', '403', '404', '503'],
+    query: 'StagingListQuery',
+    tool: 'scheduling_staging_list',
+    description:
+      'Staging list of one location (appointments being moved and requests awaiting a slot) with its capacity. A staged appointment keeps its booking and occupancy; staging is not an appointment state.',
+    invoke: (svc, actor, i) => data(svc.listStaging(actor, i.body)),
+  },
+  {
+    method: 'post',
+    path: '/v1/scheduling/staging/settings',
+    operationId: 'scheduling.staging.configure',
+    protected: true,
+    requestBody: S('StagingSettings'),
+    success: { status: '200', schema: S('StagingSettingsResult') },
+    refusals: COMMAND,
+    tool: 'scheduling_staging_configure',
+    description: 'Set the staging list capacity of a location (default 10). Practice configuration; audited.',
+    invoke: (svc, actor, i) => svc.configureStaging(actor, env('scheduling.staging.configure', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/scheduling/staging/entries',
+    operationId: 'scheduling.staging.add',
+    protected: true,
+    requestBody: S('StagingAdd'),
+    success: { status: '201', schema: S('StagingEntryResult') },
+    refusals: COMMAND,
+    tool: 'scheduling_staging_add',
+    description:
+      'Stage a booked appointment (it keeps its slot) or an open request. Over capacity is a typed conflict naming the capacity. Audited.',
+    invoke: (svc, actor, i) => svc.addStagingEntry(actor, env('scheduling.staging.add', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/scheduling/staging/entries/{entryRef}/remove',
+    operationId: 'scheduling.staging.remove',
+    protected: true,
+    requestBody: S('StagingRemove'),
+    success: { status: '200', schema: S('StagingEntryResult') },
+    refusals: COMMAND,
+    tool: 'scheduling_staging_remove',
+    description: 'Remove an entry from the staging list (the booking is untouched). Audited; never deleted.',
+    invoke: (svc, actor, i) =>
+      svc.removeStagingEntry(actor, param(i, 'entryRef'), env('scheduling.staging.remove', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/scheduling/staging/entries/{entryRef}/move',
+    operationId: 'scheduling.staging.move',
+    protected: true,
+    requestBody: S('StagingMove'),
+    success: { status: '200', schema: S('StagingMoveResult') },
+    refusals: COMMAND,
+    tool: 'scheduling_staging_move',
+    description:
+      'Move a staged appointment to a new slot through the S10 reschedule, atomically; a conflict leaves the original booking and the entry intact. A request entry is booked through scheduling.appointments.book.',
+    invoke: (svc, actor, i) =>
+      svc.moveStagingEntry(actor, param(i, 'entryRef'), env('scheduling.staging.move', i)),
+  },
   // S17 minimal export (M1 owns the full export contract).
   {
     method: 'get',

@@ -8,6 +8,7 @@ import { createRecallOperations } from './recall';
 import { createRecurrenceOperations, recordSeriesException } from './recurrence';
 import { createRequestOperations, type LinkHook, linkRequestToBookingIn } from './requests';
 import type { SchedulingDeps } from './resources';
+import { createStagingOperations, type RescheduleWithGuard } from './staging';
 import { createVisitContextOperations } from './visit-context';
 import { createWaitlistOperations, openRecoveryIn } from './waitlist';
 
@@ -41,6 +42,24 @@ export function createAppointmentService(deps: SchedulingDeps) {
   const waitlist = createWaitlistOperations(base);
   const recall = createRecallOperations(base);
   const exports = createExportOperations(base);
+  const rescheduleWith = (
+    ctx: ActorContext,
+    appointmentRef: string,
+    envelope: CommandEnvelope<unknown>,
+    extra?: (tx: TenantTransaction) => Promise<void>,
+  ) =>
+    booking.rescheduleAppointment(
+      ctx,
+      appointmentRef,
+      envelope,
+      async (tx, id, reason) => {
+        await bookingAttendanceGuard(tx, 'scheduling.appointments.reschedule', id, 'rescheduled', reason);
+        await recordSeriesException(tx, id, 'rescheduled', reason);
+        if (extra) await extra(tx);
+      },
+      { versionCheckedByGuard: extra !== undefined },
+    );
+  const staging = createStagingOperations(base, rescheduleWith as RescheduleWithGuard);
   const bookingStillActive = async (tx: TenantTransaction, appointmentId: string) => {
     const { rows } = await tx.query<{ status: string }>(
       'SELECT status FROM cuspatlas.appointments WHERE id = $1',
@@ -58,13 +77,11 @@ export function createAppointmentService(deps: SchedulingDeps) {
     ...waitlist,
     ...recall,
     ...exports,
+    ...staging,
     reopenRequest: (ctx: ActorContext, requestRef: string, envelope: CommandEnvelope<unknown>) =>
       requests.reopenRequest(ctx, requestRef, envelope, bookingStillActive),
     rescheduleAppointment: (ctx: ActorContext, appointmentRef: string, envelope: CommandEnvelope<unknown>) =>
-      booking.rescheduleAppointment(ctx, appointmentRef, envelope, async (tx, id, reason) => {
-        await bookingAttendanceGuard(tx, 'scheduling.appointments.reschedule', id, 'rescheduled', reason);
-        await recordSeriesException(tx, id, 'rescheduled', reason);
-      }),
+      rescheduleWith(ctx, appointmentRef, envelope),
     cancelAppointment: (ctx: ActorContext, appointmentRef: string, envelope: CommandEnvelope<unknown>) =>
       booking.cancelAppointment(ctx, appointmentRef, envelope, async (tx, id, reason) => {
         await bookingAttendanceGuard(tx, 'scheduling.appointments.cancel', id, 'cancelled', reason);

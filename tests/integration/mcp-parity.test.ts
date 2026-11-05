@@ -317,6 +317,12 @@ const TOOL_NAMES = [
   'scheduling_follow_up_worklist',
   // S17 export.
   'scheduling_export',
+  // S20 staging list.
+  'scheduling_staging_list',
+  'scheduling_staging_configure',
+  'scheduling_staging_add',
+  'scheduling_staging_remove',
+  'scheduling_staging_move',
   // Workstream E staff operations, one tool per ENGAGEMENT_OPS row (portal routes are never tools).
   ...ENGAGEMENT_OP_TOOLS.map((t) => t.name),
   // I imaging tools (derived from IMAGING_OPS; parity in imaging-negative-harness). No byte tool.

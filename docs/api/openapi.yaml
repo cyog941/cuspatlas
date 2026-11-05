@@ -6103,6 +6103,176 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/scheduling/staging:
+    get:
+      operationId: scheduling.staging.list
+      description: >-
+        Staging list of one location (appointments being moved and requests awaiting a slot) with its
+        capacity. A staged appointment keeps its booking and occupancy; staging is not an appointment state.
+      parameters:
+        - name: locationRef
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/LocationRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/StagingList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/staging/settings:
+    post:
+      operationId: scheduling.staging.configure
+      description: >-
+        Set the staging list capacity of a location (default 10). Practice configuration; audited.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/StagingSettings'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/StagingSettingsResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/staging/entries:
+    post:
+      operationId: scheduling.staging.add
+      description: >-
+        Stage a booked appointment (it keeps its slot) or an open request. Over capacity is a typed conflict
+        naming the capacity. Audited.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/StagingAdd'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/StagingEntryResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/staging/entries/{entryRef}/remove:
+    post:
+      operationId: scheduling.staging.remove
+      description: >-
+        Remove an entry from the staging list (the booking is untouched). Audited; never deleted.
+      parameters:
+        - $ref: '#/components/parameters/StagingEntryRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/StagingRemove'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/StagingEntryResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/scheduling/staging/entries/{entryRef}/move:
+    post:
+      operationId: scheduling.staging.move
+      description: >-
+        Move a staged appointment to a new slot through the S10 reschedule, atomically; a conflict leaves
+        the original booking and the entry intact. A request entry is booked through
+        scheduling.appointments.book.
+      parameters:
+        - $ref: '#/components/parameters/StagingEntryRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/StagingMove'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/StagingMoveResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   /v1/scheduling/export:
     get:
       operationId: scheduling.export
@@ -11046,6 +11216,12 @@ components:
       required: true
       schema:
         $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/RecallTaskRef'
+    StagingEntryRef:
+      name: entryRef
+      in: path
+      required: true
+      schema:
+        $ref: '../../packages/contracts/src/scheduling.schema.json#/$defs/ResourceRefId'
     PolicyRef:
       name: policyRef
       in: path

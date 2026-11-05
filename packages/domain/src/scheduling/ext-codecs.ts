@@ -83,6 +83,10 @@ export const EXTENDED_SCHEDULING_OPERATIONS: readonly string[] = [
   'scheduling.recall.definePolicy',
   'scheduling.recall.createTask',
   'scheduling.recall.resolveTask',
+  // S20 (the move replays through the S10 reschedule codec).
+  'scheduling.staging.configure',
+  'scheduling.staging.add',
+  'scheduling.staging.remove',
 ];
 
 export const EXTENDED_SCHEDULING_CODECS: Readonly<Record<string, ReplayCodec<unknown>>> = Object.fromEntries(

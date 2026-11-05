@@ -5053,6 +5053,308 @@
           ]
         }
       }
+    },
+    "StagingListQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locationRef"],
+      "properties": {
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        }
+      },
+      "description": "S20 GET query: the staging list of one location."
+    },
+    "StagingSettings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locationRef", "capacity"],
+      "properties": {
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "capacity": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "description": "OR-D2: default 10 per location."
+        }
+      }
+    },
+    "StagingAdd": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locationRef", "reasonCode"],
+      "properties": {
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "appointmentRef": {
+          "$ref": "#/$defs/ResourceRefId"
+        },
+        "requestRef": {
+          "$ref": "#/$defs/ResourceRefId"
+        },
+        "reasonCode": {
+          "type": "string",
+          "pattern": "^[a-z_]{1,64}$"
+        }
+      },
+      "description": "S20: exactly one of appointmentRef (a booked appointment that keeps its slot) or requestRef."
+    },
+    "StagingRemove": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expectedVersion", "reasonCode"],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reasonCode": {
+          "type": "string",
+          "pattern": "^[a-z_]{1,64}$"
+        }
+      }
+    },
+    "StagingMove": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "S20: moves a staged appointment through the S10 reschedule in one transaction; expectedVersion is the staging entry version.",
+      "required": [
+        "expectedVersion",
+        "startsAt",
+        "endsAt",
+        "timeZone",
+        "provider",
+        "operatory",
+        "reasonCode"
+      ],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "startsAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "endsAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "timeZone": {
+          "$ref": "#/$defs/TimeZone"
+        },
+        "provider": {
+          "$ref": "#/$defs/ProviderRef"
+        },
+        "operatory": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OperatoryRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "noOperatoryReason": {
+          "$ref": "#/$defs/NoOperatoryReason"
+        },
+        "resources": {
+          "$ref": "#/$defs/AdditionalResources"
+        },
+        "override": {
+          "$ref": "#/$defs/BookingOverride"
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "StagingEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entryRef",
+        "locationRef",
+        "subjectKind",
+        "subjectRef",
+        "state",
+        "reasonCode",
+        "subjectStatus",
+        "stagedAt",
+        "version"
+      ],
+      "properties": {
+        "entryRef": {
+          "$ref": "#/$defs/ResourceRefId"
+        },
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "subjectKind": {
+          "enum": ["appointment", "request"]
+        },
+        "subjectRef": {
+          "$ref": "#/$defs/ResourceRefId"
+        },
+        "state": {
+          "enum": ["staged", "moved", "removed"]
+        },
+        "reasonCode": {
+          "type": "string",
+          "pattern": "^[a-z_]{1,64}$"
+        },
+        "subjectStatus": {
+          "type": "string",
+          "pattern": "^[a-z_]{1,40}$",
+          "description": "Current appointment status or request state (read at list time, never copied)."
+        },
+        "startsAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "endsAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stagedAt": {
+          "$ref": "#/$defs/Instant"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      }
+    },
+    "StagingList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["locationRef", "capacity", "items", "envelope"],
+          "properties": {
+            "locationRef": {
+              "$ref": "#/$defs/LocationRef"
+            },
+            "capacity": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "items": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "$ref": "#/$defs/StagingEntry"
+              }
+            },
+            "envelope": {
+              "$ref": "#/$defs/ListEnvelope"
+            }
+          }
+        }
+      }
+    },
+    "StagingEntryResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/StagingEntry"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "StagingMoveResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["entryRef", "state", "previousAppointmentRef", "appointmentRef"],
+          "properties": {
+            "entryRef": {
+              "$ref": "#/$defs/ResourceRefId"
+            },
+            "state": {
+              "const": "moved"
+            },
+            "previousAppointmentRef": {
+              "$ref": "#/$defs/ResourceRefId"
+            },
+            "appointmentRef": {
+              "$ref": "#/$defs/ResourceRefId"
+            }
+          }
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "StagingSettingsResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["locationRef", "capacity"],
+          "properties": {
+            "locationRef": {
+              "$ref": "#/$defs/LocationRef"
+            },
+            "capacity": {
+              "type": "integer"
+            }
+          }
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
     }
   }
 }

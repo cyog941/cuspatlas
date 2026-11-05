@@ -2539,6 +2539,8 @@ export const COMMANDS: HarnessCommand[] = [
   ...waitlistRows(),
   // S16 recall and the PT-03 follow-up worklist.
   ...recallRows(),
+  // S20 (OR-05) staging list.
+  ...stagingRows(),
   // S17 minimal export: another tenant exports only its own records (which legitimately include the
   // marker its own harness create wrote; that alpha records never appear in a beta export is asserted
   // in scheduling-export.test.ts).
@@ -3003,6 +3005,86 @@ function waitlistRows(): HarnessCommand[] {
       (f) => ({ policyRef: f.alphaPolicy }),
       200,
     ),
+  ];
+}
+
+/** S20 rows. The alpha location and entry are hidden from another tenant (404). */
+function stagingRows(): HarnessCommand[] {
+  const S = '/v1/scheduling/staging';
+  const slot = (f: HarnessFixture) => ({
+    expectedVersion: 1,
+    reasonCode: 'provider_out',
+    startsAt: '2030-03-04T14:00:00Z',
+    endsAt: '2030-03-04T15:00:00Z',
+    timeZone: 'America/New_York',
+    provider: { kind: 'provider', resourceRef: f.alphaProvider },
+    operatory: { kind: 'operatory', resourceRef: f.alphaResource },
+  });
+  const add = (f: HarnessFixture) => ({
+    locationRef: f.alphaLocation,
+    requestRef: f.alphaRequest,
+    reasonCode: 'provider_out',
+  });
+  const remove = { expectedVersion: 1, reasonCode: 'no_longer_needed' };
+  return [
+    {
+      operation: 'scheduling.staging.list',
+      tool: 'scheduling_staging_list',
+      crossTenant: 'not_found',
+      downgradedTo: 'noPatientScopes',
+      rest: (f) => ({ method: 'GET', url: `${S}?locationRef=${f.alphaLocation}`, keyed: false, status: 200 }),
+      mcpArgs: (f) => ({ locationRef: f.alphaLocation }),
+    },
+    {
+      operation: 'scheduling.staging.configure',
+      tool: 'scheduling_staging_configure',
+      crossTenant: 'not_found',
+      downgradedTo: 'readOnly',
+      rest: (f) => ({
+        method: 'POST',
+        url: `${S}/settings`,
+        body: { locationRef: f.alphaLocation, capacity: 5 },
+        keyed: true,
+        status: 200,
+      }),
+      mcpArgs: (f) => ({ locationRef: f.alphaLocation, capacity: 5, idempotencyKey: randomUUID() }),
+    },
+    {
+      operation: 'scheduling.staging.add',
+      tool: 'scheduling_staging_add',
+      crossTenant: 'not_found',
+      downgradedTo: 'readOnly',
+      rest: (f) => ({ method: 'POST', url: `${S}/entries`, body: add(f), keyed: true, status: 201 }),
+      mcpArgs: (f) => ({ ...add(f), idempotencyKey: randomUUID() }),
+    },
+    {
+      operation: 'scheduling.staging.remove',
+      tool: 'scheduling_staging_remove',
+      crossTenant: 'not_found',
+      downgradedTo: 'readOnly',
+      rest: (f) => ({
+        method: 'POST',
+        url: `${S}/entries/${f.alphaStagingEntry}/remove`,
+        body: remove,
+        keyed: true,
+        status: 200,
+      }),
+      mcpArgs: (f) => ({ entryRef: f.alphaStagingEntry, ...remove, idempotencyKey: randomUUID() }),
+    },
+    {
+      operation: 'scheduling.staging.move',
+      tool: 'scheduling_staging_move',
+      crossTenant: 'not_found',
+      downgradedTo: 'readOnly',
+      rest: (f) => ({
+        method: 'POST',
+        url: `${S}/entries/${f.alphaStagingEntry}/move`,
+        body: slot(f),
+        keyed: true,
+        status: 200,
+      }),
+      mcpArgs: (f) => ({ entryRef: f.alphaStagingEntry, ...slot(f), idempotencyKey: randomUUID() }),
+    },
   ];
 }
 
@@ -3614,7 +3696,15 @@ beforeAll(async () => {
     asOf: '2031-01-01T12:00:00Z',
   });
   expect(recallTask.statusCode).toBe(201);
+  // S20: one staged alpha appointment (it keeps its booking).
+  const stagingEntry = await owner('/v1/scheduling/staging/entries', {
+    locationRef: alphaLocation,
+    appointmentRef: appointment.json().data.appointmentRef,
+    reasonCode: 'harness_fixture',
+  });
+  expect(stagingEntry.statusCode).toBe(201);
   fixture = {
+    alphaStagingEntry: stagingEntry.json().data.entryRef,
     alphaPaymentPlan: paymentPlan.json().data.planRef,
     alphaCoverage: coverage.json().data.coverageRef,
     alphaStatement: statement.json().data.statementRef,
@@ -3850,6 +3940,8 @@ async function state(): Promise<string> {
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.scheduling_standing_policies'),
     await q(`SELECT count(*)::int AS n FROM cuspatlas.recall_policies WHERE tenant_id = '${T_ALPHA}'`),
     await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.recall_tasks'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.scheduling_staging_lists'),
+    await q('SELECT count(*)::int AS n, sum(version)::int AS v FROM cuspatlas.scheduling_staging_entries'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.audit_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.outbox_events'),
     await q('SELECT count(*)::int AS n FROM cuspatlas.command_idempotency'),

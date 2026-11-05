@@ -275,6 +275,8 @@ describe('runtime database role', () => {
       'scheduling_offer_policies',
       'scheduling_policy_settings',
       'scheduling_resources',
+      'scheduling_staging_entries',
+      'scheduling_staging_lists',
       'scheduling_standing_policies',
       'scheduling_time_blocks',
       'security_attempt_events',

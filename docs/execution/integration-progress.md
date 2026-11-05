@@ -83,5 +83,11 @@ Test fixes: `portal-requests.test.ts` also excludes `billing_`/`rcm_` tables fro
 
 ## Open items
 
-- E `AttachmentRefResolver` and C15 `ImageRefResolver` stay ports until I merges (Phase 2).
-- B: C12 estimate fees and coverage reads, CL-04 attachment packages (Phase 2).
+Status 8 (B seams) is **not started**; each needs a contract or port change in B or C, recorded here so the next step is explicit:
+
+- C12 estimates -> B9 fees and B5 coverage. C12  takes caller-supplied line fees (, , ) and caller-entered coverage assumptions with  (stale after 30 days). Wiring means: resolve each line through  (B9) inside the estimate transaction and refuse or flag a supplied fee that differs, record the resolved version ref; read coverage through  and map B5  to an excluded/expired coverage assumption (no assumption is ever invented); tests for missing schedule (no guessed amount), version pinning and .
+- B CL-04 attachment packages -> I3. B's  is called outside any tenant transaction and without the claim's patient, and B's contract accepts only synthetic / refs. Wiring means: port  implemented with  ( and ), called inside the package and submit transactions with the claim's patient, B schema accepting I3 imageRefs; recheck before dispatch already exists in B and stays.
+- Five-way export round trip:  covers S, I, C, E; B's  (with its own reference, currency, trigger-invariant and ledger re-checks) is still separate. Next: fold B9/B10 into  after E (order S, I, C, E, B) reusing B's checks, and extend  with billing data.
+- Worker:  (C14 -> B consumer) and  are wired by tests only; the repository has no worker process entry point to wire them in.
+- E2 portal  () stays  until a patient-facing document projection is specified.
+- Nothing here is approved, deployed, compliant or clinically validated; all workstream decisions stay as their own ledgers record them.

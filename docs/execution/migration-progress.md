@@ -25,6 +25,7 @@ format; a real adapter is a new format/version in `SOURCE_ADAPTERS` (MG-01).
 |---|---|---|
 | M2 intake and mapping | tested (synthetic) | `tests/integration/migration-intake.test.ts`; negative-harness rows |
 | M3 dry run and staged import | tested (synthetic) | `tests/integration/migration-import.test.ts`; harness rows |
+| M4 identity and provenance | tested (synthetic) | `tests/integration/migration-identity.test.ts`; harness rows |
 
 ### M2
 
@@ -66,3 +67,22 @@ format; a real adapter is a new format/version in `SOURCE_ADAPTERS` (MG-01).
   stored-result command); every applied batch is audited and bumps the change sequence.
 - Red: 6/6 failing (exit 1, routes absent). Green: 6/6; full suite 2860/2860.
 - Owning-scope note: the operator also needs `patients.write` (S4 authorizes its own command).
+
+### M4
+
+- Identity candidates are computed at intake with S6's own `scoreCandidate` over the same
+  tenant-bound HMAC match keys (no plaintext stored), within the package and against existing tenant
+  patients; contact-only overlap (shared household phone/guarantor) never qualifies. Each group is one
+  `identity` review item with a stated basis and candidates; `automaticMerge: false` always.
+- Decisions: `distinct` (create), `sameAsExisting` (link to a proposed, live candidate only;
+  `patient_not_candidate` otherwise; no creation), `mergeAfterImport` (create, then merge).
+- `migration.identity.merge` delegates verbatim to S6 `mergePatients` with S6's confirmation token
+  (S6 enforces `patients.merge` and the human principal); M defines no confirmation of its own.
+  Reversal is S6 `unmergePatients` (S6's tested command; not re-tested here).
+- Provenance: `migration.provenance.read` lists source system/id/entity/action/precision for a
+  patient and its merge set; a merge keeps both source identifiers. The same source id from two
+  source systems resolves to two patients (identifier keys carry the issuer).
+- Red: 4/4 failing (exit 1). Green: 4/4 plus M2/M3 (19/19).
+- Full-suite note: the full run under heavy machine load (~49 postgres / 48 node processes from
+  parallel workers) hit hook timeouts in 13 unrelated files; every one passed on rerun with
+  `--maxWorkers=2` (10 files, 246 tests) or alone; no assertion failure. Recorded, not hidden.

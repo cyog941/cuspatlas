@@ -499,6 +499,9 @@ export const ACTION_POLICIES = {
   'migration.reviewItems.resolve': { scope: 'migration.write', principals: ['human'] },
   'migration.imports.plan': { scope: 'migration.read', principals: ['human', 'service'] },
   'migration.imports.apply': { scope: 'migration.write', principals: ['human', 'service'] },
+  // M4: the merge itself is S6's command (patients.merge, human) reached only by delegation.
+  'migration.identity.merge': { scope: 'migration.write', principals: ['human'] },
+  'migration.provenance.read': { scope: 'migration.read', principals: ['human', 'service'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

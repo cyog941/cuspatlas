@@ -120,7 +120,7 @@ export interface IntakeHooks {
   /** M4: checks a `sameAsExisting` decision names a live patient of this tenant; returns its id. */
   existingPatient(
     tx: TenantTransaction,
-    item: { category: ReviewCategory },
+    item: { category: ReviewCategory; proposal?: Record<string, unknown> },
     patientRef: string,
   ): Promise<string>;
 }

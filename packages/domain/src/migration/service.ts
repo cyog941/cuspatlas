@@ -1,5 +1,6 @@
 import { loadSettings } from '../billing/base';
-import { createMigrationBase, failed, type MigrationDeps } from './base';
+import { createMigrationBase, type MigrationDeps } from './base';
+import { createIdentityOperations } from './identity';
 import { createIntakeOperations } from './intake';
 import { createImportOperations } from './plan';
 
@@ -11,13 +12,11 @@ import { createImportOperations } from './plan';
  */
 export function createMigrationService(deps: MigrationDeps) {
   const base = createMigrationBase(deps);
+  const identity = createIdentityOperations(base);
   return {
-    ...createIntakeOperations(base, {
-      afterStage: async () => 0,
-      existingPatient: async () => {
-        throw failed('decision_not_allowed');
-      },
-    }),
+    ...createIntakeOperations(base, identity.hooks),
+    mergeIdentityGroup: identity.mergeIdentityGroup,
+    readProvenance: identity.readProvenance,
     ...createImportOperations(base, {
       financial: null,
       currency: async (tx) => (await loadSettings(tx)).currency,

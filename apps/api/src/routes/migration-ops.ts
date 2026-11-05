@@ -124,6 +124,32 @@ export const MIGRATION_OPS: MigrationOp[] = [
       'M3: apply one bounded batch of exactly the planned operations (409 plan_digest_changed when the plan moved). Idempotent per source record and resumable after a crash; patients through S4 createPatient only, legacy appointments and procedures as archive references only. Call again until remaining is 0.',
     invoke: (svc, actor, i) => svc.applyImport(actor, env('migration.imports.apply', i)),
   },
+  {
+    method: 'post',
+    path: '/v1/migration/identity/merges',
+    operationId: 'migration.identity.merge',
+    protected: true,
+    requestBody: M('IdentityMerge'),
+    success: { status: '201', schema: M('IdentityMergeResult') },
+    refusals: COMMAND,
+    tool: 'migration_identity_merge',
+    description:
+      'M4: merge two patients that a staff-decided identity group (mergeAfterImport) became, delegated verbatim to S6 mergePatients with the S6 confirmation token (S6 checks patients.merge and the human principal). No merge happens automatically and M defines no confirmation of its own.',
+    invoke: (svc, actor, i) => svc.mergeIdentityGroup(actor, env('migration.identity.merge', i)),
+  },
+  {
+    method: 'get',
+    path: '/v1/migration/provenance',
+    operationId: 'migration.provenance.read',
+    protected: true,
+    query: 'ProvenanceQuery',
+    success: { status: '200', schema: M('ProvenanceList') },
+    refusals: READ,
+    tool: 'migration_provenance_read',
+    description:
+      'M4: source provenance of one patient and every identity merged into it: source system, source id, entity, applied action and time precision. Merges never overwrite provenance.',
+    invoke: (svc, actor, i) => data(svc.readProvenance(actor, i.body)),
+  },
 ];
 
 export const MIGRATION_OP_ROUTES = (): RouteContract[] =>

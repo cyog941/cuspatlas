@@ -638,6 +638,104 @@
           "type": "boolean"
         }
       }
+    },
+    "IdentityMerge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["packageRef", "itemRef", "survivorRef", "mergedRef", "confirmationToken", "reasonCode"],
+      "properties": {
+        "packageRef": {
+          "$ref": "#/$defs/PackageRef"
+        },
+        "itemRef": {
+          "$ref": "#/$defs/ItemRef"
+        },
+        "survivorRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "mergedRef": {
+          "$ref": "#/$defs/PatientRef"
+        },
+        "confirmationToken": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "description": "S6 merge confirmation token (issued by S6 duplicate review); M issues none of its own."
+        },
+        "reasonCode": {
+          "$ref": "#/$defs/ReasonCode"
+        }
+      }
+    },
+    "IdentityMergeResult": {
+      "type": "object",
+      "description": "The S6 mergePatients result, returned verbatim.",
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object"
+        }
+      }
+    },
+    "ProvenanceQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["patientRef"],
+      "properties": {
+        "patientRef": {
+          "$ref": "#/$defs/PatientRef"
+        }
+      }
+    },
+    "ProvenanceList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "packageRef",
+              "patientRef",
+              "sourceSystem",
+              "sourceId",
+              "entity",
+              "action",
+              "timePrecision",
+              "appliedAt"
+            ],
+            "properties": {
+              "packageRef": {
+                "$ref": "#/$defs/PackageRef"
+              },
+              "patientRef": {
+                "$ref": "#/$defs/PatientRef"
+              },
+              "sourceSystem": {
+                "$ref": "#/$defs/SourceSystem"
+              },
+              "sourceId": {
+                "type": ["string", "null"]
+              },
+              "entity": {
+                "$ref": "#/$defs/EntityName"
+              },
+              "action": {
+                "type": "string"
+              },
+              "timePrecision": {
+                "type": "string"
+              },
+              "appliedAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

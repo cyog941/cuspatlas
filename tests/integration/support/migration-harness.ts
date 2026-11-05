@@ -48,6 +48,15 @@ const applyBody = (f: F) => ({
   batchSize: 1,
 });
 
+const mergeBody = (f: F) => ({
+  packageRef: f.alphaMigrationPackage,
+  itemRef: f.alphaMigrationItem,
+  survivorRef: f.alphaPatient,
+  mergedRef: f.alphaPatient,
+  confirmationToken: 'v1.9999999999.1.1.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+  reasonCode: 'duplicate_registration',
+});
+
 export const MIGRATION_HARNESS_ROWS: Row[] = [
   {
     operation: 'migration.sourceProfiles.register',
@@ -104,6 +113,22 @@ export const MIGRATION_HARNESS_ROWS: Row[] = [
     downgradedTo: 'readOnly',
     rest: (f) => post('/v1/migration/imports/apply', applyBody(f)),
     mcpArgs: (f) => keyed(applyBody(f)),
+  },
+  {
+    operation: 'migration.identity.merge',
+    tool: 'migration_identity_merge',
+    crossTenant: 'not_found',
+    downgradedTo: 'readOnly',
+    rest: (f) => post('/v1/migration/identity/merges', mergeBody(f), 201),
+    mcpArgs: (f) => keyed(mergeBody(f)),
+  },
+  {
+    operation: 'migration.provenance.read',
+    tool: 'migration_provenance_read',
+    crossTenant: 'not_found',
+    downgradedTo: 'noPatientScopes',
+    rest: (f) => get(`/v1/migration/provenance?patientRef=${f.alphaPatient}`),
+    mcpArgs: (f) => ({ patientRef: f.alphaPatient }),
   },
 ];
 

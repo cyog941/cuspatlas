@@ -11234,6 +11234,71 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/migration/identity/merges:
+    post:
+      operationId: migration.identity.merge
+      description: >-
+        M4: merge two patients that a staff-decided identity group (mergeAfterImport) became, delegated
+        verbatim to S6 mergePatients with the S6 confirmation token (S6 checks patients.merge and the human
+        principal). No merge happens automatically and M defines no confirmation of its own.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/migration.schema.json#/$defs/IdentityMerge'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/IdentityMergeResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/migration/provenance:
+    get:
+      operationId: migration.provenance.read
+      description: >-
+        M4: source provenance of one patient and every identity merged into it: source system, source id,
+        entity, applied action and time precision. Merges never overwrite provenance.
+      parameters:
+        - name: patientRef
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/migration.schema.json#/$defs/PatientRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/ProvenanceList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   # END generated: MIGRATION_OPS
 components:
   securitySchemes:

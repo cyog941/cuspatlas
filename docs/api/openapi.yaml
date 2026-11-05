@@ -50,6 +50,50 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/vocabularies:
+    get:
+      operationId: vocabularies.list
+      description: >-
+        A20 / OR-02: every registered state vocabulary with plain labels, semantic category, terminal
+        flag and the owning registry version, plus the shared list envelope.
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/VocabularyList'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/vocabularies/{name}:
+    get:
+      operationId: vocabularies.read
+      description: One state vocabulary by name.
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/VocabularyName'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/VocabularyRead'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   /v1/synthetic-tasks:
     post:
       operationId: syntheticTasks.create
@@ -6720,7 +6764,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementRead'
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementListRead'
         '400':
           $ref: '#/components/responses/Refusal'
         '401':
@@ -6788,7 +6832,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementRead'
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementListRead'
         '400':
           $ref: '#/components/responses/Refusal'
         '401':
@@ -6978,7 +7022,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementRead'
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementListRead'
         '400':
           $ref: '#/components/responses/Refusal'
         '401':
@@ -7140,7 +7184,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementRead'
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementListRead'
         '400':
           $ref: '#/components/responses/Refusal'
         '401':
@@ -7321,7 +7365,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementRead'
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementListRead'
         '400':
           $ref: '#/components/responses/Refusal'
         '401':
@@ -7428,7 +7472,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementRead'
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementListRead'
         '400':
           $ref: '#/components/responses/Refusal'
         '401':
@@ -8041,7 +8085,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementRead'
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementListRead'
         '400':
           $ref: '#/components/responses/Refusal'
         '401':
@@ -10552,6 +10596,68 @@ paths:
             application/json:
               schema:
                 $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimWorklistResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/claims/queues:
+    get:
+      operationId: rcm.claims.queues
+      description: >-
+        B11 (OR-07): one claims work queue (to_create, ready_to_submit, attachments_needed, awaiting_payer,
+        rejected_or_denied, appeals, filing_deadline_soon, returned, paid_closed or all; default all) with
+        the count of every queue in the same call. Queues are predicates over the claim lifecycle, not
+        states. Work-priority order: filing deadline proximity, then exception severity, then age, tie-break
+        claimRef. filingDeadlineDays defaults to 30.
+      parameters:
+        - name: queue
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimQueueName'
+        - name: filingDeadlineDays
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimQueueQuery'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimQueueQuery'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimQueueResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/rcm/claims/measures:
+    get:
+      operationId: rcm.claims.measures
+      description: >-
+        B11 (OR-07): headline claim measures (open insurer receivable, claims over 30 days, needs action,
+        open appeals), each with its declared definition text and version, unit, filters and as-of instant.
+        Requires receivables.read and openClaims.read.
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/billing.schema.json#/$defs/ClaimMeasuresResult'
         '400':
           $ref: '#/components/responses/Refusal'
         '401':

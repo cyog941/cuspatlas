@@ -6,6 +6,7 @@ import {
   RefusalError,
   type SecurityReasonCode,
 } from '@cuspatlas/contracts';
+import { recordListScope } from './list-scope';
 
 interface ActionPolicy {
   /** Scope required in BOTH the live membership and the context; null = any active member. */
@@ -16,6 +17,9 @@ interface ActionPolicy {
 /** One policy table for every transport (REST, MCP, workers). Unknown actions are denied. */
 export const ACTION_POLICIES = {
   'session.read': { scope: null, principals: ['human', 'service'] },
+  // A20 / OR-02: state vocabularies (labels only, no tenant data) for any active staff member.
+  'vocabularies.list': { scope: null, principals: ['human', 'service'] },
+  'vocabularies.read': { scope: null, principals: ['human', 'service'] },
   'syntheticTasks.read': { scope: 'syntheticTasks.read', principals: ['human', 'service'] },
   'syntheticTasks.create': { scope: 'syntheticTasks.write', principals: ['human', 'service'] },
   'syntheticTasks.relabel': { scope: 'syntheticTasks.write', principals: ['human', 'service'] },
@@ -154,6 +158,9 @@ export const ACTION_POLICIES = {
   'rcm.claims.prepareSecondary': { scope: 'billing.write', principals: ['human', 'service'] },
   'rcm.claims.read': { scope: 'openClaims.read', principals: ['human', 'service'] },
   'rcm.claims.worklist': { scope: 'openClaims.read', principals: ['human', 'service'] },
+  // B11 / OR-07: claim work queues (open claims) and headline measures (receivables; also rechecks queues).
+  'rcm.claims.queues': { scope: 'openClaims.read', principals: ['human', 'service'] },
+  'rcm.claims.measures': { scope: 'receivables.read', principals: ['human', 'service'] },
   'rcm.appeals.draft': { scope: 'billing.write', principals: ['human'] },
   'rcm.appeals.review': { scope: 'billing.correct', principals: ['human'] },
   'rcm.submissionPolicies.create': { scope: 'billing.correct', principals: ['human'] },
@@ -632,6 +639,7 @@ export function createAuthorize(memberships: MembershipSource): Authorize {
       deny('scope_missing');
     }
     if (resource.locationId !== undefined) assertLocation(m.locationRefs, resource.locationId);
+    recordListScope(m.locationRefs);
     return { action, locationRefs: m.locationRefs };
   };
 }

@@ -474,8 +474,9 @@
     "LocationList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data", "nextCursor"],
+      "required": ["data", "nextCursor", "envelope"],
       "properties": {
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/Location" } },
         "nextCursor": { "anyOf": [{ "$ref": "#/$defs/Cursor" }, { "type": "null" }] }
       }
@@ -542,8 +543,9 @@
     "ResourceList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data", "nextCursor"],
+      "required": ["data", "nextCursor", "envelope"],
       "properties": {
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/Resource" } },
         "nextCursor": { "anyOf": [{ "$ref": "#/$defs/Cursor" }, { "type": "null" }] }
       }
@@ -1130,8 +1132,9 @@
     "AppointmentRequestList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data", "nextCursor"],
+      "required": ["data", "nextCursor", "envelope"],
       "properties": {
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": {
           "type": "array",
           "maxItems": 100,
@@ -1810,8 +1813,9 @@
     "AppointmentRead": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data"],
+      "required": ["data", "vocabularies"],
       "properties": {
+        "vocabularies": { "$ref": "#/$defs/VocabularyVersions" },
         "data": {
           "$ref": "#/$defs/Appointment"
         }
@@ -1977,8 +1981,10 @@
     "AttendanceList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data"],
+      "required": ["data", "envelope", "vocabularies"],
       "properties": {
+        "vocabularies": { "$ref": "#/$defs/VocabularyVersions" },
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": {
           "type": "array",
           "maxItems": 200,
@@ -2051,8 +2057,9 @@
     "VisitStatus": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data"],
+      "required": ["data", "vocabularies"],
       "properties": {
+        "vocabularies": { "$ref": "#/$defs/VocabularyVersions" },
         "data": {
           "type": "object",
           "additionalProperties": false,
@@ -2134,8 +2141,10 @@
     "DailyWorklist": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data"],
+      "required": ["data", "envelope", "vocabularies"],
       "properties": {
+        "vocabularies": { "$ref": "#/$defs/VocabularyVersions" },
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": {
           "type": "object",
           "additionalProperties": false,
@@ -2727,8 +2736,9 @@
     "VisitContextItemList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data"],
+      "required": ["data", "envelope"],
       "properties": {
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": {
           "type": "array",
           "maxItems": 200,
@@ -3408,8 +3418,10 @@
     "WorkItemList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data"],
+      "required": ["data", "envelope", "vocabularies"],
       "properties": {
+        "vocabularies": { "$ref": "#/$defs/VocabularyVersions" },
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": {
           "type": "object",
           "additionalProperties": false,
@@ -3970,8 +3982,9 @@
     "WaitlistEntryList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data"],
+      "required": ["data", "envelope"],
       "properties": {
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": {
           "type": "array",
           "maxItems": 100,
@@ -4424,8 +4437,9 @@
     "StandingPolicyList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data"],
+      "required": ["data", "envelope"],
       "properties": {
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": {
           "type": "array",
           "maxItems": 100,
@@ -4635,8 +4649,9 @@
     "RecallPolicyList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data"],
+      "required": ["data", "envelope"],
       "properties": {
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": {
           "type": "array",
           "maxItems": 200,
@@ -4952,6 +4967,15 @@
           "$ref": "#/$defs/LocalTime"
         }
       }
+    },
+    "VocabularyVersions": {
+      "type": "object",
+      "description": "OR-02: the version of each state vocabulary whose codes this response carries (GET /v1/vocabularies/{name}).",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[a-z]{1,32}-state-labels\\.[0-9]+$"
+      },
+      "maxProperties": 8
     },
     "ListScope": {
       "type": "object",

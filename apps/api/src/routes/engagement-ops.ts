@@ -91,7 +91,7 @@ export const ENGAGEMENT_OPS: readonly EngagementOp[] = [
     operationId: 'portal.grants.list',
     protected: true,
     query: 'EmptyQuery',
-    success: { status: '200', schema: E('EngagementRead') },
+    success: { status: '200', schema: E('EngagementListRead') },
     refusals: READ,
     tool: 'portal_grants_list',
     description:
@@ -133,7 +133,7 @@ export const ENGAGEMENT_OPS: readonly EngagementOp[] = [
     operationId: 'communications.consents.list',
     protected: true,
     query: 'EmptyQuery',
-    success: { status: '200', schema: E('EngagementRead') },
+    success: { status: '200', schema: E('EngagementListRead') },
     refusals: READ,
     tool: 'communications_consents_list',
     description:
@@ -187,7 +187,7 @@ export const ENGAGEMENT_OPS: readonly EngagementOp[] = [
     operationId: 'communications.channelPolicies.list',
     protected: true,
     query: 'EmptyQuery',
-    success: { status: '200', schema: E('EngagementRead') },
+    success: { status: '200', schema: E('EngagementListRead') },
     refusals: ['400', '401', '403', '503'],
     tool: 'communications_channel_policies_list',
     description:
@@ -252,7 +252,7 @@ export const ENGAGEMENT_OPS: readonly EngagementOp[] = [
     operationId: 'communications.recall.enrollments',
     protected: true,
     query: 'RecallEnrollmentsQuery',
-    success: { status: '200', schema: E('EngagementRead') },
+    success: { status: '200', schema: E('EngagementListRead') },
     refusals: READ,
     tool: 'communications_recall_enrollments',
     description:
@@ -345,7 +345,7 @@ export const ENGAGEMENT_OPS: readonly EngagementOp[] = [
     operationId: 'intake.forms.list',
     protected: true,
     query: 'EmptyQuery',
-    success: { status: '200', schema: E('EngagementRead') },
+    success: { status: '200', schema: E('EngagementListRead') },
     refusals: ['400', '401', '403', '503'],
     tool: 'intake_forms_list',
     description:
@@ -372,7 +372,7 @@ export const ENGAGEMENT_OPS: readonly EngagementOp[] = [
     operationId: 'intake.submissions.list',
     protected: true,
     query: 'EmptyQuery',
-    success: { status: '200', schema: E('EngagementRead') },
+    success: { status: '200', schema: E('EngagementListRead') },
     refusals: READ,
     tool: 'intake_submissions_list',
     description:
@@ -622,7 +622,7 @@ export const ENGAGEMENT_OPS: readonly EngagementOp[] = [
     operationId: 'telephony.calls.list',
     protected: true,
     query: 'EmptyQuery',
-    success: { status: '200', schema: E('EngagementRead') },
+    success: { status: '200', schema: E('EngagementListRead') },
     refusals: ['400', '401', '403', '503'],
     tool: 'telephony_calls_list',
     description:

@@ -15,11 +15,14 @@ import {
 } from '@cuspatlas/api';
 import {
   type ActorContext,
+  attachListEnvelope,
+  attachVocabularyVersions,
   DEPRECATIONS,
   type DeprecationEntry,
   type DomainRefusal,
   deprecationIndex,
   deprecationNotice,
+  LIST_OPERATIONS,
   type MalwareScannerPort,
   type MembershipSource,
   type ObjectStorePort,
@@ -57,11 +60,13 @@ import {
   createSyntheticTaskService,
   type ImageRefResolver,
   type ImagingLimits,
+  newListScope,
   type PaymentProviderPort,
   readLatestCompletedProcedures,
   resolveIdempotencyDigestKey,
   resolveImagingTokenSecret,
   resolveMatchKeyPepper,
+  runInListScope,
   type StagingMaintenance,
 } from '@cuspatlas/domain';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -94,6 +99,7 @@ import {
   type ToolDeps,
   violationsOf,
 } from './tools/synthetic-tasks';
+import { VOCABULARY_TOOLS } from './tools/vocabularies';
 
 export const MCP_PATH = '/mcp';
 export const METADATA_PATH = '/.well-known/oauth-protected-resource';
@@ -182,6 +188,7 @@ interface Registered {
 
 export const TOOLS: readonly ToolDefinition[] = [
   ...SYNTHETIC_TASK_TOOLS,
+  ...VOCABULARY_TOOLS,
   ...PROPOSAL_TOOLS,
   ...PATIENT_TOOLS,
   ...SCHEDULING_TOOLS,
@@ -525,7 +532,19 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
       if (!valid && registered.tool.onInvalid !== 'domain' && !onlyRefMalformed(registered, args)) {
         await refuseInvalid(toolDeps, actor, registered.tool, violations);
       }
-      const result = await registered.tool.run(toolDeps, actor, args, valid, violations);
+      // A20 / OR-01: a list operation answers the shared envelope, with the scope its authorization applied.
+      const listSpec = LIST_OPERATIONS[registered.tool.operationId];
+      const asOf = new Date();
+      const listScope = newListScope();
+      const ran = await runInListScope(listScope, async () =>
+        registered.tool.run(toolDeps, actor, args, valid, violations),
+      );
+      const result = attachVocabularyVersions(
+        registered.tool.operationId,
+        listSpec
+          ? attachListEnvelope(listSpec, ran, { asOf, filters: args, locationRefs: listScope.locationRefs })
+          : ran,
+      );
       if (!valid) {
         // Defense in depth: an input rejected by the tool schema can never succeed.
         // Invariant for `onInvalid: 'domain'` tools (propose, approve, commit): their handler has

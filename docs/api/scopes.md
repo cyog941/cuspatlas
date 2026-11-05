@@ -43,7 +43,7 @@ human decision (A-D2). No default role grant is asserted here.
 | `migration.read` | human, service | no | M | phi | 11 |
 | `migration.signoff` | human | yes | M | phi | 2 |
 | `migration.write` | human, service | no | M | phi | 10 |
-| `openClaims.read` | human, service | no | B | phi | 3 |
+| `openClaims.read` | human, service | no | B | phi | 4 |
 | `outbox.deliver` | service | no | F | operational | 1 |
 | `patients.merge` | human | yes | S | phi | 3 |
 | `patients.mergeReconcile` | human | yes | S | phi | 1 |
@@ -51,7 +51,7 @@ human decision (A-D2). No default role grant is asserted here.
 | `patients.write` | human, service | no | E, S | phi | 7 |
 | `paymentDistribution.read` | human, service | no | B | phi | 2 |
 | `portal.manage` | human | no | E | phi | 3 |
-| `receivables.read` | human, service | no | B | phi | 4 |
+| `receivables.read` | human, service | no | B | phi | 5 |
 | `scheduling.override` | human | yes | S | phi | 1 |
 | `scheduling.read` | human, service | no | S | phi | 29 |
 | `scheduling.write` | human, service | no | S | phi | 37 |

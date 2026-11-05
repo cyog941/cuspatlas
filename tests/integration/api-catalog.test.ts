@@ -64,6 +64,7 @@ const REVIEWED_ROUTE_SITES: Record<string, number> = {
   'apps/api/src/routes/scheduling.ts: app.post': 7,
   'apps/api/src/routes/scheduling.ts: app.get': 4,
   'apps/api/src/routes/session.ts: app.get': 1,
+  'apps/api/src/routes/vocabularies.ts: app.get': 2,
   'apps/api/src/routes/synthetic-tasks.ts: app.post': 2,
   'apps/api/src/routes/synthetic-tasks.ts: app.get': 2,
 };

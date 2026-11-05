@@ -194,9 +194,20 @@
       "additionalProperties": false,
       "required": ["data"],
       "properties": {
+        "vocabularies": { "$ref": "#/$defs/VocabularyVersions" },
         "data": {
           "type": ["object", "array"]
         }
+      }
+    },
+    "EngagementListRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A20 / OR-01: an engagement list read (the generic read plus the shared list envelope).",
+      "required": ["data", "envelope"],
+      "properties": {
+        "data": { "type": ["object", "array"] },
+        "envelope": { "$ref": "#/$defs/ListEnvelope" }
       }
     },
     "PortalView": {
@@ -859,6 +870,15 @@
         }
       }
     },
+    "VocabularyVersions": {
+      "type": "object",
+      "description": "OR-02: the version of each state vocabulary whose codes this response carries (GET /v1/vocabularies/{name}).",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[a-z]{1,32}-state-labels\\.[0-9]+$"
+      },
+      "maxProperties": 8
+    },
     "ListScope": {
       "type": "object",
       "additionalProperties": false,
@@ -949,9 +969,10 @@
     "ThreadList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data"],
+      "required": ["data", "vocabularies"],
       "description": "OR-01 list envelope (asOf, appliedFilters, scope, limit, truncated, nextCursor, ordering, count) plus the page items, counts per filter and the reply-due policy in force. Never a message body.",
       "properties": {
+        "vocabularies": { "$ref": "#/$defs/VocabularyVersions" },
         "data": {
           "type": "object",
           "additionalProperties": false,
@@ -1422,8 +1443,9 @@
       "description": "A-S3: delivery state, attempts, decisions and receipts; never a message body.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["data"],
+      "required": ["data", "vocabularies"],
       "properties": {
+        "vocabularies": { "$ref": "#/$defs/VocabularyVersions" },
         "data": {
           "$ref": "#/$defs/DeliveryReadData"
         }

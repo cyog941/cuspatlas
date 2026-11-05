@@ -62,6 +62,8 @@ const TOOL_NAMES = [
   'synthetic_tasks_get',
   'synthetic_tasks_get_proposal',
   'synthetic_tasks_list',
+  'vocabularies_list',
+  'vocabularies_get',
   'synthetic_tasks_propose',
   'synthetic_tasks_relabel',
   // S4 patient tools (their parity is exercised in patient-identity and negative-harness tests).
@@ -157,6 +159,8 @@ const TOOL_NAMES = [
   'rcm_claims_submit',
   'rcm_claims_validate',
   'rcm_claims_worklist',
+  'rcm_claims_queues',
+  'rcm_claims_measures',
   'rcm_submission_policies_create',
   'rcm_submission_policies_revoke',
   // B7 remittance.

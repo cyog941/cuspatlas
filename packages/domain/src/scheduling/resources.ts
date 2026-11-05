@@ -24,6 +24,7 @@ import {
   type ResourceListQuery,
   type ResourceSummary,
   SCHEDULING_PROPERTIES,
+  SCHEDULING_VOCABULARIES,
   type ResourceRef as SchedulingResourceRef,
   type StateLabelReport,
   type TenantTransaction,
@@ -107,7 +108,8 @@ export interface SchedulingDeps {
 }
 
 /** Version of the reserved state-label vocabulary held by cuspatlas.scheduling_state_terms(). */
-export const STATE_LABEL_VOCABULARY_VERSION = 'scheduling-state-labels.1';
+/** The S registry version (A20 / OR-02, packages/contracts/src/vocabularies/scheduling.ts). */
+export const STATE_LABEL_VOCABULARY_VERSION = SCHEDULING_VOCABULARIES.version;
 export const MAX_CONFLICTS = 50;
 const DEFAULT_LIMIT = 25;
 

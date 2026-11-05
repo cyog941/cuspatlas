@@ -659,6 +659,7 @@
         "B"
       ],
       "operations": [
+        "rcm.claims.queues",
         "rcm.claims.read",
         "rcm.claims.worklist",
         "rcm.workflows.read"
@@ -820,7 +821,8 @@
         "billing.plans.read",
         "billing.plans.worklist",
         "billing.reports.receivables",
-        "billing.statements.read"
+        "billing.statements.read",
+        "rcm.claims.measures"
       ],
       "sensitivity": "phi"
     },

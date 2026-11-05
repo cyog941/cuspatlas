@@ -1070,8 +1070,9 @@
     "ConsentList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data", "asOf"],
+      "required": ["data", "asOf", "envelope"],
       "properties": {
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": {
           "type": "array",
           "maxItems": 500,
@@ -1540,8 +1541,9 @@
     "EncounterList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data", "nextCursor"],
+      "required": ["data", "nextCursor", "envelope"],
       "properties": {
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": {
           "type": "array",
           "maxItems": 100,
@@ -1953,8 +1955,9 @@
     "EstimateList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data"],
+      "required": ["data", "envelope"],
       "properties": {
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": {
           "type": "array",
           "maxItems": 200,
@@ -3061,8 +3064,9 @@
     "NoteList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data"],
+      "required": ["data", "envelope"],
       "properties": {
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": {
           "type": "array",
           "maxItems": 50,
@@ -4107,8 +4111,9 @@
     "PerioExamList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data"],
+      "required": ["data", "envelope"],
       "properties": {
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": {
           "type": "array",
           "maxItems": 500,
@@ -4478,8 +4483,9 @@
     "PlanAlternativeList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data"],
+      "required": ["data", "envelope"],
       "properties": {
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": {
           "type": "array",
           "maxItems": 50,
@@ -5349,8 +5355,9 @@
     "ProcedureList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data"],
+      "required": ["data", "envelope"],
       "properties": {
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": {
           "type": "object",
           "additionalProperties": false,
@@ -5930,8 +5937,9 @@
     "TreatmentPlanList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data"],
+      "required": ["data", "envelope"],
       "properties": {
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": {
           "type": "array",
           "maxItems": 200,
@@ -6195,8 +6203,9 @@
     "ImageLinkList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data"],
+      "required": ["data", "envelope"],
       "properties": {
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": {
           "type": "object",
           "additionalProperties": false,
@@ -6632,8 +6641,9 @@
     "LabCaseList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data"],
+      "required": ["data", "envelope"],
       "properties": {
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": {
           "type": "array",
           "maxItems": 200,
@@ -7158,8 +7168,9 @@
     "ReferralList": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data"],
+      "required": ["data", "envelope"],
       "properties": {
+        "envelope": { "$ref": "#/$defs/ListEnvelope" },
         "data": {
           "type": "array",
           "maxItems": 200,
@@ -7223,6 +7234,114 @@
               }
             }
           }
+        }
+      }
+    },
+    "ListScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "description": "OR-01 scope: tenant-wide, the caller's assigned locations, or an explicit location set (locationRefs present for the last two).",
+      "properties": {
+        "kind": {
+          "enum": ["tenant_wide", "assigned_locations", "location_set"]
+        },
+        "locationRefs": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]{1,64}$"
+          }
+        }
+      }
+    },
+    "ListOrdering": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "direction", "tieBreak"],
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[A-Za-z.]{1,64}$"
+        },
+        "direction": {
+          "enum": ["asc", "desc"]
+        },
+        "tieBreak": {
+          "type": "string",
+          "pattern": "^[A-Za-z.]{1,64}$"
+        }
+      }
+    },
+    "ListCount": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["exact"],
+          "properties": {
+            "exact": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["atLeast"],
+          "properties": {
+            "atLeast": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      ]
+    },
+    "ListEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "OR-01 list envelope, shared by every list and worklist response.",
+      "required": [
+        "asOf",
+        "appliedFilters",
+        "scope",
+        "limit",
+        "truncated",
+        "nextCursor",
+        "ordering",
+        "count"
+      ],
+      "properties": {
+        "asOf": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server instant the list was read."
+        },
+        "appliedFilters": {
+          "type": "object",
+          "description": "Normalized filters, including the defaults the server applied."
+        },
+        "scope": {
+          "$ref": "#/$defs/ListScope"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "nextCursor": {
+          "type": ["string", "null"]
+        },
+        "ordering": {
+          "$ref": "#/$defs/ListOrdering"
+        },
+        "count": {
+          "$ref": "#/$defs/ListCount"
         }
       }
     }

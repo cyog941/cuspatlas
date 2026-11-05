@@ -26,6 +26,7 @@ const POLICIES = ACTION_POLICIES as unknown as Record<string, Policy>;
 const OWNERS: Record<string, OwnerWorkstream> = {
   health: 'F',
   session: 'F',
+  vocabularies: 'F',
   syntheticTasks: 'F',
   outbox: 'F',
   patients: 'S',

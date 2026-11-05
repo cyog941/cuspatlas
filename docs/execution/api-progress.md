@@ -12,6 +12,7 @@ Branch `codex/a-api-1`, based on the integrated F+S+C+E+I+B head `6871689`.
 | A4 operation catalog and single authorization path | tested (synthetic) | `tests/integration/api-catalog.test.ts` |
 | A3 scope registry and new-operation procedure | tested (synthetic); grants pending A-D2 | `tests/integration/api-scopes.test.ts` |
 | A1 contract pipeline, generated client, representation conformance | tested (synthetic) | `tests/integration/api-contract-gate.test.ts`, ADR 0007 |
+| A5 change control, deprecation and sunset record | tested (synthetic); window length pending A-D1 | `tests/integration/api-change-control.test.ts` |
 
 ### A4: operation catalog
 
@@ -71,3 +72,21 @@ Branch `codex/a-api-1`, based on the integrated F+S+C+E+I+B head `6871689`.
   refusal is never `ok`. The test calls the real app: create, read, a 404 refusal, and a smuggled
   `tenantId` property rejected with 400 (not stripped). The two OpenAPI-local result schemas (Health,
   Session) are typed `unknown`.
+
+### A5: change control, deprecation and the sunset record
+
+- `packages/contracts/src/catalog/baseline.json` is the committed, versioned contract snapshot (per
+  operation: transports, scope, principal kinds, REST method/path, MCP tool and a normalized,
+  $ref-resolved request-schema summary). `classifyChange` reports additive and breaking changes with
+  the field path: removed or renamed operation, dropped transport or principal, changed scope, new
+  required property, removed property of a closed object, narrowed enum, tighter max/min, changed
+  pattern, nullable made non-null. A baseline that cannot be ordered stops the pipeline.
+- The gate (`catalog:generate` and the test) refuses a breaking change unless the operation has an
+  entry in `deprecations.json` whose sunset date has passed; removing before the sunset is refused.
+- Deprecated operations still answer and audit. REST responses (success and refusal) carry
+  `Deprecation: @<epoch>` (RFC 9745), `Sunset` (RFC 8594) and a `Link` to the register; MCP tool
+  descriptions and every result (`_meta.deprecation`) carry the notice. Proven with a synthetic test
+  entry injected through `AppDeps.deprecations` / `McpServerDeps.deprecations`; the published list is
+  empty, so no operation is deprecated at this head.
+- `docs/api/sunset-register.md` is generated from the entries and checked against the catalog.
+- Open: the deprecation window length (A-D1) is a human decision; no default is asserted.

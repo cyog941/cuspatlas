@@ -57,8 +57,9 @@ Change control (A5) classifies the difference between the committed baseline
 | deprecating | operation listed in `deprecations.json` with a sunset date | passes; REST `Deprecation`/`Sunset` headers, MCP notice |
 | breaking | operation removed or renamed, transport dropped, new required property, removed property, narrowed enum, smaller maximum length or value, nullable made non-null, scope changed | fails unless the operation carries a deprecation entry whose sunset date has passed |
 
-A change the classifier cannot classify fails rather than defaulting to additive. Accepting a change
-is an explicit `pnpm catalog:baseline` commit, reviewed like any contract change.
+A change the classifier cannot classify fails rather than defaulting to additive. The baseline moves
+only through `pnpm catalog:generate`, which refuses (and writes nothing) while any breaking change
+lacks a passed sunset; the moved baseline is reviewed in the diff like any contract change.
 
 ## Consequences
 

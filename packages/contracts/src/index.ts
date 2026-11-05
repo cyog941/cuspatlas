@@ -2,6 +2,8 @@ export * from './action-proposal';
 export * from './billing';
 export * from './billing-export';
 export * from './billing-rcm';
+export type { DeprecationEntry } from './catalog/catalog';
+export { DEPRECATIONS, deprecationHeaders, deprecationIndex, deprecationNotice } from './catalog/deprecation';
 export * from './clinical';
 export * from './clinical-care';
 export * from './clinical-chart';

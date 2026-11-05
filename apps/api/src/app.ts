@@ -1,12 +1,14 @@
 import { type KeyObject, randomUUID } from 'node:crypto';
-import type {
-  DeviceCredentialSource,
-  MalwareScannerPort,
-  MembershipSource,
-  ObjectStorePort,
-  PortalPrincipalSource,
-  SecurityAttemptSink,
-  WithTenantTransaction,
+import {
+  DEPRECATIONS,
+  type DeprecationEntry,
+  type DeviceCredentialSource,
+  type MalwareScannerPort,
+  type MembershipSource,
+  type ObjectStorePort,
+  type PortalPrincipalSource,
+  type SecurityAttemptSink,
+  type WithTenantTransaction,
 } from '@cuspatlas/contracts';
 import {
   type AttachmentRefResolver,
@@ -50,6 +52,7 @@ import {
   isConfiguredIdentity,
   isTestIssuer,
 } from './auth';
+import { registerDeprecationHeaders } from './deprecation';
 import { createDeviceAuthenticator } from './device-auth';
 import { mapErrorToRefusal, safeErrorKind } from './errors';
 import {
@@ -128,6 +131,8 @@ export interface AppDeps {
    * only when this is configured.
    */
   readonly deviceCredentials?: DeviceCredentialSource;
+  /** A5 deprecation entries (default: the published packages/contracts/src/catalog/deprecations.json). */
+  readonly deprecations?: readonly DeprecationEntry[];
   /** I6 server job-signing key (Ed25519 private key); see resolveBridgeSigningKey. */
   readonly bridgeSigningKey?: KeyObject | null;
 }
@@ -226,6 +231,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   app.addHook('onRoute', (r) => {
     for (const method of [r.method].flat()) if (method !== 'HEAD') registered.push({ method, url: r.url });
   });
+
+  registerDeprecationHeaders(app, deps.deprecations ?? DEPRECATIONS);
 
   app.decorateRequest('actor', null);
   app.addHook('onRequest', async (request, reply) => {

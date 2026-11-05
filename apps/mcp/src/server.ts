@@ -15,7 +15,11 @@ import {
 } from '@cuspatlas/api';
 import {
   type ActorContext,
+  DEPRECATIONS,
+  type DeprecationEntry,
   type DomainRefusal,
+  deprecationIndex,
+  deprecationNotice,
   type MalwareScannerPort,
   type MembershipSource,
   type ObjectStorePort,
@@ -127,6 +131,8 @@ export interface McpServerDeps {
   /** C15: the I3 imageRef seam (absent: I3's consumer reference read, createImagingImageRefResolver). */
   readonly imageRefResolver?: ImageRefResolver;
   readonly logger?: { readonly stream?: { write(line: string): void } };
+  /** A5 deprecation entries (default: the published packages/contracts/src/catalog/deprecations.json). */
+  readonly deprecations?: readonly DeprecationEntry[];
   /** Browser origins allowed to call the endpoint. Default none: native MCP clients send no Origin. */
   readonly allowedOrigins?: readonly string[];
   /**
@@ -417,6 +423,19 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
   const allowedHosts = new Set([...LOOPBACK_HOSTS, ...(deps.allowedHosts ?? [])].map((h) => h.toLowerCase()));
   if (metadataUrl) allowedHosts.add(new URL(metadataUrl).hostname.toLowerCase());
 
+  // A5: a deprecated tool still answers and audits; its description and every result carry a notice.
+  const deprecationIdx = deprecationIndex(deps.deprecations ?? DEPRECATIONS);
+  const notices = new Map(
+    TOOLS.flatMap((t) => {
+      const e = deprecationIdx.get(t.operationId);
+      return e ? [[t.name, deprecationNotice(e)] as const] : [];
+    }),
+  );
+  const metaFor = (name: string) => {
+    const n = notices.get(name);
+    return n ? { _meta: { deprecation: n } } : {};
+  };
+
   function refusalResult(refusal: DomainRefusal) {
     return {
       isError: true as const,
@@ -457,13 +476,14 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
       return {
         content: [{ type: 'text' as const, text: JSON.stringify(result) }],
         structuredContent: result as Record<string, unknown>,
+        ...metaFor(name),
       };
     } catch (err) {
       const { body } = mapErrorToRefusal(err, actor.correlationId);
       code = body.code;
       if (REFUSAL_HTTP_STATUS[body.code] >= 500)
         write({ level: 'error', msg: 'tool failed', ...safeErrorKind(err) });
-      return refusalResult(body);
+      return { ...refusalResult(body), ...metaFor(name) };
     } finally {
       write({
         level: 'info',
@@ -484,7 +504,7 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     server.setRequestHandler(ListToolsRequestSchema, async () => ({
       tools: TOOLS.map((t) => ({
         name: t.name,
-        description: t.description,
+        description: notices.has(t.name) ? `${t.description} ${notices.get(t.name)?.notice}` : t.description,
         inputSchema: t.inputSchema as never,
         annotations: { readOnlyHint: t.readOnly, openWorldHint: false },
       })),

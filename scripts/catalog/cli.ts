@@ -1,9 +1,12 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { validateCatalog } from '../../packages/contracts/src/catalog/catalog';
+import { classifyChange } from '../../packages/contracts/src/catalog/change-control';
+import { DEPRECATIONS } from '../../packages/contracts/src/catalog/deprecation';
+import { BASELINE_PATH, buildBaseline, gateViolations, readBaseline } from './baseline';
 import { buildCatalog, ROOT, stableJson } from './build-catalog';
 import { renderClient } from './client';
-import { renderCatalogMd, renderScopesMd } from './docs';
+import { renderCatalogMd, renderScopesMd, renderSunsetMd } from './docs';
 import { buildScopeRegistry, registeredScopes } from './scopes';
 
 /**
@@ -15,12 +18,29 @@ export function generatedArtifacts(): Record<string, string> {
   const defects = validateCatalog(catalog, registeredScopes());
   if (defects.length > 0) throw new Error(`catalog invalid; nothing written:\n${defects.join('\n')}`);
   const registry = buildScopeRegistry(catalog);
+  const baseline = buildBaseline(catalog);
+  // A5: the published baseline only moves forward through a change the gate accepts.
+  let previous: ReturnType<typeof readBaseline> | null = null;
+  try {
+    previous = readBaseline();
+  } catch {
+    previous = null; // first publication
+  }
+  if (previous) {
+    const today = new Date().toISOString().slice(0, 10);
+    const refused = gateViolations(classifyChange(previous, baseline), DEPRECATIONS, today);
+    if (refused.length > 0) {
+      throw new Error(`breaking contract change refused; nothing written:\n${refused.join('\n')}`);
+    }
+  }
   return {
     'packages/contracts/src/catalog/operations.json': stableJson(catalog),
     'packages/contracts/src/catalog/scopes.json': stableJson(registry),
+    [BASELINE_PATH]: stableJson(baseline),
     'packages/client/src/generated.ts': renderClient(catalog),
     'docs/api/operation-catalog.md': renderCatalogMd(catalog),
     'docs/api/scopes.md': renderScopesMd(registry),
+    'docs/api/sunset-register.md': renderSunsetMd(DEPRECATIONS),
   };
 }
 

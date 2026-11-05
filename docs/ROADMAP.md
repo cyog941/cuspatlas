@@ -1,6 +1,8 @@
 # Delivery roadmap
 
-This is a proposed sequence, not a delivery-date commitment. No product implementation has started.
+This is a proposed sequence, not a delivery-date commitment. Synthetic backend implementation is progressing on development branches; this document defines the delivery scope and gates, not a checklist of shipped capabilities. UI design remains deferred.
+
+For the project overview, see the [README](../README.md). Follow [development pull requests](https://github.com/cyog941/cuspatlas/pulls) and their commit-specific checks for implementation evidence. A passing synthetic test suite does not establish production or clinical readiness.
 
 ## Planning sequence
 

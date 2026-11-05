@@ -44,7 +44,7 @@ Read-only observation of Tab32 through an authenticated session. Structure and v
 
 ### Reference implementations studied
 
-- [MntOs schedule demo: interaction patterns](docs/MNTOS-PATTERN-REVIEW.md) — public demo, read-only. Patterns we want (dense appointment blocks, queue-based claim triage, persistent patient context, self-stating freshness) and the ones to adapt rather than copy. Requirements only; no screen design and no code reuse.
+- [MntOs demo: feature and function notes](docs/MNTOS-PATTERN-REVIEW.md) — public demo, read-only. What another dental product does that we might want, and the gaps it exposes in our design (floor view, needs-reply queue, counts as navigation, freshness on every list). Notes for decisions, not adopted tasks; no screen design, no code reuse.
 
 ### Implementation plans
 

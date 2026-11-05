@@ -53,7 +53,7 @@ REA evidence: `ev_0e4dd00b5accc7e2e95bbb62993264d963d35c189bf002b7b6fe6f544f815f
 
 What it establishes: how a scheduling, floor, claims and patient-context surface can be organised, and which interaction properties make a dense clinical screen self-explanatory. What it does not establish: any backend, enforcement or clinical behaviour — it is a demo with synthetic data and no guaranteed server.
 
-Boundary: this is design-reference evidence, not incumbent behaviour. It informs our interaction requirements only. Per [AGENTS.md](../AGENTS.md) we copy workflow requirements, never code, branding, imagery or screen design, and UI design remains the deferred stage. Findings and the requirements they produce are in [MNTOS-PATTERN-REVIEW.md](MNTOS-PATTERN-REVIEW.md); the resulting acceptance criteria are folded into the scheduling and billing plans and [acceptance scenarios](ACCEPTANCE-SCENARIOS.md).
+Boundary: this is design-reference evidence, not incumbent behaviour. It informs our interaction requirements only. Per [AGENTS.md](../AGENTS.md) we copy workflow requirements, never code, branding, imagery or screen design, and UI design remains the deferred stage. Findings are kept as feature and function notes in [MNTOS-PATTERN-REVIEW.md](MNTOS-PATTERN-REVIEW.md), together with the gaps they expose in our own design. They are notes, not adopted tasks: an earlier pass folded them into the scheduling and billing plans and the acceptance scenarios, and that was reverted because the requirements named no owning tasks and contradicted states the plans already define.
 
 ## Architecture sources
 

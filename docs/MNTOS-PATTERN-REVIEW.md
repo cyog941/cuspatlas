@@ -1,116 +1,105 @@
-# MntOs schedule demo: interaction patterns worth taking
+# MntOs demo: feature and function notes for our build
 
-Status: read-only observation of a public demo, 2026-11-03 evening ET. Source: `https://mntos-demo.vercel.app`, a self-described demo workspace with synthetic sample data and no sign-in.
+**Status: notes only. Nothing in this document is an adopted task, a plan item or an approved requirement.**
 
-What this document is: a list of **interaction and information-design patterns** we want to adopt, with the reason each one works and where it lands in our plans. What it is not: a screen design, a visual copy, or code reuse. [AGENTS.md](../AGENTS.md) is explicit that we copy workflow requirements, never a vendor's code, branding, imagery, or screen design, and UI design remains the deferred final planning stage. Nothing here authorises building a screen.
+Purpose: a notebook of what another dental product does, so we can decide what our own build should be able to do. Not a design to copy, not a rebuild target, not a UI specification. UI design remains deferred under [AGENTS.md](../AGENTS.md), which also requires us to copy workflow requirements rather than another product's code, branding, imagery or screen design.
 
-Method: a dedicated Chrome profile with a loopback DevTools endpoint. Structure, labels, computed styles and interaction states were read from the running page; screenshots were taken for local reference only and are not committed. No account was created, nothing was submitted, and no sample record was edited beyond opening dialogs in a demo that discards changes.
+Source: `https://mntos-demo.vercel.app`, a public demo workspace, no sign-in, synthetic sample data.
 
-REA evidence: `ev_0e4dd00b5accc7e2e95bbb62993264d963d35c189bf002b7b6fe6f544f815ffa` (CDP target list, origin `mntos-demo.vercel.app`).
+Every entry is tagged **observed** (seen in the running demo or its served assets), **inferred** (a reading we are putting on the observation) or **decision** (a requirement we are choosing). Nothing here is a claim about how their product behaves behind the client.
 
-## Why this one is worth reading
+## Evidence boundary — what the tooling actually established
 
-The incumbent we studied keeps six major workflows in overlays with no URL, and reports access through a 29-item matrix that grants everything to everyone. This demo is the opposite temperament: every workflow has a route, every queue states its own freshness, and the dense screens explain themselves in situ. It is a better model for the interaction layer than the incumbent is, even though the incumbent has more functional depth.
+| Tool | Evidence | Establishes |
+|---|---|---|
+| REA 6.8.0 | `ev_0e4dd00b5accc7e2e95bbb62993264d963d35c189bf002b7b6fe6f544f815ffa` | one page target on `mntos-demo.vercel.app` |
+| REA 6.8.0 | `ev_eb3ebc259db7c3a55ec9577db72ed700c7fcce1f5026ebf1a92e112af27f3e41` | 1162 DOM nodes; **no network requests observed in a 4-second window**; one localStorage key reported (`pms-react-open-patients:v2`) |
+| REA 6.8.0 | static bundle analysis, parent `ev_b0de463e226574ff50c9dccd9a2ec7d15ce402e6affb84ec745a9752ed22f1b0` | 16 captured script sources: 15 complete, 1 unavailable, 13 gaps; **zero route patterns, zero endpoint candidates recovered** |
+| Craft 0.3.0 | `ev_979c2a26b8e65a3f2c682f57108e782d11911ff49c5d3da72694d4c99aaf41f0` | screenshot of `/react/schedule` as publicly served |
 
-## Patterns to adopt
+Craft's browser-opening tools require interactive consent, which this session cannot grant; only its CDP-attached screenshot ran. A design-token or breakpoint capture was **not** performed.
 
-### Scheduling surface
+Three limits follow, and they bound every entry below:
 
-**1. Two-line column headers, code then human name.** `OP1 / Operatory 1`, `HYG1 / Hygiene 1`. An experienced user scans the code; a new one reads the name. Costs one line of vertical space, removes a training dependency.
+1. **No backend was observed.** One page, one 4-second window, no requests. That is not proof the demo has no backend — only that none was seen. Anything about their server, validation, persistence or enforcement is unknown.
+2. **The application was not reverse engineered.** Static analysis of all 16 captured sources recovered no routes and no endpoints: navigation is client-side and the API surface, if any, is not in the client. So this is a *product* study, not a code study.
+3. **Screen content beyond the pages I opened is reported from what rendered.** Where I quote a label or a count I saw it; where I describe what a control *would* do, it is inferred.
 
-**2. The appointment block is a complete answer.** A single block carries patient name, payer badge, status pill, procedure codes with tooth numbers, time range, appointment type, an edit affordance, and a next-status affordance. A receptionist answers "who, what, when, is it confirmed, what are we doing, what will insurance do" without opening anything.
+Two earlier statements in this document were wrong and are corrected here: it is not established that "every workflow has a route" (one nav entry returned "Page not found"), and it is not established that the demo "writes `?patient=`" (no URL change was observed).
 
-**3. Status as a filled pill with a four-letter code and its own hue.** Observed pills: `OUT` green, `IN` magenta, `CNF` blue, `BRK` orange, `CHR` deep purple, `NS` brown-red, `RDY` pink. Rendered at 10px uppercase, `border-radius: 99px`, dark text on light hues and white text on dark ones. Colour is redundant with the label rather than the only signal, which is the correct accessibility posture.
+## Feature and function notes
 
-**4. Blockouts span every operatory as one object.** Lunch renders as one band across `OP1/OP2/HYG1/HYG2` rather than four separate blocks. That is the difference between "we are closed" and "four coincidences".
+### Scheduling
 
-**5. Unavailable time is hatched, not blank.** Empty grid cells mean free; hatched bands mean unavailable. The two are different facts and they look different.
-
-**6. Pinboard: a capped staging area for work that has no slot.** `Pinboard 0/10`, with the instruction "Drag one here, or press P on a focused appointment, to move it to another day." It is a named, bounded queue with a keyboard shortcut and a drag target, not an implicit concept. This is the pattern our scheduling plan calls an unscheduled-work list; the demo shows it belongs on the schedule screen, not in a separate module.
-
-**7. Counters act as navigation.** `Requests 5`, `Blockouts 1`. The count is shown on the control that opens the list, so the user knows whether to bother.
-
-**8. "Find opening" is a search, not a filter.** The dialog takes appointment type, "duration only", minutes, provider, time of day (any / morning / afternoon), weekday checkboxes, a start date and a window (`next 30 days` / `next 60 days`), then answers with openings. Our scheduling plan owns availability as a query; this is the interaction it must support.
-
-**9. Density controls for a dense screen.** Day/Week toggle, `Compact hours`, and a zoom control (`− 100% +`). A scheduler that cannot be compressed is unusable on a laptop.
+| # | What it does | Why it matters for ours | Tag |
+|---|---|---|---|
+| 1 | One appointment block carries patient, payer, attendance state, procedure codes with tooth numbers, time range, appointment type, an edit affordance and a next-state affordance | A receptionist answers the whole call without opening a record. Our appointment read model returns one record, not six calls | observed (labels, block contents) |
+| 2 | Status is a short code plus a distinct colour (seven codes seen: `OUT`, `IN`, `CNF`, `BRK`, `CHR`, `NS`, `RDY`) | Colour reinforces the label rather than replacing it. Worth pairing a code with an operator-facing full label so a new hire is not blocked | observed codes; **decision**: pair code with label |
+| 3 | A blockout covering several operatories renders as one band across their columns | One closure is one fact with one identity and one audit entry, not N coincident bookings | observed; **decision**: model it as one object |
+| 4 | Unavailable time is visually distinct from free time | "Nobody booked it" and "you cannot book it" are different answers. Our availability model must return the reason, not just an empty slot | observed as distinct treatment; **decision**: separate reason in the contract |
+| 5 | A capped "pinboard" of appointments with no committed slot (shown as `Pinboard 0/10`), with a keyboard shortcut and a drag target | A named, bounded staging queue for reschedules in flight. Capacity and move failures become explicit outcomes instead of silent drops | observed (label and capacity); **decision**: bounded list with audit per move |
+| 6 | Counters live on the controls that open the lists (`Requests`, `Blockouts`) | A user knows whether to bother before clicking. Our schedule read returns those counts with its scope stated | observed |
+| 7 | "Find opening" is a search: appointment type (type optional, "duration only"), minutes, provider, time of day, weekday set, start date, window (30/60 days) | This is availability *query*, not a filtered calendar. Our S9 must accept duration-only and a bounded window and return openings | observed (dialog fields) |
+| 8 | Density controls: Day/Week, "Compact hours", zoom | A scheduler that cannot compress is unusable on a laptop. Our read model must support a coarse and a detailed grain from the same endpoint | observed |
+| 9 | On a 390 px viewport the calendar becomes an inner scroller (766 px inside 289 px) with no page-level overflow | Correct pattern for a phone: the calendar scrolls, the chrome stays. Relevant once a mobile surface is authorised | observed |
+| 10 | A persistent active-patient bar showing initials, name, phone and jumps to Appts/Billing, or `No active patient` when empty | Every call starts with "which patient". Carrying that context across screens and into URLs is a requirement, not a feature | observed |
 
 ### Office floor
 
-**10. A glanceable second view of the same data.** The floor board is one card per current visit: room, patient, time and duration, a plain-language status in the top-right corner (`scheduled`, `confirmed`, `checked in`, `in chair`, `ready to seat`, `checked out`), a link back to the appointment in the schedule, and an inline `Request doctor` action that is disabled where it does not apply.
+| # | What it does | Why it matters for ours | Tag |
+|---|---|---|---|
+| 11 | A card per current visit: room, patient, time, duration, plain-language state in the corner, link back to the appointment, inline "Request doctor" (disabled when not applicable) | The same facts as the schedule, for a different audience, in different words. Our attendance model must expose an operator-facing label beside the code | observed |
+| 12 | A team-presence block: your room, your availability, doctor to notify | Turns "who is free" from a question into a panel. Ours has no owner for this today — recorded as a gap | observed |
 
-Two things are worth naming. The floor board uses **plain language** where the schedule uses **codes** — same facts, different audience, deliberately different vocabulary. And it exposes a **team presence** block (your room, your availability, doctor to notify), which turns "who is free" from a question into a panel.
+### Claims and money
 
-**11. Cross-view identity.** Both views open the same appointment. There is no second copy of the visit and no re-entry.
+| # | What it does | Why it matters for ours | Tag |
+|---|---|---|---|
+| 13 | Claim work is a set of labelled queues with counts (to create, pending submission, attachments, pending payment, rejected/denied, appeals, paid/closed, returned claims, filing deadline soon, all claims) | Triage by state, not by constructing a filter. Ours needs queues as addressable states with per-queue counts | observed (labels) |
+| 14 | Four headline figures above the queues (open insurance A/R, claims over 30 days, needs action, open appeals) | Answers the morning-huddle questions directly | observed (labels) |
+| 15 | Default ordering is "work priority" — deadlines and attention first, with the tie-break documented | Newest-first is the wrong default for money. Ours must define the ordering as part of the contract | observed (sort control); **decision**: documented ordering |
+| 16 | The screen states its own freshness, filter location and page cap | Kills the "is this current" and "why am I not seeing it" arguments. Every list response should carry as-of time, applied filters, cap | observed as on-screen copy; **decision**: in the API response, not just the UI |
+| 17 | Empty state names the next action and states `0 of 0` | Zero should be legible, not suspicious | observed |
 
-### Claim workspace
+### Reports, messaging, agent
 
-**12. Queues with counts as the primary control.** Ten queue buttons, each carrying its count: to create, pending submission, attachments, pending payment, rejected/denied, appeals, paid/closed, returned claims, filing deadline soon, all claims. Work is triaged by state, not by a filter dropdown the user must construct.
+| # | What it does | Why it matters for ours | Tag |
+|---|---|---|---|
+| 18 | Reports grouped with counts and a favourites tab | The three reports a practice actually uses should not be hunted daily | observed |
+| 19 | Messaging split into texts / inbox / team / automation / forms, with all / unread / needs-reply filters | "Needs reply" turns a log into a work queue. Ours has messaging owned by portal/comms but no needs-reply worklist — gap | observed |
+| 20 | A first-class `Agent` destination with sessions, memory vault and scheduled tasks | Treats AI as a workspace with history, not a chat box. Relevant to workstream A | observed (nav and headings) |
 
-**13. Four figures above the queue.** Open insurance A/R, claims over 30 days, needs action, open appeals. Each answers a question a practice manager actually asks in a morning huddle.
+### Safety and identity
 
-**14. "Work priority" is the default sort.** Not newest, not patient name. Filing deadlines and claims needing attention come first, and the screen says so.
+| # | What it does | Why it matters for ours | Tag |
+|---|---|---|---|
+| 21 | The appointment dialog shows the patient summary it needs (insurance verification state, chart number, age, phone, carrier, balance) with `Open chart` | The user does not lose the appointment to check the balance | observed |
+| 22 | `Change patient…` carries the warning that completed procedures belong to this patient and must be undone through procedure review first | The refusal shape we want: name the reason and the remediation. Whether it is actually refused was **not tested** | observed (warning text); inferred (enforcement) |
+| 23 | Search-first top bar (`Find patient…` plus `+ Patient`) | The most common task is one keystroke away | observed |
 
-**15. The screen states its own freshness and limits.** "Totals and queue counts cover all accessible claims as of 2026-11-04." "Search and filters run on the server before pagination." "each page contains up to 50 claims." Three sentences that prevent the two classic report arguments: "is this current" and "why am I not seeing it".
+## What this exposes in our own design
 
-**16. An empty state that gives the next action.** "No accessible claims match these filters. Choose another queue or adjust the filters." Plus `Showing 0 of 0 matching claims`, so zero is legible rather than suspicious.
+These are the notes the exercise was for — gaps in *ours*, not features in theirs. None of them is an adopted task. Each needs a decision before it becomes one, because a requirement that names no owner is worse than a note that does.
 
-### Patient context
+1. **No owner for a floor/flow view.** Attendance states exist in S11, but nothing owns the "who is in which room, who needs a doctor" read. New candidate task, or an explicit scope decision.
+2. **No needs-reply messaging worklist.** E owns messages and delivery; nothing turns inbound into a queue with an SLA.
+3. **No bounded unscheduled-work list by name.** S10 has booking and reschedule, and S8 already owns slotless requests. Whether a staging list for appointments without a slot is a new aggregate or a view over existing ones is an open design question — it is not a new appointment state, and the plan's occupancy rules must not be weakened to create it.
+4. **Availability search has no "duration without a type" path** in our current contract (S9 takes a type). Small contract change, real use case: "find me 30 minutes anywhere".
+5. **Our read models are per-task.** The demo shows that one screen needs appointment + patient + coverage + procedures + next-states together. No task owns that composition, and it spans aggregates owned by B, C and S — so it needs a decision about who composes, not a requirement bolted onto S10.
+6. **Queue-as-navigation is not in our claims design.** B6 has a claim lifecycle; it does not have named work queues with scoped counts. Note that most observed queues are predicates over the lifecycle, not states — they must not be modelled as extra states.
+7. **Nothing requires a response to state its own freshness.** We have as-of conventions scattered through acceptance scenarios; no shared contract requires every list response to carry it.
 
-**17. A persistent active-patient bar.** With no selection the bar reads `No active patient`, greyed. With a selection it shows an initials avatar, the patient name and phone, and quick jumps to Appts and Billing, and it stays across screens. Any workflow that starts with "which patient" is answered before the user asks.
+## Things we are deliberately not taking
 
-**18. Identity is carried in the URL.** The demo writes `?patient=<id>` when a patient is in context, so a patient's workspace can be linked and reloaded. This is the same addressability property our design requires of workflow screens, applied to context.
+- **Codes without a legend.** `CNF`/`RDY`/`CHR`/`BRK`/`NS` are efficient for trained staff and opaque to everyone else. We pair code with a label.
+- **Five peer destinations for money** (claims, revenue, insurance payments, insurance plans, reports). Our domain model separates those facts; navigation should group them under one financial area.
+- **A nav entry with no route.** One observed destination returned "Page not found". Our navigation should be generated from the route registry, not maintained beside it.
+- **Their visual treatment.** Colours, type sizes, radii, spacing and component styling were not recorded as a specification, and none of it should be copied. Design is a separate, deferred decision.
 
-**19. The appointment dialog carries the patient summary it needs.** Opening an appointment shows, in the dialog itself: insurance verified state with a link, chart number, age, phone, carrier, balance, and two actions (`Open chart`, `Schedule patient`). The user does not lose the appointment to check the balance.
+## Open questions these notes raise
 
-**20. An identity change that could corrupt the record is blocked with its reason.** `Change patient…` carries the warning "Completed procedures belong to this patient. Undo them through the procedure review before changing patient." That is exactly the kind of guard our design demands: the refusal explains itself and names the remediation path, instead of failing silently or succeeding wrongly.
-
-### Cross-cutting
-
-**21. Search-first top bar.** `Find patient…` plus an always-visible `+ Patient`. The one thing every phone call needs is one keystroke away.
-
-**22. Reports with favourites.** Reports are grouped and counted, with a favourites tab, so the three reports a practice actually uses do not require hunting through the catalogue every morning.
-
-**23. Messaging with triage tabs.** Texts, inbox, team, automation and forms, with `all / unread / needs reply` filters. "Needs reply" as a first-class filter is the difference between a message log and a work queue.
-
-## Patterns to adapt rather than copy
-
-- **Status codes without a legend.** `CNF`, `RDY`, `CHR`, `BRK`, `NS`, `OUT` are efficient for staff who already know them, and opaque to anyone new or colour-blind until learned. Our design should pair the short code with an accessible full label (tooltip, aria-label, and a legend), which the floor board already demonstrates is affordable.
-- **Patient context as a query parameter.** It deep-links, but it shares a route and loses meaning if the parameter is dropped. Our addressability requirement is a path per workflow; context can travel with it, but the screen must still be its own route.
-- **Four separate top-level destinations for money** (`Claim Center`, `Revenue`, `Insurance payments`, `Insurance Plans`) plus `Reports`. Our domain model deliberately separates those facts; navigation should group them under one financial area rather than flattening five peers.
-- **A fourteen-item icon rail.** Every destination visible is good; fourteen labels at this size is a density risk, and one of the observed routes (`/react/lists`) returned "Page not found", which suggests the nav is ahead of the routes. Our navigation should be derived from the same registry as the routes, not maintained beside it.
-- **Status colour as the only differentiator between adjacent states.** Two of the observed hues (`IN` magenta and `RDY` pink) are close. Any colour system we adopt needs a pairwise contrast check, not just per-swatch contrast.
-
-## Design values observed, for reference only
-
-Not a design system to copy; recorded so the numbers are available when UI design is authorised. Re-derive and re-validate at that point.
-
-| Property | Observed |
-|---|---|
-| Page background | `rgb(233, 235, 230)` |
-| Font stack | `-apple-system, "SF Pro Text", BlinkMacSystemFont, "Segoe UI", Roboto, ...` |
-| Status pill | 10px uppercase, weight 700+, radius `99px` |
-| Column header | 11px, weight 750 |
-| Card radius | rounded, consistent across schedule blocks and floor cards |
-
-## What this does not tell us
-
-- Whether any of it is enforced server-side; this is a demo with no backend guarantees, and every request would have been against mocked or local data.
-- Real behaviour under load, with hundreds of visits, multiple locations, or conflicting edits.
-- Anything clinical: the demo shows scheduling, floor, claims, revenue, messages, reports, an `Agent` workspace and settings, but no odontogram, periodontal chart, note signing or imaging.
-- Whether the patterns survive a five-location practice; the screens assume one clinic's operatories.
-
-## Where these patterns land in our plans
-
-| Pattern | Owning plan / document |
-|---|---|
-| Appointment block content, status presentation | scheduling Task 10 (booking) and the status vocabulary in [workflow and role matrix](WORKFLOW-ROLE-MATRIX.md) |
-| Blockouts, unavailable time, density controls | scheduling Task 10 |
-| Pinboard, unscheduled work list | scheduling, patient/visit scheduling tasks |
-| Find opening | scheduling availability task (Task 7 in the current draft) |
-| Floor board, request doctor, team presence | scheduling attendance task (Task 11 in the current draft) |
-| Claim queues, work priority, freshness statement | billing and RCM claim lifecycle task, plus the reporting contract in [shared contracts](SHARED-CONTRACTS.md) |
-| Active patient bar, patient in URL, appointment summary | scheduling Task 5 (identity) and the API context rules in [API-AND-MCP.md](API-AND-MCP.md) |
-| Change-patient guard | clinical record, amendment and procedure-completion rules |
-| Empty states, freshness, queue counts | [acceptance scenarios](ACCEPTANCE-SCENARIOS.md), as observable expectations rather than screenshots |
-
-These are requirements on behaviour. They do not move UI design ahead of its gate, and they do not authorise implementation.
+1. Does a floor view belong in the first release, or is it an attendance report instead? (Owner: product + clinical reviewer.)
+2. Should the pinboard be its own aggregate, or a state on booking? (Owner: engineering, with S10.)
+3. Does "work priority" ordering need a practice-configurable rule, or is one documented global order enough for release? (Owner: billing reviewer.)
+4. Is a needs-reply messaging queue a first-release capability or a follow-on? (Owner: product, with E.)
+5. Which of these become tasks, and which stay notes? Nothing here is authorised to implement.

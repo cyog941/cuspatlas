@@ -86,7 +86,8 @@ describe('bridge backoff after a slow phase of the same transaction (clock audit
       [jobRef],
     );
     expect(rows[0]).toMatchObject({ state: 'queued', attempts: 1 });
-    const from = (rows[0]?.next_attempt_at as Date).getTime() - bridgeBackoffSeconds(1) * 1000;
+    const next = rows[0]?.next_attempt_at as Date;
+    const from = next.getTime() - bridgeBackoffSeconds(1) * 1000;
     // The backoff runs from the sweep's own statement, after the slow phase (not from the transaction
     // start, which precedes it), so the whole backoff lies ahead of the commit.
     expect(from - before.getTime()).toBeGreaterThanOrEqual(SLOW_MS - 50);

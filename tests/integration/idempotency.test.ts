@@ -7,6 +7,7 @@ import {
   createSecurityAttemptSink,
   createTenantTransactionRunner,
 } from '@cuspatlas/db';
+import { idempotencyPayloadDigest, SYNTHETIC_TEST_IDEMPOTENCY_DIGEST_KEY } from '@cuspatlas/domain';
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -74,6 +75,9 @@ function canonical(v: unknown): string {
   return JSON.stringify(v);
 }
 const sha256 = (s: string) => createHash('sha256').update(s, 'utf8').digest('hex');
+/** The stored payload digest (scheme 2): keyed, tenant-bound (the test-only key under synthetic-test). */
+const keyed = (body: unknown, tenant = T_ALPHA) =>
+  idempotencyPayloadDigest(SYNTHETIC_TEST_IDEMPOTENCY_DIGEST_KEY, tenant, body);
 
 const count = async (table: string, where = 'true', values: unknown[] = []) =>
   (await db.admin.query(`SELECT count(*)::int AS n FROM cuspatlas.${table} WHERE ${where}`, values)).rows[0]
@@ -81,7 +85,7 @@ const count = async (table: string, where = 'true', values: unknown[] = []) =>
 
 async function reservation(principal: string, operation: string, key: string) {
   const { rows } = await db.admin.query(
-    `SELECT state, payload_digest, result, aggregate_version, expires_at - reserved_at AS ttl
+    `SELECT state, payload_digest, payload_digest_scheme, result, aggregate_version, expires_at - reserved_at AS ttl
      FROM cuspatlas.command_idempotency
      WHERE tenant_id = $1 AND principal_id = $2 AND operation = $3 AND key_digest = $4`,
     [T_ALPHA, principal, operation, sha256(key)],
@@ -173,7 +177,8 @@ describe('same key, same payload', () => {
     const row = await reservation(USER_A1, 'syntheticTasks.create', key);
     expect(row).toMatchObject({
       state: 'committed',
-      payload_digest: sha256(canonical({ label: 'sequential' })),
+      payload_digest: keyed({ label: 'sequential' }),
+      payload_digest_scheme: 2,
       aggregate_version: 1,
     });
     expect(row.result).toStrictEqual({ kind: 'success', taskRef: ref });
@@ -217,6 +222,54 @@ describe('same key, same payload', () => {
         .version,
     ).toBe(2);
     expect(await count('audit_events', 'resource_ref = $1', [ref])).toBe(2);
+  });
+});
+
+describe('keyed payload digest (integration hardening)', () => {
+  it('the stored digest is not a plain SHA-256 of the payload; it is the tenant-bound HMAC', async () => {
+    const key = randomUUID();
+    const body = { label: 'synthetic allergen pollen' };
+    expect((await post(app, '/v1/synthetic-tasks', tokens.a1, body, key)).statusCode).toBe(201);
+    const row = await reservation(USER_A1, 'syntheticTasks.create', key);
+    expect(row.payload_digest).not.toBe(sha256(canonical(body)));
+    expect(row.payload_digest).toBe(keyed(body));
+    expect(row.payload_digest).toMatch(/^[0-9a-f]{64}$/);
+    expect(row.payload_digest_scheme).toBe(2);
+    // Tenant-bound: the same payload in another tenant has another digest.
+    expect(keyed(body, T_BETA)).not.toBe(keyed(body));
+    // Comparison semantics are unchanged: the same body replays, another body conflicts.
+    const again = await post(app, '/v1/synthetic-tasks', tokens.a1, body, key);
+    expect([again.statusCode, again.json().replayed]).toStrictEqual([201, true]);
+    const other = await post(
+      app,
+      '/v1/synthetic-tasks',
+      tokens.a1,
+      { label: 'synthetic allergen dust' },
+      key,
+    );
+    expect(other.json().code).toBe('idempotency_conflict');
+  });
+
+  it('a legacy scheme 1 row (unkeyed, written before the change) is still compared by its own scheme', async () => {
+    const key = randomUUID();
+    const body = { label: 'legacy pending' };
+    await db.admin.query(
+      `INSERT INTO cuspatlas.command_idempotency (tenant_id, principal_id, operation, key_digest,
+         payload_digest, payload_digest_scheme, state, correlation_id, reserved_at, expires_at)
+       VALUES ($1, $2, 'syntheticTasks.create', $3, $4, 1, 'pending', gen_random_uuid(),
+         now() - interval '120 seconds', now() - interval '120 seconds' + interval '7 days')`,
+      [T_ALPHA, USER_A1, sha256(key), sha256(canonical(body))],
+    );
+    // A different body against the legacy digest conflicts; the same body takes the abandoned row over.
+    const other = await post(app, '/v1/synthetic-tasks', tokens.a1, { label: 'legacy other' }, key);
+    expect(other.json().code).toBe('idempotency_conflict');
+    expect((await post(app, '/v1/synthetic-tasks', tokens.a1, body, key)).statusCode).toBe(201);
+    const row = await reservation(USER_A1, 'syntheticTasks.create', key);
+    expect([row.state, row.payload_digest_scheme, row.payload_digest]).toStrictEqual([
+      'committed',
+      2,
+      keyed(body),
+    ]);
   });
 });
 
@@ -410,7 +463,7 @@ describe('crash and in-flight recovery', () => {
            payload_digest, state, correlation_id, reserved_at, expires_at)
          VALUES ($1, $2, 'syntheticTasks.create', $3, $4, 'pending', gen_random_uuid(),
            now() - make_interval(secs => $5), now() - make_interval(secs => $5) + interval '7 days')`,
-        [T_ALPHA, USER_A1, sha256(key), sha256(canonical(body)), ageSeconds],
+        [T_ALPHA, USER_A1, sha256(key), keyed(body), ageSeconds],
       );
     const staleKey = randomUUID();
     await insertPending(staleKey, { label: 'abandoned' }, 61);
@@ -677,7 +730,7 @@ describe('E3 hardening (independent review)', () => {
            payload_digest, state, correlation_id, reserved_at, expires_at)
          VALUES ($1, $2, 'syntheticTasks.create', $3, $4, 'pending', gen_random_uuid(), now(),
            now() + interval '7 days')`,
-        [T_ALPHA, USER_A1, sha256(key), sha256(canonical(body))],
+        [T_ALPHA, USER_A1, sha256(key), keyed(body)],
       );
       const started = Date.now();
       const res = await post(target, '/v1/synthetic-tasks', tokens.a1, body, key);

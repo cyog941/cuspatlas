@@ -17,7 +17,13 @@ import { ENGAGEMENT_REPLAY_CODECS } from '../engagement/codecs';
 import { PATIENT_REPLAY_CODECS } from '../patients/replay-codecs';
 import { APPOINTMENT_REPLAY_CODECS, SCHEDULING_REPLAY_CODECS } from '../scheduling/codecs';
 import { EXTENDED_SCHEDULING_CODECS } from '../scheduling/ext-codecs';
-import { idempotencyKeyDigest, payloadDigest } from './digest';
+import {
+  configuredIdempotencyDigestKey,
+  IDEMPOTENCY_DIGEST_SCHEME,
+  idempotencyKeyDigest,
+  idempotencyPayloadDigest,
+  payloadDigest,
+} from './digest';
 import type { CommandExecutor } from './executor';
 import { SYNTHETIC_TASK_REPLAY_CODECS } from './replay-codecs';
 
@@ -39,6 +45,11 @@ export interface ExecuteOnceOptions {
   readonly codecs: Readonly<Record<string, ReplayCodec<any>>>;
   /** A pending reservation older than this is treated as abandoned and taken over (frozen: 60 s). */
   readonly inFlightTimeoutSec?: number;
+  /**
+   * Server secret of the keyed payload digest. Absent: the process key set by
+   * `configureIdempotencyDigestKey` (the API and MCP builders set it); with neither, commands refuse.
+   */
+  readonly digestKey?: Uint8Array;
 }
 
 /** Terminal domain refusals are recorded and replayed. Denials and retryable refusals never are. */
@@ -52,6 +63,8 @@ const TERMINAL: ReadonlySet<RefusalCode> = new Set([
 interface ReservationRow extends Record<string, unknown> {
   state: 'pending' | 'committed' | 'failed';
   payload_digest: string;
+  /** 2: keyed (HMAC) digest; 1: legacy unkeyed rows written before the integration change. */
+  payload_digest_scheme: number;
   result: Record<string, unknown> | null;
   aggregate_version: number | null;
   abandoned: boolean;
@@ -107,7 +120,8 @@ function withoutVisibilityRefs(detail: RefusalDetail): RefusalDetail {
  * Builds the durable `executeOnce` command executor. It has the `CommandExecutor` signature and runs
  * inside the caller's tenant transaction, after authorization, so every replay is reauthorized:
  *
- * 1. Reserve `(tenant, principal, operation, sha256(key))` with `INSERT .. ON CONFLICT DO NOTHING`.
+ * 1. Reserve `(tenant, principal, operation, sha256(key))` with `INSERT .. ON CONFLICT DO NOTHING`;
+ *    the payload digest stored with it is keyed (HMAC-SHA-256 under the server secret, tenant-bound).
  *    A concurrent duplicate blocks on the uncommitted unique entry until the first transaction ends,
  *    bounded by the tenant transaction's `lock_timeout` (10 s): on expiry it gets a retryable 409
  *    `conflict` and its transaction rolls back, so the caller retries instead of hanging.
@@ -127,20 +141,21 @@ export function createExecuteOnce(options: ExecuteOnceOptions): CommandExecutor 
     operation: string,
     keyDigest: string,
     digest: string,
+    matches: (row: ReservationRow) => boolean,
     correlationId: string,
   ): Promise<ReservationRow | null> {
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const inserted = await tx.query(
         `INSERT INTO cuspatlas.command_idempotency (tenant_id, principal_id, operation, key_digest,
-           payload_digest, state, correlation_id, reserved_at, expires_at)
-         VALUES (cuspatlas.current_tenant_id(), cuspatlas.current_actor_id(), $1, $2, $3, 'pending', $4,
+           payload_digest, payload_digest_scheme, state, correlation_id, reserved_at, expires_at)
+         VALUES (cuspatlas.current_tenant_id(), cuspatlas.current_actor_id(), $1, $2, $3, $5, 'pending', $4,
            now(), now() + interval '7 days')
          ON CONFLICT (tenant_id, principal_id, operation, key_digest) DO NOTHING`,
-        [operation, keyDigest, digest, correlationId],
+        [operation, keyDigest, digest, correlationId, IDEMPOTENCY_DIGEST_SCHEME],
       );
       if (inserted.rowCount === 1) return null;
       const { rows } = await tx.query<ReservationRow>(
-        `SELECT state, payload_digest, result, aggregate_version,
+        `SELECT state, payload_digest, payload_digest_scheme, result, aggregate_version,
            (state = 'pending' AND reserved_at < now() - make_interval(secs => $3)) AS abandoned,
            (expires_at <= now()) AS expired
          FROM cuspatlas.command_idempotency WHERE ${SCOPE} FOR UPDATE`,
@@ -148,13 +163,14 @@ export function createExecuteOnce(options: ExecuteOnceOptions): CommandExecutor 
       );
       const row = rows[0];
       if (!row) continue; // purged between the two statements: reserve again
-      if (row.expired || (row.abandoned && row.payload_digest === digest)) {
+      if (row.expired || (row.abandoned && matches(row))) {
         await tx.query(
           `UPDATE cuspatlas.command_idempotency SET state = 'pending', result = NULL,
-             aggregate_version = NULL, payload_digest = $3, correlation_id = $4, reserved_at = now(),
+             aggregate_version = NULL, payload_digest = $3, payload_digest_scheme = $5, correlation_id = $4,
+             reserved_at = now(),
              expires_at = now() + interval '7 days', updated_at = now()
            WHERE ${SCOPE}`,
-          [operation, keyDigest, digest, correlationId],
+          [operation, keyDigest, digest, correlationId, IDEMPOTENCY_DIGEST_SCHEME],
         );
         return null;
       }
@@ -172,17 +188,26 @@ export function createExecuteOnce(options: ExecuteOnceOptions): CommandExecutor 
     const codec = options.codecs[envelope.operation] as ReplayCodec<T> | undefined;
     if (!codec) throw new Error('No replay codec registered for this operation');
     const keyDigest = idempotencyKeyDigest(envelope.idempotencyKey);
-    const digest = payloadDigest(envelope.payload);
+    // Keyed digest (scheme 2): HMAC-SHA-256 under the server secret, tenant-bound. A legacy scheme 1
+    // row (unkeyed SHA-256, written before this change) is still compared by its own scheme until it
+    // expires (7 days); every new or taken-over reservation is written with scheme 2.
+    const digest = idempotencyPayloadDigest(
+      options.digestKey ?? configuredIdempotencyDigestKey(),
+      ctx.tenantId,
+      envelope.payload,
+    );
+    const matches = (row: ReservationRow) =>
+      row.payload_digest === (row.payload_digest_scheme === 1 ? payloadDigest(envelope.payload) : digest);
 
     let existing: ReservationRow | null;
     try {
-      existing = await reserve(tx, envelope.operation, keyDigest, digest, ctx.correlationId);
+      existing = await reserve(tx, envelope.operation, keyDigest, digest, matches, ctx.correlationId);
     } catch (err) {
       if (isLockTimeout(err)) throw new RefusalError({ code: 'conflict', retryable: true });
       throw err;
     }
     if (existing) {
-      if (existing.payload_digest !== digest) throw new RefusalError({ code: 'idempotency_conflict' });
+      if (!matches(existing)) throw new RefusalError({ code: 'idempotency_conflict' });
       if (existing.state === 'pending') throw new RefusalError({ code: 'conflict', retryable: true });
       if (existing.state === 'failed' && existing.result) throw refusalFrom(existing.result);
       if (existing.state !== 'committed' || !existing.result || existing.aggregate_version === null) {
@@ -231,15 +256,27 @@ export function createExecuteOnce(options: ExecuteOnceOptions): CommandExecutor 
   };
 }
 
-/** Default executor for every transport: durable idempotency over every registered operation. */
-export const executeOnce: CommandExecutor = createExecuteOnce({
-  codecs: {
-    ...SYNTHETIC_TASK_REPLAY_CODECS,
-    ...PATIENT_REPLAY_CODECS,
-    ...SCHEDULING_REPLAY_CODECS,
-    ...APPOINTMENT_REPLAY_CODECS,
-    ...CLINICAL_REPLAY_CODECS,
-    ...EXTENDED_SCHEDULING_CODECS,
-    ...ENGAGEMENT_REPLAY_CODECS,
-  },
-});
+// biome-ignore lint/suspicious/noExplicitAny: codecs are heterogeneous per operation.
+const ALL_CODECS: Readonly<Record<string, ReplayCodec<any>>> = {
+  ...SYNTHETIC_TASK_REPLAY_CODECS,
+  ...PATIENT_REPLAY_CODECS,
+  ...SCHEDULING_REPLAY_CODECS,
+  ...APPOINTMENT_REPLAY_CODECS,
+  ...CLINICAL_REPLAY_CODECS,
+  ...EXTENDED_SCHEDULING_CODECS,
+  ...ENGAGEMENT_REPLAY_CODECS,
+};
+
+/**
+ * The durable executor over every registered operation with an explicit digest key: what the API and
+ * MCP builders run (with `resolveIdempotencyDigestKey` of their environment).
+ */
+export const createDurableExecutor = (digestKey: Uint8Array): CommandExecutor =>
+  createExecuteOnce({ codecs: ALL_CODECS, digestKey });
+
+/**
+ * Fallback executor of domain services built without one: durable idempotency over every registered
+ * operation with the process key (`configureIdempotencyDigestKey`); without a configured key it
+ * refuses to execute (fail closed).
+ */
+export const executeOnce: CommandExecutor = createExecuteOnce({ codecs: ALL_CODECS });

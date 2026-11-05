@@ -32,14 +32,15 @@ import {
   createAuthorize,
   createClinicalService,
   createClinicalVisitContextProducers,
+  createDurableExecutor,
   createEngagementService,
   createPatientService,
   createProposalService,
   createSchedulingResourceService,
   createSyntheticTaskService,
-  executeOnce,
   type ImageRefResolver,
   readLatestCompletedProcedures,
+  resolveIdempotencyDigestKey,
   resolveMatchKeyPepper,
 } from '@cuspatlas/domain';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -90,6 +91,11 @@ export interface McpServerDeps {
   readonly env: RuntimeEnvironment;
   /** Match-key pepper (CUSPATLAS_MATCH_KEY_PEPPER); optional only under synthetic-test. */
   readonly matchKeyPepper?: Uint8Array;
+  /**
+   * Idempotency payload digest key (CUSPATLAS_IDEMPOTENCY_DIGEST_KEY); optional only under
+   * synthetic-test, where the test-only key is used. The test-only key is refused elsewhere.
+   */
+  readonly idempotencyDigestKey?: Uint8Array;
   /** I's attachment reference read (another branch); without it message attachments are refused. */
   readonly attachmentRefs?: AttachmentRefResolver;
   /** Verifier whose audience is the MCP resource identifier (distinct from the REST audience). */
@@ -258,11 +264,15 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     recording,
   );
   const authorize = createAuthorize(deps.membership);
+  // Durable idempotency with the keyed payload digest of this environment (the key is required
+  // outside synthetic-test even when a test injects its own executor).
+  const durable = createDurableExecutor(resolveIdempotencyDigestKey(deps.env, deps.idempotencyDigestKey));
+  const execute = deps.execute ?? durable;
   const service = createSyntheticTaskService({
     authorize,
     withTenantTransaction: deps.tenantTransactions,
     recording,
-    execute: deps.execute ?? executeOnce,
+    execute,
     ...(deps.cursors ? { cursors: deps.cursors } : {}),
   });
   const proposals = createProposalService({
@@ -270,7 +280,7 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     memberships: deps.membership,
     withTenantTransaction: deps.tenantTransactions,
     recording,
-    execute: deps.execute ?? executeOnce,
+    execute,
     ...(deps.proposalPolicyVersion ? { policyVersion: deps.proposalPolicyVersion } : {}),
   });
   const patients = createPatientService({
@@ -280,21 +290,21 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     authorize,
     withTenantTransaction: deps.tenantTransactions,
     recording,
-    execute: deps.execute ?? executeOnce,
+    execute,
     ...(deps.cursors ? { cursors: deps.cursors } : {}),
   });
   const scheduling = createSchedulingResourceService({
     authorize,
     withTenantTransaction: deps.tenantTransactions,
     recording,
-    execute: deps.execute ?? executeOnce,
+    execute,
   });
   const appointments = createAppointmentService({
     authorize,
     withTenantTransaction: deps.tenantTransactions,
     memberships: deps.membership,
     recording,
-    execute: deps.execute ?? executeOnce,
+    execute,
     // S12 visit context: the C producers through S12's domain port (C8, C10, C11, C13; C16 when built).
     visitContextProducers: createClinicalVisitContextProducers({ authorize }),
     // S16 completed-procedure recall basis: the C14 read (S keeps recall policy and due computation).
@@ -304,7 +314,7 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     authorize,
     withTenantTransaction: deps.tenantTransactions,
     recording,
-    execute: deps.execute ?? executeOnce,
+    execute,
     ...(deps.cursors ? { cursors: deps.cursors } : {}),
     ...(deps.imageRefResolver ? { imageRefResolver: deps.imageRefResolver } : {}),
   });
@@ -317,7 +327,7 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
     authorize,
     withTenantTransaction: deps.tenantTransactions,
     recording,
-    execute: deps.execute ?? executeOnce,
+    execute,
   });
   const toolDeps: ToolDeps = {
     service,

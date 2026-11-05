@@ -7,7 +7,7 @@ import {
   createSecurityAttemptSink,
   createTenantTransactionRunner,
 } from '@cuspatlas/db';
-import { SYNTHETIC_TEST_MATCH_KEY_PEPPER } from '@cuspatlas/domain';
+import { SYNTHETIC_TEST_IDEMPOTENCY_DIGEST_KEY, SYNTHETIC_TEST_MATCH_KEY_PEPPER } from '@cuspatlas/domain';
 import {
   buildMcpServer,
   ENGAGEMENT_OP_TOOLS,
@@ -1338,8 +1338,26 @@ describe('E4/E5 hardening: transport and validation', () => {
       tenantTransactions: createTenantTransactionRunner(db.app),
       // Outside synthetic-test the match-key pepper is a configured secret (review hardening).
       matchKeyPepper: new Uint8Array(randomBytes(32)),
+      // Integration hardening: the idempotency digest key is a configured secret there as well.
+      idempotencyDigestKey: new Uint8Array(randomBytes(32)),
     };
     expect(() => buildMcpServer({ env: 'development', ...base })).toThrow(/resourceMetadataUrl/);
+    const { idempotencyDigestKey: _digestKey, ...withoutDigestKey } = base;
+    expect(() =>
+      buildMcpServer({
+        env: 'development',
+        ...withoutDigestKey,
+        resourceMetadataUrl: 'https://mcp.synthetic.invalid/.well-known/oauth-protected-resource',
+      }),
+    ).toThrow(/CUSPATLAS_IDEMPOTENCY_DIGEST_KEY/);
+    expect(() =>
+      buildMcpServer({
+        env: 'development',
+        ...base,
+        idempotencyDigestKey: SYNTHETIC_TEST_IDEMPOTENCY_DIGEST_KEY,
+        resourceMetadataUrl: 'https://mcp.synthetic.invalid/.well-known/oauth-protected-resource',
+      }),
+    ).toThrow(/test-only idempotency digest key/);
     const { matchKeyPepper: _pepper, ...withoutPepper } = base;
     expect(() =>
       buildMcpServer({

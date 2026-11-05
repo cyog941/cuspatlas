@@ -476,3 +476,12 @@ Additions to shared contracts and policy tables; no frozen row relaxed. Details 
 - Shared vocabulary: `ConsentPurpose` no longer contains `treatment` (C13); the SQL CHECK agrees.
 - Ports: `AttachmentRefResolver` (E-owned port, implemented by I) gates every message attachment; S4's `updatePatientDemographics` accepts an optional open transaction so E can apply a reviewed answer and resolve its item atomically.
 - Migration `20261110090000_review_hardening_e2.sql`: digest scheme columns, caller match keys, `total_count`, closed-thread guard, principal-kind agreement triggers, consent purpose CHECK, review item to submission patient key.
+
+## Task record: backend integration hardening (branch codex/backend-integration)
+
+Additions only; no frozen row relaxed. Details in `docs/execution/integration-progress.md`.
+
+- One import path for the synthetic round trip: `importExports` loads S17, C18 and E9 documents in one transaction in the order S, C, E (`IMPORT_ORDER`) with cross-document foreign-key validation; a C18 document needs the note digest verifier.
+- E4 to C8: a medical-history hand-off is applied only on a clinician's own C8 version recorded from the submission (`sourceRef` `intake-submission:<id>`, provenance `patient_reported`); never copied (`20261120000000`).
+- S6: the S record classes of the merge registry have the C relink guard (`merge_reference_relink_guard`, `20261120010000`); `recall_tasks.subject_patient_id` never moves.
+- Idempotency: `command_idempotency.payload_digest` is HMAC-SHA-256 under `CUSPATLAS_IDEMPOTENCY_DIGEST_KEY` (test-only key only under synthetic-test), tenant-bound; `payload_digest_scheme` 2, legacy scheme 1 rows expire (`20261120020000`).

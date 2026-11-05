@@ -15,6 +15,7 @@ export default defineConfig({
           // Scenarios share the integration database server (one global setup).
           include: ['tests/integration/*.test.ts', 'tests/scenarios/*.test.ts'],
           globalSetup: ['tests/integration/support/global-setup.ts'],
+          setupFiles: ['tests/integration/support/idempotency-key-setup.ts'],
           env: { CUSPATLAS_ENV: 'synthetic-test' },
           testTimeout: 30_000,
           hookTimeout: 120_000,

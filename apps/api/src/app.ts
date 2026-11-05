@@ -15,14 +15,15 @@ import {
   createAuthorize,
   createClinicalService,
   createClinicalVisitContextProducers,
+  createDurableExecutor,
   createEngagementService,
   createPatientService,
   createProposalService,
   createSchedulingResourceService,
   createSyntheticTaskService,
-  executeOnce,
   type ImageRefResolver,
   readLatestCompletedProcedures,
+  resolveIdempotencyDigestKey,
   resolveMatchKeyPepper,
 } from '@cuspatlas/domain';
 import Fastify, {
@@ -80,6 +81,11 @@ export interface AppDeps {
   readonly proposalPolicyVersion?: string;
   /** Match-key pepper (CUSPATLAS_MATCH_KEY_PEPPER); optional only under synthetic-test. */
   readonly matchKeyPepper?: Uint8Array;
+  /**
+   * Idempotency payload digest key (CUSPATLAS_IDEMPOTENCY_DIGEST_KEY); optional only under
+   * synthetic-test, where the test-only key is used. The test-only key is refused elsewhere.
+   */
+  readonly idempotencyDigestKey?: Uint8Array;
   /** C15: the I3 imageRef seam (absent: image link commands are refused typed). */
   readonly imageRefResolver?: ImageRefResolver;
   /** I's attachment reference read (another branch); without it message attachments are refused. */
@@ -197,11 +203,15 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     const authorize = createAuthorize(deps.membership);
     registerSessionRoutes(app, { authenticator, authorize, recording });
     if (deps.tenantTransactions) {
+      // Durable idempotency with the keyed payload digest of this environment (the key is required
+      // outside synthetic-test even when a test injects its own executor).
+      const durable = createDurableExecutor(resolveIdempotencyDigestKey(deps.env, deps.idempotencyDigestKey));
+      const execute = deps.execute ?? durable;
       const service = createSyntheticTaskService({
         authorize,
         withTenantTransaction: deps.tenantTransactions,
         recording,
-        execute: deps.execute ?? executeOnce,
+        execute,
         ...(deps.cursors ? { cursors: deps.cursors } : {}),
       });
       registerSyntheticTaskRoutes(app, { authenticator, service });
@@ -210,7 +220,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         memberships: deps.membership,
         withTenantTransaction: deps.tenantTransactions,
         recording,
-        execute: deps.execute ?? executeOnce,
+        execute,
         ...(deps.proposalPolicyVersion ? { policyVersion: deps.proposalPolicyVersion } : {}),
       });
       registerProposalRoutes(app, { authenticator, proposals });
@@ -221,7 +231,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         authorize,
         withTenantTransaction: deps.tenantTransactions,
         recording,
-        execute: deps.execute ?? executeOnce,
+        execute,
         ...(deps.cursors ? { cursors: deps.cursors } : {}),
       });
       registerPatientRoutes(app, { authenticator, patients });
@@ -229,7 +239,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         authorize,
         withTenantTransaction: deps.tenantTransactions,
         recording,
-        execute: deps.execute ?? executeOnce,
+        execute,
       });
       registerSchedulingRoutes(app, { authenticator, scheduling });
       const appointments = createAppointmentService({
@@ -237,7 +247,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         withTenantTransaction: deps.tenantTransactions,
         memberships: deps.membership,
         recording,
-        execute: deps.execute ?? executeOnce,
+        execute,
         // S12 visit context: the C producers through S12's domain port (C8, C10, C11, C13; C16 when built).
         visitContextProducers: createClinicalVisitContextProducers({ authorize }),
         // S16 completed-procedure recall basis: the C14 read (S keeps recall policy and due computation).
@@ -250,7 +260,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         authorize,
         withTenantTransaction: deps.tenantTransactions,
         recording,
-        execute: deps.execute ?? executeOnce,
+        execute,
         ...(deps.cursors ? { cursors: deps.cursors } : {}),
         ...(deps.imageRefResolver ? { imageRefResolver: deps.imageRefResolver } : {}),
       });
@@ -266,7 +276,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         authorize,
         withTenantTransaction: deps.tenantTransactions,
         recording,
-        execute: deps.execute ?? executeOnce,
+        execute,
       });
       registerEngagementOpRoutes(app, { authenticator, engagement });
       if (deps.portalIdentity && deps.portalPrincipals) {

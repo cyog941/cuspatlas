@@ -27,6 +27,7 @@ import {
 } from '@cuspatlas/contracts';
 import { canonicalJson } from '../commands/digest';
 import { recordCommand } from '../events/record-command';
+import type { ExportReadAudit } from '../events/record-sensitive-read';
 import { recordSensitiveRead } from '../events/record-sensitive-read';
 import { signGrantToken, verifyGrantToken } from '../imaging/tokens';
 import type { ActionName } from '../policy/authorize';
@@ -43,11 +44,11 @@ export type ComposedDocument = PracticeExportDocument & {
  * re-authorizes and sensitive-read logs itself), in the platform import order.
  */
 export interface PracticeExporters {
-  scheduling(ctx: ActorContext): Promise<ComposedDocument>;
-  imaging(ctx: ActorContext): Promise<ComposedDocument>;
-  clinical(ctx: ActorContext): Promise<ComposedDocument>;
-  engagement(ctx: ActorContext): Promise<ComposedDocument>;
-  billing(ctx: ActorContext): Promise<ComposedDocument>;
+  scheduling(ctx: ActorContext, audit?: ExportReadAudit): Promise<ComposedDocument>;
+  imaging(ctx: ActorContext, audit?: ExportReadAudit): Promise<ComposedDocument>;
+  clinical(ctx: ActorContext, audit?: ExportReadAudit): Promise<ComposedDocument>;
+  engagement(ctx: ActorContext, audit?: ExportReadAudit): Promise<ComposedDocument>;
+  billing(ctx: ActorContext, audit?: ExportReadAudit): Promise<ComposedDocument>;
 }
 
 export interface PracticeExportDeps {

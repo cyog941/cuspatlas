@@ -20,6 +20,7 @@ import {
   type AppointmentService,
   type AttemptRecordingDeps,
   type Authorize,
+  type AutomationService,
   type BillingService,
   type ClinicalService,
   type EngagementService,
@@ -97,6 +98,8 @@ type Violations = { pointer: string; rule: string }[];
 export interface ToolDeps {
   /** Workstream A batch 2 (A8-A13). */
   readonly agents: AgentService;
+  /** Workstream A batch 4 (A14 webhooks, A15 exports). */
+  readonly automation: AutomationService;
   readonly service: SyntheticTaskService;
   readonly proposals: ProposalService;
   readonly patients: PatientService;

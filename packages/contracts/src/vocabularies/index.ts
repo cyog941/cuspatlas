@@ -1,4 +1,5 @@
 import { AGENTS_VOCABULARIES } from './agents';
+import { AUTOMATION_VOCABULARIES } from './automation';
 import { BILLING_VOCABULARIES } from './billing';
 import { CLINICAL_VOCABULARIES } from './clinical';
 import { ENGAGEMENT_VOCABULARIES } from './engagement';
@@ -12,6 +13,7 @@ import type { ModuleVocabularies, VocabularyEntry } from './types';
 export * from './types';
 export {
   AGENTS_VOCABULARIES,
+  AUTOMATION_VOCABULARIES,
   BILLING_VOCABULARIES,
   CLINICAL_VOCABULARIES,
   ENGAGEMENT_VOCABULARIES,
@@ -33,6 +35,7 @@ export const VOCABULARY_MODULES: readonly ModuleVocabularies[] = [
   MIGRATION_VOCABULARIES,
   PLATFORM_VOCABULARIES,
   AGENTS_VOCABULARIES,
+  AUTOMATION_VOCABULARIES,
 ];
 
 /** One served vocabulary resource. `version` is the owning module registry's version. */

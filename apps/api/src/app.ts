@@ -22,6 +22,7 @@ import {
   createAiSourceReaders,
   createAppointmentService,
   createAuthorize,
+  createAutomationService,
   createBillingEstimatePricing,
   createBillingService,
   createClinicalService,
@@ -50,7 +51,10 @@ import {
   resolveImagingTokenSecret,
   resolveMatchKeyPepper,
   resolveModelAdapter,
+  resolveWebhookPort,
+  resolveWebhookSecretKey,
   type StagingMaintenance,
+  type WebhookDeliveryPort,
 } from '@cuspatlas/domain';
 import Fastify, {
   type FastifyInstance,
@@ -75,6 +79,7 @@ import {
   registerAttendanceRoutes,
   registerBookingRoutes,
 } from './routes/appointments';
+import { registerAutomationOpRoutes } from './routes/automation-ops';
 import { registerBillingRoutes } from './routes/billing';
 import { registerBillingOpRoutes } from './routes/billing-ops-routes';
 import { registerClinicalRoutes } from './routes/clinical';
@@ -113,6 +118,14 @@ export interface AppDeps {
   readonly execute?: CommandExecutor;
   /** A11: model adapter; synthetic-test only (default: the synthetic adapter; null: AI disabled). */
   readonly aiModel?: ModelAdapter | null;
+  /** A14: webhook delivery port (honoured in synthetic-test only; absent: adapter_not_configured). */
+  readonly webhookPort?: WebhookDeliveryPort | null;
+  /** A14: operator allowlist of webhook endpoint hosts (A-D7); default empty. */
+  readonly webhookAllowlist?: () => readonly string[];
+  /** A14: name resolution for the endpoint guard; absent: literal checks only. */
+  readonly webhookResolveHost?: (host: string) => Promise<readonly string[]>;
+  /** A14: AES-GCM sealing key of subscription secrets (synthetic-test has a test-only default). */
+  readonly webhookSecretKey?: Uint8Array;
   /** Pagination cursor codec; defaults to a per-process random HMAC key. */
   readonly cursors?: CursorCodec;
   /** Proposal policy version (defaults to PROPOSAL_POLICY_VERSION); tests bump it. */
@@ -430,11 +443,11 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         // M1: the practice export composes the five domain exports as the same caller.
         practiceExport: {
           exporters: {
-            scheduling: (ctx) => appointments.exportScheduling(ctx),
-            imaging: (ctx) => imaging.exportImaging(ctx),
-            clinical: (ctx) => clinical.exportClinical(ctx),
-            engagement: (ctx) => engagement.exportEngagement(ctx, {}),
-            billing: (ctx) => billing.exportBilling(ctx),
+            scheduling: (ctx, a) => appointments.exportScheduling(ctx, a),
+            imaging: (ctx, a) => imaging.exportImaging(ctx, a),
+            clinical: (ctx, a) => clinical.exportClinical(ctx, a),
+            engagement: (ctx, a) => engagement.exportEngagement(ctx, {}, a),
+            billing: (ctx, a) => billing.exportBilling(ctx, a),
           },
           ...(deps.objectStore ? { objectStore: deps.objectStore } : {}),
           tokenSecret: resolveImagingTokenSecret(deps.env, deps.imagingTokenSecret),
@@ -472,6 +485,38 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
           financialMeasures: (ctx) => billing.claimMeasures(ctx, {}),
         }),
       });
+      // Workstream A batch 4: A14 webhooks and A15 exports.
+      const automation = createAutomationService({
+        env: deps.env,
+        authorize,
+        withTenantTransaction: deps.tenantTransactions,
+        recording,
+        execute,
+        webhooks: {
+          port: resolveWebhookPort(deps.env, deps.webhookPort, deps.webhookResolveHost),
+          ...(deps.webhookAllowlist ? { allowlist: deps.webhookAllowlist } : {}),
+          ...(deps.webhookResolveHost ? { resolveHost: deps.webhookResolveHost } : {}),
+          secretKey: resolveWebhookSecretKey(deps.env, deps.webhookSecretKey),
+        },
+        // A15: the same five module exports M1 composes, called as the caller, and M1 for the practice scope.
+        exports: {
+          exporters: {
+            scheduling: (ctx, a) => appointments.exportScheduling(ctx, a),
+            imaging: (ctx, a) => imaging.exportImaging(ctx, a),
+            clinical: (ctx, a) => clinical.exportClinical(ctx, a),
+            engagement: (ctx, a) => engagement.exportEngagement(ctx, {}, a),
+            billing: (ctx, a) => billing.exportBilling(ctx, a),
+          },
+          practice: {
+            create: (c, e) => migration.createPracticeExport(c, e),
+            grant: (c, e) => migration.grantPracticeExport(c, e),
+            download: (c, e) => migration.downloadPracticeExport(c, e),
+          },
+          ...(deps.objectStore ? { objectStore: deps.objectStore } : {}),
+          tokenSecret: resolveImagingTokenSecret(deps.env, deps.imagingTokenSecret),
+        },
+      });
+      registerAutomationOpRoutes(app, { authenticator, automation });
     }
   }
 

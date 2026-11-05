@@ -110,6 +110,11 @@
   "communications.recall.enrollments": [
     "category"
   ],
+  "exports.list": [
+    "cursor",
+    "limit",
+    "state"
+  ],
   "imaging.annotations.list": [],
   "imaging.bridge.worklist": [],
   "imaging.devices.list": [],
@@ -206,5 +211,22 @@
     "limit"
   ],
   "telephony.calls.list": [],
-  "vocabularies.list": []
+  "vocabularies.list": [],
+  "webhooks.deliveries.failures.list": [
+    "cursor",
+    "limit",
+    "subscriptionRef"
+  ],
+  "webhooks.deliveries.list": [
+    "cursor",
+    "limit",
+    "state",
+    "subscriptionRef"
+  ],
+  "webhooks.eventTypes.list": [],
+  "webhooks.subscriptions.list": [
+    "cursor",
+    "limit",
+    "state"
+  ]
 }

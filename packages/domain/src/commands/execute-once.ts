@@ -14,6 +14,8 @@ import {
 } from '@cuspatlas/contracts';
 import { ADMINISTRATION_REPLAY_CODECS } from '../administration/administration';
 import { AGENT_REPLAY_CODECS } from '../agents/codecs';
+import { AUTOMATION_EXPORT_CODECS } from '../automation/exports';
+import { AUTOMATION_WEBHOOK_CODECS } from '../automation/webhooks';
 import { BILLING_REPLAY_CODECS } from '../billing/codecs';
 import { CLINICAL_REPLAY_CODECS } from '../clinical/codecs';
 import { ENGAGEMENT_REPLAY_CODECS } from '../engagement/codecs';
@@ -277,6 +279,8 @@ const ALL_CODECS: Readonly<Record<string, ReplayCodec<any>>> = {
   ...AGENT_REPLAY_CODECS,
   ...PREFERENCE_REPLAY_CODECS,
   ...ADMINISTRATION_REPLAY_CODECS,
+  ...AUTOMATION_WEBHOOK_CODECS,
+  ...AUTOMATION_EXPORT_CODECS,
 };
 
 /**

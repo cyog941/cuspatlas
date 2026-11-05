@@ -15,6 +15,7 @@ import {
   type ClaimsPartnerPort,
   createAgentService,
   createAuthorize,
+  createAutomationService,
   createBillingService,
   createDurableExecutor,
   createImagingAttachmentSource,
@@ -27,11 +28,15 @@ import {
   resolveIdempotencyDigestKey,
   resolveImagingTokenSecret,
   resolveMatchKeyPepper,
+  resolveWebhookPort,
+  resolveWebhookSecretKey,
+  type WebhookDeliveryPort,
 } from '@cuspatlas/domain';
 import pg from 'pg';
 import { type AgentTaskOutcome, createAgentTaskRunner } from './agent-tasks';
 import { createWorker, type DispatchResult, IN_PROCESS_AGGREGATES } from './dispatch';
 import { createOutboundSender, type SendResult } from './outbound-sender';
+import { createWebhookDispatcher } from './webhook-dispatch';
 
 /**
  * The worker process composition (`start:worker`): real dependencies from the environment, with the
@@ -70,6 +75,10 @@ export interface SyntheticProviders {
   readonly clearinghouse?: ClaimsPartnerPort;
   /** B payment processor. */
   readonly payments?: PaymentProviderPort;
+  /** A14 webhook delivery port (synthetic-test only; otherwise deliveries wait as adapter_not_configured). */
+  readonly webhooks?: WebhookDeliveryPort;
+  /** A14 resolver for the send-time guard and DNS pinning; a network port without one refuses to boot. */
+  readonly webhookResolveHost?: (host: string) => Promise<readonly string[]>;
 }
 
 export interface WorkerPools {
@@ -300,6 +309,23 @@ export async function composeWorker(
         ...(backoff ? { backoffSeconds: backoff } : {}),
       })
     : null;
+  // A14: webhook fan-out and delivery; no allowlist is configured here yet (A-D7), so every send-time
+  // guard refuses until an operator allowlist exists, and nothing leaves the process.
+  const webhooks = createWebhookDispatcher(
+    createAutomationService({
+      env: runtimeEnv,
+      authorize,
+      withTenantTransaction,
+      recording,
+      execute,
+      webhooks: {
+        port: resolveWebhookPort(runtimeEnv, providers.webhooks, providers.webhookResolveHost),
+        ...(providers.webhookResolveHost ? { resolveHost: providers.webhookResolveHost } : {}),
+        secretKey: resolveWebhookSecretKey(runtimeEnv, undefined),
+      },
+    }),
+    principalId,
+  );
   const storeDir = env.CUSPATLAS_OBJECT_STORE_DIR;
   const imaging = storeDir
     ? createImagingService({
@@ -376,6 +402,9 @@ export async function composeWorker(
           }
         });
       }
+      await stage('webhooks', async () => {
+        await webhooks.runOnce(tenantId);
+      });
       if (imaging) {
         await stage('imaging_reconcile', async () => {
           await imaging.reconcileStorage(

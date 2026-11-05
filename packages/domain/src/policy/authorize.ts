@@ -658,6 +658,29 @@ export const ACTION_POLICIES = {
   'prescriptions.drafts.create': { scope: 'prescriptions.draft', principals: ['human'] },
   'prescriptions.submit': { scope: 'prescriptions.submit', principals: ['human'] },
   'prescriptions.cancel': { scope: 'prescriptions.draft', principals: ['human'] },
+  // A14 webhooks (workstream A batch 4): subscription administration and replay are human only
+  // (agents and services never register an endpoint or re-send an event); reads admit services; the
+  // dispatch is the worker's own service principal under outbox.deliver.
+  'webhooks.eventTypes.list': { scope: 'webhooks.read', principals: ['human', 'service'] },
+  'webhooks.subscriptions.create': { scope: 'webhooks.manage', principals: ['human'] },
+  'webhooks.subscriptions.list': { scope: 'webhooks.read', principals: ['human', 'service'] },
+  'webhooks.subscriptions.rotateSecret': { scope: 'webhooks.manage', principals: ['human'] },
+  'webhooks.subscriptions.revoke': { scope: 'webhooks.manage', principals: ['human'] },
+  'webhooks.deliveries.list': { scope: 'webhooks.read', principals: ['human', 'service'] },
+  'webhooks.deliveries.failures.list': { scope: 'webhooks.read', principals: ['human', 'service'] },
+  'webhooks.deliveries.replay': { scope: 'webhooks.manage', principals: ['human'] },
+  'webhooks.deliveries.dispatch': { scope: 'outbox.deliver', principals: ['service'] },
+  // A15 export surface: the ordinary exports.create scope (no licence, plan or feature key); request,
+  // grant and download are human only (agents and services never export); each composed module
+  // export re-authorizes the caller for its own action. Request metadata is human only and requester-bound.
+  'exports.create': { scope: 'exports.create', principals: ['human'] },
+  'exports.list': { scope: 'exports.read', principals: ['human'] },
+  'exports.read': { scope: 'exports.read', principals: ['human'] },
+  'exports.grant': { scope: 'exports.create', principals: ['human'] },
+  'exports.download': { scope: 'exports.create', principals: ['human'] },
+  'exports.grants.revoke': { scope: 'exports.create', principals: ['human'] },
+  // Elevated: read, grant and download another requester's export (each access is sensitive-read logged).
+  'exports.administer': { scope: 'exports.admin', principals: ['human'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

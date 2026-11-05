@@ -5,7 +5,7 @@ import {
   type ClinicalExport,
   RefusalError,
 } from '@cuspatlas/contracts';
-import { recordSensitiveRead } from '../events/record-sensitive-read';
+import { type ExportReadAudit, recordSensitiveRead } from '../events/record-sensitive-read';
 import type { ClinicalBase } from './base';
 
 /**
@@ -19,7 +19,7 @@ import type { ClinicalBase } from './base';
 export function createClinicalExportOperations(base: ClinicalBase) {
   const { deps } = base;
   return {
-    exportClinical(ctx: ActorContext): Promise<ClinicalExport> {
+    exportClinical(ctx: ActorContext, audit?: ExportReadAudit): Promise<ClinicalExport> {
       const op = 'clinical.export';
       return base.guarded(ctx, op, async () => {
         const decision = await base.authorize(ctx, op);
@@ -38,8 +38,8 @@ export function createClinicalExportOperations(base: ClinicalBase) {
           const now = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
           await recordSensitiveRead(tx, {
             operation: op,
-            resourceType: 'clinicalExport',
-            resourceRefs: [],
+            resourceType: audit ? 'patientExport' : 'clinicalExport',
+            resourceRefs: audit ? [...audit.subjectRefs] : [],
             queryFields: [],
           });
           return { format: CLINICAL_EXPORT_FORMAT, exportedAt: now.toISOString(), tables };

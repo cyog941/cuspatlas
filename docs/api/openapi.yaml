@@ -14899,6 +14899,504 @@ paths:
         '503':
           $ref: '#/components/responses/Refusal'
   # END: READ_OPS
+  # BEGIN generated: AUTOMATION_OPS (scripts/openapi-automation.ts)
+  /v1/webhooks/event-types:
+    get:
+      operationId: webhooks.eventTypes.list
+      description: >-
+        A14: the published webhook event catalog (closed, versioned, derived from outbox aggregate types),
+        returned whole (OR-01 envelope).
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/automation.schema.json#/$defs/WebhookEventTypeList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/webhooks/subscriptions:
+    post:
+      operationId: webhooks.subscriptions.create
+      description: >-
+        A14: register an https endpoint on the operator allowlist for catalog event types at one event
+        version. The endpoint guard refuses non-https, credentialed, unlisted, private, loopback, link-local
+        and metadata destinations (422). One active subscription per endpoint and version (409). The
+        HMAC-SHA-256 signing secret is returned once and never on a replay. Human only (webhooks.manage).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/automation.schema.json#/$defs/WebhookSubscriptionCreate'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/automation.schema.json#/$defs/WebhookSubscriptionCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: webhooks.subscriptions.list
+      description: >-
+        A14: subscriptions of the caller tenant, newest first (OR-01 envelope). Never a secret.
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/automation.schema.json#/$defs/WebhookSubscriptionListQuery'
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/automation.schema.json#/$defs/Cursor'
+        - name: state
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/automation.schema.json#/$defs/WebhookSubscriptionState'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/automation.schema.json#/$defs/WebhookSubscriptionList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/webhooks/subscriptions/rotate-secret:
+    post:
+      operationId: webhooks.subscriptions.rotateSecret
+      description: >-
+        A14: mint a new signing secret (returned once); the previous one keeps verifying for a 24 h overlap
+        during which deliveries carry both signatures. Each call mints a new secret. Human only.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/automation.schema.json#/$defs/WebhookSubscriptionRotate'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/automation.schema.json#/$defs/WebhookSubscriptionCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/webhooks/subscriptions/revoke:
+    post:
+      operationId: webhooks.subscriptions.revoke
+      description: >-
+        A14: revoke a subscription; its queued deliveries are cancelled in the same transaction and nothing
+        further is sent. Human only.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/automation.schema.json#/$defs/WebhookSubscriptionRevoke'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/automation.schema.json#/$defs/WebhookSubscriptionCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/webhooks/deliveries:
+    get:
+      operationId: webhooks.deliveries.list
+      description: >-
+        A14: the delivery log (state, attempts, last response class, guard outcome, replay link), newest
+        first (OR-01 envelope). Bodies are never listed.
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/automation.schema.json#/$defs/WebhookDeliveryListQuery'
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/automation.schema.json#/$defs/Cursor'
+        - name: subscriptionRef
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/automation.schema.json#/$defs/Uuid'
+        - name: state
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/automation.schema.json#/$defs/WebhookDeliveryState'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/automation.schema.json#/$defs/WebhookDeliveryList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/webhooks/deliveries/failures:
+    get:
+      operationId: webhooks.deliveries.failures.list
+      description: >-
+        A14: failures worklist: dead-lettered deliveries with their attempts and last response class,
+        deliveries waiting for a delivery adapter (adapter_not_configured) and deliveries paused by the
+        send-time endpoint guard.
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/automation.schema.json#/$defs/WebhookFailureListQuery'
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/automation.schema.json#/$defs/Cursor'
+        - name: subscriptionRef
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/automation.schema.json#/$defs/Uuid'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/automation.schema.json#/$defs/WebhookDeliveryList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/webhooks/deliveries/replay:
+    post:
+      operationId: webhooks.deliveries.replay
+      description: >-
+        A14: re-send a delivered or dead-lettered delivery as a new delivery identity with the same event
+        identity and bytes; each attempt is signed with a fresh timestamp. Human only (webhooks.manage).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/automation.schema.json#/$defs/WebhookReplay'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/automation.schema.json#/$defs/WebhookDeliveryCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/exports:
+    post:
+      operationId: exports.create
+      description: >-
+        A15: request and build an export in the versioned machine-readable format: the whole practice (the
+        M1 package), one patient (right of access across S, I, C, E and B) or one domain. Each module export
+        re-authorizes the caller; the package passes its completeness check or the request fails with a
+        diagnostic and no artifact. Granted by the ordinary exports.create scope: no licence, plan or
+        feature key. Human only.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/automation.schema.json#/$defs/ExportCreate'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/automation.schema.json#/$defs/ExportCommandResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+    get:
+      operationId: exports.list
+      description: >-
+        A15: export requests of the caller tenant with state, digests and diagnostics, newest first (OR-01
+        envelope). Never contents.
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/automation.schema.json#/$defs/ExportListQuery'
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/automation.schema.json#/$defs/Cursor'
+        - name: state
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/automation.schema.json#/$defs/ExportState'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/automation.schema.json#/$defs/ExportList'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/exports/request:
+    get:
+      operationId: exports.read
+      description: >-
+        A15: one export request with its manifest (per-document digests and per-table counts). Hidden and
+        missing are one 404.
+      parameters:
+        - name: exportRef
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/automation.schema.json#/$defs/Uuid'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/automation.schema.json#/$defs/ExportRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/exports/grants:
+    post:
+      operationId: exports.grant
+      description: >-
+        A15: mint a short-lived (at most 300 s) delivery grant for one ready export, bound to the caller.
+        The token is never stored. Human only.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/automation.schema.json#/$defs/ExportGrant'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/automation.schema.json#/$defs/ExportGrantResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/exports/grants/revoke:
+    post:
+      operationId: exports.grants.revoke
+      description: >-
+        A15: revoke a delivery grant before it expires; its token no longer downloads. The grant holder or
+        an export administrator only. Human only.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/automation.schema.json#/$defs/ExportGrantRevoke'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/automation.schema.json#/$defs/ExportGrantRevokeResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/exports/package:
+    post:
+      operationId: exports.download
+      description: >-
+        A15: the stored package to the holder of a live grant whose access still holds (sensitive-read
+        logged). A practice export is read through the M1 grant and download as the same caller. Human only.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/automation.schema.json#/$defs/ExportDownload'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/automation.schema.json#/$defs/ExportPackage'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  # END generated: AUTOMATION_OPS
 components:
   securitySchemes:
     bearer:

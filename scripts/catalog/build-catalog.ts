@@ -56,6 +56,9 @@ const OWNERS: Record<string, OwnerWorkstream> = {
   actions: 'A',
   ai: 'A',
   prescriptions: 'A',
+  // Workstream A batch 4 (A14 webhooks, A15 exports).
+  webhooks: 'A',
+  exports: 'A',
 };
 
 /**
@@ -70,6 +73,8 @@ export const ACTION_ALIASES: Record<string, string> = {
 
 /** Actions only ever checked as an additional capability inside another operation. */
 export const CAPABILITY_OF: Record<string, string> = {
+  // A15 hardening: the elevated export-administrator check inside the export read, grant and download.
+  'exports.administer': 'exports.download',
   'syntheticTasks.approve': 'syntheticTasks.proposals.commit',
   'patients.unmerge.reconcile': 'patients.unmerge',
   'scheduling.appointments.override': 'scheduling.appointments.book',
@@ -113,6 +118,8 @@ function sensitivityOf(op: string, scope: string | null, auth: string): Sensitiv
   // A-S8: any bulk export (including `imaging.export.blobs`) is phiBulk; other practice
   // configuration (`admin.configure`) is operational.
   if (/\.export(\.|$)/.test(op)) return 'phiBulk';
+  // A15: the export surface builds and delivers bulk PHI (a whole practice, a patient, a domain).
+  if (/^exports\.(create|download)$/.test(op)) return 'phiBulk';
   if (scope === 'admin.configure') return 'operational';
   if (op === 'session.read' || (scope !== null && OPERATIONAL_SCOPES.has(scope))) return 'operational';
   return 'phi';

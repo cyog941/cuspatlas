@@ -648,6 +648,58 @@
       "sensitivity": "phi"
     },
     {
+      "name": "exports.admin",
+      "noun": "exports",
+      "verb": "admin",
+      "principalClasses": [
+        "human"
+      ],
+      "humanOnly": true,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "exports.administer"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "exports.create",
+      "noun": "exports",
+      "verb": "create",
+      "principalClasses": [
+        "human"
+      ],
+      "humanOnly": true,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "exports.create",
+        "exports.download",
+        "exports.grant",
+        "exports.grants.revoke"
+      ],
+      "sensitivity": "phiBulk"
+    },
+    {
+      "name": "exports.read",
+      "noun": "exports",
+      "verb": "read",
+      "principalClasses": [
+        "human"
+      ],
+      "humanOnly": true,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "exports.list",
+        "exports.read"
+      ],
+      "sensitivity": "phi"
+    },
+    {
       "name": "imaging.associate",
       "noun": "imaging",
       "verb": "associate",
@@ -928,7 +980,8 @@
       ],
       "operations": [
         "agents.tasks.dispatch",
-        "outbox.deliver"
+        "outbox.deliver",
+        "webhooks.deliveries.dispatch"
       ],
       "sensitivity": "operational"
     },
@@ -1313,6 +1366,45 @@
       ],
       "operations": [
         "billing.worklist.list"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "webhooks.manage",
+      "noun": "webhooks",
+      "verb": "manage",
+      "principalClasses": [
+        "human"
+      ],
+      "humanOnly": true,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "webhooks.deliveries.replay",
+        "webhooks.subscriptions.create",
+        "webhooks.subscriptions.revoke",
+        "webhooks.subscriptions.rotateSecret"
+      ],
+      "sensitivity": "phi"
+    },
+    {
+      "name": "webhooks.read",
+      "noun": "webhooks",
+      "verb": "read",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "webhooks.deliveries.failures.list",
+        "webhooks.deliveries.list",
+        "webhooks.eventTypes.list",
+        "webhooks.subscriptions.list"
       ],
       "sensitivity": "phi"
     }

@@ -1,6 +1,6 @@
 import { generateKeyPairSync, randomBytes, randomUUID } from 'node:crypto';
 import { request as httpRequest } from 'node:http';
-import { AGENT_OPS, buildApp } from '@cuspatlas/api';
+import { AGENT_OPS, AUTOMATION_OPS, buildApp } from '@cuspatlas/api';
 import { REFUSAL_HTTP_STATUS, type RefusalCode } from '@cuspatlas/contracts';
 import {
   createMembershipSource,
@@ -435,6 +435,8 @@ const TOOL_NAMES = [
   'preferences_recent_patients_list',
   'preferences_recent_patients_record',
   'preferences_recent_patients_clear',
+  // Workstream A batch 4: listed by id and tool in automation-negative-harness.test.ts.
+  ...AUTOMATION_OPS.map((o) => o.tool),
 ].sort();
 
 let db: TestDatabase;

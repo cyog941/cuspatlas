@@ -8,7 +8,7 @@ import {
   RefusalError,
   validateImagingExportBlobsQuery,
 } from '@cuspatlas/contracts';
-import { recordSensitiveRead } from '../events/record-sensitive-read';
+import { type ExportReadAudit, recordSensitiveRead } from '../events/record-sensitive-read';
 import { failed, type ImagingBase } from './base';
 
 /** Largest blob page in bytes (REST only); a larger tenant pages with `after`. */
@@ -35,7 +35,7 @@ export function createExportOperations(base: ImagingBase) {
       throw new RefusalError({ code: 'forbidden', reasonCode: 'location_denied' });
   };
   return {
-    exportImaging(ctx: ActorContext): Promise<ImagingExport> {
+    exportImaging(ctx: ActorContext, audit?: ExportReadAudit): Promise<ImagingExport> {
       const op = 'imaging.export';
       return base.guarded(ctx, op, async () => {
         await tenantWide(ctx, op);
@@ -61,8 +61,8 @@ export function createExportOperations(base: ImagingBase) {
           const now = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
           await recordSensitiveRead(tx, {
             operation: op,
-            resourceType: 'imagingExport',
-            resourceRefs: [],
+            resourceType: audit ? 'patientExport' : 'imagingExport',
+            resourceRefs: audit ? [...audit.subjectRefs] : [],
             queryFields: [],
           });
           return {

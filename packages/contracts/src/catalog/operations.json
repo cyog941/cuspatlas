@@ -6408,6 +6408,226 @@
     "status": "active"
   },
   {
+    "operation": "exports.administer",
+    "owner": "A",
+    "kind": "capability",
+    "authorization": "capability",
+    "action": "exports.administer",
+    "scope": "exports.admin",
+    "principals": [
+      "human"
+    ],
+    "transports": [],
+    "refusals": [],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "exports.create",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "exports.create",
+    "scope": "exports.create",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/exports",
+      "requestSchema": "automation:ExportCreate",
+      "successStatus": "201",
+      "successSchema": "automation:ExportCommandResult"
+    },
+    "mcpTool": "exports_create",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phiBulk",
+    "status": "active"
+  },
+  {
+    "operation": "exports.download",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "exports.download",
+    "scope": "exports.create",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/exports/package",
+      "requestSchema": "automation:ExportDownload",
+      "successStatus": "200",
+      "successSchema": "automation:ExportPackage"
+    },
+    "mcpTool": "exports_download",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phiBulk",
+    "status": "active"
+  },
+  {
+    "operation": "exports.grant",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "exports.grant",
+    "scope": "exports.create",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/exports/grants",
+      "requestSchema": "automation:ExportGrant",
+      "successStatus": "200",
+      "successSchema": "automation:ExportGrantResult"
+    },
+    "mcpTool": "exports_grant",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "exports.grants.revoke",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "exports.grants.revoke",
+    "scope": "exports.create",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/exports/grants/revoke",
+      "requestSchema": "automation:ExportGrantRevoke",
+      "successStatus": "200",
+      "successSchema": "automation:ExportGrantRevokeResult"
+    },
+    "mcpTool": "exports_grants_revoke",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "exports.list",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "exports.list",
+    "scope": "exports.read",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/exports",
+      "successStatus": "200",
+      "successSchema": "automation:ExportList"
+    },
+    "mcpTool": "exports_list",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "exports.read",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "exports.read",
+    "scope": "exports.read",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/exports/request",
+      "successStatus": "200",
+      "successSchema": "automation:ExportRead"
+    },
+    "mcpTool": "exports_read",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
     "operation": "health.read",
     "owner": "F",
     "kind": "query",
@@ -15798,6 +16018,296 @@
       "503"
     ],
     "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "webhooks.deliveries.dispatch",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "webhooks.deliveries.dispatch",
+    "scope": "outbox.deliver",
+    "principals": [
+      "service"
+    ],
+    "transports": [
+      "worker"
+    ],
+    "refusals": [],
+    "idempotency": "none",
+    "sensitivity": "operational",
+    "status": "active"
+  },
+  {
+    "operation": "webhooks.deliveries.failures.list",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "webhooks.deliveries.failures.list",
+    "scope": "webhooks.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/webhooks/deliveries/failures",
+      "successStatus": "200",
+      "successSchema": "automation:WebhookDeliveryList"
+    },
+    "mcpTool": "webhooks_deliveries_failures_list",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "webhooks.deliveries.list",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "webhooks.deliveries.list",
+    "scope": "webhooks.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/webhooks/deliveries",
+      "successStatus": "200",
+      "successSchema": "automation:WebhookDeliveryList"
+    },
+    "mcpTool": "webhooks_deliveries_list",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "webhooks.deliveries.replay",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "webhooks.deliveries.replay",
+    "scope": "webhooks.manage",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/webhooks/deliveries/replay",
+      "requestSchema": "automation:WebhookReplay",
+      "successStatus": "201",
+      "successSchema": "automation:WebhookDeliveryCommandResult"
+    },
+    "mcpTool": "webhooks_deliveries_replay",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "webhooks.eventTypes.list",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "webhooks.eventTypes.list",
+    "scope": "webhooks.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/webhooks/event-types",
+      "successStatus": "200",
+      "successSchema": "automation:WebhookEventTypeList"
+    },
+    "mcpTool": "webhooks_event_types_list",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "webhooks.subscriptions.create",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "webhooks.subscriptions.create",
+    "scope": "webhooks.manage",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/webhooks/subscriptions",
+      "requestSchema": "automation:WebhookSubscriptionCreate",
+      "successStatus": "201",
+      "successSchema": "automation:WebhookSubscriptionCommandResult"
+    },
+    "mcpTool": "webhooks_subscriptions_create",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "webhooks.subscriptions.list",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "webhooks.subscriptions.list",
+    "scope": "webhooks.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/webhooks/subscriptions",
+      "successStatus": "200",
+      "successSchema": "automation:WebhookSubscriptionList"
+    },
+    "mcpTool": "webhooks_subscriptions_list",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "webhooks.subscriptions.revoke",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "webhooks.subscriptions.revoke",
+    "scope": "webhooks.manage",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/webhooks/subscriptions/revoke",
+      "requestSchema": "automation:WebhookSubscriptionRevoke",
+      "successStatus": "200",
+      "successSchema": "automation:WebhookSubscriptionCommandResult"
+    },
+    "mcpTool": "webhooks_subscriptions_revoke",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "webhooks.subscriptions.rotateSecret",
+    "owner": "A",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "webhooks.subscriptions.rotateSecret",
+    "scope": "webhooks.manage",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/webhooks/subscriptions/rotate-secret",
+      "requestSchema": "automation:WebhookSubscriptionRotate",
+      "successStatus": "200",
+      "successSchema": "automation:WebhookSubscriptionCommandResult"
+    },
+    "mcpTool": "webhooks_subscriptions_rotate_secret",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
     "sensitivity": "phi",
     "status": "active"
   }

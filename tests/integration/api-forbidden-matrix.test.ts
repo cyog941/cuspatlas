@@ -165,6 +165,15 @@ describe('A7 forbidden-operation matrix', () => {
           /^clinical\.notes\.(sign|amend|cosign)/.test(o.operation)),
     );
     expect(agentAdmitted.map((o) => o.operation)).toStrictEqual([]);
+    // A14/A15: an agent (service principal) can never register, replay or rotate a webhook, and never
+    // create, grant, download or list an export; only the read-only webhook lists admit a service caller.
+    const automationAdmitted = catalog.filter(
+      (o) =>
+        o.principals.includes('service') &&
+        (/^exports\./.test(o.operation) ||
+          (/^webhooks\./.test(o.operation) && o.scope !== 'webhooks.read' && o.scope !== 'outbox.deliver')),
+    );
+    expect(automationAdmitted.map((o) => o.operation)).toStrictEqual([]);
     // An MCP caller can only be staff: no portal, device or pairing operation is a tool.
     expect(catalog.filter((o) => o.mcpTool && o.authorization !== 'authorize')).toStrictEqual([]);
   });

@@ -5,7 +5,7 @@ import {
   SCHEDULING_EXPORT_TABLES,
   type SchedulingExport,
 } from '@cuspatlas/contracts';
-import { recordSensitiveRead } from '../events/record-sensitive-read';
+import { type ExportReadAudit, recordSensitiveRead } from '../events/record-sensitive-read';
 import type { AppointmentBase } from './appointment-base';
 
 /**
@@ -18,7 +18,7 @@ import type { AppointmentBase } from './appointment-base';
 export function createExportOperations(base: AppointmentBase) {
   const { deps } = base;
   return {
-    exportScheduling(ctx: ActorContext): Promise<SchedulingExport> {
+    exportScheduling(ctx: ActorContext, audit?: ExportReadAudit): Promise<SchedulingExport> {
       const op = 'scheduling.export';
       return base.guarded(ctx, op, async () => {
         const decision = await base.authorize(ctx, op);
@@ -37,8 +37,8 @@ export function createExportOperations(base: AppointmentBase) {
           const now = (await tx.query<{ at: Date }>('SELECT now() AS at')).rows[0]?.at ?? new Date();
           await recordSensitiveRead(tx, {
             operation: op,
-            resourceType: 'schedulingExport',
-            resourceRefs: [],
+            resourceType: audit ? 'patientExport' : 'schedulingExport',
+            resourceRefs: audit ? [...audit.subjectRefs] : [],
             queryFields: [],
           });
           return { format: SCHEDULING_EXPORT_FORMAT, exportedAt: now.toISOString(), tables };

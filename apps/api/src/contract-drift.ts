@@ -5,6 +5,7 @@ import { parse } from 'yaml';
 import { extractBillingOpsBlock, renderBillingOpsBlock } from './billing-openapi';
 import { extractMigrationOpsBlock, extractOpsBlock, renderMigrationOpsBlock } from './migration-openapi';
 import { AGENT_OPS, AGENT_OPS_BLOCK, renderAgentOpsBlock } from './routes/agent-ops';
+import { AUTOMATION_OPS, AUTOMATION_OPS_BLOCK, renderAutomationOpsBlock } from './routes/automation-ops';
 import { BILLING_OPS } from './routes/billing-ops';
 import { ENGAGEMENT_OPS } from './routes/engagement-ops';
 import { IMAGING_OPS } from './routes/imaging-ops';
@@ -36,6 +37,8 @@ export interface ContractSources {
   readonly imagingSchemaText: string;
   readonly migrationSchemaText: string;
   readonly agentsSchemaText: string;
+  /** Workstream A batch 4 (A14/A15); optional so older callers keep working. */
+  readonly automationSchemaText?: string;
 }
 
 export const OPENAPI_PATH = 'docs/api/openapi.yaml';
@@ -60,6 +63,9 @@ const MIGRATION_REF_PREFIX = `../../${MIGRATION_SCHEMA_PATH}#`;
 export const AGENTS_SCHEMA_FILE = 'agents.schema.json';
 export const AGENTS_SCHEMA_PATH = `packages/contracts/src/${AGENTS_SCHEMA_FILE}`;
 const AGENTS_REF_PREFIX = `../../${AGENTS_SCHEMA_PATH}#`;
+export const AUTOMATION_SCHEMA_FILE = 'automation.schema.json';
+export const AUTOMATION_SCHEMA_PATH = `packages/contracts/src/${AUTOMATION_SCHEMA_FILE}`;
+const AUTOMATION_REF_PREFIX = `../../${AUTOMATION_SCHEMA_PATH}#`;
 
 export function loadContractSources(root: string): ContractSources {
   return {
@@ -74,6 +80,7 @@ export function loadContractSources(root: string): ContractSources {
     imagingSchemaText: readFileSync(resolve(root, IMAGING_SCHEMA_PATH), 'utf8'),
     migrationSchemaText: readFileSync(resolve(root, MIGRATION_SCHEMA_PATH), 'utf8'),
     agentsSchemaText: readFileSync(resolve(root, AGENTS_SCHEMA_PATH), 'utf8'),
+    automationSchemaText: readFileSync(resolve(root, AUTOMATION_SCHEMA_PATH), 'utf8'),
   };
 }
 
@@ -105,25 +112,27 @@ function collectRefs(node: unknown, out: string[] = []): string[] {
 const schemaRef = (name: string) =>
   name.startsWith('#/')
     ? name
-    : name.startsWith('agents:')
-      ? `${AGENTS_REF_PREFIX}/$defs/${name.slice('agents:'.length)}`
-      : name.startsWith('migration:')
-        ? `${MIGRATION_REF_PREFIX}/$defs/${name.slice('migration:'.length)}`
-        : name.startsWith('proposal:')
-          ? `${PROPOSAL_REF_PREFIX}/$defs/${name.slice('proposal:'.length)}`
-          : name.startsWith('patient:')
-            ? `${PATIENT_REF_PREFIX}/$defs/${name.slice('patient:'.length)}`
-            : name.startsWith('scheduling:')
-              ? `${SCHEDULING_REF_PREFIX}/$defs/${name.slice('scheduling:'.length)}`
-              : name.startsWith('clinical:')
-                ? `${CLINICAL_REF_PREFIX}/$defs/${name.slice('clinical:'.length)}`
-                : name.startsWith('engagement:')
-                  ? `${ENGAGEMENT_REF_PREFIX}/$defs/${name.slice('engagement:'.length)}`
-                  : name.startsWith('imaging:')
-                    ? `${IMAGING_REF_PREFIX}/$defs/${name.slice('imaging:'.length)}`
-                    : name.startsWith('billing:')
-                      ? `${BILLING_REF_PREFIX}/$defs/${name.slice('billing:'.length)}`
-                      : `${SCHEMA_REF_PREFIX}/$defs/${name}`;
+    : name.startsWith('automation:')
+      ? `${AUTOMATION_REF_PREFIX}/$defs/${name.slice('automation:'.length)}`
+      : name.startsWith('agents:')
+        ? `${AGENTS_REF_PREFIX}/$defs/${name.slice('agents:'.length)}`
+        : name.startsWith('migration:')
+          ? `${MIGRATION_REF_PREFIX}/$defs/${name.slice('migration:'.length)}`
+          : name.startsWith('proposal:')
+            ? `${PROPOSAL_REF_PREFIX}/$defs/${name.slice('proposal:'.length)}`
+            : name.startsWith('patient:')
+              ? `${PATIENT_REF_PREFIX}/$defs/${name.slice('patient:'.length)}`
+              : name.startsWith('scheduling:')
+                ? `${SCHEDULING_REF_PREFIX}/$defs/${name.slice('scheduling:'.length)}`
+                : name.startsWith('clinical:')
+                  ? `${CLINICAL_REF_PREFIX}/$defs/${name.slice('clinical:'.length)}`
+                  : name.startsWith('engagement:')
+                    ? `${ENGAGEMENT_REF_PREFIX}/$defs/${name.slice('engagement:'.length)}`
+                    : name.startsWith('imaging:')
+                      ? `${IMAGING_REF_PREFIX}/$defs/${name.slice('imaging:'.length)}`
+                      : name.startsWith('billing:')
+                        ? `${BILLING_REF_PREFIX}/$defs/${name.slice('billing:'.length)}`
+                        : `${SCHEMA_REF_PREFIX}/$defs/${name}`;
 
 /** Definitions the scheduling contract copies from the task contract; they must stay byte-identical. */
 const SCHEDULING_SHARED_DEFS = ['LocationRef', 'Version', 'IdempotencyKey'] as const;
@@ -350,6 +359,7 @@ export function checkContractDrift(src: ContractSources): string[] {
   let imaging: Json;
   let migration: Json;
   let agents: Json;
+  let automation: Json = {};
   try {
     api = parse(src.openapiText) as Json;
     schema = JSON.parse(src.schemaText) as Json;
@@ -362,12 +372,17 @@ export function checkContractDrift(src: ContractSources): string[] {
     imaging = JSON.parse(src.imagingSchemaText) as Json;
     migration = JSON.parse(src.migrationSchemaText) as Json;
     agents = JSON.parse(src.agentsSchemaText) as Json;
+    if (src.automationSchemaText !== undefined) automation = JSON.parse(src.automationSchemaText) as Json;
   } catch {
     return ['OpenAPI or JSON Schema does not parse'];
   }
 
   for (const ref of collectRefs(api)) {
-    if (ref.startsWith(AGENTS_REF_PREFIX)) {
+    if (ref.startsWith(AUTOMATION_REF_PREFIX)) {
+      if (pointer(automation, ref.slice(AUTOMATION_REF_PREFIX.length)) === undefined) {
+        problems.push(`OpenAPI $ref does not resolve in ${AUTOMATION_SCHEMA_FILE}: ${ref}`);
+      }
+    } else if (ref.startsWith(AGENTS_REF_PREFIX)) {
       if (pointer(agents, ref.slice(AGENTS_REF_PREFIX.length)) === undefined) {
         problems.push(`OpenAPI $ref does not resolve in ${AGENTS_SCHEMA_FILE}: ${ref}`);
       }
@@ -662,6 +677,31 @@ export function checkContractDrift(src: ContractSources): string[] {
   for (const name of ['IdempotencyKey', 'Version', 'Cursor']) {
     if (JSON.stringify(adef(name)) !== JSON.stringify(def(name)))
       problems.push(`${AGENTS_SCHEMA_FILE} ${name} differs from ${SCHEMA_FILE}`);
+  }
+  // Workstream A batch 4: the generated AUTOMATION_OPS block matches the table; bodies and queries
+  // are closed; the shared definitions stay identical to the task contract.
+  if (src.automationSchemaText !== undefined) {
+    try {
+      const committed = extractOpsBlock(src.openapiText, AUTOMATION_OPS_BLOCK);
+      if (committed !== renderAutomationOpsBlock((automation as { $defs: never }).$defs))
+        problems.push(
+          'generated AUTOMATION_OPS block differs from scripts/openapi-automation.ts (run openapi:automation)',
+        );
+    } catch (err) {
+      problems.push(`generated AUTOMATION_OPS block cannot be rendered: ${String(err)}`);
+    }
+    const xdef = (name: string) => pointer(automation, `/$defs/${name}`);
+    for (const name of AUTOMATION_OPS.flatMap((o) => [
+      ...(o.requestBody ? [o.requestBody.replace('automation:', '')] : []),
+      ...(o.query ? [o.query] : []),
+    ])) {
+      if (pointer(xdef(name), '/additionalProperties') !== false)
+        problems.push(`${name} must set additionalProperties: false`);
+    }
+    for (const name of ['IdempotencyKey', 'Version', 'Cursor']) {
+      if (JSON.stringify(xdef(name)) !== JSON.stringify(def(name)))
+        problems.push(`${AUTOMATION_SCHEMA_FILE} ${name} differs from ${SCHEMA_FILE}`);
+    }
   }
   if (pointer(mdef('MinorUnits'), '/type') !== 'integer')
     problems.push('MinorUnits must be an integer (no float money)');

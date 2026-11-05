@@ -9,12 +9,12 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-471 operations.
+487 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
 | F | 14 | 12 | 10 | 0 | 0 | 1 |
-| A | 67 | 66 | 66 | 0 | 0 | 1 |
+| A | 83 | 80 | 80 | 0 | 0 | 2 |
 | S | 92 | 90 | 90 | 0 | 0 | 0 |
 | C | 88 | 87 | 87 | 0 | 0 | 0 |
 | B | 66 | 66 | 66 | 0 | 0 | 0 |
@@ -214,6 +214,13 @@ transport tables and are declarations, not independent proof.
 | `communications.suppression.preview` | E | query | authorize | `communications.read` | human, service | rest, mcp | GET `/v1/patients/{patientRef}/suppression-preview` | `communications_suppression_preview` | none | phi | active |
 | `communications.templates.define` | E | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/communications/templates` | `communications_templates_define` | required | operational | active |
 | `communications.templates.withdraw` | E | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/communications/templates/{templateRef}/withdraw` | `communications_templates_withdraw` | required | operational | active |
+| `exports.administer` | A | capability | capability | `exports.admin` | human | - | - | - | none | phi | active |
+| `exports.create` | A | command | authorize | `exports.create` | human | rest, mcp | POST `/v1/exports` | `exports_create` | required | phiBulk | active |
+| `exports.download` | A | command | authorize | `exports.create` | human | rest, mcp | POST `/v1/exports/package` | `exports_download` | required | phiBulk | active |
+| `exports.grant` | A | command | authorize | `exports.create` | human | rest, mcp | POST `/v1/exports/grants` | `exports_grant` | required | phi | active |
+| `exports.grants.revoke` | A | command | authorize | `exports.create` | human | rest, mcp | POST `/v1/exports/grants/revoke` | `exports_grants_revoke` | required | phi | active |
+| `exports.list` | A | query | authorize | `exports.read` | human | rest, mcp | GET `/v1/exports` | `exports_list` | none | phi | active |
+| `exports.read` | A | query | authorize | `exports.read` | human | rest, mcp | GET `/v1/exports/request` | `exports_read` | none | phi | active |
 | `health.read` | F | query | public | - | human, service, portal, device | rest | GET `/healthz` | - | none | none | active |
 | `huddle.read` | A | query | authorize | `scheduling.read` | human, service | rest, mcp | GET `/v1/huddle` | `huddle_read` | none | phi | active |
 | `imaging.acquisitions.request` | I | command | authorize | `imaging.write` | human, service | rest, mcp | POST `/v1/imaging/acquisitions` | `imaging_acquisitions_request` | required | phi | active |
@@ -495,3 +502,12 @@ transport tables and are declarations, not independent proof.
 | `telephony.handling.resolve` | E | query | authorize | `communications.read` | human, service | rest, mcp | GET `/v1/telephony/handling` | `telephony_handling_resolve` | none | phi | active |
 | `vocabularies.list` | F | query | authorize | - | human, service | rest, mcp | GET `/v1/vocabularies` | `vocabularies_list` | none | phi | active |
 | `vocabularies.read` | F | query | authorize | - | human, service | rest, mcp | GET `/v1/vocabularies/{name}` | `vocabularies_get` | none | phi | active |
+| `webhooks.deliveries.dispatch` | A | command | authorize | `outbox.deliver` | service | worker | - | - | none | operational | active |
+| `webhooks.deliveries.failures.list` | A | query | authorize | `webhooks.read` | human, service | rest, mcp | GET `/v1/webhooks/deliveries/failures` | `webhooks_deliveries_failures_list` | none | phi | active |
+| `webhooks.deliveries.list` | A | query | authorize | `webhooks.read` | human, service | rest, mcp | GET `/v1/webhooks/deliveries` | `webhooks_deliveries_list` | none | phi | active |
+| `webhooks.deliveries.replay` | A | command | authorize | `webhooks.manage` | human | rest, mcp | POST `/v1/webhooks/deliveries/replay` | `webhooks_deliveries_replay` | required | phi | active |
+| `webhooks.eventTypes.list` | A | query | authorize | `webhooks.read` | human, service | rest, mcp | GET `/v1/webhooks/event-types` | `webhooks_event_types_list` | none | phi | active |
+| `webhooks.subscriptions.create` | A | command | authorize | `webhooks.manage` | human | rest, mcp | POST `/v1/webhooks/subscriptions` | `webhooks_subscriptions_create` | required | phi | active |
+| `webhooks.subscriptions.list` | A | query | authorize | `webhooks.read` | human, service | rest, mcp | GET `/v1/webhooks/subscriptions` | `webhooks_subscriptions_list` | none | phi | active |
+| `webhooks.subscriptions.revoke` | A | command | authorize | `webhooks.manage` | human | rest, mcp | POST `/v1/webhooks/subscriptions/revoke` | `webhooks_subscriptions_revoke` | required | phi | active |
+| `webhooks.subscriptions.rotateSecret` | A | command | authorize | `webhooks.manage` | human | rest, mcp | POST `/v1/webhooks/subscriptions/rotate-secret` | `webhooks_subscriptions_rotate_secret` | required | phi | active |

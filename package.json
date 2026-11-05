@@ -21,6 +21,7 @@
     "openapi:migration": "tsx scripts/openapi-migration.ts",
     "openapi:agents": "tsx scripts/openapi-agents.ts",
     "openapi:read": "tsx scripts/openapi-read.ts",
+    "openapi:automation": "tsx scripts/openapi-automation.ts",
     "start": "tsx apps/api/src/main.ts",
     "start:worker": "tsx apps/worker/src/main.ts",
     "sbom": "node scripts/sbom.mjs",

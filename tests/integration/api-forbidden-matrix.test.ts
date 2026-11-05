@@ -74,19 +74,12 @@ function staffCase(o: CatalogOperation, kind: 'human' | 'service'): { who: Subje
   return { who: kind === 'human' ? 'humanNone' : 'serviceNone', reason: 'scope_missing' };
 }
 
-const HUMAN_ONLY_SCOPES = new Set([
-  'clinical.sign',
-  'clinical.oversight',
-  'clinical.write',
-  'billing.correct',
-  'patients.merge',
-  'patients.mergeReconcile',
-  'syntheticTasks.approve',
-  'scheduling.override',
-  'imaging.associate',
-  'imaging.delete',
-  'imaging.legalHold',
-]);
+/** A-M2: the human-only flag is published in the scope registry from SHARED-CONTRACTS, never hand-listed. */
+const HUMAN_ONLY = new Set(
+  buildScopeRegistry(catalog)
+    .scopes.filter((x) => x.humanOnly)
+    .map((x) => x.name),
+);
 
 let s: CatalogStack;
 let portalToken = '';
@@ -158,11 +151,16 @@ describe('A7 forbidden-operation matrix', () => {
     const forbidden =
       /(^|_)(sql|raw|shell|exec|eval|file|files|filesystem|fs|http|proxy|fetch|impersonate)(_|$)/;
     expect(TOOLS.filter((t) => forbidden.test(t.name)).map((t) => t.name)).toStrictEqual([]);
+    // Every catalog row with a human-only scope admits no service, portal or device principal.
+    const nonHuman = catalog.filter(
+      (o) => o.scope !== null && HUMAN_ONLY.has(o.scope) && o.principals.some((p) => p !== 'human'),
+    );
+    expect(nonHuman.map((o) => `${o.operation}:${o.principals.join('+')}`)).toStrictEqual([]);
+    expect(HUMAN_ONLY.size).toBeGreaterThan(10);
     const agentAdmitted = catalog.filter(
       (o) =>
         o.principals.includes('service') &&
-        ((o.scope !== null && HUMAN_ONLY_SCOPES.has(o.scope)) ||
-          o.operation.endsWith('.export') ||
+        (o.operation.endsWith('.export') ||
           /\.approve$/.test(o.operation) ||
           /^clinical\.notes\.(sign|amend|cosign)/.test(o.operation)),
     );

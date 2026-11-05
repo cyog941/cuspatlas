@@ -56,6 +56,7 @@ export const imagingCodec: ReplayCodec<Record<string, unknown>> = {
 export const IMAGING_OPERATIONS: readonly string[] = [
   'imaging.objects.revokeGrant',
   'imaging.storage.reconcile',
+  'imaging.storage.sweep',
   'imaging.ingress.begin',
   'imaging.ingress.upload',
   'imaging.ingress.complete',

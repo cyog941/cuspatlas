@@ -170,3 +170,9 @@ Five-way export decision: M tables (`migration_source_profiles`, `migration_pack
 `corepack pnpm run ci` exit 0: 145 files, 3070 tests (catalog 384 operations). The first run (1 file, 2 tests failed in `review-hardening-s2` "same-key retry after the start has passed") started booking a five-minute window at about 23:58 America/New_York; the window crossed midnight and the all-day availability ends at the day boundary (`outside_availability`), so it was a midnight edge, not a merge effect; the rerun passed.
 
 Open (round 2): `review-hardening-s2` `soon()` windows can cross local midnight (test-only fix: keep the window inside one local day); M export format / opening-item chain for the five-way round trip (section 9.5); E10 tables not in E9 export (section 9.4); no insurer portion from B5/B9 in C12 estimates. Nothing here is approved, deployed, compliant or clinically validated.
+
+## 10 Hardening H1
+
+### 10.1 Group A (part 1): A-M1, A-M2, A-S3, A-S8
+
+Red then green: `api-change-control-gate` (4 failed, then green), `api-scopes` registry-table and A-S3/A-S8 cases (2 failed each, then green), `comms-telephony` closed CallRead (failed: validator missing, then green). Details and decision A-D4 in `docs/execution/api-progress.md` "Hardening H1". The change-control gate is dormant against today's `origin/main` because the baseline has not landed there yet.

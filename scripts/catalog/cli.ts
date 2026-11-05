@@ -1,9 +1,16 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { validateCatalog } from '../../packages/contracts/src/catalog/catalog';
-import { classifyChange } from '../../packages/contracts/src/catalog/change-control';
 import { DEPRECATIONS } from '../../packages/contracts/src/catalog/deprecation';
-import { BASELINE_PATH, buildBaseline, gateViolations, readBaseline } from './baseline';
+import {
+  BASELINE_PATH,
+  type BaseState,
+  buildBaseline,
+  changeControlRefusals,
+  loadBaseState,
+  readBaseline,
+  resolveBaseRef,
+} from './baseline';
 import { buildCatalog, ROOT, stableJson } from './build-catalog';
 import { renderClient } from './client';
 import { renderCatalogMd, renderScopesMd, renderSunsetMd } from './docs';
@@ -13,25 +20,25 @@ import { buildScopeRegistry, registeredScopes } from './scopes';
  * Every generated artifact (path relative to the repository root -> exact content). Everything is
  * built in memory and validated first; a failure throws before anything is written.
  */
-export function generatedArtifacts(): Record<string, string> {
+export function generatedArtifacts(
+  opts: { readonly firstPublication?: boolean; readonly base?: BaseState } = {},
+): Record<string, string> {
   const catalog = buildCatalog();
   const defects = validateCatalog(catalog, registeredScopes());
   if (defects.length > 0) throw new Error(`catalog invalid; nothing written:\n${defects.join('\n')}`);
   const registry = buildScopeRegistry(catalog);
   const baseline = buildBaseline(catalog);
-  // A5: the published baseline only moves forward through a change the gate accepts.
-  let previous: ReturnType<typeof readBaseline> | null = null;
-  try {
-    previous = readBaseline();
-  } catch {
-    previous = null; // first publication
-  }
-  if (previous) {
-    const today = new Date().toISOString().slice(0, 10);
-    const refused = gateViolations(classifyChange(previous, baseline), DEPRECATIONS, today);
-    if (refused.length > 0) {
-      throw new Error(`breaking contract change refused; nothing written:\n${refused.join('\n')}`);
-    }
+  // A5/A-M1: the published baseline only moves forward through a change the gate accepts, judged
+  // against the baseline and deprecations at the merge base (never the working tree's own copies).
+  const refused = changeControlRefusals({
+    current: baseline,
+    workingTreeBaseline: () => readBaseline(),
+    base: opts.base ?? loadBaseState(resolveBaseRef()),
+    today: new Date().toISOString().slice(0, 10),
+    firstPublication: opts.firstPublication,
+  });
+  if (refused.length > 0) {
+    throw new Error(`breaking contract change refused; nothing written:\n${refused.join('\n')}`);
   }
   return {
     'packages/contracts/src/catalog/operations.json': stableJson(catalog),
@@ -53,15 +60,16 @@ const read = (p: string) => {
 };
 
 /** Paths whose committed content differs from a fresh generation. */
-export function catalogDrift(): string[] {
-  return Object.entries(generatedArtifacts())
+export function catalogDrift(opts: { readonly firstPublication?: boolean } = {}): string[] {
+  return Object.entries(generatedArtifacts(opts))
     .filter(([p, content]) => read(p) !== content)
     .map(([p]) => p);
 }
 
-export function runCli(mode: string | undefined): void {
+export function runCli(mode: string | undefined, flags: readonly string[] = []): void {
+  const firstPublication = flags.includes('--first-publication');
   if (mode === 'generate') {
-    const artifacts = generatedArtifacts();
+    const artifacts = generatedArtifacts({ firstPublication });
     for (const [p, content] of Object.entries(artifacts)) {
       if (read(p) === content) continue;
       mkdirSync(dirname(resolve(ROOT, p)), { recursive: true });
@@ -69,7 +77,7 @@ export function runCli(mode: string | undefined): void {
       process.stdout.write(`wrote ${p}\n`);
     }
   } else if (mode === 'check') {
-    const drift = catalogDrift();
+    const drift = catalogDrift({ firstPublication });
     if (drift.length > 0) {
       process.stderr.write(
         `generated artifacts are stale (run pnpm catalog:generate):\n${drift.join('\n')}\n`,
@@ -78,7 +86,7 @@ export function runCli(mode: string | undefined): void {
     }
     process.stdout.write('catalog artifacts up to date\n');
   } else {
-    process.stderr.write('usage: main.ts generate|check\n');
+    process.stderr.write('usage: main.ts generate|check [--first-publication]\n');
     process.exit(2);
   }
 }

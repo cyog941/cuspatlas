@@ -348,11 +348,11 @@ export async function composeWorker(
       }
       if (imaging) {
         await stage('imaging_reconcile', async () => {
-          await imaging.reconcileStorage(serviceCtx(tenantId), {
-            operation: 'imaging.storage.reconcile',
-            idempotencyKey: randomUUID(),
-            payload: {},
-          });
+          await imaging.reconcileStorage(
+            serviceCtx(tenantId),
+            { operation: 'imaging.storage.sweep', idempotencyKey: randomUUID(), payload: {} },
+            'imaging.storage.sweep',
+          );
           report.imagingReconciled += 1;
         });
       }

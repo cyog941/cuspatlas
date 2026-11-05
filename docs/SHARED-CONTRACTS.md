@@ -91,6 +91,55 @@ Registered by workstream M migration (synthetic implementation; decisions pendin
 
 Camel-case scope names (`receivables.read` written as `receivablesRead`) are a defect. A scope used in any plan must appear in the registry; a plan that needs a new scope adds it there first.
 
+### Scope registry table
+
+The machine-readable registry rows (A-M2/A-S8, 2026-11-05). Generation reads **only** these rows: a scope is registered when it has a row, and `Human only` = `yes` is the authoritative human-only flag published in `scopes.json` (never inferred from the policy table). CI fails when a catalog operation using a human-only scope admits a service, portal or device principal, or when the catalog uses a scope without a row. The prose above records who registered each scope and why.
+
+| Scope | Human only |
+| --- | --- |
+| `admin.configure` | no |
+| `billing.correct` | yes |
+| `billing.write` | no |
+| `claims.read` | no |
+| `clinical.oversight` | yes |
+| `clinical.read` | no |
+| `clinical.sign` | yes |
+| `clinical.write` | yes |
+| `communications.deliver` | no |
+| `communications.read` | no |
+| `communications.receipts` | no |
+| `communications.write` | no |
+| `coverage.read` | no |
+| `coverage.write` | no |
+| `imaging.associate` | yes |
+| `imaging.delete` | yes |
+| `imaging.legalHold` | yes |
+| `imaging.read` | no |
+| `imaging.write` | no |
+| `ledger.read` | no |
+| `messaging.read` | no |
+| `messaging.write` | yes |
+| `migration.read` | no |
+| `migration.signoff` | yes |
+| `migration.write` | no |
+| `openClaims.read` | no |
+| `outbox.deliver` | no |
+| `patients.merge` | yes |
+| `patients.mergeReconcile` | yes |
+| `patients.read` | no |
+| `patients.write` | no |
+| `paymentDistribution.read` | no |
+| `portal.manage` | no |
+| `receivables.read` | no |
+| `scheduling.override` | yes |
+| `scheduling.read` | no |
+| `scheduling.write` | no |
+| `syntheticTasks.approve` | yes |
+| `syntheticTasks.read` | no |
+| `syntheticTasks.write` | no |
+| `telephony.events` | no |
+| `undistributedFunds.read` | no |
+
 ### Relationship scopes
 
 Guardian, guarantor and proxy authority is expressed as a scope on a relationship, not as a separate permission system. The scheduling plan owns the relationship model; the portal projects it. The vocabulary is fixed here so it is not re-invented per plan:

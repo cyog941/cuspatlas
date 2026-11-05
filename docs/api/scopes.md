@@ -19,7 +19,7 @@ human decision (A-D2). No default role grant is asserted here.
 
 | Scope | Principal kinds | Human only | Owners | Highest sensitivity | Operations |
 |---|---|---|---|---|---|
-| `admin.configure` | human, service | no | B, C, E, I, S | phiBulk | 35 |
+| `admin.configure` | human, service | no | B, C, E, I, S | phiBulk | 36 |
 | `billing.correct` | human | yes | B | phi | 12 |
 | `billing.write` | human, service | no | B | phi | 30 |
 | `clinical.oversight` | human | yes | C | phi | 1 |
@@ -35,8 +35,8 @@ human decision (A-D2). No default role grant is asserted here.
 | `imaging.associate` | human | yes | I | phi | 3 |
 | `imaging.delete` | human | yes | I | phi | 2 |
 | `imaging.legalHold` | human | yes | I | phi | 2 |
-| `imaging.read` | human, service | no | I | phi | 20 |
-| `imaging.write` | human, service | no | I | phi | 13 |
+| `imaging.read` | human, service | no | I | phi | 19 |
+| `imaging.write` | human, service | no | I | phi | 14 |
 | `ledger.read` | human, service | no | B | phi | 5 |
 | `messaging.read` | human, service | no | E | phi | 4 |
 | `messaging.write` | human | yes | E | phi | 4 |
@@ -50,7 +50,7 @@ human decision (A-D2). No default role grant is asserted here.
 | `patients.read` | human, service | no | E, S | phi | 12 |
 | `patients.write` | human, service | no | E, S | phi | 7 |
 | `paymentDistribution.read` | human, service | no | B | phi | 2 |
-| `portal.manage` | human, service | no | E | phi | 3 |
+| `portal.manage` | human | no | E | phi | 3 |
 | `receivables.read` | human, service | no | B | phi | 4 |
 | `scheduling.override` | human | yes | S | phi | 1 |
 | `scheduling.read` | human, service | no | S | phi | 29 |

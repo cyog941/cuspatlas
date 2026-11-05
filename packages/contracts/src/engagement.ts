@@ -90,6 +90,9 @@ export interface PortalPrincipalSource {
   load(principalId: string, tenantId: string): Promise<PortalPrincipalRow | null>;
 }
 
+/** A-S3 closed read shapes (no body, transcript or recording). */
+export const validateDeliveryRead = def('DeliveryRead');
+export const validateCallRead = def('CallRead');
 export const validatePortalEnroll = def('PortalEnroll');
 export const validatePortalVerify = def('PortalVerify');
 export const validatePortalRevoke = def('PortalRevoke');

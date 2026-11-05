@@ -937,8 +937,7 @@
       ],
       "scope": "billing.write",
       "principals": [
-        "human",
-        "service"
+        "human"
       ],
       "rest": {
         "method": "post",
@@ -986,8 +985,7 @@
       ],
       "scope": "billing.write",
       "principals": [
-        "human",
-        "service"
+        "human"
       ],
       "rest": {
         "method": "post",
@@ -1314,8 +1312,7 @@
       ],
       "scope": "billing.write",
       "principals": [
-        "human",
-        "service"
+        "human"
       ],
       "rest": {
         "method": "post",
@@ -6048,8 +6045,7 @@
       ],
       "scope": "communications.write",
       "principals": [
-        "human",
-        "service"
+        "human"
       ],
       "rest": {
         "method": "post",
@@ -6092,8 +6088,7 @@
       ],
       "scope": "communications.write",
       "principals": [
-        "human",
-        "service"
+        "human"
       ],
       "rest": {
         "method": "post",
@@ -8526,8 +8521,7 @@
       ],
       "scope": "imaging.read",
       "principals": [
-        "human",
-        "service"
+        "human"
       ],
       "rest": {
         "method": "get",
@@ -8542,8 +8536,7 @@
       ],
       "scope": "imaging.read",
       "principals": [
-        "human",
-        "service"
+        "human"
       ],
       "rest": {
         "method": "post",
@@ -8606,7 +8599,7 @@
         "rest",
         "mcp"
       ],
-      "scope": "imaging.read",
+      "scope": "imaging.write",
       "principals": [
         "human",
         "service"
@@ -8705,8 +8698,7 @@
       ],
       "scope": "admin.configure",
       "principals": [
-        "human",
-        "service"
+        "human"
       ],
       "rest": {
         "method": "post",
@@ -8720,6 +8712,16 @@
         "properties": {},
         "closed": true
       }
+    },
+    {
+      "operation": "imaging.storage.sweep",
+      "transports": [
+        "worker"
+      ],
+      "scope": "admin.configure",
+      "principals": [
+        "service"
+      ]
     },
     {
       "operation": "intake.forms.list",
@@ -10901,8 +10903,7 @@
       ],
       "scope": "patients.write",
       "principals": [
-        "human",
-        "service"
+        "human"
       ],
       "rest": {
         "method": "post",
@@ -10995,8 +10996,7 @@
       ],
       "scope": "patients.write",
       "principals": [
-        "human",
-        "service"
+        "human"
       ],
       "rest": {
         "method": "post",
@@ -12031,8 +12031,7 @@
       ],
       "scope": "portal.manage",
       "principals": [
-        "human",
-        "service"
+        "human"
       ],
       "rest": {
         "method": "post",
@@ -12109,8 +12108,7 @@
       ],
       "scope": "portal.manage",
       "principals": [
-        "human",
-        "service"
+        "human"
       ],
       "rest": {
         "method": "post",
@@ -15099,8 +15097,7 @@
       ],
       "scope": "admin.configure",
       "principals": [
-        "human",
-        "service"
+        "human"
       ],
       "rest": {
         "method": "post",
@@ -16100,8 +16097,7 @@
       ],
       "scope": "admin.configure",
       "principals": [
-        "human",
-        "service"
+        "human"
       ],
       "rest": {
         "method": "post",

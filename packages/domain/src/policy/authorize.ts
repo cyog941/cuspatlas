@@ -36,8 +36,8 @@ export const ACTION_POLICIES = {
   'patients.search': { scope: 'patients.read', principals: ['human', 'service'] },
   // S5 relationships. Staff manage them; relationship scopes themselves are evaluated by
   // policy/patient-access.ts and never grant a staff action.
-  'patients.relationships.add': { scope: 'patients.write', principals: ['human', 'service'] },
-  'patients.relationships.revoke': { scope: 'patients.write', principals: ['human', 'service'] },
+  'patients.relationships.add': { scope: 'patients.write', principals: ['human'] }, // A-D4
+  'patients.relationships.revoke': { scope: 'patients.write', principals: ['human'] }, // A-D4
   'patients.relationships.list': { scope: 'patients.read', principals: ['human', 'service'] },
   'patients.access.resolve': { scope: 'patients.read', principals: ['human', 'service'] },
   // S6 duplicate review and merge (ADR 0003 Q6, pending approval): human principals only. Candidate
@@ -53,9 +53,9 @@ export const ACTION_POLICIES = {
   // is practice administration (`admin.configure`); blocking time is a scheduling act
   // (`scheduling.write`); every read and the availability search need `scheduling.read`.
   'scheduling.locations.define': { scope: 'admin.configure', principals: ['human', 'service'] },
-  'scheduling.locations.changeTimeZone': { scope: 'admin.configure', principals: ['human', 'service'] },
+  'scheduling.locations.changeTimeZone': { scope: 'admin.configure', principals: ['human'] }, // A-D4
   'scheduling.locations.list': { scope: 'scheduling.read', principals: ['human', 'service'] },
-  'scheduling.resources.define': { scope: 'admin.configure', principals: ['human', 'service'] },
+  'scheduling.resources.define': { scope: 'admin.configure', principals: ['human'] }, // A-D4
   'scheduling.resources.setAvailability': { scope: 'admin.configure', principals: ['human', 'service'] },
   'scheduling.resources.deactivate': { scope: 'admin.configure', principals: ['human', 'service'] },
   'scheduling.resources.list': { scope: 'scheduling.read', principals: ['human', 'service'] },
@@ -109,16 +109,16 @@ export const ACTION_POLICIES = {
   'billing.payments.allocate': { scope: 'billing.write', principals: ['human', 'service'] },
   'billing.payments.refund': { scope: 'billing.correct', principals: ['human'] },
   'billing.funds.transfer': { scope: 'billing.correct', principals: ['human'] },
-  'billing.responsibility.transfer': { scope: 'billing.write', principals: ['human', 'service'] },
+  'billing.responsibility.transfer': { scope: 'billing.write', principals: ['human'] }, // A-D4
   'billing.worklist.list': { scope: 'undistributedFunds.read', principals: ['human', 'service'] },
   // B3 payment plans. Creating, authorizing (recording the signed-agreement fact), amending, auto-pay
   // and collection are billing.write (a scheduler may collect as a service). Voiding or defaulting a
   // plan is a human-only billing.correct decision. Reads and the plan worklist need receivables.read.
   'billing.plans.create': { scope: 'billing.write', principals: ['human', 'service'] },
   'billing.plans.read': { scope: 'receivables.read', principals: ['human', 'service'] },
-  'billing.plans.authorize': { scope: 'billing.write', principals: ['human', 'service'] },
+  'billing.plans.authorize': { scope: 'billing.write', principals: ['human'] }, // A-D4
   'billing.plans.amend': { scope: 'billing.write', principals: ['human', 'service'] },
-  'billing.plans.autopay': { scope: 'billing.write', principals: ['human', 'service'] },
+  'billing.plans.autopay': { scope: 'billing.write', principals: ['human'] }, // A-D4
   'billing.plans.collect': { scope: 'billing.write', principals: ['human', 'service'] },
   'billing.plans.close': { scope: 'billing.correct', principals: ['human'] },
   'billing.plans.worklist': { scope: 'receivables.read', principals: ['human', 'service'] },
@@ -370,15 +370,15 @@ export const ACTION_POLICIES = {
   // E1 portal principals (staff side). Enrollment, verification and revocation manage portal access
   // (`portal.manage`); reads need patients.read. Grants themselves are S5 relationships managed by
   // patients.relationships.add/revoke. No staff policy admits a `portal` principal.
-  'portal.principals.enroll': { scope: 'portal.manage', principals: ['human', 'service'] },
+  'portal.principals.enroll': { scope: 'portal.manage', principals: ['human'] }, // A-D4
   'portal.principals.verify': { scope: 'portal.manage', principals: ['human'] },
-  'portal.principals.revoke': { scope: 'portal.manage', principals: ['human', 'service'] },
+  'portal.principals.revoke': { scope: 'portal.manage', principals: ['human'] }, // A-D4
   'portal.principals.read': { scope: 'patients.read', principals: ['human', 'service'] },
   'portal.grants.list': { scope: 'patients.read', principals: ['human', 'service'] },
   // E6 consent, opt-out and the suppression decision (owned by E; S and B only consume it). Channel
   // policy and template approval are practice administration by a person (E-D6 pending).
-  'communications.consents.record': { scope: 'communications.write', principals: ['human', 'service'] },
-  'communications.consents.optOut': { scope: 'communications.write', principals: ['human', 'service'] },
+  'communications.consents.record': { scope: 'communications.write', principals: ['human'] }, // A-D4
+  'communications.consents.optOut': { scope: 'communications.write', principals: ['human'] }, // A-D4
   'communications.consents.list': { scope: 'communications.read', principals: ['human', 'service'] },
   // Review hardening: a contact point is addressed only after a person attests its verification.
   'communications.contacts.verify': { scope: 'communications.write', principals: ['human'] },
@@ -440,12 +440,14 @@ export const ACTION_POLICIES = {
   // short-lived read grants need imaging.read; bytes are read only with a grant (REST only).
   'imaging.objects.read': { scope: 'imaging.read', principals: ['human', 'service'] },
   'imaging.objects.list': { scope: 'imaging.read', principals: ['human', 'service'] },
-  'imaging.objects.grantRead': { scope: 'imaging.read', principals: ['human', 'service'] },
-  'imaging.objects.content': { scope: 'imaging.read', principals: ['human', 'service'] },
-  'imaging.objects.revokeGrant': { scope: 'imaging.read', principals: ['human', 'service'] },
+  'imaging.objects.grantRead': { scope: 'imaging.read', principals: ['human'] }, // A-D4
+  'imaging.objects.content': { scope: 'imaging.read', principals: ['human'] }, // A-D4
+  'imaging.objects.revokeGrant': { scope: 'imaging.write', principals: ['human', 'service'] }, // A-S8
   // Capability probe: revoking another principal's grant needs imaging.write.
   'imaging.grants.revokeAny': { scope: 'imaging.write', principals: ['human', 'service'] },
-  'imaging.storage.reconcile': { scope: 'admin.configure', principals: ['human', 'service'] },
+  // A-D4: the admin reconcile is human only; the worker runs the same sweep as its own service-only command.
+  'imaging.storage.reconcile': { scope: 'admin.configure', principals: ['human'] },
+  'imaging.storage.sweep': { scope: 'admin.configure', principals: ['service'] },
   // I2 ingress: staging and completing an upload is imaging work (a bridge may be a service principal).
   'imaging.ingress.begin': { scope: 'imaging.write', principals: ['human', 'service'] },
   'imaging.ingress.upload': { scope: 'imaging.write', principals: ['human', 'service'] },

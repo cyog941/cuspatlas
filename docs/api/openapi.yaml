@@ -7190,7 +7190,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementRead'
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/DeliveryRead'
         '401':
           $ref: '#/components/responses/Refusal'
         '403':
@@ -8068,7 +8068,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/EngagementRead'
+                $ref: '../../packages/contracts/src/engagement.schema.json#/$defs/CallRead'
         '401':
           $ref: '#/components/responses/Refusal'
         '403':

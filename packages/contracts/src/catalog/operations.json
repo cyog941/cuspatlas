@@ -656,8 +656,7 @@
     "action": "billing.plans.authorize",
     "scope": "billing.write",
     "principals": [
-      "human",
-      "service"
+      "human"
     ],
     "transports": [
       "rest",
@@ -692,8 +691,7 @@
     "action": "billing.plans.autopay",
     "scope": "billing.write",
     "principals": [
-      "human",
-      "service"
+      "human"
     ],
     "transports": [
       "rest",
@@ -965,8 +963,7 @@
     "action": "billing.responsibility.transfer",
     "scope": "billing.write",
     "principals": [
-      "human",
-      "service"
+      "human"
     ],
     "transports": [
       "rest",
@@ -1156,7 +1153,7 @@
       "503"
     ],
     "idempotency": "required",
-    "sensitivity": "phi",
+    "sensitivity": "operational",
     "status": "active"
   },
   {
@@ -1296,7 +1293,7 @@
       "503"
     ],
     "idempotency": "required",
-    "sensitivity": "phi",
+    "sensitivity": "operational",
     "status": "active"
   },
   {
@@ -2545,7 +2542,7 @@
       "503"
     ],
     "idempotency": "required",
-    "sensitivity": "phi",
+    "sensitivity": "operational",
     "status": "active"
   },
   {
@@ -2644,7 +2641,7 @@
       "503"
     ],
     "idempotency": "required",
-    "sensitivity": "phi",
+    "sensitivity": "operational",
     "status": "active"
   },
   {
@@ -2679,7 +2676,7 @@
       "503"
     ],
     "idempotency": "required",
-    "sensitivity": "phi",
+    "sensitivity": "operational",
     "status": "active"
   },
   {
@@ -4093,7 +4090,7 @@
       "503"
     ],
     "idempotency": "required",
-    "sensitivity": "phi",
+    "sensitivity": "operational",
     "status": "active"
   },
   {
@@ -4169,8 +4166,7 @@
     "action": "communications.consents.optOut",
     "scope": "communications.write",
     "principals": [
-      "human",
-      "service"
+      "human"
     ],
     "transports": [
       "rest",
@@ -4205,8 +4201,7 @@
     "action": "communications.consents.record",
     "scope": "communications.write",
     "principals": [
-      "human",
-      "service"
+      "human"
     ],
     "transports": [
       "rest",
@@ -4337,7 +4332,7 @@
       "method": "get",
       "path": "/v1/communications/deliveries/{messageRef}",
       "successStatus": "200",
-      "successSchema": "engagement:EngagementRead"
+      "successSchema": "engagement:DeliveryRead"
     },
     "mcpTool": "communications_deliveries_get",
     "refusals": [
@@ -4619,7 +4614,7 @@
       "503"
     ],
     "idempotency": "required",
-    "sensitivity": "phi",
+    "sensitivity": "operational",
     "status": "active"
   },
   {
@@ -4654,7 +4649,7 @@
       "503"
     ],
     "idempotency": "required",
-    "sensitivity": "phi",
+    "sensitivity": "operational",
     "status": "active"
   },
   {
@@ -5547,7 +5542,7 @@
       "503"
     ],
     "idempotency": "none",
-    "sensitivity": "phi",
+    "sensitivity": "operational",
     "status": "active"
   },
   {
@@ -5645,7 +5640,7 @@
       "503"
     ],
     "idempotency": "required",
-    "sensitivity": "phi",
+    "sensitivity": "operational",
     "status": "active"
   },
   {
@@ -5680,7 +5675,7 @@
       "503"
     ],
     "idempotency": "required",
-    "sensitivity": "phi",
+    "sensitivity": "operational",
     "status": "active"
   },
   {
@@ -5715,7 +5710,7 @@
       "503"
     ],
     "idempotency": "required",
-    "sensitivity": "phi",
+    "sensitivity": "operational",
     "status": "active"
   },
   {
@@ -5776,7 +5771,7 @@
       "503"
     ],
     "idempotency": "none",
-    "sensitivity": "phi",
+    "sensitivity": "phiBulk",
     "status": "active"
   },
   {
@@ -6213,8 +6208,7 @@
     "action": "imaging.objects.content",
     "scope": "imaging.read",
     "principals": [
-      "human",
-      "service"
+      "human"
     ],
     "transports": [
       "rest"
@@ -6245,8 +6239,7 @@
     "action": "imaging.objects.grantRead",
     "scope": "imaging.read",
     "principals": [
-      "human",
-      "service"
+      "human"
     ],
     "transports": [
       "rest",
@@ -6343,7 +6336,7 @@
     "kind": "command",
     "authorization": "authorize",
     "action": "imaging.objects.revokeGrant",
-    "scope": "imaging.read",
+    "scope": "imaging.write",
     "principals": [
       "human",
       "service"
@@ -6436,7 +6429,7 @@
       "503"
     ],
     "idempotency": "required",
-    "sensitivity": "phi",
+    "sensitivity": "operational",
     "status": "active"
   },
   {
@@ -6447,8 +6440,7 @@
     "action": "imaging.storage.reconcile",
     "scope": "admin.configure",
     "principals": [
-      "human",
-      "service"
+      "human"
     ],
     "transports": [
       "rest",
@@ -6470,7 +6462,25 @@
       "503"
     ],
     "idempotency": "required",
-    "sensitivity": "phi",
+    "sensitivity": "operational",
+    "status": "active"
+  },
+  {
+    "operation": "imaging.storage.sweep",
+    "owner": "I",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "imaging.storage.sweep",
+    "scope": "admin.configure",
+    "principals": [
+      "service"
+    ],
+    "transports": [
+      "worker"
+    ],
+    "refusals": [],
+    "idempotency": "none",
+    "sensitivity": "operational",
     "status": "active"
   },
   {
@@ -6537,7 +6547,7 @@
       "503"
     ],
     "idempotency": "required",
-    "sensitivity": "phi",
+    "sensitivity": "operational",
     "status": "active"
   },
   {
@@ -6572,7 +6582,7 @@
       "503"
     ],
     "idempotency": "required",
-    "sensitivity": "phi",
+    "sensitivity": "operational",
     "status": "active"
   },
   {
@@ -6841,7 +6851,7 @@
       "503"
     ],
     "idempotency": "required",
-    "sensitivity": "phi",
+    "sensitivity": "operational",
     "status": "active"
   },
   {
@@ -6978,7 +6988,7 @@
       "503"
     ],
     "idempotency": "required",
-    "sensitivity": "phi",
+    "sensitivity": "operational",
     "status": "active"
   },
   {
@@ -7820,8 +7830,7 @@
     "action": "patients.relationships.add",
     "scope": "patients.write",
     "principals": [
-      "human",
-      "service"
+      "human"
     ],
     "transports": [
       "rest",
@@ -7889,8 +7898,7 @@
     "action": "patients.relationships.revoke",
     "scope": "patients.write",
     "principals": [
-      "human",
-      "service"
+      "human"
     ],
     "transports": [
       "rest",
@@ -8242,8 +8250,7 @@
     "action": "portal.principals.enroll",
     "scope": "portal.manage",
     "principals": [
-      "human",
-      "service"
+      "human"
     ],
     "transports": [
       "rest",
@@ -8310,8 +8317,7 @@
     "action": "portal.principals.revoke",
     "scope": "portal.manage",
     "principals": [
-      "human",
-      "service"
+      "human"
     ],
     "transports": [
       "rest",
@@ -10375,8 +10381,7 @@
     "action": "scheduling.locations.changeTimeZone",
     "scope": "admin.configure",
     "principals": [
-      "human",
-      "service"
+      "human"
     ],
     "transports": [
       "rest",
@@ -10400,7 +10405,7 @@
       "503"
     ],
     "idempotency": "required",
-    "sensitivity": "phi",
+    "sensitivity": "operational",
     "status": "active"
   },
   {
@@ -10435,7 +10440,7 @@
       "503"
     ],
     "idempotency": "required",
-    "sensitivity": "phi",
+    "sensitivity": "operational",
     "status": "active"
   },
   {
@@ -10671,7 +10676,7 @@
       "503"
     ],
     "idempotency": "required",
-    "sensitivity": "phi",
+    "sensitivity": "operational",
     "status": "active"
   },
   {
@@ -11174,7 +11179,7 @@
       "503"
     ],
     "idempotency": "none",
-    "sensitivity": "phi",
+    "sensitivity": "operational",
     "status": "active"
   },
   {
@@ -11209,7 +11214,7 @@
       "503"
     ],
     "idempotency": "required",
-    "sensitivity": "phi",
+    "sensitivity": "operational",
     "status": "active"
   },
   {
@@ -11220,8 +11225,7 @@
     "action": "scheduling.resources.define",
     "scope": "admin.configure",
     "principals": [
-      "human",
-      "service"
+      "human"
     ],
     "transports": [
       "rest",
@@ -11245,7 +11249,7 @@
       "503"
     ],
     "idempotency": "required",
-    "sensitivity": "phi",
+    "sensitivity": "operational",
     "status": "active"
   },
   {
@@ -11345,7 +11349,7 @@
       "503"
     ],
     "idempotency": "required",
-    "sensitivity": "phi",
+    "sensitivity": "operational",
     "status": "active"
   },
   {
@@ -11591,7 +11595,7 @@
       "503"
     ],
     "idempotency": "required",
-    "sensitivity": "phi",
+    "sensitivity": "operational",
     "status": "active"
   },
   {
@@ -11731,7 +11735,7 @@
       "503"
     ],
     "idempotency": "required",
-    "sensitivity": "phi",
+    "sensitivity": "operational",
     "status": "active"
   },
   {
@@ -11796,7 +11800,7 @@
       "503"
     ],
     "idempotency": "required",
-    "sensitivity": "phi",
+    "sensitivity": "operational",
     "status": "active"
   },
   {
@@ -12754,7 +12758,7 @@
       "method": "get",
       "path": "/v1/telephony/calls/{callRef}",
       "successStatus": "200",
-      "successSchema": "engagement:EngagementRead"
+      "successSchema": "engagement:CallRead"
     },
     "mcpTool": "telephony_calls_get",
     "refusals": [
@@ -12834,7 +12838,7 @@
       "503"
     ],
     "idempotency": "required",
-    "sensitivity": "phi",
+    "sensitivity": "operational",
     "status": "active"
   },
   {

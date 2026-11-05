@@ -37,6 +37,7 @@
         "imaging.export.blobs",
         "imaging.retention.setPolicy",
         "imaging.storage.reconcile",
+        "imaging.storage.sweep",
         "intake.forms.publish",
         "intake.forms.retire",
         "messaging.replyPolicy.set",
@@ -474,7 +475,6 @@
         "imaging.objects.grantRead",
         "imaging.objects.list",
         "imaging.objects.read",
-        "imaging.objects.revokeGrant",
         "imaging.retention.policies"
       ],
       "sensitivity": "phi"
@@ -504,7 +504,8 @@
         "imaging.ingress.complete",
         "imaging.ingress.upload",
         "imaging.mounts.create",
-        "imaging.mounts.revise"
+        "imaging.mounts.revise",
+        "imaging.objects.revokeGrant"
       ],
       "sensitivity": "phi"
     },
@@ -774,8 +775,7 @@
       "noun": "portal",
       "verb": "manage",
       "principalClasses": [
-        "human",
-        "service"
+        "human"
       ],
       "humanOnly": false,
       "owners": [

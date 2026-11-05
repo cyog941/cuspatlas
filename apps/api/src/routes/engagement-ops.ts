@@ -278,7 +278,7 @@ export const ENGAGEMENT_OPS: readonly EngagementOp[] = [
     path: '/v1/communications/deliveries/{messageRef}',
     operationId: 'communications.deliveries.read',
     protected: true,
-    success: { status: '200', schema: E('EngagementRead') },
+    success: { status: '200', schema: E('DeliveryRead') },
     refusals: ['401', '403', '404', '503'],
     tool: 'communications_deliveries_get',
     description:
@@ -634,7 +634,7 @@ export const ENGAGEMENT_OPS: readonly EngagementOp[] = [
     path: '/v1/telephony/calls/{callRef}',
     operationId: 'telephony.calls.read',
     protected: true,
-    success: { status: '200', schema: E('EngagementRead') },
+    success: { status: '200', schema: E('CallRead') },
     refusals: ['401', '403', '404', '503'],
     tool: 'telephony_calls_get',
     description:

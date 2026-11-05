@@ -3255,6 +3255,35 @@ export type EngagementCallLink = {
   readonly "reasonCode": string;
 };
 
+export type EngagementCallRead = {
+  readonly "data": EngagementCallReadData;
+};
+
+export type EngagementCallReadData = {
+  readonly "callRef": string;
+  readonly "direction": string;
+  readonly "callerLast4": string;
+  readonly "dialedNumber": string;
+  readonly "occurredAt": string;
+  readonly "outcome": string;
+  readonly "handling": {
+    readonly "state": "open" | "closed";
+    readonly "rule": {
+      readonly "action": "ring_queue" | "voicemail" | "external_reference";
+      readonly "queue"?: "front_desk" | "billing";
+    };
+    readonly "sourceVersion": number;
+  };
+  readonly "recording": null;
+  readonly "link": (null) | ({
+    readonly "patientRef": string;
+    readonly "reasonCode": string;
+    readonly "linkedAt": string;
+  });
+  readonly "candidates": readonly (string)[];
+  readonly "candidateState": "none" | "single" | "ambiguous";
+};
+
 export type EngagementChannelPolicyDefine = {
   readonly "purpose": EngagementIntentPurpose;
   readonly "channel": "none" | "email" | "sms";
@@ -3289,6 +3318,44 @@ export type EngagementContactVerify = {
   readonly "channel": "email" | "phone";
   readonly "value": string;
   readonly "method": "synthetic_attested";
+};
+
+export type EngagementDeliveryRead = {
+  readonly "data": EngagementDeliveryReadData;
+};
+
+export type EngagementDeliveryReadData = {
+  readonly "messageRef": string;
+  readonly "intentRef": string | null;
+  readonly "threadMessageRef": string | null;
+  readonly "purpose": string;
+  readonly "channel": string;
+  readonly "deliveryKey": string;
+  readonly "state": string;
+  readonly "stateReason": string | null;
+  readonly "suppressionReason": string | null;
+  readonly "providerRef": string | null;
+  readonly "version": number;
+  readonly "createdAt": string;
+  readonly "attempts": readonly ({
+    readonly "attempt": number;
+    readonly "outcome": string;
+    readonly "occurredAt": string;
+  })[];
+  readonly "decisions": readonly ({
+    readonly "decisionRef": string;
+    readonly "stage": string;
+    readonly "outcome": string;
+    readonly "reason": string | null;
+    readonly "deferredUntil": string | null;
+    readonly "decidedAt": string;
+  })[];
+  readonly "receipts": readonly ({
+    readonly "state": string;
+    readonly "occurredAt": string;
+    readonly "applied": boolean;
+    readonly "pending": boolean;
+  })[];
 };
 
 export type EngagementDeliveryResolve = {
@@ -7937,7 +8004,7 @@ export interface Operations {
     path: "/v1/communications/deliveries/{messageRef}";
     params: { readonly messageRef: string; };
     body: undefined;
-    result: EngagementEngagementRead;
+    result: EngagementDeliveryRead;
     successStatus: 200;
     idempotent: false;
   };
@@ -10151,7 +10218,7 @@ export interface Operations {
     path: "/v1/telephony/calls/{callRef}";
     params: { readonly callRef: string; };
     body: undefined;
-    result: EngagementEngagementRead;
+    result: EngagementCallRead;
     successStatus: 200;
     idempotent: false;
   };

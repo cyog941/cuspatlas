@@ -407,6 +407,12 @@ describe('worker composition against the test database', () => {
       );
       expect(job.rows[0]).toMatchObject({ state: 'queued', claim_nonce: null });
       expect(first.imagingReconciled + second.imagingReconciled).toBeGreaterThanOrEqual(1);
+      // A-D4: the worker sweeps as its own service-only command, never the human admin reconcile.
+      const sweeps = await s.db.admin.query<{ operation: string }>(
+        `SELECT DISTINCT operation FROM cuspatlas.audit_events
+          WHERE operation IN ('imaging.storage.sweep', 'imaging.storage.reconcile')`,
+      );
+      expect(sweeps.rows.map((r) => r.operation)).toStrictEqual(['imaging.storage.sweep']);
       expect(first.maintenance).toMatchObject({ idempotencyPurged: expect.any(Number) });
 
       // Exactly once: later ticks only settle events the earlier ones created (never one already

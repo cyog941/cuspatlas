@@ -12680,6 +12680,77 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/analytics/measures:
+    get:
+      operationId: analytics.measures.list
+      description: >-
+        A16 (PT-06): the registered measure definitions: key, definition version, owner, plain definition
+        text, unit, date basis, filters, the read actions each requires and its small-cell suppression rule
+        (threshold 11 by default, pending approval).
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/MeasureCatalog'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/analytics/measures/{measureKey}:
+    get:
+      operationId: analytics.measures.read
+      description: >-
+        A16 (PT-06): one measure value with its definition version, as-of instant, date basis, applied
+        filters and freshness. A population from 1 to threshold-1 is suppressed (no value, no population); a
+        zero denominator is undefined, never zero. Needs analytics.read and the measure owner read action
+        (financial measures: the B11 scopes).
+      parameters:
+        - name: measureKey
+          in: path
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/MeasureKey'
+        - name: locationRef
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/LocationRef'
+        - name: from
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/LocalDate'
+        - name: to
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/LocalDate'
+        - name: version
+          in: query
+          required: false
+          schema:
+            $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/MeasureQuery'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/synthetic-task.schema.json#/$defs/MeasureRead'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   /v1/me/saved-views:
     get:
       operationId: preferences.savedViews.list

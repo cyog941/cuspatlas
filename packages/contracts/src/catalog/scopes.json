@@ -65,6 +65,24 @@
       "sensitivity": "phiBulk"
     },
     {
+      "name": "analytics.read",
+      "noun": "analytics",
+      "verb": "read",
+      "principalClasses": [
+        "human",
+        "service"
+      ],
+      "humanOnly": false,
+      "owners": [
+        "A"
+      ],
+      "operations": [
+        "analytics.measures.list",
+        "analytics.measures.read"
+      ],
+      "sensitivity": "phi"
+    },
+    {
       "name": "billing.correct",
       "noun": "billing",
       "verb": "correct",

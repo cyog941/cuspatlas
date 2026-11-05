@@ -33,6 +33,7 @@ const param = (input: OpInput, name: string) => input.params[name] ?? '';
 export const READ_PARAM_DEFS: Readonly<Record<string, string>> = {
   appointmentRef: 'Uuid',
   viewRef: 'Uuid',
+  measureKey: 'MeasureKey',
 };
 
 export const READ_OPS: readonly ReadOp[] = [
@@ -72,6 +73,31 @@ export const READ_OPS: readonly ReadOp[] = [
     description:
       'A24 (OR-14): the navigable capabilities of the operation catalog grouped by area (scheduling, clinical, financial, communications, imaging, administration, migration), filtered by the live permissions of the caller: a capability appears only when its entry operation is allowed and lists only allowed operations. Navigation grants nothing; every operation still authorizes its own resource.',
     invoke: (svc, actor) => svc.readNavigation(actor),
+  },
+  {
+    method: 'get',
+    path: '/v1/analytics/measures',
+    operationId: 'analytics.measures.list',
+    protected: true,
+    success: { status: '200', schema: 'MeasureCatalog' },
+    refusals: ['401', '403', '503'],
+    tool: 'analytics_measures_list',
+    description:
+      'A16 (PT-06): the registered measure definitions: key, definition version, owner, plain definition text, unit, date basis, filters, the read actions each requires and its small-cell suppression rule (threshold 11 by default, pending approval).',
+    invoke: (svc, actor) => svc.listMeasures(actor),
+  },
+  {
+    method: 'get',
+    path: '/v1/analytics/measures/{measureKey}',
+    operationId: 'analytics.measures.read',
+    protected: true,
+    query: 'MeasureQuery',
+    success: { status: '200', schema: 'MeasureRead' },
+    refusals: READ_REFUSALS,
+    tool: 'analytics_measures_read',
+    description:
+      'A16 (PT-06): one measure value with its definition version, as-of instant, date basis, applied filters and freshness. A population from 1 to threshold-1 is suppressed (no value, no population); a zero denominator is undefined, never zero. Needs analytics.read and the measure owner read action (financial measures: the B11 scopes).',
+    invoke: (svc, actor, i) => svc.readMeasure(actor, param(i, 'measureKey'), i.body),
   },
   {
     method: 'get',

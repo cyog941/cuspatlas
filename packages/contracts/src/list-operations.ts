@@ -478,6 +478,15 @@ export const LIST_OPERATIONS: Readonly<Record<string, ListOperationSpec>> = {
     scope: 'tenant',
   },
   // The whole registry (bounded by the contracts, never truncated).
+  // A16: the measure catalog (registry order; envelope built by the domain read).
+  'analytics.measures.list': {
+    rows: 'data',
+    ordering: { key: 'registry', direction: 'asc', tieBreak: 'measureKey' },
+    limit: 'parent',
+    cursor: false,
+    scope: 'tenant',
+    placement: 'existing',
+  },
   // A22 (OR-12): the caller's own preferences (envelope built by the domain read).
   'preferences.savedViews.list': {
     rows: 'data',

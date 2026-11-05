@@ -3,6 +3,7 @@ import { executeOnce } from '../commands/execute-once';
 import type { CommandExecutor } from '../commands/executor';
 import { createNavigationReads } from '../navigation/navigation';
 import { createPreferenceOperations } from '../preferences/preferences';
+import { createMeasureReads, type FinancialMeasuresPort } from '../reporting/measures';
 import { type ComposerDeps, createComposerBase } from './framework';
 import { type ComposerProducers, createReadComposers, DEFAULT_PRODUCERS } from './read-composers';
 
@@ -17,6 +18,10 @@ export interface ReadSurfaceDeps extends ComposerDeps {
   readonly memberships?: MembershipSource;
   /** Durable command executor for the preference and administration commands. */
   readonly execute?: CommandExecutor;
+  /** A16 small-cell suppression threshold (default 11, pending approval). */
+  readonly suppressionThreshold?: number;
+  /** A16 financial measures: the B11 claim measures as published by billing (same caller). */
+  readonly financialMeasures?: FinancialMeasuresPort;
 }
 
 export function createReadSurfaceService(deps: ReadSurfaceDeps) {
@@ -25,6 +30,10 @@ export function createReadSurfaceService(deps: ReadSurfaceDeps) {
     ...createReadComposers(base, { ...DEFAULT_PRODUCERS, ...deps.producers }),
     ...createNavigationReads(base, deps.memberships),
     ...createPreferenceOperations(base, { execute: deps.execute ?? executeOnce }),
+    ...createMeasureReads(base, {
+      ...(deps.suppressionThreshold === undefined ? {} : { suppressionThreshold: deps.suppressionThreshold }),
+      ...(deps.financialMeasures ? { financial: deps.financialMeasures } : {}),
+    }),
   };
 }
 

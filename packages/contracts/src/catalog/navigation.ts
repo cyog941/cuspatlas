@@ -150,6 +150,7 @@ export const NAVIGATION: readonly NavigationGroup[] = [
       cap('locations', 'Locations and resources', ['scheduling.locations.list', 'scheduling.resources.list']),
       cap('portalAccess', 'Portal access', ['portal.principals.read', 'portal.grants.list']),
       cap('vocabularies', 'State vocabularies', ['vocabularies.list', 'vocabularies.read']),
+      cap('analytics', 'Measures', ['analytics.measures.list', 'analytics.measures.read']),
       cap('operations', 'Operational alerts', ['operations.alerts.list']),
     ],
   },

@@ -490,6 +490,7 @@ export function buildMcpServer(deps: McpServerDeps): McpServerHandle {
       recording,
       memberships: deps.membership,
       execute,
+      financialMeasures: (ctx) => billing.claimMeasures(ctx, {}),
     }),
     authorize,
     recording,

@@ -443,6 +443,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
           recording,
           memberships: deps.membership,
           execute,
+          financialMeasures: (ctx) => billing.claimMeasures(ctx, {}),
         }),
       });
     }

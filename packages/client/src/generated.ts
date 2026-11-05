@@ -7336,6 +7336,40 @@ export type SyntheticLocalDate = string;
 
 export type SyntheticLocationRef = string;
 
+export type SyntheticMeasureCatalog = {
+  readonly "data": readonly (SyntheticMeasureDefinition)[];
+  readonly "suppression": { readonly [k: string]: unknown };
+  readonly "envelope": SyntheticListEnvelope;
+};
+
+export type SyntheticMeasureDefinition = {
+  readonly "measureKey": SyntheticMeasureKey;
+  readonly "definitionVersion": string;
+  readonly "owner": "S" | "B" | "E";
+  readonly "title": string;
+  readonly "definition": string;
+  readonly "unit": "ratio" | "count" | "money";
+  readonly "dateBasis": string;
+  readonly "filters": readonly (string)[];
+  readonly "requiredActions": readonly (string)[];
+  readonly "suppression": "population" | "count" | "none";
+  readonly "source": "live" | "B11";
+  readonly [k: string]: unknown;
+};
+
+export type SyntheticMeasureKey = string;
+
+export type SyntheticMeasureRead = {
+  readonly "data": {
+    readonly "result": {
+      readonly "state": "value" | "suppressed" | "undefined" | "unavailable";
+      readonly [k: string]: unknown;
+    };
+    readonly [k: string]: unknown;
+  };
+  readonly [k: string]: unknown;
+};
+
 export type SyntheticNavigationOperation = {
   readonly "operation": string;
   readonly "kind": "query" | "command" | "capability";
@@ -7579,6 +7613,26 @@ export type SyntheticVocabularyRead = {
 
 /** Every REST operation of the catalog with its path parameters, body and success result types. */
 export interface Operations {
+  "analytics.measures.list": {
+    method: "GET";
+    path: "/v1/analytics/measures";
+    params: {  };
+    query: Record<string, never>;
+    body: undefined;
+    result: SyntheticMeasureCatalog;
+    successStatus: 200;
+    idempotent: false;
+  };
+  "analytics.measures.read": {
+    method: "GET";
+    path: "/v1/analytics/measures/{measureKey}";
+    params: { readonly measureKey: string; };
+    query: { readonly locationRef?: string; readonly from?: string; readonly to?: string; readonly version?: string; };
+    body: undefined;
+    result: SyntheticMeasureRead;
+    successStatus: 200;
+    idempotent: false;
+  };
   "appointments.detail": {
     method: "GET";
     path: "/v1/appointments/{appointmentRef}/detail";
@@ -11674,6 +11728,8 @@ export interface OperationMeta {
 }
 
 export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
+  "analytics.measures.list": { method: "GET", path: "/v1/analytics/measures", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "analytics.measures.read": { method: "GET", path: "/v1/analytics/measures/{measureKey}", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "appointments.detail": { method: "GET", path: "/v1/appointments/{appointmentRef}/detail", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "billing.adjustments.decide": { method: "POST", path: "/v1/billing/adjustment-requests/{requestRef}/decision", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "billing.adjustments.post": { method: "POST", path: "/v1/billing/charges/{chargeRef}/adjustments", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },

@@ -98,6 +98,7 @@ The machine-readable registry rows (A-M2/A-S8, 2026-11-05). Generation reads **o
 | Scope | Human only |
 | --- | --- |
 | `admin.configure` | no |
+| `analytics.read` | no |
 | `billing.correct` | yes |
 | `billing.write` | no |
 | `claims.read` | no |

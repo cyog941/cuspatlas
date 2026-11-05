@@ -2,6 +2,54 @@
   "version": 2,
   "operations": [
     {
+      "operation": "analytics.measures.list",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "analytics.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/analytics/measures"
+      },
+      "mcpTool": "analytics_measures_list",
+      "idempotency": "none",
+      "refusals": [
+        "401",
+        "403",
+        "503"
+      ]
+    },
+    {
+      "operation": "analytics.measures.read",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "analytics.read",
+      "principals": [
+        "human",
+        "service"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/analytics/measures/{measureKey}"
+      },
+      "mcpTool": "analytics_measures_read",
+      "idempotency": "none",
+      "refusals": [
+        "400",
+        "401",
+        "403",
+        "404",
+        "503"
+      ]
+    },
+    {
       "operation": "appointments.detail",
       "transports": [
         "rest",

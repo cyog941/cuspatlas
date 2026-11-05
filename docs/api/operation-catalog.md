@@ -9,12 +9,12 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-416 operations.
+418 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
 | F | 14 | 12 | 10 | 0 | 0 | 1 |
-| A | 12 | 12 | 12 | 0 | 0 | 0 |
+| A | 14 | 14 | 14 | 0 | 0 | 0 |
 | S | 92 | 90 | 90 | 0 | 0 | 0 |
 | C | 88 | 87 | 87 | 0 | 0 | 0 |
 | B | 66 | 66 | 66 | 0 | 0 | 0 |
@@ -24,6 +24,8 @@ transport tables and are declarations, not independent proof.
 
 | Operation | Owner | Kind | Authorization | Scope | Principals | Transports | REST | MCP tool | Idempotency | Sensitivity | Status |
 |---|---|---|---|---|---|---|---|---|---|---|---|
+| `analytics.measures.list` | A | query | authorize | `analytics.read` | human, service | rest, mcp | GET `/v1/analytics/measures` | `analytics_measures_list` | none | phi | active |
+| `analytics.measures.read` | A | query | authorize | `analytics.read` | human, service | rest, mcp | GET `/v1/analytics/measures/{measureKey}` | `analytics_measures_read` | none | phi | active |
 | `appointments.detail` | A | query | authorize | `scheduling.read` | human, service | rest, mcp | GET `/v1/appointments/{appointmentRef}/detail` | `appointments_detail` | none | phi | active |
 | `billing.adjustments.decide` | B | command | authorize | `billing.correct` | human | rest, mcp | POST `/v1/billing/adjustment-requests/{requestRef}/decision` | `billing_adjustments_decide` | required | phi | active |
 | `billing.adjustments.post` | B | command | authorize | `billing.write` | human | rest, mcp | POST `/v1/billing/charges/{chargeRef}/adjustments` | `billing_adjustments_post` | required | phi | active |

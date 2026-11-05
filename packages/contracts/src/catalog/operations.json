@@ -1,5 +1,69 @@
 [
   {
+    "operation": "analytics.measures.list",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "analytics.measures.list",
+    "scope": "analytics.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/analytics/measures",
+      "successStatus": "200",
+      "successSchema": "MeasureCatalog"
+    },
+    "mcpTool": "analytics_measures_list",
+    "refusals": [
+      "401",
+      "403",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
+    "operation": "analytics.measures.read",
+    "owner": "A",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "analytics.measures.read",
+    "scope": "analytics.read",
+    "principals": [
+      "human",
+      "service"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/analytics/measures/{measureKey}",
+      "successStatus": "200",
+      "successSchema": "MeasureRead"
+    },
+    "mcpTool": "analytics_measures_read",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phi",
+    "status": "active"
+  },
+  {
     "operation": "appointments.detail",
     "owner": "A",
     "kind": "query",

@@ -1076,6 +1076,126 @@
     },
     "RecentPatientClearResult": {
       "$ref": "#/$defs/PreferenceCommandResult"
+    },
+    "MeasureKey": {
+      "type": "string",
+      "pattern": "^[a-z]{1,20}\\.[a-z_]{1,40}$"
+    },
+    "MeasureQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "locationRef": {
+          "$ref": "#/$defs/LocationRef"
+        },
+        "from": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "to": {
+          "$ref": "#/$defs/LocalDate"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._]{1,64}$"
+        }
+      }
+    },
+    "MeasureDefinition": {
+      "type": "object",
+      "required": [
+        "measureKey",
+        "definitionVersion",
+        "owner",
+        "title",
+        "definition",
+        "unit",
+        "dateBasis",
+        "filters",
+        "requiredActions",
+        "suppression",
+        "source"
+      ],
+      "properties": {
+        "measureKey": {
+          "$ref": "#/$defs/MeasureKey"
+        },
+        "definitionVersion": {
+          "type": "string"
+        },
+        "owner": {
+          "enum": ["S", "B", "E"]
+        },
+        "title": {
+          "type": "string"
+        },
+        "definition": {
+          "type": "string"
+        },
+        "unit": {
+          "enum": ["ratio", "count", "money"]
+        },
+        "dateBasis": {
+          "type": "string"
+        },
+        "filters": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requiredActions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "suppression": {
+          "enum": ["population", "count", "none"]
+        },
+        "source": {
+          "enum": ["live", "B11"]
+        }
+      }
+    },
+    "MeasureCatalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "suppression", "envelope"],
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MeasureDefinition"
+          }
+        },
+        "suppression": {
+          "type": "object"
+        },
+        "envelope": {
+          "$ref": "#/$defs/ListEnvelope"
+        }
+      }
+    },
+    "MeasureRead": {
+      "type": "object",
+      "required": ["data"],
+      "properties": {
+        "data": {
+          "type": "object",
+          "required": ["measureKey", "definitionVersion", "result"],
+          "properties": {
+            "result": {
+              "type": "object",
+              "required": ["state"],
+              "properties": {
+                "state": {
+                  "enum": ["value", "suppressed", "undefined", "unavailable"]
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

@@ -418,6 +418,8 @@ const TOOL_NAMES = [
   'schedule_view',
   'appointments_detail',
   'navigation_get',
+  'analytics_measures_list',
+  'analytics_measures_read',
   'preferences_saved_views_list',
   'preferences_saved_views_save',
   'preferences_saved_views_delete',

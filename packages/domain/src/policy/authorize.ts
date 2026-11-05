@@ -28,6 +28,9 @@ export const ACTION_POLICIES = {
   'navigation.read': { scope: null, principals: ['human', 'service'] },
   // A22 (OR-12): the caller's own preferences (RLS binds every row to tenant AND actor). Human only:
   // an agent keeps no recent-patient list. Recording a recent patient also needs patients.read.
+  // A16 analytics: the measure catalog and measures; each measure also requires its owning read action.
+  'analytics.measures.list': { scope: 'analytics.read', principals: ['human', 'service'] },
+  'analytics.measures.read': { scope: 'analytics.read', principals: ['human', 'service'] },
   'preferences.savedViews.list': { scope: null, principals: ['human'] },
   'preferences.savedViews.save': { scope: null, principals: ['human'] },
   'preferences.savedViews.delete': { scope: null, principals: ['human'] },

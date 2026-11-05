@@ -14,6 +14,7 @@ import { executeOnce } from '../commands/execute-once';
 import type { CommandExecutor } from '../commands/executor';
 import type { PatientService } from '../patients';
 import type { ActionName, Authorize } from '../policy/authorize';
+import type { PracticeExportDeps } from './practice-export';
 
 export interface MigrationDeps {
   readonly authorize: Authorize;
@@ -24,6 +25,8 @@ export interface MigrationDeps {
   /** Same tenant-bound HMAC pepper S uses for match keys (M4 candidate scoring, no plaintext stored). */
   readonly matchKeyPepper: Uint8Array;
   readonly execute?: CommandExecutor;
+  /** M1: the composed S/I/C/E/B exports, the private store and the delivery-grant secret. */
+  readonly practiceExport?: PracticeExportDeps;
 }
 
 export interface MigrationBase {

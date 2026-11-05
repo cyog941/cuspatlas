@@ -4527,6 +4527,8 @@ export type MigrationDigest = string;
 
 export type MigrationEntityName = string;
 
+export type MigrationExportRef = MigrationUuid;
+
 export type MigrationIdentityMerge = {
   readonly "packageRef": MigrationPackageRef;
   readonly "itemRef": MigrationItemRef;
@@ -4677,6 +4679,77 @@ export type MigrationPackageState = {
 };
 
 export type MigrationPatientRef = MigrationUuid;
+
+export type MigrationPracticeExportCreate = {
+  readonly "purpose": "practiceExit" | "verification" | "archiveCopy";
+};
+
+export type MigrationPracticeExportDownload = {
+  readonly "exportRef": MigrationExportRef;
+  readonly "token": string;
+};
+
+export type MigrationPracticeExportGrant = {
+  readonly "exportRef": MigrationExportRef;
+};
+
+export type MigrationPracticeExportGrantResult = {
+  readonly "data": {
+    readonly "grantRef": MigrationUuid;
+    readonly "token": string;
+    readonly "expiresAt": string;
+  };
+};
+
+export type MigrationPracticeExportPackage = {
+  readonly "data": {
+    readonly "manifest": {
+      readonly "format": "cuspatlas-practice-export/1";
+      readonly "exportRef": MigrationExportRef;
+      readonly "exportedAt": string;
+      readonly "documents": readonly ({
+        readonly "format": string;
+        readonly "digestSha256": MigrationDigest;
+        readonly "tables": { readonly [k: string]: MigrationCount };
+      })[];
+      readonly "blobs": readonly ({
+        readonly "digestSha256": MigrationDigest;
+        readonly "byteLength": number;
+      })[];
+      readonly "terminology": { readonly [k: string]: unknown };
+      readonly "provenance": { readonly [k: string]: unknown };
+      readonly [k: string]: unknown;
+    };
+    readonly "documents": readonly ({ readonly [k: string]: unknown })[];
+  };
+};
+
+export type MigrationPracticeExportResult = {
+  readonly "data": {
+    readonly "exportRef": MigrationExportRef;
+    readonly "format": "cuspatlas-practice-export/1";
+    readonly "manifestDigest": MigrationDigest;
+    readonly "packageDigest": MigrationDigest;
+    readonly "byteLength": number;
+    readonly "documentCount": MigrationCount;
+    readonly "exportedAt": string;
+  };
+  readonly "version": MigrationVersion;
+  readonly "correlationId": string;
+  readonly "replayed": boolean;
+};
+
+export type MigrationPracticeExportVerification = {
+  readonly "data": {
+    readonly "exportRef": MigrationExportRef;
+    readonly "state": "verified" | "drifted" | "failed";
+    readonly "manifestDigest": MigrationDigest;
+    readonly "mismatches": readonly ({
+      readonly "entity": string;
+      readonly "reason": "count_mismatch" | "digest_mismatch" | "missing_entity";
+    })[];
+  };
+};
 
 export type MigrationPracticeRef = string;
 
@@ -9067,6 +9140,42 @@ export interface Operations {
     successStatus: 200;
     idempotent: false;
   };
+  "practice.export.create": {
+    method: "POST";
+    path: "/v1/practice/exports";
+    params: {  };
+    body: MigrationPracticeExportCreate;
+    result: MigrationPracticeExportResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "practice.export.download": {
+    method: "POST";
+    path: "/v1/practice/exports/package";
+    params: {  };
+    body: MigrationPracticeExportDownload;
+    result: MigrationPracticeExportPackage;
+    successStatus: 200;
+    idempotent: true;
+  };
+  "practice.export.grant": {
+    method: "POST";
+    path: "/v1/practice/exports/grants";
+    params: {  };
+    body: MigrationPracticeExportGrant;
+    result: MigrationPracticeExportGrantResult;
+    successStatus: 201;
+    idempotent: true;
+  };
+  "practice.export.verify": {
+    method: "GET";
+    path: "/v1/practice/exports/verification";
+    params: {  };
+    body: undefined;
+    result: MigrationPracticeExportVerification;
+    successStatus: 200;
+    idempotent: false;
+  };
   "rcm.appeals.draft": {
     method: "POST";
     path: "/v1/rcm/claims/{claimRef}/appeals";
@@ -10459,6 +10568,10 @@ export const OPERATIONS: { readonly [K in OperationId]: OperationMeta } = {
   "portal.threads.read": { method: "GET", path: "/portal/v1/patients/{patientRef}/message-threads/{threadRef}", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "portal.views.describe": { method: "GET", path: "/portal/v1/views/{view}", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "portal.views.read": { method: "GET", path: "/portal/v1/patients/{patientRef}/views/{view}", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
+  "practice.export.create": { method: "POST", path: "/v1/practice/exports", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "practice.export.download": { method: "POST", path: "/v1/practice/exports/package", successStatus: 200, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "practice.export.grant": { method: "POST", path: "/v1/practice/exports/grants", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
+  "practice.export.verify": { method: "GET", path: "/v1/practice/exports/verification", successStatus: 200, idempotencyKey: false, binaryRequest: false, binaryResult: false, deprecated: false },
   "rcm.appeals.draft": { method: "POST", path: "/v1/rcm/claims/{claimRef}/appeals", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "rcm.appeals.review": { method: "POST", path: "/v1/rcm/appeals/{appealRef}/review", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },
   "rcm.claims.attach": { method: "POST", path: "/v1/rcm/claims/{claimRef}/attachments", successStatus: 201, idempotencyKey: true, binaryRequest: false, binaryResult: false, deprecated: false },

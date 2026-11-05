@@ -26,7 +26,7 @@ export function toExportRow(row: Record<string, unknown>, currency: string): Rec
  * profile. Other staged records, review items, applied records, reports and sign-offs are the
  * migration workspace and stay out of the export.
  */
-const OPENING_CHAIN: Readonly<Record<string, { source: string; row: string }>> = {
+export const OPENING_CHAIN: Readonly<Record<string, { source: string; row: string }>> = {
   migration_source_profiles: {
     source: `(SELECT * FROM cuspatlas.migration_source_profiles WHERE id IN (SELECT p.profile_id
       FROM cuspatlas.migration_packages p WHERE p.id IN (SELECT package_id FROM cuspatlas.migration_opening_items)))`,

@@ -32,4 +32,13 @@ export const MIGRATION_REPLAY_CODECS: Readonly<Record<string, ReplayCodec<any>>>
   'migration.reports.build': flat(['reportRef', 'reportVersion', 'reportDigest', 'blockingExceptions']),
   'migration.signoffs.record': flat(['signOffRef', 'role', 'decision']),
   'migration.cutover.advance': flat(['packageRef', 'cutoverState']),
+  'practice.export.create': flat([
+    'exportRef',
+    'format',
+    'manifestDigest',
+    'packageDigest',
+    'byteLength',
+    'documentCount',
+    'exportedAt',
+  ]),
 };

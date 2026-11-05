@@ -12487,6 +12487,129 @@
       }
     },
     {
+      "operation": "practice.export.create",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "admin.configure",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/practice/exports"
+      },
+      "mcpTool": "practice_export_create",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "purpose": {
+            "enum": [
+              "\"archiveCopy\"",
+              "\"practiceExit\"",
+              "\"verification\""
+            ]
+          }
+        },
+        "closed": true,
+        "required": [
+          "purpose"
+        ]
+      }
+    },
+    {
+      "operation": "practice.export.download",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "admin.configure",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/practice/exports/package"
+      },
+      "mcpTool": "practice_export_download",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "exportRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "token": {
+            "type": [
+              "string"
+            ],
+            "maxLength": 200
+          }
+        },
+        "closed": true,
+        "required": [
+          "exportRef",
+          "token"
+        ]
+      }
+    },
+    {
+      "operation": "practice.export.grant",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "admin.configure",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "post",
+        "path": "/v1/practice/exports/grants"
+      },
+      "mcpTool": "practice_export_grant",
+      "input": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "exportRef": {
+            "type": [
+              "string"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "closed": true,
+        "required": [
+          "exportRef"
+        ]
+      }
+    },
+    {
+      "operation": "practice.export.verify",
+      "transports": [
+        "rest",
+        "mcp"
+      ],
+      "scope": "admin.configure",
+      "principals": [
+        "human"
+      ],
+      "rest": {
+        "method": "get",
+        "path": "/v1/practice/exports/verification"
+      },
+      "mcpTool": "practice_export_verify"
+    },
+    {
       "operation": "rcm.appeals.draft",
       "transports": [
         "rest",

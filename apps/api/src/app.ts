@@ -372,16 +372,6 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         execute,
       });
       registerEngagementOpRoutes(app, { authenticator, engagement });
-      // Workstream M: patients only through S4/S6 commands; ledger postings through the B1 primitive.
-      const migration = createMigrationService({
-        authorize,
-        withTenantTransaction: deps.tenantTransactions,
-        recording,
-        execute,
-        patients,
-        matchKeyPepper: resolveMatchKeyPepper(deps.env, deps.matchKeyPepper),
-      });
-      registerMigrationOpRoutes(app, { authenticator, migration });
       if (deps.portalIdentity && deps.portalPrincipals) {
         const portalAuthenticator = createPortalAuthenticator(
           deps.portalIdentity,
@@ -412,6 +402,28 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
           ? { deviceAuthenticator: createDeviceAuthenticator(deps.deviceCredentials, recording) }
           : {}),
       });
+      // Workstream M: patients only through S4/S6 commands; ledger postings through the B1 primitive.
+      const migration = createMigrationService({
+        authorize,
+        withTenantTransaction: deps.tenantTransactions,
+        recording,
+        execute,
+        patients,
+        matchKeyPepper: resolveMatchKeyPepper(deps.env, deps.matchKeyPepper),
+        // M1: the practice export composes the five domain exports as the same caller.
+        practiceExport: {
+          exporters: {
+            scheduling: (ctx) => appointments.exportScheduling(ctx),
+            imaging: (ctx) => imaging.exportImaging(ctx),
+            clinical: (ctx) => clinical.exportClinical(ctx),
+            engagement: (ctx) => engagement.exportEngagement(ctx, {}),
+            billing: (ctx) => billing.exportBilling(ctx),
+          },
+          ...(deps.objectStore ? { objectStore: deps.objectStore } : {}),
+          tokenSecret: resolveImagingTokenSecret(deps.env, deps.imagingTokenSecret),
+        },
+      });
+      registerMigrationOpRoutes(app, { authenticator, migration });
     }
   }
 

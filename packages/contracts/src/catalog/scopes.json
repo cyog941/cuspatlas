@@ -15,6 +15,7 @@
         "C",
         "E",
         "I",
+        "M",
         "S"
       ],
       "operations": [
@@ -41,6 +42,10 @@
         "intake.forms.retire",
         "messaging.replyPolicy.set",
         "messaging.threads.hold",
+        "practice.export.create",
+        "practice.export.download",
+        "practice.export.grant",
+        "practice.export.verify",
         "scheduling.export",
         "scheduling.locations.changeTimeZone",
         "scheduling.locations.define",

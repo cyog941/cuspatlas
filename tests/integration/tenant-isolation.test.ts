@@ -241,6 +241,8 @@ describe('runtime database role', () => {
       'patient_status_history',
       'patients',
       'portal_principals',
+      'practice_export_grants',
+      'practice_exports',
       'principals',
       'rcm_appeal_reviews',
       'rcm_appeal_send_resolutions',

@@ -9,7 +9,7 @@ allowlist), `pairing` (one-time code), `public` (no tenant data) and `capability
 check inside another operation, never callable alone). `kind` and `idempotency` are derived from the
 transport tables and are declarations, not independent proof.
 
-384 operations.
+388 operations.
 
 | Owner | Operations | REST | MCP | Portal | Bridge | Worker |
 |---|---|---|---|---|---|---|
@@ -19,7 +19,7 @@ transport tables and are declarations, not independent proof.
 | B | 64 | 64 | 64 | 0 | 0 | 0 |
 | E | 60 | 48 | 48 | 11 | 0 | 1 |
 | I | 54 | 47 | 44 | 0 | 6 | 0 |
-| M | 14 | 14 | 14 | 0 | 0 | 0 |
+| M | 18 | 18 | 18 | 0 | 0 | 0 |
 
 | Operation | Owner | Kind | Authorization | Scope | Principals | Transports | REST | MCP tool | Idempotency | Sensitivity | Status |
 |---|---|---|---|---|---|---|---|---|---|---|---|
@@ -280,6 +280,10 @@ transport tables and are declarations, not independent proof.
 | `portal.threads.read` | E | query | portal | - | portal | portal | GET `/portal/v1/patients/{patientRef}/message-threads/{threadRef}` | - | none | phi | active |
 | `portal.views.describe` | E | query | portal | - | portal | portal | GET `/portal/v1/views/{view}` | - | none | phi | active |
 | `portal.views.read` | E | query | portal | - | portal | portal | GET `/portal/v1/patients/{patientRef}/views/{view}` | - | none | phi | active |
+| `practice.export.create` | M | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/practice/exports` | `practice_export_create` | required | phiBulk | active |
+| `practice.export.download` | M | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/practice/exports/package` | `practice_export_download` | required | phiBulk | active |
+| `practice.export.grant` | M | command | authorize | `admin.configure` | human | rest, mcp | POST `/v1/practice/exports/grants` | `practice_export_grant` | required | phiBulk | active |
+| `practice.export.verify` | M | query | authorize | `admin.configure` | human | rest, mcp | GET `/v1/practice/exports/verification` | `practice_export_verify` | none | phiBulk | active |
 | `rcm.appeals.draft` | B | command | authorize | `billing.write` | human | rest, mcp | POST `/v1/rcm/claims/{claimRef}/appeals` | `rcm_appeals_draft` | required | phi | active |
 | `rcm.appeals.review` | B | command | authorize | `billing.correct` | human | rest, mcp | POST `/v1/rcm/appeals/{appealRef}/review` | `rcm_appeals_review` | required | phi | active |
 | `rcm.claims.attach` | B | command | authorize | `billing.write` | human, service | rest, mcp | POST `/v1/rcm/claims/{claimRef}/attachments` | `rcm_claims_attach` | required | phi | active |

@@ -527,6 +527,13 @@ export const ACTION_POLICIES = {
   'migration.reports.read': { scope: 'migration.read', principals: ['human', 'service'] },
   'migration.signoffs.record': { scope: 'migration.signoff', principals: ['human'] },
   'migration.cutover.advance': { scope: 'migration.signoff', principals: ['human'] },
+  // M1 practice export (easy exit, MG-03): the whole tenant leaves in one versioned package. A tenant-wide
+  // human administrator only (elevated, audited, sensitive-read logged); delivery through a short-lived
+  // grant bound to the caller; each composed S/I/C/E/B export re-authorizes the same caller.
+  'practice.export.create': { scope: 'admin.configure', principals: ['human'] },
+  'practice.export.grant': { scope: 'admin.configure', principals: ['human'] },
+  'practice.export.download': { scope: 'admin.configure', principals: ['human'] },
+  'practice.export.verify': { scope: 'admin.configure', principals: ['human'] },
 } as const satisfies Record<string, ActionPolicy>;
 
 /**

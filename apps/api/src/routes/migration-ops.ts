@@ -215,6 +215,59 @@ export const MIGRATION_OPS: MigrationOp[] = [
       'M6: mark the package ready for cutover. Requires the current report version approved in both roles by two distinct humans and no blocking exception; any later import change resets the state to reconciling and makes the sign-offs stale. Not a cutover itself.',
     invoke: (svc, actor, i) => svc.advanceCutover(actor, env('migration.cutover.advance', i)),
   },
+  // M1 practice export (easy exit): one versioned package of the whole tenant, private delivery.
+  {
+    method: 'post',
+    path: '/v1/practice/exports',
+    operationId: 'practice.export.create',
+    protected: true,
+    requestBody: M('PracticeExportCreate'),
+    success: { status: '201', schema: M('PracticeExportResult') },
+    refusals: COMMAND,
+    tool: 'practice_export_create',
+    description:
+      'M1: compose the S, I, C, E and B exports of the caller tenant into one versioned package (cuspatlas-practice-export/1): a manifest with per-document digests, per-table counts, blob digests and terminology refs, no tenant identifier. Refused (409 export_incomplete) when any count differs from the live tenant; stored privately. Tenant-wide human administrators only.',
+    invoke: (svc, actor, i) => svc.createPracticeExport(actor, env('practice.export.create', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/practice/exports/grants',
+    operationId: 'practice.export.grant',
+    protected: true,
+    requestBody: M('PracticeExportGrant'),
+    success: { status: '201', schema: M('PracticeExportGrantResult') },
+    refusals: COMMAND,
+    tool: 'practice_export_grant',
+    description:
+      'M1: mint a short-lived (at most 300 s) delivery grant for one practice export, bound to the caller. Each call mints a new grant; the token is never stored.',
+    invoke: (svc, actor, i) => svc.grantPracticeExport(actor, env('practice.export.grant', i)),
+  },
+  {
+    method: 'post',
+    path: '/v1/practice/exports/package',
+    operationId: 'practice.export.download',
+    protected: true,
+    requestBody: M('PracticeExportDownload'),
+    success: { status: '200', schema: M('PracticeExportPackage') },
+    refusals: COMMAND,
+    tool: 'practice_export_download',
+    description:
+      'M1: the stored practice export package (manifest and documents), verified against its digest, to the holder of a live delivery grant. Imaging bytes travel as I9 blob bundles named by the manifest. Sensitive-read logged.',
+    invoke: (svc, actor, i) => svc.downloadPracticeExport(actor, env('practice.export.download', i)),
+  },
+  {
+    method: 'get',
+    path: '/v1/practice/exports/verification',
+    operationId: 'practice.export.verify',
+    protected: true,
+    query: 'PracticeExportQuery',
+    success: { status: '200', schema: M('PracticeExportVerification') },
+    refusals: READ,
+    tool: 'practice_export_verify',
+    description:
+      'M1: re-verify one practice export: stored bytes and completeness (failed otherwise), then the live tenant against the manifest, naming every table whose count or document whose digest differs (drifted).',
+    invoke: (svc, actor, i) => svc.verifyPracticeExport(actor, i.body),
+  },
 ];
 
 export const MIGRATION_OP_ROUTES = (): RouteContract[] =>

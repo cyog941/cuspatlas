@@ -395,6 +395,10 @@ const TOOL_NAMES = [
   'migration_reports_read',
   'migration_signoffs_record',
   'migration_cutover_advance',
+  'practice_export_create',
+  'practice_export_grant',
+  'practice_export_download',
+  'practice_export_verify',
 ].sort();
 
 let db: TestDatabase;

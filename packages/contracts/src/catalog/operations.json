@@ -8593,6 +8593,143 @@
     "status": "active"
   },
   {
+    "operation": "practice.export.create",
+    "owner": "M",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "practice.export.create",
+    "scope": "admin.configure",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/practice/exports",
+      "requestSchema": "migration:PracticeExportCreate",
+      "successStatus": "201",
+      "successSchema": "migration:PracticeExportResult"
+    },
+    "mcpTool": "practice_export_create",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phiBulk",
+    "status": "active"
+  },
+  {
+    "operation": "practice.export.download",
+    "owner": "M",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "practice.export.download",
+    "scope": "admin.configure",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/practice/exports/package",
+      "requestSchema": "migration:PracticeExportDownload",
+      "successStatus": "200",
+      "successSchema": "migration:PracticeExportPackage"
+    },
+    "mcpTool": "practice_export_download",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phiBulk",
+    "status": "active"
+  },
+  {
+    "operation": "practice.export.grant",
+    "owner": "M",
+    "kind": "command",
+    "authorization": "authorize",
+    "action": "practice.export.grant",
+    "scope": "admin.configure",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "post",
+      "path": "/v1/practice/exports/grants",
+      "requestSchema": "migration:PracticeExportGrant",
+      "successStatus": "201",
+      "successSchema": "migration:PracticeExportGrantResult"
+    },
+    "mcpTool": "practice_export_grant",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "422",
+      "503"
+    ],
+    "idempotency": "required",
+    "sensitivity": "phiBulk",
+    "status": "active"
+  },
+  {
+    "operation": "practice.export.verify",
+    "owner": "M",
+    "kind": "query",
+    "authorization": "authorize",
+    "action": "practice.export.verify",
+    "scope": "admin.configure",
+    "principals": [
+      "human"
+    ],
+    "transports": [
+      "rest",
+      "mcp"
+    ],
+    "rest": {
+      "method": "get",
+      "path": "/v1/practice/exports/verification",
+      "successStatus": "200",
+      "successSchema": "migration:PracticeExportVerification"
+    },
+    "mcpTool": "practice_export_verify",
+    "refusals": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "idempotency": "none",
+    "sensitivity": "phiBulk",
+    "status": "active"
+  },
+  {
     "operation": "rcm.appeals.draft",
     "owner": "B",
     "kind": "command",

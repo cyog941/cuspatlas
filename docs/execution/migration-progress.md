@@ -224,3 +224,21 @@ recommended-pending-approval). Tests in `tests/integration/migration-hardening.t
   import difference. The B1 structural test allows `migration_opening_items` as the seam table.
   Open item: reversing an opening-credit allocation is not wired (the reversal path copies payment
   dimensions only). Red 1/1 failing; green 14/14.
+
+## M batch 2 (M1, M7-M10; synthetic only; M-S1..M-S3 blocked-on-discovery)
+
+- M1 practice export contract (`20261129000000_practice_exports.sql`): `practice.export.create`
+  composes the S17, I9, C18, E9 and B10 exports (B with the opening chain) as the same caller into
+  one `cuspatlas-practice-export/1` package: manifest with per-document canonical digests, per-table
+  counts, blob digests, terminology refs (synthetic provisional, unlicensed), tenant-free
+  `exportRef`. Every table's count is checked against the live tenant before storing; a partial
+  export is refused (`409 export_incomplete`, tables named). Bytes are stored privately
+  (content-addressed object store); delivery is `practice.export.grant` (I1 grant tokens, at most
+  300 s, bound to caller and export, token never stored) and `practice.export.download` (sensitive
+  read). `practice.export.verify` re-checks stored bytes, the completeness validator and live drift
+  (`verified`/`drifted`/`failed`, entity named). `validatePracticeExport` (domain) refuses
+  `unknown_version`, `empty_manifest`, `missing_entity`, `count_mismatch`, `digest_mismatch`,
+  `tenant_mismatch`. Tenant-wide human administrators only (`admin.configure`), catalog owner `M`,
+  sensitivity `phiBulk`. Round trip: the downloaded documents import into a fresh database and store
+  through `importExports` + `importImagingBlobs` and re-export the same manifest. Format published in
+  `docs/export-format.md`. Red 5/5 failing (exit 1); green 5/5.

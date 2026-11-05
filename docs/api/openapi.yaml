@@ -11987,6 +11987,144 @@ paths:
           $ref: '#/components/responses/Refusal'
         '503':
           $ref: '#/components/responses/Refusal'
+  /v1/practice/exports:
+    post:
+      operationId: practice.export.create
+      description: >-
+        M1: compose the S, I, C, E and B exports of the caller tenant into one versioned package
+        (cuspatlas-practice-export/1): a manifest with per-document digests, per-table counts, blob digests
+        and terminology refs, no tenant identifier. Refused (409 export_incomplete) when any count differs
+        from the live tenant; stored privately. Tenant-wide human administrators only.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/migration.schema.json#/$defs/PracticeExportCreate'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/PracticeExportResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/practice/exports/grants:
+    post:
+      operationId: practice.export.grant
+      description: >-
+        M1: mint a short-lived (at most 300 s) delivery grant for one practice export, bound to the caller.
+        Each call mints a new grant; the token is never stored.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/migration.schema.json#/$defs/PracticeExportGrant'
+      responses:
+        '201':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/PracticeExportGrantResult'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/practice/exports/package:
+    post:
+      operationId: practice.export.download
+      description: >-
+        M1: the stored practice export package (manifest and documents), verified against its digest, to the
+        holder of a live delivery grant. Imaging bytes travel as I9 blob bundles named by the manifest.
+        Sensitive-read logged.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../../packages/contracts/src/migration.schema.json#/$defs/PracticeExportDownload'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/PracticeExportPackage'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '409':
+          $ref: '#/components/responses/Refusal'
+        '422':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
+  /v1/practice/exports/verification:
+    get:
+      operationId: practice.export.verify
+      description: >-
+        M1: re-verify one practice export: stored bytes and completeness (failed otherwise), then the live
+        tenant against the manifest, naming every table whose count or document whose digest differs
+        (drifted).
+      parameters:
+        - name: exportRef
+          in: query
+          required: true
+          schema:
+            $ref: '../../packages/contracts/src/migration.schema.json#/$defs/ExportRef'
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '../../packages/contracts/src/migration.schema.json#/$defs/PracticeExportVerification'
+        '400':
+          $ref: '#/components/responses/Refusal'
+        '401':
+          $ref: '#/components/responses/Refusal'
+        '403':
+          $ref: '#/components/responses/Refusal'
+        '404':
+          $ref: '#/components/responses/Refusal'
+        '503':
+          $ref: '#/components/responses/Refusal'
   # END generated: MIGRATION_OPS
 components:
   securitySchemes:

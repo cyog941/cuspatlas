@@ -40,6 +40,8 @@ const OWNERS: Record<string, OwnerWorkstream> = {
   telephony: 'E',
   imaging: 'I',
   migration: 'M',
+  practice: 'M',
+  operations: 'M',
 };
 
 /**
@@ -92,7 +94,7 @@ const ownerOf = (op: string): OwnerWorkstream => {
 
 function sensitivityOf(op: string, scope: string | null, auth: string): Sensitivity {
   if (auth === 'public') return 'none';
-  if (op.endsWith('.export')) return 'phiBulk';
+  if (op.endsWith('.export') || op.startsWith('practice.export.')) return 'phiBulk';
   if (op === 'session.read' || (scope !== null && OPERATIONAL_SCOPES.has(scope))) return 'operational';
   return 'phi';
 }

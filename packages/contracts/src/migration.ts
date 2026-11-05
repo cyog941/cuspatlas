@@ -125,3 +125,44 @@ export const validateIdentityMerge = def('IdentityMerge');
 export const validateProvenanceQuery = def('ProvenanceQuery');
 export const validateSignOffRecord = def('SignOffRecord');
 export const validateCutoverAdvance = def('CutoverAdvance');
+
+/** M1 practice export (synthetic only; M-S1 blocks a real incumbent export). */
+export const PRACTICE_EXPORT_FORMAT = 'cuspatlas-practice-export/1' as const;
+export const validatePracticeExportCreate = def('PracticeExportCreate');
+export const validatePracticeExportGrant = def('PracticeExportGrant');
+export const validatePracticeExportDownload = def('PracticeExportDownload');
+export const validatePracticeExportQuery = def('PracticeExportQuery');
+
+export interface PracticeExportDocumentSummary {
+  readonly format: string;
+  readonly digestSha256: string;
+  /** Table name -> row count of the document. */
+  readonly tables: Readonly<Record<string, number>>;
+}
+
+export interface PracticeExportManifest {
+  readonly format: typeof PRACTICE_EXPORT_FORMAT;
+  /** Tenant-free identifier of the export (no tenant identifier anywhere in the package). */
+  readonly exportRef: string;
+  readonly exportedAt: string;
+  readonly documents: readonly PracticeExportDocumentSummary[];
+  /** Content-addressed imaging bytes; they travel as I9 blob bundles, verified against these digests. */
+  readonly blobs: readonly { readonly digestSha256: string; readonly byteLength: number }[];
+  readonly terminology: {
+    readonly system: string;
+    readonly licensed: false;
+    readonly codeVersions: readonly string[];
+  };
+  readonly provenance: { readonly generator: string; readonly importOrder: readonly string[] };
+}
+
+export interface PracticeExportDocument {
+  readonly format: string;
+  readonly exportedAt: string;
+  readonly tables: Readonly<Record<string, readonly Record<string, unknown>[]>>;
+}
+
+export interface PracticeExportPackage {
+  readonly manifest: PracticeExportManifest;
+  readonly documents: readonly PracticeExportDocument[];
+}

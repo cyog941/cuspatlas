@@ -129,6 +129,33 @@ async function markRead(tx: TenantTransaction, threadId: string): Promise<void> 
  * and a later portal message start a new episode (a new key). The escalation moves the work item to the
  * practice manager queue; it never changes the thread and never records a read receipt.
  */
+/**
+ * The escalation candidates of one keyset batch (Closeout E3). $1 location refs (null: all), $2 now,
+ * $3/$4 each queue's reply-due days, $5/$6 the keyset position (the episode's millisecond instant and
+ * the thread id; null: from the start). The keyset is the millisecond instant a JavaScript Date carries:
+ * ordering and comparing by the microsecond created_at would re-read the last row of every batch (clock
+ * audit, precision). The episode lookup orders by the IMMUTABLE cuspatlas.instant_ms (date_trunc on
+ * timestamptz is STABLE, so no index could hold it), served by the thread_messages_episode_ms index,
+ * and returns that value for the keyset (migration 20261207640000).
+ */
+export const ESCALATION_CANDIDATES_SQL = `SELECT t.id, t.queue, t.version, ep.created_at AS episode_at, l.time_zone, ep.id AS trigger_id
+       FROM cuspatlas.message_threads t
+       JOIN cuspatlas.scheduling_locations l ON l.id = t.location_id AND l.tenant_id = t.tenant_id
+       JOIN LATERAL (SELECT m.id, m.created_at, cuspatlas.instant_ms(m.created_at) AS at_ms
+       FROM cuspatlas.thread_messages m
+       WHERE m.tenant_id = t.tenant_id AND m.thread_id = t.id AND m.author_kind = 'portal'
+         AND m.created_at > coalesce((SELECT max(s.created_at) FROM cuspatlas.thread_messages s
+                                      WHERE s.thread_id = t.id AND s.author_kind = 'staff'), '-infinity'::timestamptz)
+       ORDER BY cuspatlas.instant_ms(m.created_at), m.created_at, m.id LIMIT 1) ep ON true
+       JOIN unnest($3::text[], $4::int[]) AS pol(queue, days) ON pol.queue = t.queue
+       WHERE t.state = 'open' AND t.awaiting = 'practice'
+         AND ep.created_at <= $2::timestamptz - make_interval(days => pol.days)
+         AND ($1::text[] IS NULL OR l.location_ref = ANY ($1::text[]))
+         AND ($5::timestamptz IS NULL OR (ep.at_ms, t.id) > ($5::timestamptz, $6::uuid))
+         AND NOT EXISTS (SELECT 1 FROM cuspatlas.thread_reply_escalations e
+           WHERE e.thread_id = t.id AND e.trigger_message_id = ep.id)
+       ORDER BY ep.at_ms, t.id LIMIT 500`;
+
 interface EscalationCandidate extends Record<string, unknown> {
   id: string;
   queue: ThreadQueue;
@@ -150,27 +177,11 @@ async function escalateOverdue(
   // with a long policy never starves another.
   const queues = THREAD_QUEUES.map((q) => q as string);
   const days = THREAD_QUEUES.map((q) => policies[q].replyDueBusinessDays);
-  // The keyset is the millisecond instant a JavaScript Date carries: ordering and comparing by the
-  // microsecond created_at would re-read the last row of every batch (clock audit, precision).
+  // The keyset position (see ESCALATION_CANDIDATES_SQL).
   let after = null as { at: Date; id: string } | null;
   for (let batch = 0; batch < 20; batch += 1) {
     const { rows }: { rows: EscalationCandidate[] } = await tx.query<EscalationCandidate>(
-      `SELECT t.id, t.queue, t.version, ep.created_at AS episode_at, l.time_zone, ep.id AS trigger_id
-       FROM cuspatlas.message_threads t
-       JOIN cuspatlas.scheduling_locations l ON l.id = t.location_id AND l.tenant_id = t.tenant_id
-       JOIN LATERAL (SELECT m.id, m.created_at FROM cuspatlas.thread_messages m
-       WHERE m.thread_id = t.id AND m.author_kind = 'portal'
-         AND m.created_at > coalesce((SELECT max(s.created_at) FROM cuspatlas.thread_messages s
-                                      WHERE s.thread_id = t.id AND s.author_kind = 'staff'), '-infinity'::timestamptz)
-       ORDER BY m.created_at, m.id LIMIT 1) ep ON true
-       JOIN unnest($3::text[], $4::int[]) AS pol(queue, days) ON pol.queue = t.queue
-       WHERE t.state = 'open' AND t.awaiting = 'practice'
-         AND ep.created_at <= $2::timestamptz - make_interval(days => pol.days)
-         AND ($1::text[] IS NULL OR l.location_ref = ANY ($1::text[]))
-         AND ($5::timestamptz IS NULL OR (date_trunc('milliseconds', ep.created_at), t.id) > ($5::timestamptz, $6::uuid))
-         AND NOT EXISTS (SELECT 1 FROM cuspatlas.thread_reply_escalations e
-           WHERE e.thread_id = t.id AND e.trigger_message_id = ep.id)
-       ORDER BY date_trunc('milliseconds', ep.created_at), t.id LIMIT 500`,
+      ESCALATION_CANDIDATES_SQL,
       [decision.locationRefs, now, queues, days, after?.at ?? null, after?.id ?? null],
     );
     for (const t of rows) {

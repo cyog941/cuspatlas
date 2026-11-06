@@ -131,14 +131,16 @@ async function markRead(tx: TenantTransaction, threadId: string): Promise<void> 
  */
 /**
  * The escalation candidates of one keyset batch (Closeout E3). $1 location refs (null: all), $2 now,
- * $3/$4 each queue's reply-due days, $5/$6 the keyset position (the episode's millisecond instant and
- * the thread id; null: from the start). The keyset is the millisecond instant a JavaScript Date carries:
- * ordering and comparing by the microsecond created_at would re-read the last row of every batch (clock
- * audit, precision). The episode lookup orders by the IMMUTABLE cuspatlas.instant_ms (date_trunc on
- * timestamptz is STABLE, so no index could hold it), served by the thread_messages_episode_ms index,
- * and returns that value for the keyset (migration 20261207640000).
+ * $3/$4 each queue's reply-due days, $5/$6 the keyset position (the last row's `at_ms` and thread id;
+ * null: from the start). The keyset is the episode start truncated to the millisecond in the database by
+ * the IMMUTABLE cuspatlas.instant_ms (date_trunc on timestamptz is STABLE, so no index could hold it),
+ * served by the thread_messages_episode_ms index (migration 20261207640000). Each row returns that
+ * `at_ms` and the next batch is positioned by it, so the cursor is exactly the value the keyset
+ * compares and never depends on how the driver converts the microsecond created_at (comparing by
+ * created_at itself would re-read the last row of every batch: clock audit, precision).
  */
-export const ESCALATION_CANDIDATES_SQL = `SELECT t.id, t.queue, t.version, ep.created_at AS episode_at, l.time_zone, ep.id AS trigger_id
+export const ESCALATION_CANDIDATES_SQL = `SELECT t.id, t.queue, t.version, ep.created_at AS episode_at, ep.at_ms AS at_ms, l.time_zone,
+       ep.id AS trigger_id
        FROM cuspatlas.message_threads t
        JOIN cuspatlas.scheduling_locations l ON l.id = t.location_id AND l.tenant_id = t.tenant_id
        JOIN LATERAL (SELECT m.id, m.created_at, cuspatlas.instant_ms(m.created_at) AS at_ms
@@ -161,6 +163,8 @@ interface EscalationCandidate extends Record<string, unknown> {
   queue: ThreadQueue;
   version: number;
   episode_at: Date;
+  /** The keyset value: the episode start truncated to the millisecond in the database. */
+  at_ms: Date;
   time_zone: string;
   trigger_id: string;
 }
@@ -209,7 +213,7 @@ async function escalateOverdue(
     }
     const last: EscalationCandidate | undefined = rows[rows.length - 1];
     if (rows.length < 500 || !last) break;
-    after = { at: last.episode_at, id: last.id };
+    after = { at: last.at_ms, id: last.id };
   }
   return escalated;
 }

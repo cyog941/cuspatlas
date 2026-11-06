@@ -59,7 +59,7 @@ const params = async (c: pg.PoolClient, after: { at: Date; id: string } | null) 
   return [null, now, QUEUES, DAYS, after?.at ?? null, after?.id ?? null];
 };
 
-type Candidate = { id: string; trigger_id: string; episode_at: Date };
+type Candidate = { id: string; trigger_id: string; episode_at: Date; at_ms?: Date };
 
 async function walk(sql: string): Promise<string[]> {
   return asTenant(async (c) => {
@@ -70,7 +70,9 @@ async function walk(sql: string): Promise<string[]> {
       out.push(...rows.map((r) => `${r.id}:${r.trigger_id}`));
       const last: Candidate | undefined = rows[rows.length - 1];
       if (rows.length < 500 || !last) break;
-      after = { at: last.episode_at, id: last.id };
+      // Closeout E review: the current query returns the keyset value it compares (at_ms); the
+      // previous one is walked as it was, by the driver's millisecond Date of the episode start.
+      after = { at: last.at_ms ?? last.episode_at, id: last.id };
     }
     return out;
   });
@@ -178,6 +180,31 @@ describe('Closeout E3: the reply-escalation keyset has a matching expression ind
       return rows.map((r) => r['QUERY PLAN']).join('\n');
     });
     expect(plan).toMatch(/Index (Only )?Scan using thread_messages_episode_ms/);
+  });
+
+  it('returns the keyset value it compares: the millisecond-truncated episode instant', async () => {
+    const check = await asTenant(async (c) => {
+      const p = await params(c, null);
+      const { rows } = await c.query<Candidate>(ESCALATION_CANDIDATES_SQL, p);
+      // Compared in the database, at full precision: never through the driver's truncation.
+      const exact = await c.query<{ n: number; bad: number; micro: number }>(
+        `SELECT count(*)::int AS n,
+           count(*) FILTER (WHERE c.at_ms IS DISTINCT FROM date_trunc('milliseconds', m.created_at))::int AS bad,
+           count(*) FILTER (WHERE m.created_at <> date_trunc('milliseconds', m.created_at))::int AS micro
+         FROM (${ESCALATION_CANDIDATES_SQL}) c JOIN cuspatlas.thread_messages m ON m.id = c.trigger_id`,
+        p,
+      );
+      return { rows, exact: exact.rows[0] };
+    });
+    expect(check.rows).toHaveLength(500);
+    expect(check.exact).toMatchObject({ n: 500, bad: 0 });
+    // The seed has sub-millisecond episode starts, so truncation is exercised.
+    expect(check.exact?.micro).toBeGreaterThan(0);
+    for (const r of check.rows) {
+      expect(r.at_ms).toBeInstanceOf(Date);
+      expect(r.at_ms?.getTime()).toBe(Math.floor(r.episode_at.getTime()));
+    }
+    expect(ESCALATION_CANDIDATES_SQL).toMatch(/ep.at_ms AS at_ms/);
   });
 
   it('walks the same candidates in the same order as the previous query, across batches and ties', async () => {

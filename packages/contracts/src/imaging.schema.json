@@ -525,7 +525,8 @@
             "kept",
             "more",
             "pending",
-            "resumed"
+            "resumed",
+            "openIntents"
           ],
           "properties": {
             "sweepRef": {
@@ -615,6 +616,22 @@
               "type": "integer",
               "minimum": 0,
               "description": "Closeout D3: removal intents an earlier run left open that this run finished (removed, kept or reconciled as already absent)."
+            },
+            "openIntents": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["count", "oldestAgeSeconds"],
+              "description": "Closeout E1: removal intents open in the tenant when this sweep was recorded (before this run's own), and the age of the oldest in whole seconds on the database clock (null when none). A dry run, the scheduled report included, only reports them; a real run finishes them. Records written before Closeout E report 0 and null.",
+              "properties": {
+                "count": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "oldestAgeSeconds": {
+                  "type": ["integer", "null"],
+                  "minimum": 0
+                }
+              }
             }
           }
         },

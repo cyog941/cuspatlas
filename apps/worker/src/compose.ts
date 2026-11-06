@@ -177,6 +177,10 @@ export interface TickReport {
         readonly dryRun: true;
         readonly orphans: number;
         readonly more: boolean;
+        /** Closeout E1: removal intents open in the tenant (a dry run never finishes them). */
+        readonly openIntents: number;
+        /** Closeout E1: age of the oldest open intent in whole seconds (database clock); null when none. */
+        readonly oldestOpenIntentAgeSeconds: number | null;
       }[]
     | null;
   /** Recorded verifications this tick (empty: none due); null when the job is disabled. */
@@ -581,7 +585,15 @@ export async function composeWorker(
       agentTasks: [] as AgentTaskOutcome[],
       exportBuilds: [] as { exportRef: string; outcome: ExportBuildOutcome }[],
       orphanSweeps: (orphanSweeper ? [] : null) as
-        | { tenantId: string; sweepRef: string; dryRun: true; orphans: number; more: boolean }[]
+        | {
+            tenantId: string;
+            sweepRef: string;
+            dryRun: true;
+            orphans: number;
+            more: boolean;
+            openIntents: number;
+            oldestOpenIntentAgeSeconds: number | null;
+          }[]
         | null,
       backupVerification: (backupVerifier ? [] : null) as
         | { tenantId: string; recorded: boolean; result: string | null }[]
@@ -647,13 +659,20 @@ export async function composeWorker(
             { intervalSeconds: orphanSweepInterval },
           );
           if (r) {
-            const d = r.data as { sweepRef: string; orphans: string[]; more: boolean };
+            const d = r.data as {
+              sweepRef: string;
+              orphans: string[];
+              more: boolean;
+              openIntents: { count: number; oldestAgeSeconds: number | null };
+            };
             report.orphanSweeps?.push({
               tenantId,
               sweepRef: d.sweepRef,
               dryRun: true,
               orphans: d.orphans.length,
               more: d.more,
+              openIntents: d.openIntents.count,
+              oldestOpenIntentAgeSeconds: d.openIntents.oldestAgeSeconds,
             });
           }
         });

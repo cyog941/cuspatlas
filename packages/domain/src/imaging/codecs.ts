@@ -76,6 +76,7 @@ export const orphanSweepCodec: ReplayCodec<Record<string, unknown>> = {
       removed: _r,
       pending: _p,
       resumed: _s,
+      openIntents: _i,
       ...rest
     } = data as Record<string, unknown> & {
       kept: Record<string, number>;
@@ -93,7 +94,16 @@ export const orphanSweepCodec: ReplayCodec<Record<string, unknown>> = {
       kept[k] = flat[keptKey(k)] ?? 0;
       delete flat[keptKey(k)];
     }
-    return { ...flat, orphans: [], removed: [], pending: 0, resumed: 0, kept };
+    // Closeout E1: openIntents is read back from the sweep record with the digest lists.
+    return {
+      ...flat,
+      orphans: [],
+      removed: [],
+      pending: 0,
+      resumed: 0,
+      kept,
+      openIntents: { count: 0, oldestAgeSeconds: null },
+    };
   },
 };
 

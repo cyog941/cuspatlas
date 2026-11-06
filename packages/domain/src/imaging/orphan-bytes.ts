@@ -179,8 +179,14 @@ export function createOrphanBytesOperations(base: ImagingBase) {
   /** The removal outcome of one sweep, read from its record and intents (the same answer on a retry). */
   const outcome = (ctx: ActorContext, sweepRef: string) =>
     deps.withTenantTransaction(ctx, async (tx) => {
-      const rec = await tx.query<{ orphan_digests: string[]; removed_digests: string[] }>(
-        'SELECT orphan_digests, removed_digests FROM cuspatlas.imaging_orphan_sweeps WHERE id = $1',
+      const rec = await tx.query<{
+        orphan_digests: string[];
+        removed_digests: string[];
+        open_intent_count: number;
+        oldest_open_intent_age_seconds: number | null;
+      }>(
+        `SELECT orphan_digests, removed_digests, open_intent_count, oldest_open_intent_age_seconds
+         FROM cuspatlas.imaging_orphan_sweeps WHERE id = $1`,
         [sweepRef],
       );
       const { rows } = await tx.query<{ digest_sha256: string; state: string; own: boolean }>(
@@ -198,6 +204,10 @@ export function createOrphanBytesOperations(base: ImagingBase) {
         ],
         pending: own.filter((r) => r.state === 'intended').length,
         resumed: rows.filter((r) => !r.own).length,
+        openIntents: {
+          count: rec.rows[0]?.open_intent_count ?? 0,
+          oldestAgeSeconds: rec.rows[0]?.oldest_open_intent_age_seconds ?? null,
+        },
       };
     });
 
@@ -298,12 +308,24 @@ export function createOrphanBytesOperations(base: ImagingBase) {
           orphans.push(f);
         }
         const digests = orphans.map((f) => f.digestSha256);
+        // Closeout E1: the intents left open in the tenant when this record is written (before this
+        // run's own), on the database clock read now (the listing above may have been slow).
+        const openNow = await tx.query<{ count: number; oldest: number | null }>(
+          `SELECT count(*)::int AS count,
+             greatest(0, floor(extract(epoch FROM clock_timestamp() - min(created_at))))::int AS oldest
+           FROM cuspatlas.imaging_orphan_removals WHERE state = 'intended'`,
+        );
+        const openIntents = {
+          count: openNow.rows[0]?.count ?? 0,
+          oldestAgeSeconds: (openNow.rows[0]?.count ?? 0) > 0 ? (openNow.rows[0]?.oldest ?? 0) : null,
+        };
         const { rows } = await tx.query<{ id: string }>(
           `INSERT INTO cuspatlas.imaging_orphan_sweeps (tenant_id, actor_id, dry_run, grace_hours, scanned_count,
                  orphan_count, kept_within_grace, kept_live_object, kept_tombstone_retained, kept_legal_hold,
-                 kept_export_package, kept_content_locked, orphan_digests, removed_digests, kept_already_intended)
+                 kept_export_package, kept_content_locked, orphan_digests, removed_digests, kept_already_intended,
+                 open_intent_count, oldest_open_intent_age_seconds)
                VALUES (cuspatlas.current_tenant_id(), cuspatlas.current_actor_id(), $1, $2, $3, $4, $5, $6, $7, $8,
-                 $9, $10, $11, '{}', $12) RETURNING id`,
+                 $9, $10, $11, '{}', $12, $13, $14) RETURNING id`,
           [
             dryRun,
             graceHours,
@@ -317,6 +339,8 @@ export function createOrphanBytesOperations(base: ImagingBase) {
             kept.contentLocked,
             digests,
             kept.alreadyIntended,
+            openIntents.count,
+            openIntents.oldestAgeSeconds,
           ],
         );
         const sweepRef = rows[0]?.id as string;
@@ -357,6 +381,7 @@ export function createOrphanBytesOperations(base: ImagingBase) {
             more,
             pending: dryRun ? 0 : digests.length,
             resumed: 0,
+            openIntents,
           },
           version: 1,
         };

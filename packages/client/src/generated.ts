@@ -5847,6 +5847,10 @@ export type ImagingStorageOrphanSweepResult = {
     readonly "more": boolean;
     readonly "pending": number;
     readonly "resumed": number;
+    readonly "openIntents": {
+      readonly "count": number;
+      readonly "oldestAgeSeconds": number | null;
+    };
   };
   readonly "version": ImagingVersion;
   readonly "correlationId": string;

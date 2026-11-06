@@ -19,7 +19,10 @@ import { mapErrorToRefusal } from './errors';
  *   *\/<total>`; a syntactically invalid or non-`bytes` Range is ignored (RFC 9110) and the whole
  *   package is sent;
  * - `If-Range` that is not the current strong ETag ignores the Range: the whole package, 200;
- * - the whole package is streamed in 64 KiB slices with its `Content-Length`.
+ * - the whole package is streamed in 64 KiB slices with its `Content-Length`. Closeout E4: the slices
+ *   come from the store's streamed read (verified with a streaming hash first, or by a recent
+ *   verification of the unchanged file, and hashed again while streaming), so neither a whole
+ *   download nor a range behind `If-Range` holds the package in memory.
  *
  * Every request (each range included) runs the full policy layer before any byte or size is sent.
  */
@@ -69,11 +72,15 @@ function* slices(bytes: Buffer): Generator<Buffer> {
     yield bytes.subarray(at, Math.min(at + STREAM_SLICE_BYTES, bytes.byteLength));
 }
 
+/** The digest an `If-Range` names (our strong ETag form), '' for any other validator. */
+const ifRangeDigestOf = (value: string) => /^"sha256-([0-9a-f]{64})"$/.exec(value.trim())?.[1] ?? '';
+
 /**
  * Serves the byte representation. `read(request)` is the domain call (policy, grant, integrity and
  * audit); nothing about the package, its size included, is sent before it returns. A satisfiable
- * `Range` without `If-Range` asks the domain for that range only (Closeout C review: a chunk never
- * reads the whole package); any other request reads the whole package.
+ * `Range` asks the domain for that range only (Closeout C review: a chunk never reads the whole
+ * package); with `If-Range` the domain reads the range only when the validator is the recorded digest
+ * (Closeout E4). Any other request streams the whole package.
  */
 export async function sendPackageBytes(
   request: FastifyRequest,
@@ -85,20 +92,20 @@ export async function sendPackageBytes(
   const ifRange = request.headers['if-range'];
   // A syntactically ignorable Range is ignorable whatever the size, so it never selects a range.
   const selectable =
-    rangeHeader !== undefined &&
-    typeof ifRange !== 'string' &&
-    parseByteRange(rangeHeader, Number.MAX_SAFE_INTEGER, cap).kind !== 'none';
+    rangeHeader !== undefined && parseByteRange(rangeHeader, Number.MAX_SAFE_INTEGER, cap).kind !== 'none';
   let selected: ByteRange | null = null;
   const { data } = await read(
     selectable
       ? {
           ranged: true,
+          stream: true,
+          ...(typeof ifRange === 'string' ? { ifRangeDigest: ifRangeDigestOf(ifRange) } : {}),
           range: (total) => {
             selected = parseByteRange(rangeHeader, total, cap);
             return selected.kind === 'range' ? { start: selected.start, end: selected.end + 1 } : null;
           },
         }
-      : { ranged: rangeHeader !== undefined },
+      : { ranged: rangeHeader !== undefined, stream: true },
   );
   const etag = `"sha256-${data.digestSha256}"`;
   const total = data.byteLength;
@@ -116,11 +123,8 @@ export async function sendPackageBytes(
     .header('content-disposition', 'attachment')
     .header('content-security-policy', "default-src 'none'; sandbox")
     .header('referrer-policy', 'no-referrer');
-  const range: ByteRange =
-    selected ??
-    (rangeHeader === undefined || (typeof ifRange === 'string' && ifRange.trim() !== etag)
-      ? ({ kind: 'none' } as const)
-      : parseByteRange(rangeHeader, total, cap));
+  // The domain selected a range only when one applies (a stale If-Range, or none, is the whole).
+  const range: ByteRange = (selected as ByteRange | null) ?? { kind: 'none' };
   if (range.kind === 'unsatisfiable') {
     const { body } = mapErrorToRefusal(
       new RefusalError({ code: 'invalid_request', detail: { reason: 'range_not_satisfiable' } }),
@@ -144,5 +148,5 @@ export async function sendPackageBytes(
     .code(200)
     .type(OCTET)
     .header('content-length', String(total))
-    .send(Readable.from(slices(bytes)));
+    .send(Readable.from(data.chunks ?? slices(bytes)));
 }

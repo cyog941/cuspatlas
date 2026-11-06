@@ -1254,7 +1254,7 @@ export function createExportOperations(base: AutomationBase, ex: ExportDeps | un
           return ex.practice.downloadBytes(
             ctx,
             envOf('practice.export.download', { exportRef: row.practice_export_id, token: g.data.token }),
-            request.range ? { ranged, range: request.range } : { ranged },
+            { ...request, ranged },
           );
         }
         return {
@@ -1263,7 +1263,7 @@ export function createExportOperations(base: AutomationBase, ex: ExportDeps | un
             ctx.tenantId,
             row.storage_key as string,
             row.package_digest as string,
-            request.range,
+            request,
           ),
         };
       });

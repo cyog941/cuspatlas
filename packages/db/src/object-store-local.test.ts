@@ -16,7 +16,7 @@ const TENANT = '10000000-0000-4000-8000-00000000000a';
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
 function storeWithMeter(verificationTtlMs?: number) {
-  const reads = { verify: 0, range: 0 };
+  const reads = { verify: 0, range: 0, stream: 0 };
   const store = createLocalObjectStore({
     root,
     env: 'synthetic-test',
@@ -48,7 +48,7 @@ describe('local object store ranged reads', () => {
     expect(first?.totalLength).toBe(size);
     expect(first?.start).toBe(0);
     expect(Buffer.from(first?.bytes ?? []).equals(o.bytes.subarray(0, chunk))).toBe(true);
-    expect(reads).toStrictEqual({ verify: size, range: chunk });
+    expect(reads).toStrictEqual({ verify: size, range: chunk, stream: 0 });
     // Every further chunk reads only its own bytes: no whole-file read and no re-hash.
     for (let at = chunk; at < 10 * chunk; at += chunk) {
       const r = await store.readRange?.(TENANT, o.storageKey, o.digest, () => ({
@@ -57,7 +57,7 @@ describe('local object store ranged reads', () => {
       }));
       expect(Buffer.from(r?.bytes ?? []).equals(o.bytes.subarray(at, at + chunk))).toBe(true);
     }
-    expect(reads).toStrictEqual({ verify: size, range: 10 * chunk });
+    expect(reads).toStrictEqual({ verify: size, range: 10 * chunk, stream: 0 });
     // A selection of nothing (an offset past the end) still answers the verified total, no bytes.
     const none = await store.readRange?.(TENANT, o.storageKey, o.digest, () => null);
     expect([none?.bytes.byteLength, none?.totalLength]).toStrictEqual([0, size]);
@@ -101,5 +101,90 @@ describe('local object store ranged reads', () => {
     await expect(
       store.readRange?.(TENANT, o.storageKey, o.digest, (t) => ({ start: 0, end: t + 1 })),
     ).rejects.toThrow();
+  });
+});
+
+/** Closeout E4: drains a streamed read, recording the largest chunk it was handed. */
+async function drain(chunks: AsyncIterable<Uint8Array> | Iterable<Uint8Array>) {
+  const parts: Buffer[] = [];
+  let peak = 0;
+  for await (const c of chunks) {
+    peak = Math.max(peak, c.byteLength);
+    parts.push(Buffer.from(c));
+  }
+  return { bytes: Buffer.concat(parts), peak };
+}
+
+describe('Closeout E4: local object store streamed whole reads', () => {
+  it('verifies with a streaming hash, then streams in bounded slices; never one whole buffer', async () => {
+    const { store, reads } = storeWithMeter();
+    const size = 4 * 1024 * 1024;
+    const o = await stored(store, size);
+    const r = await store.readStream?.(TENANT, o.storageKey, o.digest);
+    expect(r?.totalLength).toBe(size);
+    // Verified before any byte is handed out, with a 64 KiB hashing buffer.
+    expect(reads).toStrictEqual({ verify: size, range: 0, stream: 0 });
+    const out = await drain(r?.chunks ?? []);
+    expect(out.bytes.equals(o.bytes)).toBe(true);
+    expect(out.peak).toBeLessThanOrEqual(64 * 1024);
+    expect(out.peak * 16).toBeLessThan(size);
+    expect(reads).toStrictEqual({ verify: size, range: 0, stream: size });
+  });
+
+  it('an unchanged, recently verified file streams without a second verification pass', async () => {
+    const { store, reads } = storeWithMeter();
+    const size = 512 * 1024;
+    const o = await stored(store, size);
+    await drain((await store.readStream?.(TENANT, o.storageKey, o.digest))?.chunks ?? []);
+    const again = await store.readStream?.(TENANT, o.storageKey, o.digest);
+    const out = await drain(again?.chunks ?? []);
+    expect(out.bytes.equals(o.bytes)).toBe(true);
+    expect(reads).toStrictEqual({ verify: size, range: 0, stream: 2 * size });
+    // A ranged read reuses the same verification.
+    await store.readRange?.(TENANT, o.storageKey, o.digest, () => ({ start: 0, end: 10 }));
+    expect(reads.verify).toBe(size);
+  });
+
+  it('refuses tampered bytes before handing out any chunk, and a wrong digest', async () => {
+    const { store } = storeWithMeter();
+    const o = await stored(store, 256 * 1024);
+    const original = readFileSync(o.path);
+    const altered = Buffer.from(original);
+    altered[5000] = (altered[5000] ?? 0) ^ 0x01;
+    writeFileSync(o.path, altered);
+    try {
+      await expect(store.readStream?.(TENANT, o.storageKey, o.digest)).rejects.toMatchObject({
+        code: 'digest_mismatch',
+      });
+    } finally {
+      writeFileSync(o.path, original);
+    }
+    await expect(store.readStream?.(TENANT, o.storageKey, 'f'.repeat(64))).rejects.toMatchObject({
+      code: 'digest_mismatch',
+    });
+  });
+
+  it('a file changed while it streams fails the stream; it never completes as valid', async () => {
+    const { store } = storeWithMeter();
+    const size = 1024 * 1024;
+    const o = await stored(store, size);
+    const r = await store.readStream?.(TENANT, o.storageKey, o.digest);
+    const original = readFileSync(o.path);
+    const altered = Buffer.from(original);
+    altered[size - 10] = (altered[size - 10] ?? 0) ^ 0x01;
+    let first = true;
+    const consume = async () => {
+      for await (const _c of r?.chunks ?? []) {
+        if (first) {
+          first = false;
+          writeFileSync(o.path, altered);
+        }
+      }
+    };
+    try {
+      await expect(consume()).rejects.toMatchObject({ code: 'digest_mismatch' });
+    } finally {
+      writeFileSync(o.path, original);
+    }
   });
 });

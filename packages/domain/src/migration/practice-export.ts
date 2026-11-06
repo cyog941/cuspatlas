@@ -66,6 +66,12 @@ export interface PackageBytes {
   readonly byteLength: number;
   /** Closeout C review: set when only a range was read (a `range` selection was given). */
   readonly offset?: number;
+  /**
+   * Closeout E4: the whole package as bounded slices from the store (`bytes` is then empty), when a
+   * stream was asked for and the store streams. Verified before the call answers; the stream fails
+   * before its last slice if the stored bytes change while it is read.
+   */
+  readonly chunks?: AsyncIterable<Uint8Array>;
 }
 /** A selection of `[start, end)` within the package of `totalLength` bytes, or null for none. */
 export type PackageRangeSelect = (
@@ -79,6 +85,15 @@ export interface PackageBytesRequest {
    * whole package. The bytes are still verified against the recorded digest before any is returned.
    */
   readonly range?: PackageRangeSelect;
+  /**
+   * Closeout E4: the whole package may be answered as a stream (`chunks`) instead of one buffer.
+   */
+  readonly stream?: boolean;
+  /**
+   * Closeout E4: an If-Range validator as a package digest (an unparsable validator is any other
+   * string). `range` applies only when it equals the recorded digest; otherwise the whole package.
+   */
+  readonly ifRangeDigest?: string;
 }
 
 /** A8: stored bytes that no longer match the recorded digest (or are gone) are never served. */
@@ -107,8 +122,21 @@ export async function readVerifiedPackageBytes(
   tenantId: string,
   storageKey: string,
   digest: string,
-  range?: PackageRangeSelect,
+  request: PackageBytesRequest = {},
 ): Promise<PackageBytes> {
+  // Closeout E4: an If-Range that is not the recorded digest asks for the whole package.
+  const range =
+    request.ifRangeDigest === undefined || request.ifRangeDigest === digest ? request.range : undefined;
+  if (!range && request.stream === true && store.readStream) {
+    try {
+      const r = await store.readStream(tenantId, storageKey, digest);
+      return { bytes: new Uint8Array(0), digestSha256: digest, byteLength: r.totalLength, chunks: r.chunks };
+    } catch (err) {
+      if (isObjectStoreError(err) && (err.code === 'digest_mismatch' || err.code === 'missing'))
+        throw conflict('package_integrity_failed');
+      throw err;
+    }
+  }
   if (!range) {
     const bytes = await readVerifiedPackage(store, tenantId, storageKey, digest);
     return { bytes, digestSha256: digest, byteLength: bytes.byteLength };
@@ -647,7 +675,7 @@ export function createPracticeExportOperations(base: MigrationBase) {
           ctx.tenantId,
           row.storage_key,
           row.package_digest,
-          request.range,
+          request,
         ),
       );
     },

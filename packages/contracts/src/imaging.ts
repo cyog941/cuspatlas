@@ -145,6 +145,19 @@ export interface ObjectStorePort {
     expectedDigest: string,
     select: (totalLength: number) => { readonly start: number; readonly end: number } | null,
   ): Promise<{ bytes: Uint8Array; start: number; totalLength: number }>;
+  /**
+   * Closeout E4: the whole stored object as a stream of bounded slices (export package downloads),
+   * never one whole buffer. The object is verified against `expectedDigest` before the call answers
+   * (`digest_mismatch` otherwise), reusing a recent verification of the same unchanged object as
+   * `readRange` may. The streamed bytes are hashed again as they are read; when they do not match, or
+   * the object changed meanwhile, the stream fails before its last slice, so it never completes as a
+   * valid body. Optional: a store without it is read whole.
+   */
+  readStream?(
+    tenantId: string,
+    storageKey: string,
+    expectedDigest: string,
+  ): Promise<{ totalLength: number; chunks: AsyncIterable<Uint8Array> }>;
   /** Byte length of stored bytes, or null when absent. */
   head(tenantId: string, storageKey: string): Promise<{ byteLength: number } | null>;
   /** Writes content-addressed bytes produced by the server itself (derived images). */

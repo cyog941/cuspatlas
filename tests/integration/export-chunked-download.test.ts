@@ -515,3 +515,105 @@ describe.each([practice, automation])('Closeout C MCP chunked download: $name', 
     expect((await mcpChunk(t, body, 0)).body.code).toBe('not_found');
   });
 });
+
+describe.each([practice, automation])('Closeout E4 streamed whole download: $name', (t) => {
+  let ref: { exportRef: string; digest: string };
+
+  beforeAll(async () => {
+    ref = await t.build();
+  }, 120_000);
+
+  /** Counts store calls and the largest single buffer the store handed out during `work`. */
+  async function spied(work: () => Promise<void>) {
+    const store = s.store as ObjectStorePort;
+    const original = { read: store.read, readRange: store.readRange, readStream: store.readStream };
+    const calls = { read: 0, readRange: 0, readStream: 0, peak: 0 };
+    store.read = async (...a) => {
+      calls.read += 1;
+      const b = await original.read.apply(store, a);
+      calls.peak = Math.max(calls.peak, b.byteLength);
+      return b;
+    };
+    store.readRange = async (...a) => {
+      calls.readRange += 1;
+      const r = await (original.readRange as NonNullable<ObjectStorePort['readRange']>).apply(store, a);
+      calls.peak = Math.max(calls.peak, r.bytes.byteLength);
+      return r;
+    };
+    store.readStream = async (...a) => {
+      calls.readStream += 1;
+      const r = await (original.readStream as NonNullable<ObjectStorePort['readStream']>).apply(store, a);
+      async function* metered() {
+        for await (const c of r.chunks) {
+          calls.peak = Math.max(calls.peak, c.byteLength);
+          yield c;
+        }
+      }
+      return { totalLength: r.totalLength, chunks: metered() };
+    };
+    try {
+      await work();
+    } finally {
+      Object.assign(store, original);
+    }
+    return calls;
+  }
+
+  it('a whole download and an If-Range range stream from the store and never read the whole package', async () => {
+    const { token } = await t.grant(ref.exportRef);
+    const body = { exportRef: ref.exportRef, token };
+    const etag = `"sha256-${ref.digest}"`;
+    let whole: Buffer = Buffer.alloc(0);
+    const calls = await spied(async () => {
+      const r = await fetchBytes(t, body, OCTET);
+      expect(r.status).toBe(200);
+      whole = r.raw;
+      expect(sha(whole)).toBe(ref.digest);
+      expect(Number(r.headers['content-length'])).toBe(whole.byteLength);
+      // A stale If-Range answers the whole package, streamed.
+      const stale = await fetchBytes(t, body, {
+        range: 'bytes=0-99',
+        'if-range': `"sha256-${'0'.repeat(64)}"`,
+      });
+      expect(stale.status).toBe(200);
+      expect(stale.raw.equals(whole)).toBe(true);
+      // A current If-Range answers only the range, read as a range.
+      const cur = await fetchBytes(t, body, { range: 'bytes=10-109', 'if-range': etag });
+      expect(cur.status).toBe(206);
+      expect(cur.headers['content-range']).toBe(`bytes 10-109/${whole.byteLength}`);
+      expect(cur.raw.equals(whole.subarray(10, 110))).toBe(true);
+    });
+    expect({ read: calls.read, readRange: calls.readRange, readStream: calls.readStream }).toStrictEqual({
+      read: 0,
+      readRange: 1,
+      readStream: 2,
+    });
+    // Peak buffering is bounded by one 64 KiB slice (or the range), never the whole package.
+    expect(calls.peak).toBeLessThanOrEqual(Math.min(64 * 1024, whole.byteLength));
+  });
+
+  it('a tampered package is refused with 409 package_integrity_failed for whole and If-Range requests', async () => {
+    const { token } = await t.grant(ref.exportRef);
+    const body = { exportRef: ref.exportRef, token };
+    const etag = `"sha256-${ref.digest}"`;
+    const path = storedPath(ref.digest);
+    const original = readFileSync(path);
+    const altered = Buffer.from(original);
+    altered[10] = (altered[10] ?? 0) ^ 0x01;
+    writeFileSync(path, altered);
+    try {
+      for (const headers of [
+        OCTET,
+        { range: 'bytes=0-99', 'if-range': etag },
+        { range: 'bytes=0-99', 'if-range': `"sha256-${'0'.repeat(64)}"` },
+      ]) {
+        const r = await fetchBytes(t, body, headers);
+        expect([JSON.stringify(headers), r.status]).toStrictEqual([JSON.stringify(headers), 409]);
+        expect(r.json).toMatchObject({ code: 'conflict', detail: { reason: 'package_integrity_failed' } });
+      }
+    } finally {
+      writeFileSync(path, original);
+    }
+    expect((await fetchBytes(t, body, OCTET)).status).toBe(200);
+  });
+});

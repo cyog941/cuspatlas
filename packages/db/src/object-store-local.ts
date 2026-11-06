@@ -34,8 +34,11 @@ export interface LocalObjectStoreOptions {
    * stored file (milliseconds, default 60 s; 0 verifies on every read).
    */
   readonly verificationTtlMs?: number;
-  /** Test instrumentation: bytes read from disk by ranged reads (whole-file verification or range). */
-  readonly onRead?: (kind: 'verify' | 'range', bytes: number) => void;
+  /**
+   * Test instrumentation: bytes read from disk by ranged and streamed reads (whole-file verification,
+   * a range, or a streamed slice).
+   */
+  readonly onRead?: (kind: 'verify' | 'range' | 'stream', bytes: number) => void;
 }
 
 /** Verifications kept for reuse by ranged reads (the oldest is dropped when full). */
@@ -166,6 +169,33 @@ export function createLocalObjectStore(options: LocalObjectStoreOptions): Object
     return h.digest('hex');
   }
 
+  /**
+   * Verifies an open stored file against `expectedDigest` (streaming hash, bounded memory), or reuses a
+   * recent verification of the same unchanged file; answers its fingerprint and size.
+   */
+  async function verifyOpen(
+    fh: FileHandle,
+    cacheKey: string,
+    expectedDigest: string,
+  ): Promise<{ fingerprint: string; size: number }> {
+    const st = await fh.stat({ bigint: true }).catch(fsFailure);
+    const fingerprint = fingerprintOf(st);
+    const size = Number(st.size);
+    const hit = verified.get(cacheKey);
+    if (!hit || hit.fingerprint !== fingerprint || Date.now() - hit.at >= verificationTtlMs) {
+      verified.delete(cacheKey);
+      if ((await hashOpen(fh, size)) !== expectedDigest) throw new ObjectStoreError('digest_mismatch');
+      if (verificationTtlMs > 0) {
+        if (verified.size >= MAX_CACHED_VERIFICATIONS) {
+          const oldest = verified.keys().next().value;
+          if (oldest !== undefined) verified.delete(oldest);
+        }
+        verified.set(cacheKey, { fingerprint, at: Date.now() });
+      }
+    }
+    return { fingerprint, size };
+  }
+
   async function storeContent(tenantId: string, bytes: Uint8Array, digest: string) {
     const key = contentKey(tenantId, digest);
     const abs = pathOf(key);
@@ -256,21 +286,7 @@ export function createLocalObjectStore(options: LocalObjectStoreOptions): Object
       return limitRangeReads(async () => {
         const fh = await open(pathOf(storageKey), 'r').catch(fsFailure);
         try {
-          const st = await fh.stat({ bigint: true }).catch(fsFailure);
-          const fingerprint = fingerprintOf(st);
-          const size = Number(st.size);
-          const hit = verified.get(cacheKey);
-          if (!hit || hit.fingerprint !== fingerprint || Date.now() - hit.at >= verificationTtlMs) {
-            verified.delete(cacheKey);
-            if ((await hashOpen(fh, size)) !== expectedDigest) throw new ObjectStoreError('digest_mismatch');
-            if (verificationTtlMs > 0) {
-              if (verified.size >= MAX_CACHED_VERIFICATIONS) {
-                const oldest = verified.keys().next().value;
-                if (oldest !== undefined) verified.delete(oldest);
-              }
-              verified.set(cacheKey, { fingerprint, at: Date.now() });
-            }
-          }
+          const { fingerprint, size } = await verifyOpen(fh, cacheKey, expectedDigest);
           const sel = select(size);
           let bytes = new Uint8Array(0);
           if (sel) {
@@ -305,6 +321,52 @@ export function createLocalObjectStore(options: LocalObjectStoreOptions): Object
           await fh.close().catch(() => undefined);
         }
       });
+    },
+    async readStream(tenantId, storageKey, expectedDigest) {
+      const digest = checkContent(tenantId, storageKey);
+      if (expectedDigest !== digest) throw new ObjectStoreError('digest_mismatch');
+      const cacheKey = `${tenantId}/${storageKey}`;
+      const fh = await open(pathOf(storageKey), 'r').catch(fsFailure);
+      let checked: { fingerprint: string; size: number };
+      try {
+        // The verification pass shares the ranged-read bound; the streaming pass holds one slice.
+        checked = await limitRangeReads(() => verifyOpen(fh, cacheKey, expectedDigest));
+      } catch (err) {
+        await fh.close().catch(() => undefined);
+        throw err;
+      }
+      const { fingerprint, size } = checked;
+      /** The streamed bytes hash to the digest and the file did not change meanwhile, or it throws. */
+      const finish = async (hash: string, at: number) => {
+        const after = await fh.stat({ bigint: true }).catch(fsFailure);
+        if (at !== size || hash !== expectedDigest || fingerprintOf(after) !== fingerprint) {
+          verified.delete(cacheKey);
+          throw new ObjectStoreError('digest_mismatch');
+        }
+      };
+      async function* chunks(): AsyncGenerator<Uint8Array> {
+        const h = createHash('sha256');
+        let at = 0;
+        try {
+          while (at < size) {
+            const buf = Buffer.allocUnsafe(Math.min(HASH_SLICE_BYTES, size - at));
+            const { bytesRead } = await fh.read(buf, 0, buf.byteLength, at);
+            if (bytesRead === 0) break;
+            const part = buf.subarray(0, bytesRead);
+            h.update(part);
+            at += bytesRead;
+            observe('stream', bytesRead);
+            // The last slice is handed out only after the whole stream re-verified, so a file that
+            // changed while it streamed never completes as a valid body.
+            if (at >= size) await finish(h.digest('hex'), at);
+            yield new Uint8Array(part.buffer, part.byteOffset, part.byteLength);
+          }
+          if (at < size || size === 0) await finish(h.digest('hex'), at);
+        } finally {
+          await fh.close().catch(() => undefined);
+        }
+      }
+      return { totalLength: size, chunks: chunks() };
     },
     async head(tenantId, storageKey) {
       checkContent(tenantId, storageKey);

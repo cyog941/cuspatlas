@@ -469,3 +469,20 @@ Branch `codex/backend-integration` from b9c957a; synthetic data only, not pushed
   - Guard bypasses. `scripts/clock-scan.ts` reads the TypeScript AST and finds `now` of the global `Date` in any spelling (`Date['now']`, `{ now } = Date`, an alias, `globalThis.Date`, across lines and comments) and a bare `new Date()` (including `new Date`, `new globalThis.Date()` and `new (Date)()`). Allowlist entries are keyed by file, enclosing function chain, kind and occurrence index, each with a reason. The scan now also covers `packages/contracts/src` and `packages/client/src`, which have no reads. All 88 entries carried over. Red: the old line regex missed all eight bypass fixtures. Commit 96949c3.
   - Worker clock seam. `composeWorker` refuses `opts.clock` outside `CUSPATLAS_ENV=synthetic-test`. Test: `worker-main` "refuses an injected clock outside synthetic-test". Commit 810970b.
   - Not done (performance item): the `threads.ts` reply-escalation keyset compares `date_trunc('milliseconds', created_at)`, which an index on `created_at` cannot serve (not sargable). It is correct, but a large backlog scans more.
+
+## Migration race
+
+Branch `codex/backend-integration` from 8a3fda3. Synthetic data only, not pushed. This fixes the intermittent `tuple concurrently updated` (XX000) failures in `ops-restore-drill`, `imaging-restore-drill` and `ops-operator` (M9 isolated sample restore) under full-suite load.
+
+- **Root cause.** Each restore creates a new database on the shared embedded cluster and replays every migration into it. The first migration, `20261103230000_tenancy_foundation.sql`, runs `ALTER ROLE cuspatlas_app LOGIN NOSUPERUSER ...` without a condition. Roles are rows in the cluster-wide catalog `pg_authid`, but the migrator's `pg_advisory_lock(7402061)` is keyed by database, so it does not serialize migrators working in different databases.
+  - A probe with two open transactions in two databases showed the second `ALTER ROLE` blocking until the first committed and then failing with `XX000 tuple concurrently updated`.
+  - In the same probe, `pg_advisory_xact_lock(7402061)` did not block across databases.
+  - `GRANT ... ON SCHEMA`, `CREATE EXTENSION btree_gist` and the guarded `CREATE ROLE` (when the role already exists) did not conflict.
+  - A concurrent `CREATE ROLE` of a role that does not exist yet failed the second transaction with `23505` on `pg_authid_rolname_index`. This second race appears only on a cluster without the role.
+- **Fix** (`packages/db/src/migrate.ts`). `isSharedCatalogRace` matches only XX000 with the exact message `tuple concurrently updated`, and 23505 on `pg_authid_rolname_index`. A migration file that fails with one of these has already been rolled back as one transaction, so it is re-run: at most 6 attempts, with exponential backoff and jitter starting at 25 ms. Every other error is thrown unchanged, and after the last attempt the original error is thrown.
+  - Serializing across databases was rejected. Locking a shared catalog row (`SELECT ... FROM pg_database ... FOR UPDATE`) does block across databases in the probe, but it needs UPDATE on `pg_database`, which a non-superuser migration role (the hosted case) does not have.
+  - An advisory lock held in a fixed maintenance database was also rejected. It needs a second connection and every caller to agree on one maintenance database name, and the migrate CLI has only the target URL.
+  - Applied migrations are unchanged.
+- **Tests.**
+  - `tests/integration/migration-race.test.ts` migrates two new databases concurrently, 10 rounds. Before the fix it failed in 10 of 10 rounds, every time with `XX000 tuple concurrently updated` inside the first migration. After the fix it passes 10 of 10.
+  - `packages/db/src/migrate.test.ts` checks that the classifier ignores every other error.

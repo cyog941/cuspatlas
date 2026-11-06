@@ -55,6 +55,8 @@ CUSPATLAS_MIGRATION_DATABASE_URL='postgres://<admin-user>@127.0.0.1:<port>/cuspa
 
 (PowerShell: set `$env:CUSPATLAS_MIGRATION_DATABASE_URL` first.) The migrator refuses any target whose database name does not contain `cuspatlas_synthetic` (`packages/db/src/migrate.ts`). This is deliberate: a mistyped or copied production URL cannot be migrated. Point it only at a throwaway local database you created; never at a hosted project.
 
+Several migrators may run against one cluster at once (for example a restore or a drill while another database is migrated). Their advisory lock only covers one database, but the runtime role `cuspatlas_app` is a cluster-wide row in `pg_authid`. A migration that loses that race (`tuple concurrently updated`, or a duplicate `pg_authid_rolname_index` key on a cluster without the role) is rolled back and re-run, up to 6 attempts with a short backoff. Any other error stops the migrator as before.
+
 ## Environment variables read by the API, MCP server and worker
 
 Placeholders only. Never commit real values; `.env*` is gitignored.

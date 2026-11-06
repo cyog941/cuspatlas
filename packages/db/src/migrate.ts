@@ -32,9 +32,34 @@ export function assertSyntheticDatabaseName(name: string): void {
   }
 }
 
+export const SHARED_CATALOG_RETRY_ATTEMPTS = 6;
+const SHARED_CATALOG_RETRY_BASE_MS = 25;
+const sleep = (ms: number) => new Promise<void>((ok) => setTimeout(ok, ms));
+
+/**
+ * Migration race (cluster-global catalog rows). Roles live in the shared catalog pg_authid, one row per
+ * cluster, while the advisory lock in migrate() is scoped to the current database. Two migrators replaying
+ * into two databases of one cluster (a restore or drill next to another migrator) both run
+ * `ALTER ROLE cuspatlas_app ...` (20261103230000): the second blocks on the first's uncommitted row
+ * version and then fails with XX000 `tuple concurrently updated`. On a cluster without the role, the
+ * guarded `CREATE ROLE` of both fails the second with 23505 on `pg_authid_rolname_index`. PostgreSQL has
+ * no cross-database lock an unprivileged migration role can take (a row lock on pg_database needs UPDATE
+ * on it), so the migrator retries exactly these two errors. Each migration file is one transaction that
+ * has been rolled back in full, so re-running it is equivalent to one run. Every other error is thrown.
+ */
+export function isSharedCatalogRace(err: unknown): boolean {
+  if (typeof err !== 'object' || err === null) return false;
+  const e = err as { code?: unknown; message?: unknown; constraint?: unknown };
+  if (e.code === 'XX000') return e.message === 'tuple concurrently updated';
+  if (e.code === '23505') return e.constraint === 'pg_authid_rolname_index';
+  return false;
+}
+
 /**
  * Applies pending migrations in version order, each in its own transaction, under an advisory lock.
- * An already-applied migration whose file changed is an error, never silently re-applied.
+ * An already-applied migration whose file changed is an error, never silently re-applied. A migration
+ * that loses a shared-catalog race with a migrator in another database of the cluster is re-run
+ * (bounded, see isSharedCatalogRace).
  */
 export async function migrate(
   client: pg.ClientBase,
@@ -64,17 +89,21 @@ export async function migrate(
         if (prior !== f.checksum) throw new Error(`Applied migration ${f.version} has changed on disk`);
         continue;
       }
-      await client.query('BEGIN');
-      try {
-        await client.query(f.sql);
-        await client.query(
-          'INSERT INTO public.schema_migrations (version, name, checksum) VALUES ($1, $2, $3)',
-          [f.version, f.name, f.checksum],
-        );
-        await client.query('COMMIT');
-      } catch (err) {
-        await client.query('ROLLBACK');
-        throw err;
+      for (let attempt = 1; ; attempt++) {
+        await client.query('BEGIN');
+        try {
+          await client.query(f.sql);
+          await client.query(
+            'INSERT INTO public.schema_migrations (version, name, checksum) VALUES ($1, $2, $3)',
+            [f.version, f.name, f.checksum],
+          );
+          await client.query('COMMIT');
+          break;
+        } catch (err) {
+          await client.query('ROLLBACK');
+          if (attempt >= SHARED_CATALOG_RETRY_ATTEMPTS || !isSharedCatalogRace(err)) throw err;
+          await sleep(SHARED_CATALOG_RETRY_BASE_MS * 2 ** (attempt - 1) * (1 + Math.random()));
+        }
       }
       applied.push(`${f.version}_${f.name}`);
     }

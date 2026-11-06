@@ -97,14 +97,14 @@ export const CLOCK_ALLOWLIST: readonly ClockAllowlistEntry[] = [
   },
   {
     file: 'packages/db/src/object-store-local.ts',
-    fn: 'createLocalObjectStore.readRange',
+    fn: 'createLocalObjectStore.verifyOpen',
     kind: 'Date.now',
     index: 0,
     reason: '(a) filesystem mtime or an in-process cache entry: the host clock on both sides',
   },
   {
     file: 'packages/db/src/object-store-local.ts',
-    fn: 'createLocalObjectStore.readRange',
+    fn: 'createLocalObjectStore.verifyOpen',
     kind: 'Date.now',
     index: 1,
     reason: '(a) filesystem mtime or an in-process cache entry: the host clock on both sides',

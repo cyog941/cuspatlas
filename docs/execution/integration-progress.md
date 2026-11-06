@@ -487,3 +487,32 @@ Branch `codex/backend-integration` from 8a3fda3. Synthetic data only, not pushed
   - `tests/integration/migration-race.test.ts` migrates two new databases concurrently, 10 rounds. Before the fix it failed in 10 of 10 rounds, every time with `XX000 tuple concurrently updated` inside the first migration. After the fix it passes 10 of 10.
   - `packages/db/src/migrate.test.ts` checks that the classifier ignores every other error.
 - **Verification (Windows worktree).** `ops-restore-drill`, `imaging-restore-drill`, `ops-operator`, `restore-smoke` and `migration-race` run together passed 3 of 3 times (30/30 tests each time). One full `pnpm run ci` at f892a20 exited 0 with no retry: 211 files, 3681 tests. Not pushed.
+
+## Closeout E
+
+Branch `codex/backend-integration`, from 7a317fd. Synthetic data only. Not pushed.
+
+- **E1 the scheduled dry run reports open removal intents** (migration `20261207620000`). Every orphan-bytes sweep record now stores `open_intent_count` and `oldest_open_intent_age_seconds`. These count the removal intents open in the tenant when the record was written, before this run's own intents. The age is in whole seconds on the database clock (`clock_timestamp()`, read after the listing). Records written earlier hold 0 and NULL.
+  - The command result gains `openIntents { count, oldestAgeSeconds }`. A replay reads it back from the record. The worker tick report shows `openIntents` and `oldestOpenIntentAgeSeconds` for each scheduled report.
+  - A dry run still finishes no intent and removes no bytes.
+  - Red: `worker-orphan-sweep-closeout-e.test.ts` 1/1 failed (`openIntents` undefined). Green: 1/1: two open intents (2 h and 10 min old) are reported as count 2, oldest about 7200 s. The record holds the same figures, both intents stay `intended`, and both files stay. The D3, D4 and A5 orphan suites pass with it (26/26).
+- **E2 single-flight scheduled report** (migration `20261207630000`). The record's transaction first calls `cuspatlas.imaging_try_lock_scheduled_sweep()`, a transaction-scoped advisory lock on the tenant taken without waiting. A worker that does not get the lock records nothing. The holder then re-checks due-ness inside the lock, on a statement snapshot taken after any earlier holder committed, against `clock_timestamp()`.
+  - Scheduled records are marked (`scheduled`, a partial index, and a check that a scheduled record is a dry run). Due-ness is therefore per tenant, whichever worker principal recorded the last report. Unmarked dry runs of the caller (scheduled reports written before the marker) still count.
+  - Red: two workers due at the same moment recorded 2 reports. The test holds the record insert with a table lock until both are blocked on it, then expects 1. Green: exactly one record and one audit event (2/2 in the file; 50/50 with the orphan suites and the clock guard).
+- **E3 reply-escalation keyset index** (migration `20261207640000`). `date_trunc(text, timestamptz)` is STABLE, so it cannot appear in an index. Millisecond truncation does not depend on the zone, so `cuspatlas.instant_ms(timestamptz)` (IMMUTABLE SQL, computed in UTC) gives the same instant.
+  - The escalation query, now `ESCALATION_CANDIDATES_SQL` in `threads.ts`, finds each thread's episode ordered by `instant_ms(created_at), created_at, id`. That is the same order as `created_at, id`. It returns the instant as the keyset value and orders and compares by `(ep.at_ms, t.id)`.
+  - New index `thread_messages_episode_ms (tenant_id, thread_id, author_kind, cuspatlas.instant_ms(created_at), created_at, id)`.
+  - Red: `reply-escalation-keyset-index.test.ts` 4/4 failed (no function, no index, no exported query). Green: 4/4:
+    - `date_trunc` is `s` and the wrapper is `i`, and they agree on every row in four session zones;
+    - the index definition matches the query expression;
+    - on 700 seeded threads (14,700 messages, analyzed), `EXPLAIN` as the runtime role under RLS uses `thread_messages_episode_ms`;
+    - the batch walk across two batches and millisecond ties returns exactly the previous query's rows in the same order.
+  - The E10 suites pass with it (20/20).
+- **E4 streamed whole export downloads** (no migration). `ObjectStorePort` gains an optional `readStream`. The local store implements it as follows:
+  - It verifies with a 64 KiB streaming hash, or reuses the ranged-read verification of the unchanged file (dev, inode, size, mtime and ctime, within the 60 s TTL).
+  - It then yields 64 KiB slices from the same open handle, hashing them again. If the hash or the fingerprint differs at the end, it fails before handing out the last slice, so a body never completes as valid.
+  - The domain reads the stream when the request asks for one (`stream`) and no range applies. It decides `If-Range` from the recorded digest (`ifRangeDigest`): a current validator reads only the range, and a stale one streams the whole package. REST sends `Readable.from(chunks)` with the `Content-Length`. A store without `readStream` falls back to the whole read.
+  - Tampered stored bytes are still refused before any byte is sent: 409 `package_integrity_failed` for whole, current `If-Range` and stale `If-Range` requests.
+  - Red: the store unit tests failed 4/4 (no `readStream`). In `export-chunked-download.test.ts`, the whole and `If-Range` requests made 3 whole `read` calls per target. Green: 7/7 unit and 30/30 integration. Whole and `If-Range` requests make 0 whole reads (2 streams and 1 range). The largest buffer the store hands out is one 64 KiB slice, or the range. On a 4 MiB object, the peak is at most 1/16 of the size. A file changed mid-stream fails the stream.
+- Catalog: 509 operations (unchanged). OpenAPI unchanged except the generated client and the sweep result schema (`openIntents`).
+- **Full-ci fixes.** The first full `ci` (213 files, 3695 tests) had 2 failures, both real and caused by E4. The clock-guard allowlist still named `readRange` for the verification-cache `Date.now` reads that moved into `verifyOpen`; the entries were renamed and their reason is unchanged. The I1 port-shape assertion did not list `readStream`. Both are fixed.

@@ -122,6 +122,7 @@ describe('I1 object store adapter', () => {
           'read',
           'readRange',
           'readStaged',
+          'readStream',
           'remove',
           'stage',
           'writeTombstone',

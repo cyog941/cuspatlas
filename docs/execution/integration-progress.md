@@ -486,3 +486,4 @@ Branch `codex/backend-integration` from 8a3fda3. Synthetic data only, not pushed
 - **Tests.**
   - `tests/integration/migration-race.test.ts` migrates two new databases concurrently, 10 rounds. Before the fix it failed in 10 of 10 rounds, every time with `XX000 tuple concurrently updated` inside the first migration. After the fix it passes 10 of 10.
   - `packages/db/src/migrate.test.ts` checks that the classifier ignores every other error.
+- **Verification (Windows worktree).** `ops-restore-drill`, `imaging-restore-drill`, `ops-operator`, `restore-smoke` and `migration-race` run together passed 3 of 3 times (30/30 tests each time). One full `pnpm run ci` at f892a20 exited 0 with no retry: 211 files, 3681 tests. Not pushed.

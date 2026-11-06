@@ -643,7 +643,9 @@ describe('pre-acceptance lease window (E4/E5 hardening)', () => {
     ).toStrictEqual([{ eventId: id, result: 'reconciliation' }]);
     expect(Date.now() - started).toBeLessThan(1_900);
     const { rows } = await db.admin.query(
-      `SELECT state, last_outcome, next_attempt_at - now() >= interval '400 milliseconds' AS quiet
+      // Measured against updated_at, stamped by the same statement, not a later now(): a slow
+      // runner must not shrink the quiet period the write recorded.
+      `SELECT state, last_outcome, next_attempt_at - updated_at >= interval '500 milliseconds' AS quiet
        FROM cuspatlas.outbox_events WHERE id = $1`,
       [id],
     );

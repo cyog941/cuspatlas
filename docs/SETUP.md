@@ -34,3 +34,7 @@ Do not copy production data into local or preview environments. Keep `.env` and 
 - Verified: tracked-file review and targeted secret/private-ID scan; raw captures are ignored.
 - Verified: new Supabase project identity, selected organization, region and ACTIVE_HEALTHY status after creation.
 - Future changes require tests appropriate to their impact; do not scaffold the app to make setup look complete.
+
+## Foundation implementation status
+
+The synthetic foundation (runbook batches E0 to E6) is implemented on branch `codex/foundation-core`; its status, commands, results, residual limitations and handoff are recorded in the [foundation execution ledger](execution/foundation-progress.md). It is configured and tested on one Windows host only: not approved, not deployed, not compliant and not clinically validated. The provisioning record above is unchanged and remains historical.

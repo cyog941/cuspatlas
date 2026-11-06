@@ -1,0 +1,16 @@
+{
+  "name": "@cuspatlas/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./synthetic-task.schema.json": "./src/synthetic-task.schema.json",
+    "./action-proposal.schema.json": "./src/action-proposal.schema.json"
+  },
+  "dependencies": {
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1"
+  }
+}

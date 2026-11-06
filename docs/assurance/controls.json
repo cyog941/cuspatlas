@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "note": "Control registry for the synthetic evidence manifest (docs/ASSURANCE-AND-CERTIFICATION.md AS-01..AS-04). Owners are roles to assign, not evidence of staffing. A passing test is evidence for review, not certification.",
+  "controls": [
+    {
+      "controlId": "AS-01",
+      "owner": "security owner",
+      "scope": "synthetic foundation: control-to-evidence traceability for this repository",
+      "requirement": "Trace each control to requirement, implementation, test, release and evidence; stale or missing evidence never passes.",
+      "artifacts": [
+        "docs/ASSURANCE-AND-CERTIFICATION.md",
+        "docs/assurance/controls.json",
+        "docs/assurance/reviewers.md",
+        "scripts/evidence.mjs",
+        "scripts/evidence-verify.mjs",
+        "artifacts/test-summary.json"
+      ],
+      "tests": ["scripts/evidence.test.ts"]
+    },
+    {
+      "controlId": "AS-02",
+      "owner": "security owner",
+      "scope": "synthetic foundation: REST, MCP, worker and database policy for synthetic tasks and proposals",
+      "requirement": "Least privilege, current membership, revocation and scoped agents across every surface.",
+      "artifacts": [
+        "packages/domain/src/policy/authorize.ts",
+        "packages/db/src/tenant-transaction.ts",
+        "supabase/migrations/20261103230000_tenancy_foundation.sql",
+        "supabase/migrations/20261104000000_review_hardening.sql",
+        "supabase/migrations/20261104040000_action_proposals.sql",
+        "artifacts/test-summary.json"
+      ],
+      "tests": [
+        "tests/integration/tenant-isolation.test.ts",
+        "tests/integration/transport-policy.test.ts",
+        "tests/integration/mcp-parity.test.ts",
+        "tests/integration/proposal-policy.test.ts",
+        "tests/integration/worker-recovery.test.ts",
+        "tests/integration/restore-smoke.test.ts"
+      ]
+    },
+    {
+      "controlId": "AS-03",
+      "owner": "engineering",
+      "scope": "synthetic foundation: committed-change audit, independent denial audit, privacy-safe diagnostics, restore",
+      "requirement": "Protected successful-change and independent denial audit; privacy-safe diagnostics.",
+      "artifacts": [
+        "packages/db/src/security-attempts.ts",
+        "packages/db/src/backup.ts",
+        "packages/db/src/restore.ts",
+        "supabase/migrations/20261104010000_audit_outbox.sql",
+        "scripts/privacy-scan.mjs",
+        "artifacts/test-summary.json"
+      ],
+      "tests": [
+        "tests/integration/atomic-events.test.ts",
+        "tests/integration/privacy-log.test.ts",
+        "tests/integration/transport-policy.test.ts",
+        "tests/integration/restore-smoke.test.ts"
+      ]
+    },
+    {
+      "controlId": "AS-04",
+      "owner": "release owner",
+      "scope": "synthetic foundation: dependency inventory, SBOM and evidence integrity (no signed release exists)",
+      "requirement": "Approved changes, reproducible dependency inventory, SBOM/provenance, signed releases and vulnerability remediation.",
+      "artifacts": [
+        "pnpm-lock.yaml",
+        ".github/workflows/ci.yml",
+        "scripts/sbom.mjs",
+        "artifacts/sbom.cdx.json",
+        "artifacts/test-summary.json"
+      ],
+      "tests": ["scripts/evidence.test.ts", "apps/api/src/contract-drift.test.ts"]
+    }
+  ]
+}

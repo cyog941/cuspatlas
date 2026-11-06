@@ -1,0 +1,34 @@
+{
+  "name": "cuspatlas",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "packageManager": "pnpm@10.18.3",
+  "engines": {
+    "node": ">=24.13 <25"
+  },
+  "scripts": {
+    "test": "node scripts/run-vitest.mjs",
+    "test:integration": "node scripts/run-vitest.mjs --project integration",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "biome check .",
+    "migrate": "tsx packages/db/src/migrate-cli.ts",
+    "backup": "tsx packages/db/src/backup-cli.ts",
+    "restore": "tsx packages/db/src/restore-cli.ts",
+    "contract:check": "tsx apps/api/src/contract-drift-cli.ts",
+    "start": "tsx apps/api/src/main.ts",
+    "sbom": "node scripts/sbom.mjs",
+    "scan:privacy": "node scripts/privacy-scan.mjs",
+    "evidence": "node scripts/evidence.mjs",
+    "evidence-verify": "node scripts/evidence-verify.mjs",
+    "ci": "tsc -p tsconfig.json && biome check . && tsx apps/api/src/contract-drift-cli.ts && node scripts/run-vitest.mjs --reporter=default --reporter=json --outputFile.json=node_modules/.cache/cuspatlas/vitest-raw.json && node scripts/test-summary.mjs node_modules/.cache/cuspatlas/vitest-raw.json artifacts/test-summary.json && node scripts/privacy-scan.mjs && node scripts/sbom.mjs && node scripts/evidence.mjs && node scripts/evidence-verify.mjs && node scripts/privacy-scan.mjs artifacts"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.4",
+    "@types/node": "24.19.2",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "4.1.12"
+  }
+}

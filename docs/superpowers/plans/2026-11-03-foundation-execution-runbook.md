@@ -69,4 +69,4 @@ Do not block synthetic foundation on sensor SDK access, clearinghouse agreements
 - Release artifacts include SBOM/provenance and the AS-01–04 synthetic evidence manifest with stale/tampered/forged-evidence tests. No ISO or PHI-readiness claim.
 - PR/handoff lists passed checks, environment versions, residual limitations and rollback instructions. No silent expansion into S/C/B/I/E/A/M/R product functionality. User receives the next scoped implementation recommendation; UI remains deferred.
 
-Current execution state: **all batches not started**. This planning run created documentation only.
+Current execution state: E0–E6 verified on one local Windows host, a clean clone, and GitHub Actions Linux CI (draft PR #9), after independent review cycles. Embedded PostgreSQL on hosted Windows runners is an open issue. Not approved, not deployed, not compliant, not clinically validated. The batch table in [the execution ledger](../../execution/foundation-progress.md) is authoritative.

@@ -1,0 +1,205 @@
+import {
+  type ActorContext,
+  type CommandEnvelope,
+  type CommandResult,
+  CommitThenRefuse,
+  isRefusalError,
+  REFUSAL_CODES,
+  type RefusalCode,
+  type RefusalDetail,
+  RefusalError,
+  type TenantTransaction,
+} from '@cuspatlas/contracts';
+import { idempotencyKeyDigest, payloadDigest } from './digest';
+import type { CommandExecutor } from './executor';
+import { SYNTHETIC_TASK_REPLAY_CODECS } from './replay-codecs';
+
+/** JSON object persisted as the replayable result. Holds server references and versions only. */
+export type StoredResult = Readonly<Record<string, string | number | boolean | null>>;
+
+/**
+ * Per-operation projection between a command's data and the safe stored result. `persist` keeps only
+ * server-issued references; `restore` rebuilds the data from that projection plus the replay
+ * request's payload, which has the same canonical digest as the original request.
+ */
+export interface ReplayCodec<T> {
+  persist(data: T): StoredResult;
+  restore(stored: StoredResult, payload: unknown): T;
+}
+
+export interface ExecuteOnceOptions {
+  // biome-ignore lint/suspicious/noExplicitAny: codecs are heterogeneous per operation.
+  readonly codecs: Readonly<Record<string, ReplayCodec<any>>>;
+  /** A pending reservation older than this is treated as abandoned and taken over (frozen: 60 s). */
+  readonly inFlightTimeoutSec?: number;
+}
+
+/** Terminal domain refusals are recorded and replayed. Denials and retryable refusals never are. */
+const TERMINAL: ReadonlySet<RefusalCode> = new Set([
+  'stale_version',
+  'validation_failed',
+  'conflict',
+  'invalid_request',
+]);
+
+interface ReservationRow extends Record<string, unknown> {
+  state: 'pending' | 'committed' | 'failed';
+  payload_digest: string;
+  result: Record<string, unknown> | null;
+  aggregate_version: number | null;
+  abandoned: boolean;
+  expired: boolean;
+}
+
+/** SQLSTATE 55P03: the db layer's transaction-local lock_timeout expired while waiting. */
+const isLockTimeout = (err: unknown) =>
+  typeof err === 'object' && err !== null && (err as { code?: unknown }).code === '55P03';
+
+const SCOPE = `tenant_id = cuspatlas.current_tenant_id() AND principal_id = cuspatlas.current_actor_id()
+  AND operation = $1 AND key_digest = $2`;
+
+function refusalFrom(result: Record<string, unknown>): RefusalError {
+  const code = result.code;
+  if (
+    result.kind !== 'refusal' ||
+    typeof code !== 'string' ||
+    !(REFUSAL_CODES as readonly string[]).includes(code)
+  ) {
+    throw new Error('Stored refusal is malformed');
+  }
+  const detail = result.detail as RefusalDetail | undefined;
+  return new RefusalError({
+    code: code as RefusalCode,
+    retryable: result.retryable === true,
+    ...(detail === undefined ? {} : { detail }),
+  });
+}
+
+/**
+ * Builds the durable `executeOnce` command executor. It has the `CommandExecutor` signature and runs
+ * inside the caller's tenant transaction, after authorization, so every replay is reauthorized:
+ *
+ * 1. Reserve `(tenant, principal, operation, sha256(key))` with `INSERT .. ON CONFLICT DO NOTHING`.
+ *    A concurrent duplicate blocks on the uncommitted unique entry until the first transaction ends,
+ *    bounded by the tenant transaction's `lock_timeout` (10 s): on expiry it gets a retryable 409
+ *    `conflict` and its transaction rolls back, so the caller retries instead of hanging.
+ * 2. If a row exists, lock it (`FOR UPDATE`). Expired, or `pending` older than the in-flight timeout
+ *    with the same digest: take it over. Different payload digest: 409 `idempotency_conflict`.
+ *    `committed`: replay the stored result. `failed`: replay the stored refusal. Fresh `pending`
+ *    (outcome unknown, still in flight): 409 `conflict`, retryable.
+ * 3. Otherwise run the handler in a savepoint. Success: mark `committed` with the safe projection and
+ *    aggregate version in the same transaction as the change. Terminal refusal: undo the handler's
+ *    writes, mark `failed` with the typed refusal and commit only the reservation.
+ */
+export function createExecuteOnce(options: ExecuteOnceOptions): CommandExecutor {
+  const timeout = options.inFlightTimeoutSec ?? 60;
+
+  async function reserve(
+    tx: TenantTransaction,
+    operation: string,
+    keyDigest: string,
+    digest: string,
+    correlationId: string,
+  ): Promise<ReservationRow | null> {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const inserted = await tx.query(
+        `INSERT INTO cuspatlas.command_idempotency (tenant_id, principal_id, operation, key_digest,
+           payload_digest, state, correlation_id, reserved_at, expires_at)
+         VALUES (cuspatlas.current_tenant_id(), cuspatlas.current_actor_id(), $1, $2, $3, 'pending', $4,
+           now(), now() + interval '7 days')
+         ON CONFLICT (tenant_id, principal_id, operation, key_digest) DO NOTHING`,
+        [operation, keyDigest, digest, correlationId],
+      );
+      if (inserted.rowCount === 1) return null;
+      const { rows } = await tx.query<ReservationRow>(
+        `SELECT state, payload_digest, result, aggregate_version,
+           (state = 'pending' AND reserved_at < now() - make_interval(secs => $3)) AS abandoned,
+           (expires_at <= now()) AS expired
+         FROM cuspatlas.command_idempotency WHERE ${SCOPE} FOR UPDATE`,
+        [operation, keyDigest, timeout],
+      );
+      const row = rows[0];
+      if (!row) continue; // purged between the two statements: reserve again
+      if (row.expired || (row.abandoned && row.payload_digest === digest)) {
+        await tx.query(
+          `UPDATE cuspatlas.command_idempotency SET state = 'pending', result = NULL,
+             aggregate_version = NULL, payload_digest = $3, correlation_id = $4, reserved_at = now(),
+             expires_at = now() + interval '7 days', updated_at = now()
+           WHERE ${SCOPE}`,
+          [operation, keyDigest, digest, correlationId],
+        );
+        return null;
+      }
+      return row;
+    }
+    throw new RefusalError({ code: 'conflict', retryable: true });
+  }
+
+  return async function executeOnce<T>(
+    ctx: ActorContext,
+    envelope: CommandEnvelope<unknown>,
+    tx: TenantTransaction,
+    handler: () => Promise<{ data: T; version: number }>,
+  ): Promise<CommandResult<T>> {
+    const codec = options.codecs[envelope.operation] as ReplayCodec<T> | undefined;
+    if (!codec) throw new Error('No replay codec registered for this operation');
+    const keyDigest = idempotencyKeyDigest(envelope.idempotencyKey);
+    const digest = payloadDigest(envelope.payload);
+
+    let existing: ReservationRow | null;
+    try {
+      existing = await reserve(tx, envelope.operation, keyDigest, digest, ctx.correlationId);
+    } catch (err) {
+      if (isLockTimeout(err)) throw new RefusalError({ code: 'conflict', retryable: true });
+      throw err;
+    }
+    if (existing) {
+      if (existing.payload_digest !== digest) throw new RefusalError({ code: 'idempotency_conflict' });
+      if (existing.state === 'pending') throw new RefusalError({ code: 'conflict', retryable: true });
+      if (existing.state === 'failed' && existing.result) throw refusalFrom(existing.result);
+      if (existing.state !== 'committed' || !existing.result || existing.aggregate_version === null) {
+        throw new Error('Reservation is in an unexpected state');
+      }
+      return {
+        data: codec.restore(existing.result as StoredResult, envelope.payload),
+        version: existing.aggregate_version,
+        correlationId: ctx.correlationId,
+        replayed: true,
+      };
+    }
+
+    let outcome: { data: T; version: number };
+    try {
+      outcome = await tx.savepoint(handler);
+    } catch (err) {
+      if (!isRefusalError(err) || !TERMINAL.has(err.code) || err.retryable) throw err;
+      const stored = {
+        kind: 'refusal',
+        code: err.code,
+        retryable: err.retryable,
+        ...(err.detail === undefined ? {} : { detail: err.detail }),
+      };
+      await tx.query(
+        `UPDATE cuspatlas.command_idempotency SET state = 'failed', result = $3::jsonb, updated_at = now()
+         WHERE ${SCOPE}`,
+        [envelope.operation, keyDigest, JSON.stringify(stored)],
+      );
+      throw new CommitThenRefuse(err);
+    }
+    await tx.query(
+      `UPDATE cuspatlas.command_idempotency SET state = 'committed', result = $3::jsonb,
+         aggregate_version = $4, updated_at = now()
+       WHERE ${SCOPE}`,
+      [envelope.operation, keyDigest, JSON.stringify(codec.persist(outcome.data)), outcome.version],
+    );
+    return {
+      data: outcome.data,
+      version: outcome.version,
+      correlationId: ctx.correlationId,
+      replayed: false,
+    };
+  };
+}
+
+/** Default executor for every transport: durable idempotency over the registered synthetic operations. */
+export const executeOnce: CommandExecutor = createExecuteOnce({ codecs: SYNTHETIC_TASK_REPLAY_CODECS });

@@ -1,0 +1,22 @@
+{
+  "name": "@cuspatlas/api",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@cuspatlas/contracts": "workspace:*",
+    "@cuspatlas/db": "workspace:*",
+    "@cuspatlas/domain": "workspace:*",
+    "fastify": "5.12.8",
+    "jose": "6.2.15",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "yaml": "2.9.1",
+    "@types/pg": "8.23.1"
+  }
+}

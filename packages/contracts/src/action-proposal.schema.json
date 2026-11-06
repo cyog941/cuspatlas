@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cuspatlas.invalid/schemas/action-proposal/v1",
+  "title": "Synthetic action proposal contract v1 (prepare / approve / commit over the synthetic task domain)",
+  "$defs": {
+    "ProposalRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "TaskRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "PrincipalRef": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "LocationRef": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+    "Label": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "Version": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
+    "IdempotencyKey": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,128}$" },
+    "PayloadDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "PolicyVersion": { "type": "string", "pattern": "^[a-z0-9.-]{1,64}$" },
+    "ProposalOperation": { "enum": ["syntheticTasks.create", "syntheticTasks.relabel"] },
+    "ProposalState": { "enum": ["prepared", "approved", "committed", "expired", "rejected"] },
+    "CreatePayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label"],
+      "properties": {
+        "label": { "$ref": "#/$defs/Label" },
+        "locationRef": { "$ref": "#/$defs/LocationRef" }
+      }
+    },
+    "RelabelPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["taskRef", "label", "expectedVersion"],
+      "properties": {
+        "taskRef": { "$ref": "#/$defs/TaskRef" },
+        "label": { "$ref": "#/$defs/Label" },
+        "expectedVersion": { "$ref": "#/$defs/Version" }
+      }
+    },
+    "ProposalPayload": {
+      "description": "Exactly one of the operation payloads; the domain also checks it matches `operation`.",
+      "oneOf": [{ "$ref": "#/$defs/CreatePayload" }, { "$ref": "#/$defs/RelabelPayload" }]
+    },
+    "ProposalPrepare": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "payload"],
+      "properties": {
+        "operation": { "$ref": "#/$defs/ProposalOperation" },
+        "payload": { "$ref": "#/$defs/ProposalPayload" }
+      }
+    },
+    "ProposalApprove": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["payloadDigest"],
+      "properties": {
+        "payloadDigest": { "$ref": "#/$defs/PayloadDigest" },
+        "execution": {
+          "description": "manual (default): a separate commit call executes. deferred: the approval enqueues a durable execution request for the worker.",
+          "enum": ["manual", "deferred"]
+        }
+      }
+    },
+    "ProposalCommit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["payload"],
+      "properties": {
+        "payload": { "$ref": "#/$defs/ProposalPayload" }
+      }
+    },
+    "ProposalSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proposalRef",
+        "operation",
+        "state",
+        "payloadDigest",
+        "policyVersion",
+        "expiresAt",
+        "resourceRef",
+        "resourceVersion"
+      ],
+      "properties": {
+        "proposalRef": { "$ref": "#/$defs/ProposalRef" },
+        "operation": { "$ref": "#/$defs/ProposalOperation" },
+        "state": { "$ref": "#/$defs/ProposalState" },
+        "payloadDigest": { "$ref": "#/$defs/PayloadDigest" },
+        "policyVersion": { "$ref": "#/$defs/PolicyVersion" },
+        "expiresAt": { "type": "string", "format": "date-time" },
+        "resourceRef": { "anyOf": [{ "$ref": "#/$defs/TaskRef" }, { "type": "null" }] },
+        "resourceVersion": { "anyOf": [{ "$ref": "#/$defs/Version" }, { "type": "null" }] }
+      }
+    },
+    "ProposalCommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "version", "correlationId", "replayed"],
+      "properties": {
+        "data": { "$ref": "#/$defs/ProposalSummary" },
+        "version": { "$ref": "#/$defs/Version" },
+        "correlationId": { "type": "string", "format": "uuid" },
+        "replayed": { "type": "boolean" }
+      }
+    },
+    "Proposal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proposalRef",
+        "operation",
+        "state",
+        "payload",
+        "payloadDigest",
+        "policyVersion",
+        "expiresAt",
+        "resourceRef",
+        "resourceVersion",
+        "proposerRef",
+        "proposerKind",
+        "approval",
+        "result",
+        "version"
+      ],
+      "properties": {
+        "proposalRef": { "$ref": "#/$defs/ProposalRef" },
+        "operation": { "$ref": "#/$defs/ProposalOperation" },
+        "state": { "$ref": "#/$defs/ProposalState" },
+        "payload": { "$ref": "#/$defs/ProposalPayload" },
+        "payloadDigest": { "$ref": "#/$defs/PayloadDigest" },
+        "policyVersion": { "$ref": "#/$defs/PolicyVersion" },
+        "expiresAt": { "type": "string", "format": "date-time" },
+        "resourceRef": { "anyOf": [{ "$ref": "#/$defs/TaskRef" }, { "type": "null" }] },
+        "resourceVersion": { "anyOf": [{ "$ref": "#/$defs/Version" }, { "type": "null" }] },
+        "proposerRef": { "$ref": "#/$defs/PrincipalRef" },
+        "proposerKind": { "enum": ["human", "service"] },
+        "approval": {
+          "anyOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["approverRef", "approvedAt", "policyVersion", "payloadDigest", "execution"],
+              "properties": {
+                "approverRef": { "$ref": "#/$defs/PrincipalRef" },
+                "approvedAt": { "type": "string", "format": "date-time" },
+                "policyVersion": { "$ref": "#/$defs/PolicyVersion" },
+                "payloadDigest": { "$ref": "#/$defs/PayloadDigest" },
+                "execution": { "enum": ["manual", "deferred"] }
+              }
+            }
+          ]
+        },
+        "result": {
+          "anyOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["taskRef", "version"],
+              "properties": {
+                "taskRef": { "$ref": "#/$defs/TaskRef" },
+                "version": { "$ref": "#/$defs/Version" }
+              }
+            }
+          ]
+        },
+        "version": { "$ref": "#/$defs/Version" }
+      }
+    },
+    "ProposalRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": { "data": { "$ref": "#/$defs/Proposal" } }
+    }
+  }
+}

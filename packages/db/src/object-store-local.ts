@@ -39,6 +39,8 @@ export interface LocalObjectStoreOptions {
    * a range, or a streamed slice).
    */
   readonly onRead?: (kind: 'verify' | 'range' | 'stream', bytes: number) => void;
+  /** Test instrumentation: a file handle opened or closed by a ranged or streamed read. */
+  readonly onHandle?: (event: 'open' | 'close') => void;
 }
 
 /** Verifications kept for reuse by ranged reads (the oldest is dropped when full). */
@@ -152,6 +154,22 @@ export function createLocalObjectStore(options: LocalObjectStoreOptions): Object
   const verified = new Map<string, { fingerprint: string; at: number }>();
   const limitRangeReads = semaphore(MAX_CONCURRENT_RANGE_READS);
   const observe = options.onRead ?? (() => undefined);
+  const onHandle = options.onHandle ?? (() => undefined);
+
+  /** Opens a stored file for reading; `closeOnce` closes it exactly once, however often it is called. */
+  async function openRead(abs: string): Promise<{ fh: FileHandle; closeOnce: () => Promise<void> }> {
+    const fh = await open(abs, 'r').catch(fsFailure);
+    onHandle('open');
+    let closing: Promise<void> | null = null;
+    const closeOnce = () => {
+      closing ??= fh.close().then(
+        () => onHandle('close'),
+        () => onHandle('close'),
+      );
+      return closing;
+    };
+    return { fh, closeOnce };
+  }
 
   /** Hashes an open file in bounded slices (never the whole file in memory). */
   async function hashOpen(fh: FileHandle, size: number): Promise<string> {
@@ -284,7 +302,7 @@ export function createLocalObjectStore(options: LocalObjectStoreOptions): Object
       if (expectedDigest !== digest) throw new ObjectStoreError('digest_mismatch');
       const cacheKey = `${tenantId}/${storageKey}`;
       return limitRangeReads(async () => {
-        const fh = await open(pathOf(storageKey), 'r').catch(fsFailure);
+        const { fh, closeOnce } = await openRead(pathOf(storageKey));
         try {
           const { fingerprint, size } = await verifyOpen(fh, cacheKey, expectedDigest);
           const sel = select(size);
@@ -318,7 +336,7 @@ export function createLocalObjectStore(options: LocalObjectStoreOptions): Object
           }
           return { bytes, start: sel?.start ?? 0, totalLength: size };
         } finally {
-          await fh.close().catch(() => undefined);
+          await closeOnce();
         }
       });
     },
@@ -326,15 +344,23 @@ export function createLocalObjectStore(options: LocalObjectStoreOptions): Object
       const digest = checkContent(tenantId, storageKey);
       if (expectedDigest !== digest) throw new ObjectStoreError('digest_mismatch');
       const cacheKey = `${tenantId}/${storageKey}`;
-      const fh = await open(pathOf(storageKey), 'r').catch(fsFailure);
+      const { fh, closeOnce } = await openRead(pathOf(storageKey));
       let checked: { fingerprint: string; size: number };
       try {
         // The verification pass shares the ranged-read bound; the streaming pass holds one slice.
         checked = await limitRangeReads(() => verifyOpen(fh, cacheKey, expectedDigest));
       } catch (err) {
-        await fh.close().catch(() => undefined);
+        await closeOnce();
         throw err;
       }
+      // Closeout E review: the handle is closed by the stream's explicit `close` (a caller that
+      // drops the stream unstarted, or a destroyed response body) or when the stream ends, whichever
+      // comes first; once closed, the stream fails instead of reading a closed descriptor.
+      let closed = false;
+      const close = () => {
+        closed = true;
+        return closeOnce();
+      };
       const { fingerprint, size } = checked;
       /** The streamed bytes hash to the digest and the file did not change meanwhile, or it throws. */
       const finish = async (hash: string, at: number) => {
@@ -349,8 +375,10 @@ export function createLocalObjectStore(options: LocalObjectStoreOptions): Object
         let at = 0;
         try {
           while (at < size) {
+            if (closed) throw new ObjectStoreError('unavailable');
             const buf = Buffer.allocUnsafe(Math.min(HASH_SLICE_BYTES, size - at));
-            const { bytesRead } = await fh.read(buf, 0, buf.byteLength, at);
+            const { bytesRead } = await fh.read(buf, 0, buf.byteLength, at).catch(fsFailure);
+            if (closed) throw new ObjectStoreError('unavailable');
             if (bytesRead === 0) break;
             const part = buf.subarray(0, bytesRead);
             h.update(part);
@@ -361,12 +389,13 @@ export function createLocalObjectStore(options: LocalObjectStoreOptions): Object
             if (at >= size) await finish(h.digest('hex'), at);
             yield new Uint8Array(part.buffer, part.byteOffset, part.byteLength);
           }
+          if (closed) throw new ObjectStoreError('unavailable');
           if (at < size || size === 0) await finish(h.digest('hex'), at);
         } finally {
-          await fh.close().catch(() => undefined);
+          await close();
         }
       }
-      return { totalLength: size, chunks: chunks() };
+      return { totalLength: size, chunks: chunks(), close };
     },
     async head(tenantId, storageKey) {
       checkContent(tenantId, storageKey);

@@ -72,6 +72,20 @@ function* slices(bytes: Buffer): Generator<Buffer> {
     yield bytes.subarray(at, Math.min(at + STREAM_SLICE_BYTES, bytes.byteLength));
 }
 
+/**
+ * Closeout E review: the response body for a whole package. A streamed read holds the store's open
+ * file until it is drained or closed; the stream's `close` runs whenever the body is done, whether it
+ * completed, failed, or was destroyed because the client went away (even before the first chunk was
+ * read, when the store's own stream never started and so never releases the file itself).
+ */
+function packageBody(data: PackageBytes, bytes: Buffer): Readable {
+  if (!data.chunks) return Readable.from(slices(bytes));
+  const body = Readable.from(data.chunks);
+  const close = data.close;
+  if (close) body.once('close', () => void close().catch(() => undefined));
+  return body;
+}
+
 /** The digest an `If-Range` names (our strong ETag form), '' for any other validator. */
 const ifRangeDigestOf = (value: string) => /^"sha256-([0-9a-f]{64})"$/.exec(value.trim())?.[1] ?? '';
 
@@ -107,6 +121,21 @@ export async function sendPackageBytes(
         }
       : { ranged: rangeHeader !== undefined, stream: true },
   );
+  try {
+    return answer(request, reply, data, selected);
+  } catch (err) {
+    // Nothing was sent: release a streamed read before the error is answered.
+    await data.close?.().catch(() => undefined);
+    throw err;
+  }
+}
+
+function answer(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  data: PackageBytes,
+  selected: ByteRange | null,
+): FastifyReply {
   const etag = `"sha256-${data.digestSha256}"`;
   const total = data.byteLength;
   const bytes = Buffer.from(data.bytes.buffer, data.bytes.byteOffset, data.bytes.byteLength);
@@ -125,6 +154,8 @@ export async function sendPackageBytes(
     .header('referrer-policy', 'no-referrer');
   // The domain selected a range only when one applies (a stale If-Range, or none, is the whole).
   const range: ByteRange = (selected as ByteRange | null) ?? { kind: 'none' };
+  // Only the whole package is streamed; any other answer releases a stream it will not send.
+  if (range.kind !== 'none') void data.close?.().catch(() => undefined);
   if (range.kind === 'unsatisfiable') {
     const { body } = mapErrorToRefusal(
       new RefusalError({ code: 'invalid_request', detail: { reason: 'range_not_satisfiable' } }),
@@ -144,9 +175,5 @@ export async function sendPackageBytes(
       .header('content-length', String(range.end - range.start + 1))
       .send(slice(range.start, range.end));
   }
-  return reply
-    .code(200)
-    .type(OCTET)
-    .header('content-length', String(total))
-    .send(Readable.from(data.chunks ?? slices(bytes)));
+  return reply.code(200).type(OCTET).header('content-length', String(total)).send(packageBody(data, bytes));
 }

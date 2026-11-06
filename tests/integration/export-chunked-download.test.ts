@@ -549,7 +549,7 @@ describe.each([practice, automation])('Closeout E4 streamed whole download: $nam
           yield c;
         }
       }
-      return { totalLength: r.totalLength, chunks: metered() };
+      return { totalLength: r.totalLength, chunks: metered(), close: r.close };
     };
     try {
       await work();
@@ -616,4 +616,93 @@ describe.each([practice, automation])('Closeout E4 streamed whole download: $nam
     }
     expect((await fetchBytes(t, body, OCTET)).status).toBe(200);
   });
+});
+
+describe('Closeout E review: a failed audit or commit closes the streamed read it opened', () => {
+  /** Counts streamed reads the store opened and the explicit closes of each. */
+  async function tracked(work: (calls: { opened: number; closed: number }) => Promise<void>) {
+    const store = s.store as ObjectStorePort;
+    const original = store.readStream;
+    const calls = { opened: 0, closed: 0 };
+    store.readStream = async (...a) => {
+      const r = await (original as NonNullable<ObjectStorePort['readStream']>).apply(store, a);
+      calls.opened += 1;
+      let done = false;
+      return {
+        totalLength: r.totalLength,
+        chunks: r.chunks,
+        close: async () => {
+          if (!done) calls.closed += 1;
+          done = true;
+          await r.close();
+        },
+      };
+    };
+    try {
+      await work(calls);
+    } finally {
+      Object.assign(store, { readStream: original });
+    }
+    return calls;
+  }
+
+  /** Makes the audit row for `operation` fail: at insert, or only at commit (deferred). */
+  async function failingAudit(operation: string, at: 'insert' | 'commit', work: () => Promise<void>) {
+    await s.db.admin.query(`CREATE FUNCTION cuspatlas.e_review_fail() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN IF NEW.operation = '${operation}' THEN RAISE EXCEPTION 'simulated audit failure'; END IF;
+      RETURN NEW; END $$`);
+    await s.db.admin.query(
+      at === 'insert'
+        ? 'CREATE TRIGGER e_review_fail BEFORE INSERT ON cuspatlas.sensitive_read_events FOR EACH ROW EXECUTE FUNCTION cuspatlas.e_review_fail()'
+        : `CREATE CONSTRAINT TRIGGER e_review_fail AFTER INSERT ON cuspatlas.sensitive_read_events
+             DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION cuspatlas.e_review_fail()`,
+    );
+    try {
+      await work();
+    } finally {
+      await s.db.admin.query('DROP TRIGGER e_review_fail ON cuspatlas.sensitive_read_events');
+      await s.db.admin.query('DROP FUNCTION cuspatlas.e_review_fail()');
+    }
+  }
+
+  for (const at of ['insert', 'commit'] as const) {
+    it(`practice.export.download: an audit failing at ${at} after the stream opened closes it`, async () => {
+      const ref = await practice.build();
+      const { token } = await practice.grant(ref.exportRef);
+      const calls = await tracked(() =>
+        failingAudit('practice.export.download', at, async () => {
+          const r = await fetchBytes(practice, { exportRef: ref.exportRef, token }, OCTET);
+          expect(r.status).toBeGreaterThanOrEqual(500);
+        }),
+      );
+      expect(calls).toStrictEqual({ opened: 1, closed: 1 });
+      // The package still downloads whole once the audit works again.
+      const ok = await fetchBytes(practice, { exportRef: ref.exportRef, token }, OCTET);
+      expect([ok.status, sha(ok.raw)]).toStrictEqual([200, ref.digest]);
+    }, 120_000);
+  }
+
+  it('exports.download audits before it opens the stream, so a failed audit opens nothing', async () => {
+    const ref = await automation.build();
+    const { token } = await automation.grant(ref.exportRef);
+    const calls = await tracked(() =>
+      failingAudit('exports.download', 'insert', async () => {
+        const r = await fetchBytes(automation, { exportRef: ref.exportRef, token }, OCTET);
+        expect(r.status).toBeGreaterThanOrEqual(500);
+      }),
+    );
+    expect(calls).toStrictEqual({ opened: 0, closed: 0 });
+  }, 120_000);
+
+  it('a whole download that completes is released (its explicit close runs once)', async () => {
+    const ref = await practice.build();
+    const { token } = await practice.grant(ref.exportRef);
+    const calls = await tracked(async (live) => {
+      const r = await fetchBytes(practice, { exportRef: ref.exportRef, token }, OCTET);
+      expect([r.status, sha(r.raw)]).toStrictEqual([200, ref.digest]);
+      // The body's close event follows the last byte asynchronously.
+      await expect.poll(() => live.closed, { timeout: 2000 }).toBe(1);
+    });
+    expect(calls).toStrictEqual({ opened: 1, closed: 1 });
+  }, 120_000);
 });

@@ -188,3 +188,103 @@ describe('Closeout E4: local object store streamed whole reads', () => {
     }
   });
 });
+
+describe('Closeout E review: a streamed read never leaks its file handle', () => {
+  function storeWithHandles() {
+    const handles = { open: 0, opened: 0 };
+    const store = createLocalObjectStore({
+      root,
+      env: 'synthetic-test',
+      onHandle: (event) => {
+        if (event === 'open') {
+          handles.open += 1;
+          handles.opened += 1;
+        } else handles.open -= 1;
+      },
+    });
+    return { store, handles };
+  }
+  const streamOf = async (
+    store: ReturnType<typeof createLocalObjectStore>,
+    o: { storageKey: string; digest: string },
+  ) => {
+    const r = await store.readStream?.(TENANT, o.storageKey, o.digest);
+    if (!r) throw new Error('readStream missing');
+    return r;
+  };
+
+  it('normal completion closes the handle', async () => {
+    const { store, handles } = storeWithHandles();
+    const o = await stored(store, 200 * 1024);
+    const r = await streamOf(store, o);
+    expect(handles).toStrictEqual({ open: 1, opened: 1 });
+    expect((await drain(r.chunks)).bytes.equals(o.bytes)).toBe(true);
+    expect(handles).toStrictEqual({ open: 0, opened: 1 });
+    // The explicit close after completion is a no-op.
+    await r.close();
+    expect(handles.open).toBe(0);
+  });
+
+  it('a stream that is never started is closed by its explicit, idempotent close', async () => {
+    const { store, handles } = storeWithHandles();
+    const o = await stored(store, 100 * 1024);
+    const r = await streamOf(store, o);
+    expect(handles.open).toBe(1);
+    await Promise.all([r.close(), r.close()]);
+    await r.close();
+    expect(handles).toStrictEqual({ open: 0, opened: 1 });
+    // Iterating a closed stream fails instead of reading a closed descriptor or hanging.
+    await expect(drain(r.chunks)).rejects.toThrow();
+    expect(handles.open).toBe(0);
+  });
+
+  it('an early break and a close while streaming both close the handle once', async () => {
+    const { store, handles } = storeWithHandles();
+    const o = await stored(store, 300 * 1024);
+    const r = await streamOf(store, o);
+    for await (const _c of r.chunks) break;
+    expect(handles.open).toBe(0);
+    const again = await streamOf(store, o);
+    const it = again.chunks[Symbol.asyncIterator]();
+    await it.next();
+    await again.close();
+    await expect(it.next()).rejects.toThrow();
+    expect(handles).toStrictEqual({ open: 0, opened: 2 });
+  });
+
+  it('a mid-stream integrity error closes the handle', async () => {
+    const { store, handles } = storeWithHandles();
+    const size = 512 * 1024;
+    const o = await stored(store, size);
+    const r = await streamOf(store, o);
+    const original = readFileSync(o.path);
+    const altered = Buffer.from(original);
+    altered[size - 10] = (altered[size - 10] ?? 0) ^ 0x01;
+    writeFileSync(o.path, altered);
+    try {
+      await expect(drain(r.chunks)).rejects.toMatchObject({ code: 'digest_mismatch' });
+    } finally {
+      writeFileSync(o.path, original);
+    }
+    expect(handles.open).toBe(0);
+    await r.close();
+    expect(handles).toStrictEqual({ open: 0, opened: 1 });
+  });
+
+  it('a refused (tampered) file closes the handle before answering', async () => {
+    const { store, handles } = storeWithHandles();
+    const o = await stored(store, 64 * 1024 + 7);
+    const original = readFileSync(o.path);
+    const altered = Buffer.from(original);
+    altered[3] = (altered[3] ?? 0) ^ 0x01;
+    writeFileSync(o.path, altered);
+    try {
+      await expect(store.readStream?.(TENANT, o.storageKey, o.digest)).rejects.toMatchObject({
+        code: 'digest_mismatch',
+      });
+    } finally {
+      writeFileSync(o.path, original);
+    }
+    expect(handles).toStrictEqual({ open: 0, opened: 1 });
+  });
+});

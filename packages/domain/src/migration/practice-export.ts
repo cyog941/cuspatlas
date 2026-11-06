@@ -72,6 +72,18 @@ export interface PackageBytes {
    * before its last slice if the stored bytes change while it is read.
    */
   readonly chunks?: AsyncIterable<Uint8Array>;
+  /**
+   * Closeout E review: set with `chunks`. Releases the store's open resource; idempotent, and safe
+   * while or after the stream runs. A holder that drops `chunks` without draining it (a failed audit
+   * or commit, an aborted response) must call it.
+   */
+  readonly close?: () => Promise<void>;
+}
+
+/** Closeout E review: releases a delivery's open stream, if it holds one (never throws). */
+export async function releasePackageBytes(out: unknown): Promise<void> {
+  const close = (out as { close?: unknown } | null)?.close;
+  if (typeof close === 'function') await (close as () => Promise<void>).call(out).catch(() => undefined);
 }
 /** A selection of `[start, end)` within the package of `totalLength` bytes, or null for none. */
 export type PackageRangeSelect = (
@@ -130,7 +142,13 @@ export async function readVerifiedPackageBytes(
   if (!range && request.stream === true && store.readStream) {
     try {
       const r = await store.readStream(tenantId, storageKey, digest);
-      return { bytes: new Uint8Array(0), digestSha256: digest, byteLength: r.totalLength, chunks: r.chunks };
+      return {
+        bytes: new Uint8Array(0),
+        digestSha256: digest,
+        byteLength: r.totalLength,
+        chunks: r.chunks,
+        close: r.close,
+      };
     } catch (err) {
       if (isObjectStoreError(err) && (err.code === 'digest_mismatch' || err.code === 'missing'))
         throw conflict('package_integrity_failed');
@@ -409,23 +427,33 @@ export function createPracticeExportOperations(base: MigrationBase) {
         token,
       );
       if (!parsed) throw notFound();
-      return deps.withTenantTransaction(ctx, async (tx) => {
-        const live = await tx.query(
-          `SELECT 1 FROM cuspatlas.practice_export_grants WHERE id = $1 AND export_id = $2
-             AND principal_id = cuspatlas.current_actor_id() AND expires_at > now()`,
-          [parsed.grantRef, exportRef],
-        );
-        if (live.rows.length === 0) throw notFound();
-        const row = await loadExport(tx, exportRef);
-        const out = await read(row);
-        await recordSensitiveRead(tx, {
-          operation: op,
-          resourceType: 'practiceExport',
-          resourceRefs: [row.id],
-          queryFields: ranged ? ['range'] : [],
+      // Closeout E review: the bytes are read (and verified, so integrity refuses before any byte)
+      // inside the audited transaction. A streamed read holds an open file until it is drained or
+      // closed, so a failed audit or commit closes it before the error propagates.
+      let opened: T | undefined;
+      try {
+        return await deps.withTenantTransaction(ctx, async (tx) => {
+          const live = await tx.query(
+            `SELECT 1 FROM cuspatlas.practice_export_grants WHERE id = $1 AND export_id = $2
+               AND principal_id = cuspatlas.current_actor_id() AND expires_at > now()`,
+            [parsed.grantRef, exportRef],
+          );
+          if (live.rows.length === 0) throw notFound();
+          const row = await loadExport(tx, exportRef);
+          const out = await read(row);
+          opened = out;
+          await recordSensitiveRead(tx, {
+            operation: op,
+            resourceType: 'practiceExport',
+            resourceRefs: [row.id],
+            queryFields: ranged ? ['range'] : [],
+          });
+          return { data: out };
         });
-        return { data: out };
-      });
+      } catch (err) {
+        await releasePackageBytes(opened);
+        throw err;
+      }
     });
   };
 

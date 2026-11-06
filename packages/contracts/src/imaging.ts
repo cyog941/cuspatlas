@@ -152,12 +152,17 @@ export interface ObjectStorePort {
    * `readRange` may. The streamed bytes are hashed again as they are read; when they do not match, or
    * the object changed meanwhile, the stream fails before its last slice, so it never completes as a
    * valid body. Optional: a store without it is read whole.
+   *
+   * Closeout E review: the answer holds an open resource until `chunks` ends (completes, fails, or is
+   * returned early) or `close` is called. A caller that may drop the stream unstarted (a failed
+   * audit or commit, an aborted response) calls `close`; it is idempotent and safe while or after
+   * the stream runs, and a stream iterated after `close` fails rather than completing.
    */
   readStream?(
     tenantId: string,
     storageKey: string,
     expectedDigest: string,
-  ): Promise<{ totalLength: number; chunks: AsyncIterable<Uint8Array> }>;
+  ): Promise<{ totalLength: number; chunks: AsyncIterable<Uint8Array>; close(): Promise<void> }>;
   /** Byte length of stored bytes, or null when absent. */
   head(tenantId: string, storageKey: string): Promise<{ byteLength: number } | null>;
   /** Writes content-addressed bytes produced by the server itself (derived images). */

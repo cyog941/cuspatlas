@@ -1,8 +1,9 @@
 import { existsSync, utimesSync } from 'node:fs';
 import { join } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 import { composeWorker } from '@cuspatlas/worker';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { T_ALPHA, USER_A1 } from './support/fixtures';
+import { T_ALPHA, T_BETA, USER_A1 } from './support/fixtures';
 import { type ImagingStack, pngBytes, startImagingStack } from './support/imaging-fixtures';
 
 /**
@@ -57,11 +58,7 @@ beforeAll(async () => {
   );
   await s.db.admin.query(
     'INSERT INTO cuspatlas.memberships (tenant_id, principal_id, scopes) SELECT t, $1, $2 FROM unnest($3::uuid[]) t',
-    [
-      W,
-      ['admin.configure', 'outbox.deliver', 'communications.deliver'],
-      [T_ALPHA, '10000000-0000-4000-8000-00000000000b'],
-    ],
+    [W, ['admin.configure', 'outbox.deliver', 'communications.deliver'], [T_ALPHA, T_BETA]],
   );
 });
 afterAll(async () => {
@@ -98,5 +95,62 @@ describe('Closeout E1: the scheduled dry run reports open removal intents', () =
     expect(states.rows.map((x) => x.state)).toStrictEqual(['intended', 'intended']);
     expect(existsSync(blobPath(T_ALPHA, older))).toBe(true);
     expect(existsSync(blobPath(T_ALPHA, newer))).toBe(true);
+  });
+});
+
+describe('Closeout E2: one scheduled report per tenant per interval', () => {
+  it('two workers that become due at the same moment record exactly one report', async () => {
+    await orphan(T_BETA);
+    const a = await composeWorker(env(T_BETA), { pools: pools() });
+    const b = await composeWorker(env(T_BETA), { pools: pools() });
+    // Hold every sweep record insert so both workers pass their due check before either commits.
+    const gate = await s.db.admin.connect();
+    let released = false;
+    const release = async () => {
+      if (released) return;
+      released = true;
+      await gate.query('COMMIT');
+      gate.release();
+    };
+    try {
+      await gate.query('BEGIN');
+      await gate.query('LOCK TABLE cuspatlas.imaging_orphan_sweeps IN EXCLUSIVE MODE');
+      let settled = 0;
+      const ticks = [a.tick(), b.tick()].map((p) =>
+        p.finally(() => {
+          settled += 1;
+        }),
+      );
+      const waiting = async () =>
+        (
+          await s.db.admin.query<{ n: number }>(
+            `SELECT count(*)::int AS n FROM pg_locks l JOIN pg_class c ON c.oid = l.relation
+             WHERE c.relname = 'imaging_orphan_sweeps' AND NOT l.granted`,
+          )
+        ).rows[0]?.n ?? 0;
+      // Release once both are blocked on the insert, or one is blocked and the other finished without it.
+      for (let i = 0; i < 1200; i += 1) {
+        const n = await waiting();
+        if (n >= 2 || (n >= 1 && settled >= 1)) break;
+        await delay(50);
+      }
+      await release();
+      const reports = await Promise.all(ticks);
+      for (const r of reports) expect(r.errors.filter((e) => e.stage === 'orphan_sweep')).toStrictEqual([]);
+      expect(reports.flatMap((r) => r.orphanSweeps ?? [])).toHaveLength(1);
+    } finally {
+      await release();
+    }
+    const recs = await s.db.admin.query(
+      'SELECT 1 FROM cuspatlas.imaging_orphan_sweeps WHERE tenant_id = $1 AND actor_id = $2',
+      [T_BETA, W],
+    );
+    expect(recs.rows).toHaveLength(1);
+    const audit = await s.db.admin.query(
+      `SELECT 1 FROM cuspatlas.audit_events WHERE operation = 'imaging.storage.scheduledOrphanSweep'
+       AND tenant_id = $1`,
+      [T_BETA],
+    );
+    expect(audit.rows).toHaveLength(1);
   });
 });

@@ -221,7 +221,10 @@ export function createOrphanBytesOperations(base: ImagingBase) {
     return maintenance;
   };
 
-  /** One sweep run (already authorized): the record, the intents, then their completion. */
+  /**
+   * One sweep run (already authorized): the record, the intents, then their completion. `gate` runs
+   * first in the record's transaction; when it answers false nothing is recorded and the run is null.
+   */
   const run = async (
     ctx: ActorContext,
     envelope: CommandEnvelope<unknown>,
@@ -229,10 +232,13 @@ export function createOrphanBytesOperations(base: ImagingBase) {
     dryRun: boolean,
     graceHours: number,
     maintenance: StagingMaintenance,
+    gate?: (tx: TenantTransaction) => Promise<boolean>,
   ) => {
     const graceMs = graceHours * 3600 * 1000;
-    const result = await deps.withTenantTransaction(ctx, async (tx) =>
-      execute(ctx, envelope, tx, async () => {
+    const scheduled = op === SCHEDULED_OP;
+    const gated = await deps.withTenantTransaction(ctx, async (tx) => {
+      if (gate && !(await gate(tx))) return null;
+      return execute(ctx, envelope, tx, async () => {
         const listed = await maintenance.listContent(ctx.tenantId, MAX_LISTED + 1);
         let more = listed.length > MAX_LISTED;
         const files = listed.slice(0, MAX_LISTED);
@@ -323,9 +329,9 @@ export function createOrphanBytesOperations(base: ImagingBase) {
           `INSERT INTO cuspatlas.imaging_orphan_sweeps (tenant_id, actor_id, dry_run, grace_hours, scanned_count,
                  orphan_count, kept_within_grace, kept_live_object, kept_tombstone_retained, kept_legal_hold,
                  kept_export_package, kept_content_locked, orphan_digests, removed_digests, kept_already_intended,
-                 open_intent_count, oldest_open_intent_age_seconds)
+                 open_intent_count, oldest_open_intent_age_seconds, scheduled)
                VALUES (cuspatlas.current_tenant_id(), cuspatlas.current_actor_id(), $1, $2, $3, $4, $5, $6, $7, $8,
-                 $9, $10, $11, '{}', $12, $13, $14) RETURNING id`,
+                 $9, $10, $11, '{}', $12, $13, $14, $15) RETURNING id`,
           [
             dryRun,
             graceHours,
@@ -341,6 +347,7 @@ export function createOrphanBytesOperations(base: ImagingBase) {
             kept.alreadyIntended,
             openIntents.count,
             openIntents.oldestAgeSeconds,
+            scheduled,
           ],
         );
         const sweepRef = rows[0]?.id as string;
@@ -385,8 +392,10 @@ export function createOrphanBytesOperations(base: ImagingBase) {
           },
           version: 1,
         };
-      }),
-    );
+      });
+    });
+    if (gated === null) return null;
+    const result = gated;
     const data = result.data as { sweepRef: string; dryRun: boolean; graceHours: number };
     // A real run (or its retry) finishes the committed intents after the sweep record committed.
     if (!data.dryRun) await finishIntents(ctx, maintenance, data.sweepRef, data.graceHours * 3600 * 1000);
@@ -412,9 +421,13 @@ export function createOrphanBytesOperations(base: ImagingBase) {
     /**
      * Closeout D4: the scheduled orphan-bytes report (worker only, service principal, admin.configure).
      * Always a dry run with the default grace period: it never records a removal intent and never
-     * removes bytes (removal stays a human operation). Due when the caller's last scheduled sweep of the
-     * tenant is older than `intervalSeconds` (read from the append-only sweep records, so a restart does
-     * not run early); returns null when not due.
+     * removes bytes (removal stays a human operation). Due when the tenant's last scheduled sweep is
+     * older than `intervalSeconds` (read from the append-only sweep records, so a restart does not run
+     * early); returns null when not due.
+     *
+     * Closeout E2: single-flight per tenant per interval. The record's transaction first takes the
+     * tenant's scheduled-sweep advisory lock without waiting (another worker running it: null), then
+     * checks due-ness inside the lock, on a statement snapshot taken after any earlier holder committed.
      */
     async scheduledOrphanSweep(
       ctx: ActorContext,
@@ -425,16 +438,21 @@ export function createOrphanBytesOperations(base: ImagingBase) {
         await base.authorize(ctx, SCHEDULED_OP);
         checkEnvelope(envelope, SCHEDULED_OP);
         const maintenance = maintenanceOrUnavailable();
-        const due = await deps.withTenantTransaction(ctx, async (tx) => {
+        const gate = async (tx: TenantTransaction) => {
+          const lock = await tx.query<{ ok: boolean }>(
+            'SELECT cuspatlas.imaging_try_lock_scheduled_sweep() AS ok',
+          );
+          if (lock.rows[0]?.ok !== true) return false;
+          // Unmarked dry runs of the caller are scheduled reports recorded before the marker existed.
           const { rows } = await tx.query<{ due: boolean }>(
-            `SELECT coalesce(max(created_at) <= now() - make_interval(secs => $1), true) AS due
-             FROM cuspatlas.imaging_orphan_sweeps WHERE actor_id = cuspatlas.current_actor_id() AND dry_run`,
+            `SELECT coalesce(max(created_at) <= clock_timestamp() - make_interval(secs => $1), true) AS due
+             FROM cuspatlas.imaging_orphan_sweeps
+             WHERE scheduled OR (dry_run AND actor_id = cuspatlas.current_actor_id())`,
             [opts.intervalSeconds],
           );
           return rows[0]?.due === true;
-        });
-        if (!due) return null;
-        return run(ctx, envelope, SCHEDULED_OP, true, DEFAULT_GRACE_HOURS, maintenance);
+        };
+        return run(ctx, envelope, SCHEDULED_OP, true, DEFAULT_GRACE_HOURS, maintenance, gate);
       });
     },
   };
